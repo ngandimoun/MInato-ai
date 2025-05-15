@@ -1,0 +1,61 @@
+{
+  "servers": {
+    "MInato-ai Docs": {
+      "type": "sse",
+      "url": "https://gitmcp.io/ngandimoun/MInato-ai"
+    },
+
+    "ai--companion Docs": {
+      "type": "sse",
+      "url": "https://gitmcp.io/ngandimoun/ai--companion"
+    },
+
+    "langgraph Docs": {
+      "type": "sse",
+      "url": "https://langchain-ai.gitmcp.io/langgraph/"
+    },
+
+    "Context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+
+    "neo4j Docs": {
+      "type": "sse",
+      "url": "https://gitmcp.io/neo4j/neo4j"
+    },
+
+    "openai-cookbook Docs": {
+      "type": "sse",
+      "url": "https://gitmcp.io/openai/openai-cookbook"
+    },
+
+    "openai-node Docs": {
+      "type": "sse",
+      "url": "https://gitmcp.io/openai/openai-node"
+    },
+
+    "supabase Docs": {
+      "type": "sse",
+      "url": "https://gitmcp.io/supabase/supabase"
+    },
+
+    "redis-js Docs": {
+      "type": "sse",
+      "url": "https://gitmcp.io/upstash/redis-js"
+    },
+
+    "@21st-dev/magic": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@21st-dev/magic@latest",
+        "API_KEY=\"e9fdc06bd3a0ace954f8e70f8a0510f4abce316eb1c03946ccb44a8cfda58846\""
+      ]
+    }
+
+  }
+}

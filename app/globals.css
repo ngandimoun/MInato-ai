@@ -1,0 +1,372 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
+
+  /* Arctic Dawn palette (cool blues/greys) */
+  .palette-arctic-dawn {
+    --primary: 210 100% 50%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 210 100% 50%;
+  }
+
+  .dark.palette-arctic-dawn {
+    --primary: 210 100% 60%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 210 100% 60%;
+  }
+
+  /* Sakura Blossom palette (soft pinks/whites) */
+  .palette-sakura-blossom {
+    --primary: 350 100% 76%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 350 100% 76%;
+  }
+
+  .dark.palette-sakura-blossom {
+    --primary: 350 100% 76%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 350 100% 76%;
+  }
+
+  /* Emerald Forest palette (deep greens/browns) */
+  .palette-emerald-forest {
+    --primary: 142 76% 36%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 142 76% 36%;
+  }
+
+  .dark.palette-emerald-forest {
+    --primary: 142 76% 46%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 142 76% 46%;
+  }
+
+  /* Cyber Neon palette (vibrant purple/cyan/pink) */
+  .palette-cyber-neon {
+    --primary: 280 100% 60%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 280 100% 60%;
+  }
+
+  .dark.palette-cyber-neon {
+    --primary: 280 100% 70%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 280 100% 70%;
+  }
+
+  /* Monochrome Ink palette (grayscale variants) */
+  .palette-monochrome-ink {
+    --primary: 0 0% 20%;
+    --primary-foreground: 0 0% 98%;
+    --ring: 0 0% 20%;
+  }
+
+  .dark.palette-monochrome-ink {
+    --primary: 0 0% 80%;
+    --primary-foreground: 0 0% 10%;
+    --ring: 0 0% 80%;
+  }
+
+  /* Sunset Gold palette (warm oranges/golds) */
+  .palette-sunset-gold {
+    --primary: 35 100% 50%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 35 100% 50%;
+  }
+
+  .dark.palette-sunset-gold {
+    --primary: 35 100% 60%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 35 100% 60%;
+  }
+
+  /* Lavender Mist palette (soft purples) */
+  .palette-lavender-mist {
+    --primary: 260 70% 65%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 260 70% 65%;
+  }
+
+  .dark.palette-lavender-mist {
+    --primary: 260 70% 75%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 260 70% 75%;
+  }
+
+  /* Ocean Depths palette (deep blues and teals) */
+  .palette-ocean-depths {
+    --primary: 195 100% 35%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 195 100% 35%;
+  }
+
+  .dark.palette-ocean-depths {
+    --primary: 195 100% 45%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 195 100% 45%;
+  }
+
+  /* Desert Sand palette (warm neutrals) */
+  .palette-desert-sand {
+    --primary: 25 60% 55%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 25 60% 55%;
+  }
+
+  .dark.palette-desert-sand {
+    --primary: 25 60% 65%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 25 60% 65%;
+  }
+
+  /* Midnight Galaxy palette (deep purples and blues) */
+  .palette-midnight-galaxy {
+    --primary: 250 100% 40%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 250 100% 40%;
+  }
+
+  .dark.palette-midnight-galaxy {
+    --primary: 250 100% 60%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 250 100% 60%;
+  }
+
+  /* Autumn Harvest palette (rich reds and oranges) */
+  .palette-autumn-harvest {
+    --primary: 15 90% 45%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 15 90% 45%;
+  }
+
+  .dark.palette-autumn-harvest {
+    --primary: 15 90% 55%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 15 90% 55%;
+  }
+
+  /* Spring Meadow palette (fresh greens and yellows) */
+  .palette-spring-meadow {
+    --primary: 85 80% 40%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 85 80% 40%;
+  }
+
+  .dark.palette-spring-meadow {
+    --primary: 85 80% 50%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 85 80% 50%;
+  }
+
+  /* Add the new color palette CSS variables */
+  /* Royal Purple palette */
+  .palette-royal-purple {
+    --primary: 270 70% 40%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 270 70% 40%;
+  }
+
+  .dark.palette-royal-purple {
+    --primary: 270 70% 50%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 270 70% 50%;
+  }
+
+  /* Tropical Paradise palette */
+  .palette-tropical-paradise {
+    --primary: 175 80% 45%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 175 80% 45%;
+  }
+
+  .dark.palette-tropical-paradise {
+    --primary: 175 80% 55%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 175 80% 55%;
+  }
+
+  /* Ruby Red palette */
+  .palette-ruby-red {
+    --primary: 0 75% 40%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 0 75% 40%;
+  }
+
+  .dark.palette-ruby-red {
+    --primary: 0 75% 50%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 0 75% 50%;
+  }
+
+  /* Midnight Blue palette */
+  .palette-midnight-blue {
+    --primary: 220 80% 30%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 220 80% 30%;
+  }
+
+  .dark.palette-midnight-blue {
+    --primary: 220 80% 40%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 220 80% 40%;
+  }
+
+  /* Forest Green palette */
+  .palette-forest-green {
+    --primary: 130 70% 30%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 130 70% 30%;
+  }
+
+  .dark.palette-forest-green {
+    --primary: 130 70% 40%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 130 70% 40%;
+  }
+
+  /* Sunset Orange palette */
+  .palette-sunset-orange {
+    --primary: 25 90% 50%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 25 90% 50%;
+  }
+
+  .dark.palette-sunset-orange {
+    --primary: 25 90% 60%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 25 90% 60%;
+  }
+
+  /* Slate Gray palette */
+  .palette-slate-gray {
+    --primary: 215 25% 40%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 215 25% 40%;
+  }
+
+  .dark.palette-slate-gray {
+    --primary: 215 25% 60%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 215 25% 60%;
+  }
+
+  /* Turquoise Sea palette */
+  .palette-turquoise-sea {
+    --primary: 185 85% 40%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 185 85% 40%;
+  }
+
+  .dark.palette-turquoise-sea {
+    --primary: 185 85% 50%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 185 85% 50%;
+  }
+
+  /* Chocolate Brown palette */
+  .palette-chocolate-brown {
+    --primary: 30 60% 35%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 30 60% 35%;
+  }
+
+  .dark.palette-chocolate-brown {
+    --primary: 30 60% 45%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 30 60% 45%;
+  }
+
+  /* Electric Blue palette */
+  .palette-electric-blue {
+    --primary: 210 100% 55%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 210 100% 55%;
+  }
+
+  .dark.palette-electric-blue {
+    --primary: 210 100% 65%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 210 100% 65%;
+  }
+
+  /* Olive Green palette */
+  .palette-olive-green {
+    --primary: 80 40% 35%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 80 40% 35%;
+  }
+
+  .dark.palette-olive-green {
+    --primary: 80 40% 45%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 80 40% 45%;
+  }
+
+  /* Coral Reef palette */
+  .palette-coral-reef {
+    --primary: 355 70% 60%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 355 70% 60%;
+  }
+
+  .dark.palette-coral-reef {
+    --primary: 355 70% 70%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 355 70% 70%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

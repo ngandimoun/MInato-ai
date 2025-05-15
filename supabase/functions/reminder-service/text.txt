@@ -1,0 +1,55 @@
+Schedule the Edge Function with pg_cron
+You need to run this SQL in your Supabase SQL Editor ONCE.
+FILE: 
+-- supabase/migrations/<timestamp>_schedule_reminder_function.sql
+-- Make sure pg_cron is enabled in your Supabase project (Database -> Extensions)
+
+-- Get the Edge Function URL (replace with your actual function URL or use project ref)
+-- Option 1: Use project ref dynamically (safer if URL changes)
+-- SELECT net.http_post(
+--     url:='https://<YOUR_PROJECT_REF>.supabase.co/functions/v1/reminder-service',
+--     headers:='{"Content-Type": "application/json", "Authorization": "Bearer <YOUR_EDGE_FUNCTION_SECRET>"}'::jsonb,
+--     body:='{}'::jsonb
+-- ) AS status;
+
+-- Option 2: Hardcode URL (easier for cron, but needs update if URL changes)
+-- Ensure the YOUR_EDGE_FUNCTION_SECRET matches the one set in the function's env vars
+SELECT cron.schedule(
+    'invoke-reminder-service', -- A unique name for the cron job
+    '* * * * *', -- Cron schedule: Run every minute
+    $$
+    SELECT net.http_post(
+        url:='https://<YOUR_PROJECT_REF>.supabase.co/functions/v1/reminder-service', -- ** REPLACE <YOUR_PROJECT_REF> **
+        headers:='{"Content-Type": "application/json", "Authorization": "Bearer <YOUR_EDGE_FUNCTION_SECRET>"}'::jsonb, -- ** REPLACE <YOUR_EDGE_FUNCTION_SECRET> **
+        body:='{}'::jsonb,
+        timeout_milliseconds:=55000 -- Timeout slightly less than 1 minute
+    ) AS status;
+    $$
+);
+
+-- To unschedule later if needed:
+-- SELECT cron.unschedule('invoke-reminder-service');
+
+-- To view scheduled jobs:
+-- SELECT * FROM cron.job;
+
+-- To view job run details (logs):
+-- SELECT * FROM cron.job_run_details ORDER BY start_time DESC LIMIT 100;
+content_copy
+download
+Use code with caution.SQL
+Instructions:
+Deploy the Edge Function: Place the supabase/functions/reminder-service/index.ts file in your Supabase project and deploy it using the Supabase CLI: supabase functions deploy reminder-service --no-verify-jwt (or set JWT verification if needed, but the secret provides auth here).
+Set Environment Variables: In your Supabase Project Dashboard (Settings -> Functions -> reminder-service -> Environment Variables), set:
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+RESEND_API_KEY
+EMAIL_FROM_ADDRESS (optional, defaults in code)
+EDGE_FUNCTION_SECRET (generate a strong random string/secret)
+
+
+Enable pg_cron: Go to Database -> Extensions in your Supabase dashboard and enable pg_cron.
+Schedule the Function: Run the SQL commands from supabase/migrations/<timestamp>_schedule_reminder_function.sql in the Supabase SQL Editor. Replace  with your actual Supabase project reference ID and the secret you set in the function's environment variables.
+Now, the pg_cron extension will trigger your reminder-service Edge Function every minute, which will then query for due reminders and send emails via Resend.
+
+
