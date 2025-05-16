@@ -13,6 +13,7 @@ import { useAuth } from "@/context/auth-provider"; // Import useAuth
 import { logger } from "@/memory-framework/config";
 import { Loader2 } from "lucide-react"; // For loading state
 import { toast } from "@/components/ui/use-toast"; // For notifications
+import { SplashCursor } from "@/components/magicui/splash-cursor";
 
 type View = "chat" | "call" | "settings" | "memory";
 
@@ -73,6 +74,7 @@ export default function ChatPage() { // Renamed component for clarity
     <main className="flex min-h-screen flex-col bg-background">
       {/* Optional Background Gradient/Texture */}
       <div className="fixed inset-0 bg-gradient-to-br from-background via-muted/10 to-background z-[-1]" />
+      <SplashCursor />
 
       <Header currentView={currentView} onViewChange={setCurrentView} />
 
