@@ -10,6 +10,7 @@ import { Chrome, Loader2 } from 'lucide-react'; // Added Loader2
 import { ModeToggle } from '@/components/mode-toggle';
 import { motion } from 'framer-motion';
 import { logger } from '@/memory-framework/config';
+import { SplashCursor } from '@/components/magicui/splash-cursor';
 
 export default function LandingPage() {
   const { session, isLoading, signInWithGoogle } = useAuth();
@@ -44,6 +45,7 @@ export default function LandingPage() {
   if (!session) {
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-background to-muted/30 text-foreground p-4 overflow-hidden">
+          <SplashCursor />
           <div className="absolute top-4 right-4 z-10"> <ModeToggle /> </div>
           <motion.div
             initial={{ opacity: 0, y: -30 }}
