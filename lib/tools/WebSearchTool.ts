@@ -1,8 +1,9 @@
 // FILE: lib/tools/WebSearchTool.ts
+//USING Serper.dev
 import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
-import fetch from "node-fetch";
+import fetch from "node-fetch"; // Make sure node-fetch is v2 for CommonJS or properly configured for ES modules
 import { appConfig } from "../config";
-import { logger } from "../../memory-framework/config";
+import { logger } from "../../memory-framework/config"; // Adjust path if necessary
 import {
   CachedAnswerBox,
   CachedKnowledgeGraph,
@@ -15,7 +16,6 @@ import {
   CachedVideoList,
   CachedWebSnippet,
   AnyToolStructuredData,
-  // Assurez-vous que ces types sont correctement définis dans @/lib/types/index
 } from "@/lib/types/index";
 
 interface WebSearchInput extends ToolInput {
@@ -25,8 +25,8 @@ interface WebSearchInput extends ToolInput {
   maxPrice?: number;
   color?: string;
   brand?: string;
-  location?: string;
-  language?: string;
+  location?: string | null; // Allow null for optional
+  language?: string | null; // Allow null for optional
 }
 
 interface SerperOrganicResult {
@@ -122,49 +122,64 @@ export class WebSearchTool extends BaseTool {
   name = "WebSearchTool";
   description =
     "Performs web searches using Serper API. Operates in three modes: 'product_search' for finding specific products online, 'tiktok_search' for finding TikTok videos, and 'fallback_search' for general information, current events, or when specialized tools fail.";
+
+  // Args schema for OpenAI function calling
   argsSchema = {
     type: "object" as const,
     properties: {
       query: {
-        type: "string",
-        description: "The keywords, question, or product name to search for.",
+        type: "string" as const,
+        description: "The keywords, question, or product name to search for. This is always required.",
       },
       mode: {
-        type: "string",
+        type: "string" as const,
         enum: ["product_search", "tiktok_search", "fallback_search"],
         description:
-          "The type of search: 'product_search', 'tiktok_search', or 'fallback_search'.",
+          "The type of search: 'product_search' for products, 'tiktok_search' for TikTok videos, or 'fallback_search' for general web info. This is always required.",
       },
       location: {
-        type: "string",
+        type: ["string", "null"] as const, // Explicitly allow null for optional parameters
         description:
-          "Optional: Two-letter country code (e.g., 'us', 'gb', 'fr') for localization.",
+          "Optional: Two-letter country code (e.g., 'us', 'gb', 'fr') for search localization. Pass null if not applicable or for a global search.",
       },
       language: {
-        type: "string",
+        type: ["string", "null"] as const, // Explicitly allow null
         description:
-          "Optional: Two-letter language code (e.g., 'en', 'es', 'fr').",
+          "Optional: Two-letter language code (e.g., 'en', 'es', 'fr') for search results. Pass null if not applicable or to use the default.",
       },
       minPrice: {
-        type: "number",
-        description: "Optional: Minimum price filter (product search).",
+        type: ["number", "null"] as const, // Explicitly allow null
+        description: "Optional: Minimum price filter for 'product_search' mode. Pass null if not applicable.",
       },
       maxPrice: {
-        type: "number",
-        description: "Optional: Maximum price filter (product search).",
+        type: ["number", "null"] as const, // Explicitly allow null
+        description: "Optional: Maximum price filter for 'product_search' mode. Pass null if not applicable.",
       },
       color: {
-        type: "string",
-        description: "Optional: Color filter (product search).",
+        type: ["string", "null"] as const, // Explicitly allow null
+        description: "Optional: Color filter for 'product_search' mode (e.g., 'red', 'blue'). Pass null if not applicable.",
       },
       brand: {
-        type: "string",
-        description: "Optional: Brand filter (product search).",
+        type: ["string", "null"] as const, // Explicitly allow null
+        description: "Optional: Brand filter for 'product_search' mode (e.g., 'Apple', 'Sony'). Pass null if not applicable.",
       },
     },
-    required: ["query", "mode"],
+    // **** CORRECTED 'required' ARRAY ****
+    // All properties defined in 'properties' must be listed here for strict mode.
+    // The LLM should provide 'null' for optional fields it doesn't have a value for.
+    required: [
+        "query",
+        "mode",
+        "location",
+        "language",
+        "minPrice",
+        "maxPrice",
+        "color",
+        "brand"
+    ],
+    additionalProperties: false as const,
   };
-  cacheTTLSeconds = 60 * 15;
+  cacheTTLSeconds = 60 * 15; // 15 minutes
 
   private readonly API_KEY: string;
   private readonly SERPER_API_URL = "https://google.serper.dev/search";
@@ -172,14 +187,19 @@ export class WebSearchTool extends BaseTool {
 
   constructor() {
     super();
-    this.API_KEY = appConfig.toolApiKeys.serper || "";
+    this.API_KEY = appConfig.toolApiKeys?.serper || ""; // Safely access nested property
     if (!this.API_KEY) {
-      this.log(
-        "error",
-        "Serper API Key (SERPER_API_KEY) is missing. WebSearchTool will not function."
+      logger.error( // Using logger consistently
+        "[WebSearchTool] Serper API Key (SERPER_API_KEY from appConfig.toolApiKeys.serper) is missing. WebSearchTool will not function."
       );
     }
   }
+
+  private log(level: "info" | "warn" | "error" | "debug", message: string, context?: any) {
+    const logContext = context ? { tool: this.name, ...context } : { tool: this.name };
+    logger[level](`[${this.name}] ${message}`, logContext);
+  }
+
 
   private parsePrice(priceString?: string | number | null): {
     price: number | null;
@@ -192,12 +212,11 @@ export class WebSearchTool extends BaseTool {
       return { price: null, currency: null };
     }
     const cleaned = priceString.replace(/,/g, "");
-    // Correction de la regex pour la concaténation
     const priceRegex = new RegExp(
-      `(?:([$€£¥])\\s?(\\d+(?:\\.\\d{1,2})?))` + // Symbole avant valeur
-        `|(?:(\\d+(?:\\.\\d{1,2})?)\\s?([$€£¥]))` + // Valeur avant symbole
-        `|(?:(USD|EUR|GBP|JPY|CAD|AUD)\\s?(\\d+(?:\\.\\d{1,2})?))` + // Code devise avant valeur
-        `|(?:(\\d+(?:\\.\\d{1,2})?)\\s?(USD|EUR|GBP|JPY|CAD|AUD))`, // Valeur avant code devise
+      `(?:([$€£¥])\\s?(\\d+(?:\\.\\d{1,2})?))` +
+        `|(?:(\\d+(?:\\.\\d{1,2})?)\\s?([$€£¥]))` +
+        `|(?:(USD|EUR|GBP|JPY|CAD|AUD)\\s?(\\d+(?:\\.\\d{1,2})?))` +
+        `|(?:(\\d+(?:\\.\\d{1,2})?)\\s?(USD|EUR|GBP|JPY|CAD|AUD))`,
       "i"
     );
     const match = cleaned.match(priceRegex);
@@ -243,7 +262,7 @@ export class WebSearchTool extends BaseTool {
       : { price: null, currency: null };
   }
 
-  private extractProductData(item: SerperShoppingResult): CachedProduct {
+  private extractProductData(item: SerperShoppingResult, queryText: string): CachedProduct {
     const { price, currency } = this.parsePrice(item.priceString || item.price);
     const ratingSource =
       item.rating ?? item.attributes?.rating ?? item.attributes?.Rating ?? null;
@@ -257,7 +276,7 @@ export class WebSearchTool extends BaseTool {
       typeof ratingSource === "number"
         ? ratingSource
         : typeof ratingSource === "string"
-        ? parseFloat(ratingSource)
+        ? parseFloat(ratingSource.replace(/[^\d.-]/g, '')) // Clean string before parsing
         : null;
     const ratingCount =
       typeof reviewsSource === "number"
@@ -267,24 +286,24 @@ export class WebSearchTool extends BaseTool {
         : null;
 
     return {
-      result_type: "product", // Ajout du result_type
-      source_api: "serper_shopping", // Ajout source_api
+      result_type: "product",
+      source_api: "serper_shopping",
       title: item.title || "Unknown Product",
       price: price,
       currency: item.currency || currency || null,
       source: item.source || "Unknown Retailer",
       link: item.link || "#",
       imageUrl: item.imageUrl || null,
-      rating: isNaN(Number(rating)) ? null : Number(rating),
-      ratingCount: isNaN(Number(ratingCount)) ? null : Number(ratingCount),
+      rating: (rating !== null && !isNaN(rating)) ? rating : null,
+      ratingCount: (ratingCount !== null && !isNaN(ratingCount)) ? ratingCount : null,
       delivery: item.delivery || item.attributes?.delivery || null,
       offers: item.offers || item.attributes?.offers || null,
       productId: item.productId || item.attributes?.product_id || null,
-      // query: item.query // 'query' n'est pas sur SerperShoppingResult, il sera sur le parent CachedProductList
+      queryContext: queryText, // Added context
     };
   }
 
-  private extractTikTokVideoData(item: SerperVideoResult): CachedTikTokVideo {
+  private extractTikTokVideoData(item: SerperVideoResult, queryText: string): CachedTikTokVideo {
     let tiktokId: string | undefined;
     if (item.link?.includes("tiktok.com") && item.link.includes("/video/")) {
       try {
@@ -295,13 +314,12 @@ export class WebSearchTool extends BaseTool {
           tiktokId = pathParts[videoIdIndex + 1];
         }
       } catch (e: any) {
-        // Type 'any' pour l'erreur
-        this.log("warn", `Could not parse TikTok URL: ${item.link}`, e.message);
+        this.log("warn", `Could not parse TikTok URL: ${item.link}`, { error: e.message });
       }
     }
     return {
-      result_type: "tiktok_video", // Ajout du result_type
-      source_api: "serper_tiktok", // Ajout source_api
+      result_type: "tiktok_video",
+      source_api: "serper_tiktok",
       videoId: tiktokId,
       title: item.title || null,
       description: item.snippet || null,
@@ -309,20 +327,20 @@ export class WebSearchTool extends BaseTool {
       date: item.date || null,
       thumbnailUrl: item.imageUrl || null,
       videoUrl: item.link || "#",
-      source: "TikTok", // Spécifique à TikTok
+      source: "TikTok",
       duration: item.duration || null,
-      // query: item.query // 'query' n'est pas sur SerperVideoResult, il sera sur le parent CachedVideoList
+      queryContext: queryText, // Added context
     };
   }
 
-  private extractFallbackAnswer(data: SerperResponse | null): {
+  private extractFallbackAnswer(data: SerperResponse | null, queryText: string): {
     resultText?: string | null;
     extractedData?:
       | CachedWebSnippet
       | CachedAnswerBox
       | CachedKnowledgeGraph
-      | CachedSingleRecipe["recipe"]
-      | null; // Ajuster pour CachedRecipe
+      | CachedRecipe // Changed from CachedSingleRecipe["recipe"]
+      | null;
     resultType?:
       | "web_snippet"
       | "answerBox"
@@ -338,7 +356,7 @@ export class WebSearchTool extends BaseTool {
         resultType: null,
         sourceApi: null,
       };
-    const query = data.searchParameters?.q || "your query";
+    const query = data.searchParameters?.q || queryText; // Use original query if available
 
     if (data.answerBox && (data.answerBox.answer || data.answerBox.snippet)) {
       const text =
@@ -356,7 +374,8 @@ export class WebSearchTool extends BaseTool {
         snippet: data.answerBox.snippet,
         title: data.answerBox.title,
         link: data.answerBox.link,
-        sourcePlatform: "serper_answerbox",
+        sourcePlatform: "serper_answerbox", // Consistent naming
+        queryContext: query,
       };
       return {
         resultText: text,
@@ -381,6 +400,7 @@ export class WebSearchTool extends BaseTool {
         link: data.knowledgeGraph.link,
         source: data.knowledgeGraph.source,
         sourcePlatform: "serper_kg",
+        queryContext: query,
       };
       const resultText = `${data.knowledgeGraph.title || "Information"} from ${
         data.knowledgeGraph.source || "the web"
@@ -402,8 +422,7 @@ export class WebSearchTool extends BaseTool {
         ? parseInt(recipe.totalTime.replace(/\D/g, ""), 10) || null
         : null;
       const recipeData: CachedRecipe = {
-        // Ceci est la structure de CachedRecipe, pas CachedSingleRecipe
-        result_type: "recipe_detail", // Type interne de CachedRecipe
+        result_type: "recipe_detail",
         source_api: "serper_recipes",
         title: recipe.title || "Recipe",
         sourceName: recipe.source || null,
@@ -411,9 +430,8 @@ export class WebSearchTool extends BaseTool {
         imageUrl: recipe.imageUrl || null,
         ingredients: recipe.ingredients,
         readyInMinutes: readyInMinutes,
-        query: query,
+        query: query, // Consistent use of 'query'
         error: undefined,
-        // Ajoutez d'autres champs de CachedRecipe si nécessaire (servings, category, etc.)
       };
       const resultText = `Found a recipe for ${recipe.title || query} from ${
         recipe.source || "a source"
@@ -437,7 +455,8 @@ export class WebSearchTool extends BaseTool {
         title: organic.title || null,
         link: organic.link || null,
         snippet: organic.snippet || "",
-        source: "serper_organic", // La source du snippet est 'serper_organic'
+        source: organic.source || (organic.link ? new URL(organic.link).hostname : "Unknown Source"),
+        queryContext: query,
       };
       const resultText = `According to a web result from ${
         organic.source || "the web"
@@ -461,7 +480,8 @@ export class WebSearchTool extends BaseTool {
         title: news.title || null,
         link: news.link || null,
         snippet: news.snippet || "",
-        source: "serper_news", // La source du snippet est 'serper_news'
+        source: news.source || (news.link ? new URL(news.link).hostname : "Unknown Source"),
+        queryContext: query,
       };
       const resultText = `From a recent news article by ${
         news.source || "a source"
@@ -491,7 +511,8 @@ export class WebSearchTool extends BaseTool {
         link: fallbackOrganic.link || null,
         snippet:
           "No specific summary found, but this result might be relevant.",
-        source: "serper_organic",
+        source: fallbackOrganic.source || (fallbackOrganic.link ? new URL(fallbackOrganic.link).hostname : "Unknown Source"),
+        queryContext: query,
       };
       return {
         resultText: `I found a potentially relevant page titled "${fallbackOrganic.title}". I couldn't extract a direct summary.`,
@@ -512,8 +533,8 @@ export class WebSearchTool extends BaseTool {
     };
   }
 
-  async execute(
-    input: WebSearchInput,
+  async _execute( // Changed to _execute to align with BaseTool pattern
+    toolInput: WebSearchInput, // Changed type to WebSearchInput
     abortSignal?: AbortSignal
   ): Promise<ToolOutput> {
     const {
@@ -525,14 +546,14 @@ export class WebSearchTool extends BaseTool {
       maxPrice,
       color,
       brand,
-    } = input;
+    } = toolInput; // Destructure from toolInput
     const logPrefix = `[WebSearchTool Mode:${mode}] Query:"${query.substring(
       0,
       50
     )}..."`;
 
     if (abortSignal?.aborted) {
-      logger.warn(`${logPrefix} Execution aborted before starting.`);
+      this.log("warn", `${logPrefix} Execution aborted before starting.`);
       return {
         error: "Web Search cancelled.",
         result: "Cancelled.",
@@ -570,11 +591,11 @@ export class WebSearchTool extends BaseTool {
     const requestBody: Record<string, any> = { q: query.trim() };
     const langCode =
       language?.split("-")[0].toLowerCase() ||
-      input.context?.locale?.split("-")[0] ||
+      toolInput.context?.locale?.split("-")[0] || // Use toolInput.context
       "en";
     const countryCode =
       location?.toUpperCase() ||
-      input.context?.countryCode?.toUpperCase() ||
+      toolInput.context?.countryCode?.toUpperCase() || // Use toolInput.context
       "us";
     requestBody.hl = langCode;
     requestBody.gl = countryCode;
@@ -596,7 +617,7 @@ export class WebSearchTool extends BaseTool {
       requestBody.q = refinedQuery.replace(/\s+/g, " ").trim();
       requestBody.tbs = `mr:1,price:1,ppr_min:${minPrice || ""},ppr_max:${
         maxPrice || ""
-      }`;
+      }`; // Ensure minPrice/maxPrice are properly handled if null/undefined
       this.log(
         "info",
         `${logPrefix} Product search refined query: "${requestBody.q.substring(
@@ -607,7 +628,7 @@ export class WebSearchTool extends BaseTool {
     } else if (mode === "tiktok_search") {
       refinedQuery = `${refinedQuery} site:tiktok.com`;
       requestBody.q = refinedQuery.replace(/\s+/g, " ").trim();
-      requestBody.type = "videos"; // Serper specific param for video search
+      requestBody.type = "videos";
       this.log(
         "info",
         `${logPrefix} TikTok search query: "${requestBody.q.substring(
@@ -632,11 +653,11 @@ export class WebSearchTool extends BaseTool {
           "User-Agent": this.USER_AGENT,
         },
         body: JSON.stringify(requestBody),
-        signal: abortSignal ?? AbortSignal.timeout(10000),
+        signal: abortSignal ?? AbortSignal.timeout(appConfig.toolTimeoutMs?.serperSearch || 10000), // Use config for timeout
       });
 
       if (abortSignal?.aborted) {
-        logger.warn(`${logPrefix} Aborted after API call.`);
+        this.log("warn", `${logPrefix} Aborted after API call.`);
         return {
           error: "Web Search cancelled.",
           result: "Cancelled.",
@@ -653,7 +674,7 @@ export class WebSearchTool extends BaseTool {
             errorBody?.message || JSON.stringify(errorBody)
           }`;
         } catch {
-          errorDetail += ` Raw Body: ${errorBodyText.substring(0, 200)}`; // Limiter la taille du raw body
+          errorDetail += ` Raw Body: ${errorBodyText.substring(0, 200)}`;
         }
         this.log("error", `${logPrefix} ${errorDetail}`);
         let userResultMessage = "Sorry, the web search encountered an error.";
@@ -711,7 +732,7 @@ export class WebSearchTool extends BaseTool {
         let outputData: CachedProductList = {
           result_type: "product_list",
           source_api: "serper_shopping",
-          query: input,
+          query: toolInput, // Pass the original input
           products: [],
           error: undefined,
         };
@@ -728,8 +749,8 @@ export class WebSearchTool extends BaseTool {
           `${logPrefix} Found ${allProductResults.length} potential product results.`
         );
         const extractedProducts: CachedProduct[] = allProductResults
-          .map((p) => this.extractProductData(p))
-          .filter((p): p is CachedProduct => !!(p.title && p.link)); // Type guard
+          .map((p) => this.extractProductData(p, query))
+          .filter((p): p is CachedProduct => !!(p.title && p.link));
         if (extractedProducts.length === 0) {
           this.log(
             "warn",
@@ -750,9 +771,9 @@ export class WebSearchTool extends BaseTool {
           v.link?.includes("tiktok.com")
         );
         let outputData: CachedVideoList = {
-          result_type: "tiktok_video",
+          result_type: "tiktok_video_list", // Corrected type for list
           source_api: "serper_tiktok",
-          query: input,
+          query: toolInput,
           videos: [],
           error: undefined,
         };
@@ -768,17 +789,16 @@ export class WebSearchTool extends BaseTool {
           `${logPrefix} Found ${videos.length} potential TikTok videos.`
         );
         const extractedVideos: CachedTikTokVideo[] = videos
-          .map((v) => this.extractTikTokVideoData(v))
-          .filter((v): v is CachedTikTokVideo => !!v.videoId); // Ensure videoId is present
+          .map((v) => this.extractTikTokVideoData(v, query))
+          .filter((v): v is CachedTikTokVideo => !!v.videoId);
 
         const prelimResult = `Okay, I found ${extractedVideos.length} TikTok video(s) related to "${query}".`;
         outputData.videos = extractedVideos;
         outputData.error = undefined;
         return { result: prelimResult, structuredData: outputData };
-      } else {
-        // fallback_search
+      } else { // fallback_search
         const { resultText, extractedData, resultType, sourceApi } =
-          this.extractFallbackAnswer(data);
+          this.extractFallbackAnswer(data, query);
         if (!resultText || !extractedData || !resultType) {
           this.log(
             "info",
@@ -798,10 +818,10 @@ export class WebSearchTool extends BaseTool {
         let finalStructuredOutput: AnyToolStructuredData;
         if (resultType === "recipe" && extractedData) {
           finalStructuredOutput = {
-            result_type: "recipe", // This will be the type for CachedSingleRecipe
+            result_type: "recipe",
             source_api: sourceApi || "serper_recipes",
-            query: input,
-            recipe: extractedData as CachedRecipe, // extractedData is CachedRecipe here
+            query: toolInput,
+            recipe: extractedData as CachedRecipe,
             error: undefined,
           } as CachedSingleRecipe;
         } else if (
@@ -816,7 +836,7 @@ export class WebSearchTool extends BaseTool {
               | "knowledgeGraph"
               | "web_snippet",
             source_api: sourceApi || "serper_general",
-            query: input,
+            query: toolInput,
             data: extractedData as
               | CachedWebSnippet
               | CachedAnswerBox
@@ -824,7 +844,8 @@ export class WebSearchTool extends BaseTool {
             error: undefined,
           } as CachedSingleWebResult;
         } else {
-          logger.warn(
+          this.log(
+            "warn",
             `${logPrefix} Unexpected fallback result type or missing data: ${resultType}`
           );
           return { result: resultText, structuredData: undefined };
@@ -833,55 +854,32 @@ export class WebSearchTool extends BaseTool {
       }
     } catch (error: any) {
       const errorMessage = `Web search failed: ${error.message}`;
-      let responseStructuredData: AnyToolStructuredData;
+      this.log( "error", `${logPrefix} Search failed unexpectedly: ${error.message}`, { error });
 
-      // S'assurer que la structure de l'erreur correspond au type attendu pour chaque mode
-      if (mode === "product_search")
-        responseStructuredData = {
-          result_type: "product_list",
-          source_api: "serper_shopping",
-          query: input,
-          products: [],
-          error: errorMessage,
-        };
-      else if (mode === "tiktok_search")
-        responseStructuredData = {
-          result_type: "tiktok_video",
-          source_api: "serper_tiktok",
-          query: input,
-          videos: [],
-          error: errorMessage,
-        };
-      else
-        responseStructuredData = {
-          result_type: "web_snippet",
-          source_api: "serper_general",
-          query: input,
-          data: null,
-          error: errorMessage,
-        } as CachedSingleWebResult; // Cast explicite
+      let responseStructuredData: AnyToolStructuredData | undefined;
+      const baseErrorData = { query: toolInput, error: errorMessage };
 
-      if (error.name === "AbortError") {
-        this.log("error", `${logPrefix} Request timed out via AbortSignal.`);
-        if (
-          responseStructuredData &&
-          typeof responseStructuredData === "object" &&
-          responseStructuredData !== null
-        ) {
-          // Vérifier si c'est un objet
-          (responseStructuredData as any).error = "Request timed out.";
-        }
+      switch(mode) {
+        case "product_search":
+          responseStructuredData = { result_type: "product_list", source_api: "serper_shopping", products: [], ...baseErrorData };
+          break;
+        case "tiktok_search":
+          responseStructuredData = { result_type: "tiktok_video_list", source_api: "serper_tiktok", videos: [], ...baseErrorData };
+          break;
+        default: // fallback_search
+          responseStructuredData = { result_type: "web_snippet", source_api: "serper_general", data: null, ...baseErrorData } as CachedSingleWebResult;
+      }
+      
+      if (error.name === "AbortError" || error.name === 'TimeoutError' /* node-fetch specific for timeout */) {
+        this.log("warn", `${logPrefix} Request timed out.`);
+        if (responseStructuredData) (responseStructuredData as any).error = "Request timed out.";
         return {
           error: "Web search timed out.",
           result: "Sorry, the web search took too long to respond.",
           structuredData: responseStructuredData,
         };
       }
-      this.log(
-        "error",
-        `${logPrefix} Search failed unexpectedly: ${error.message}`,
-        error
-      );
+      
       return {
         error: errorMessage,
         result:

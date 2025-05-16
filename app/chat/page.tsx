@@ -74,7 +74,7 @@ export default function ChatPage() { // Renamed component for clarity
     <main className="flex min-h-screen flex-col bg-background">
       {/* Optional Background Gradient/Texture */}
       <div className="fixed inset-0 bg-gradient-to-br from-background via-muted/10 to-background z-[-1]" />
-      <SplashCursor />
+      {/* <SplashCursor /> */}
 
       <Header currentView={currentView} onViewChange={setCurrentView} />
 

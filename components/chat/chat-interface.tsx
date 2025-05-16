@@ -26,13 +26,12 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: `minato-initial-${generateId()}`,
-      messageId: `minato-initial-${generateId()}`,
       role: "assistant",
       content: "Hello! I'm Minato, your AI companion. How can I assist you today?",
       timestamp: new Date().toISOString(),
       attachments: [], audioUrl: undefined, structured_data: null, debugInfo: null,
       workflowFeedback: null, intentType: null, ttsInstructions: null,
-      clarificationQuestion: null, error: undefined, experimental_attachments: undefined,
+      clarificationQuestion: null, error: undefined,
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
@@ -53,14 +52,13 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
   ): string => {
     const optimisticId = `user-temp-${generateId()}`;
     const newMessage: Message = {
-      id: optimisticId, messageId: optimisticId, role: "user", content: content,
+      id: optimisticId, role: "user", content: content,
       attachments: (attachmentsFromInputArea || []).map(att => ({
           ...att, storagePath: att.storagePath || null, fileId: att.fileId || null,
       })),
       timestamp: new Date().toISOString(),
       audioUrl: undefined, structured_data: null, debugInfo: null, workflowFeedback: null,
       intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined,
-      experimental_attachments: undefined,
     };
     setMessages((prev) => [...prev, newMessage]);
     return optimisticId;
@@ -98,34 +96,27 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
       const signal = abortControllerRef.current.signal;
       let assistantMessageId = `asst-temp-${generateId()}`;
       let currentAssistantPlaceholder: Message = {
-        id: assistantMessageId, messageId: assistantMessageId, role: "assistant", content: "",
+        id: assistantMessageId, role: "assistant", content: "",
         timestamp: new Date().toISOString(), attachments: [], audioUrl: undefined,
         structured_data: null, debugInfo: null, workflowFeedback: null,
         intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined,
-        experimental_attachments: undefined,
       };
       setMessages((prev) => [...prev, currentAssistantPlaceholder]);
 
       try {
         const historyForApi = messages.filter((m) => m.id !== optimisticId);
         const currentUserMessageForApi: Message = {
-          id: optimisticId, messageId: optimisticId, role: "user", content: currentText,
+          id: optimisticId, role: "user", content: currentText,
           attachments: currentAttachments, timestamp: new Date().toISOString(),
-          experimental_attachments: currentAttachments.length > 0 ? currentAttachments.map(att => ({
-              contentType: att.mimeType, name: att.name,
-              url: att.url || (att.storagePath ? `supabase_storage:${att.storagePath}` : undefined),
-              size: att.size,
-           })) : undefined,
-           audioUrl: undefined, structured_data: null, debugInfo: null, workflowFeedback: null,
-           intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined,
+          audioUrl: undefined, structured_data: null, debugInfo: null, workflowFeedback: null,
+          intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined,
         };
 
         const requestBodyMessages = [...historyForApi.map(m => ({
             id: m.id, role: m.role, content: m.content, name: m.name, tool_calls: m.tool_calls,
-            tool_call_id: m.tool_call_id, messageId: m.messageId, timestamp: m.timestamp,
+            tool_call_id: m.tool_call_id, timestamp: m.timestamp,
             audioUrl: m.audioUrl,
             attachments: m.attachments?.map(a => ({...a, file: undefined})), // Strip File object
-            experimental_attachments: m.experimental_attachments, // Keep as is from history
           })),
           // For currentUserMessageForApi, ensure it also doesn't send raw File objects in `attachments`
           {
@@ -300,21 +291,19 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
       const optimisticId = `user-audio-${generateId()}`;
       const audioUrl = URL.createObjectURL(audioBlob);
       const audioMessage: Message = {
-        id: optimisticId, messageId: optimisticId, role: "user", content: "[Audio Message]",
+        id: optimisticId, role: "user", content: "[Audio Message]",
         audioUrl: audioUrl, timestamp: new Date().toISOString(),
         attachments: [], structured_data: null, debugInfo: null, workflowFeedback: null,
         intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined,
-        experimental_attachments: undefined,
       };
       setMessages(prev => [...prev, audioMessage]);
 
       let assistantMessageId = `asst-temp-${generateId()}`;
       let currentAssistantPlaceholder: Message = {
-        id: assistantMessageId, messageId: assistantMessageId, role: "assistant", content: "",
+        id: assistantMessageId, role: "assistant", content: "",
         timestamp: new Date().toISOString(), attachments: [], audioUrl: undefined,
         structured_data: null, debugInfo: null, workflowFeedback: null,
         intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined,
-        experimental_attachments: undefined,
       };
       setMessages(prev => [...prev, currentAssistantPlaceholder]);
       abortControllerRef.current = new AbortController();
@@ -337,18 +326,17 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
             return { // Ensure all fields from Message are handled
               ...msg,
               content: result.response || "[Audio response processed]",
-              audioUrl: result.audioResponseUrl || result.audioUrl || undefined,
-              structured_data: result.structured_data || null,
+              audioUrl: result.audioUrl || undefined,
+              structured_data: result.structuredData || null,
               intentType: result.intentType || null,
               ttsInstructions: result.ttsInstructions || null,
               debugInfo: result.debugInfo || null,
               workflowFeedback: result.workflowFeedback || null,
-              clarification_question: result.clarification_question || null,
+              clarificationQuestion: result.clarificationQuestion || null,
               error: result.error ? true : undefined,
               timestamp: new Date().toISOString(),
               // attachments will be empty for assistant audio response unless API sends some
               attachments: [], // Or map from result.attachments if it exists
-              experimental_attachments: undefined, // Assuming assistant doesn't send these back
             };
           }
           return msg;
@@ -393,7 +381,6 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
     const assistantId = `asst-video-summary-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const assistantMessage: Message = {
       id: assistantId,
-      messageId: assistantId,
       role: "assistant",
       content,
       timestamp: new Date().toISOString(),
@@ -406,7 +393,6 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
       ttsInstructions: null,
       clarificationQuestion: null,
       error: undefined,
-      experimental_attachments: undefined,
     };
     setMessages((prev) => [...prev, assistantMessage]);
     playSound("receive");

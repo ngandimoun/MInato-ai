@@ -8,7 +8,20 @@ import {
 } from "@/lib/constants";
 import { tools as appToolsRegistry } from "@/lib/tools/index";
 import { ToolInput, ToolOutput } from "@/lib/tools/base-tool";
-import { ToolExecutionRequest, ToolExecutionResponse } from "@/lib/types/index";
+import type { UserState } from "@/lib/types";
+// Locally defined for this route (not exported from types)
+interface ToolExecutionRequest {
+  toolName: string;
+  toolArgs: Record<string, any> | null;
+  sessionId?: string;
+}
+
+interface ToolExecutionResponse {
+  status: 'success' | 'error';
+  message: string;
+  data: any;
+  error?: string;
+}
 import { logger } from "../../../../memory-framework/config"; // Ajuster le chemin relatif si nécessaire
 import { appConfig } from "@/lib/config";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/server";
@@ -126,12 +139,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const userState = await supabaseAdmin.getUserState(userId);
+    const userState: UserState | null = await supabaseAdmin.getUserState(userId);
     const ipAddress = req.headers.get("x-forwarded-for") ?? req.ip ?? "unknown";
-    const locale =
-      req.headers.get("accept-language")?.split(",")[0] ||
-      userState?.preferred_locale ||
-      appConfig.defaultLocale;
+    let locale = req.headers.get("accept-language")?.split(",")[0]
+      ?? userState?.preferred_locale
+      ?? undefined;
+    if (!locale) locale = appConfig.defaultLocale;
 
     const abortController = new AbortController();
     const timeoutDuration =
@@ -151,20 +164,20 @@ export async function POST(req: NextRequest) {
     const toolInput: ToolInput = {
       ...(toolArgs || {}), // S'assurer que toolArgs n'est pas null
       userId: userId,
-      lang: locale?.split("-")[0],
+      lang: (locale?.split("-")[0] ?? 'en'),
       sessionId: sessionId,
       context: {
         ipAddress: ipAddress,
         latitude: userState?.latitude ?? undefined,
         longitude: userState?.longitude ?? undefined,
         timezone: userState?.timezone ?? undefined,
-        userState: userState, // peut être null
+        userState: userState ?? undefined,
         origin: origin,
-        locale: locale,
-        countryCode: userState?.country_code || undefined,
+        locale: (locale ?? appConfig.defaultLocale),
+        countryCode: userState?.country_code ?? undefined,
         runId: sessionId,
         abortSignal: abortController.signal,
-        userName: userState?.user_first_name || undefined,
+        userName: userState?.user_first_name ?? undefined,
       },
     };
 
@@ -190,7 +203,7 @@ export async function POST(req: NextRequest) {
 
     const responsePayload: ToolExecutionResponse = {
       status: output.error ? "error" : "success",
-      message: output.result,
+      message: output.result ?? "",
       data: output.structuredData || null,
       error: output.error || undefined,
     };

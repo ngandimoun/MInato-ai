@@ -109,11 +109,11 @@ export function MemoryItem({
           {memory.memory_type && (
             <span>Type: <span className="font-medium text-foreground/80">{memory.memory_type.replace(/_/g, " ")}</span></span>
           )}
-          {memory.status && memory.status !== 'active' && (
-            <span>Status: <span className="font-medium text-foreground/80">{memory.status}</span></span>
+          {memory.metadata?.status && memory.metadata.status !== 'active' && (
+            <span>Status: <span className="font-medium text-foreground/80">{memory.metadata.status}</span></span>
           )}
-          {memory.confidence_score !== null && memory.confidence_score !== undefined && (
-            <span>Confidence: <span className="font-medium text-foreground/80">{(memory.confidence_score * 100).toFixed(0)}%</span></span>
+          {memory.metadata?.confidence_score !== null && memory.metadata?.confidence_score !== undefined && (
+            <span>Confidence: <span className="font-medium text-foreground/80">{(memory.metadata.confidence_score * 100).toFixed(0)}%</span></span>
           )}
         </div>
       </div>

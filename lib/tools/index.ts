@@ -6,7 +6,7 @@ import { logger } from "../../memory-framework/config";
 // --- Import Tool Implementations ---
 import { WebSearchTool } from "./WebSearchTool";
 import { YouTubeSearchTool } from "./YouTubeSearchTool";
-import { UnsplashSearchTool } from "./UnsplashSearchTool";
+//import { UnsplashSearchTool } from "./UnsplashSearchTool";
 import { PexelsSearchTool } from "./PexelsSearchTool";
 import { WeatherTool } from "./WeatherTool";
 import { PlaceSearchTool } from "./PlaceSearchTool";
@@ -30,10 +30,10 @@ import { NewsAggregatorTool } from "./NewsAggregatorTool";
 import { ReminderReaderTool } from "./ReminderReaderTool";
 // InternalTaskTool & MemoryTool are added dynamically by Orchestrator
 import { CalculatorTool } from "./CalculatorTool";
-//import { DataParsingTool } from "./DataParsingTool";
-//import { DataProfilingTool } from "./DataProfilingTool";
-//import { DataAnalysisTool } from "./DataAnalysisTool";
-//import { VisualizationTool } from "./VisualizationTool";
+import { DataParsingTool } from "./DataParsingTool";
+import { DataProfilingTool } from "./DataProfilingTool";
+import { DataAnalysisTool } from "./DataAnalysisTool";
+import { VisualizationTool } from "./VisualizationTool";
 
 
 // --- Tool Registry ---
@@ -41,7 +41,7 @@ import { CalculatorTool } from "./CalculatorTool";
 export const tools: { [key: string]: BaseTool } = {
   WebSearchTool: new WebSearchTool(),
   YouTubeSearchTool: new YouTubeSearchTool(),
-  UnsplashSearchTool: new UnsplashSearchTool(),
+  //UnsplashSearchTool: new UnsplashSearchTool(),
   PexelsSearchTool: new PexelsSearchTool(),
   WeatherTool: new WeatherTool(),
   PlaceSearchTool: new PlaceSearchTool(),
@@ -64,10 +64,10 @@ export const tools: { [key: string]: BaseTool } = {
   GoogleGmailReaderTool: new GoogleGmailReaderTool(),
   ReminderReaderTool: new ReminderReaderTool(),
   CalculatorTool: new CalculatorTool(),
-  //DataParsingTool: new DataParsingTool(),
-  //DataProfilingTool: new DataProfilingTool(),
-  //DataAnalysisTool: new DataAnalysisTool(),
-  //VisualizationTool: new VisualizationTool(),
+  DataParsingTool: new DataParsingTool(),
+  DataProfilingTool: new DataProfilingTool(),
+  DataAnalysisTool: new DataAnalysisTool(),
+  VisualizationTool: new VisualizationTool(),
   // Dynamic tools (MemoryTool, InternalTaskTool) are NOT listed here.
 };
 
