@@ -1,9 +1,5 @@
 // FILE: lib/tools/WebSearchTool.ts
-<<<<<<< HEAD
 //USING Serper.dev
-=======
-//USING Serper.dev 
->>>>>>> b2b0035562eebb5f6974d9541ce6853757ed34ce
 import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
 import fetch from "node-fetch"; // Make sure node-fetch is v2 for CommonJS or properly configured for ES modules
 import { appConfig } from "../config";
@@ -168,7 +164,6 @@ export class WebSearchTool extends BaseTool {
         description: "Optional: Brand filter for 'product_search' mode (e.g., 'Apple', 'Sony'). Pass null if not applicable.",
       },
     },
-<<<<<<< HEAD
     // **** CORRECTED 'required' ARRAY ****
     // All properties defined in 'properties' must be listed here for strict mode.
     // The LLM should provide 'null' for optional fields it doesn't have a value for.
@@ -182,9 +177,6 @@ export class WebSearchTool extends BaseTool {
         "color",
         "brand"
     ],
-=======
-    required: ["query", "mode"],
->>>>>>> b2b0035562eebb5f6974d9541ce6853757ed34ce
     additionalProperties: false as const,
   };
   cacheTTLSeconds = 60 * 15; // 15 minutes
