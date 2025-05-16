@@ -1,4 +1,5 @@
 // FILE: lib/tools/WebSearchTool.ts
+//USING Serper.dev 
 import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
 import fetch from "node-fetch";
 import { appConfig } from "../config";
@@ -163,6 +164,7 @@ export class WebSearchTool extends BaseTool {
       },
     },
     required: ["query", "mode"],
+    additionalProperties: false as const,
   };
   cacheTTLSeconds = 60 * 15;
 

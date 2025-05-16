@@ -30,6 +30,7 @@ export class WolframAlphaTool extends BaseTool {
       },
     },
     required: ["query"],
+    additionalProperties: false as const,
   };
   cacheTTLSeconds = 3600 * 4;
 

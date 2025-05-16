@@ -33,7 +33,7 @@ export class DateTimeTool extends BaseTool {
         description: "A city name or location (e.g., 'London', 'Tokyo').",
       },
       locations: {
-        type: "array" as const,
+        type: "array",
         items: { type: "string" },
         description:
           "List of locations for world clock (e.g., ['London', 'New York']).",
@@ -45,6 +45,7 @@ export class DateTimeTool extends BaseTool {
       },
     },
     required: [],
+    additionalProperties: false as false,
   };
   cacheTTLSeconds = 30;
 

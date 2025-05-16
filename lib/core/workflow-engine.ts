@@ -61,14 +61,6 @@ function summarizeUserStateForWorkflow(userState: UserState | null, maxLength: n
     return parts.join(" | ").substring(0, maxLength) || "Basic user state.";
 }
 
-function isSimpleQuery(userQuery: string): boolean {
-    const greetings = ["hello", "hi", "hey", "good morning", "good evening", "good afternoon", "bonjour", "salut", "hola", "ciao"];
-    const trimmed = userQuery.trim().toLowerCase();
-    if (trimmed.length < 20 && greetings.some(g => trimmed.startsWith(g))) return true;
-    if (/^(hello|hi|hey)[!., ]*$/i.test(trimmed)) return true;
-    if (trimmed.length < 10) return true;
-    return false;
-  }
 
 const WORKFLOW_LLM_PROMPT_TEMPLATES: Record<string, string> = {
   personalizedBriefingSummary: `Hey {userName}! Minato here with your {briefingTime} briefing:
@@ -201,10 +193,6 @@ export class WorkflowEngine {
   } | null> {
     const logPrefix = `[WF Select User:${userId.substring(0,8)}] Query:"${userQuery.substring(0,30)}..."`;
 
-    if (isSimpleQuery(userQuery)) {
-        logger.info(`${logPrefix} Simple query detected, bypassing workflow engine.`);
-        return null;
-    }
 
     let bestMatch: { definition: WorkflowDefinition; params: Record<string, string>; matchStrength: number; } | null = null;
     for (const wfTemplate of PREDEFINED_WORKFLOW_TEMPLATES) {

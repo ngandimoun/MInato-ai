@@ -8,9 +8,9 @@ import {
   SearchOptions,
   SearchResult as MemoryFrameworkSearchResult, // Use aliased import if needed
 } from "../../memory-framework/core/types"; // Adjust path
-import { MemoryToolResult } from "@/lib/types/index"; // Import specific result type
 import { MEMORY_SEARCH_LIMIT_DEFAULT } from "../constants";
 import { logger } from "../../memory-framework/config"; // Use shared logger
+import { MemoryToolResult } from "@/lib/types/index";
 
 // Assume MemoryFrameworkSearchResult in memory-framework/core/types is updated to include:
 // memory_type?: string;
@@ -24,26 +24,6 @@ interface MemoryToolInput extends ToolInput {
   // Potential new input options for filtering
   memory_type_filter?: string;
   status_filter?: string;
-}
-
-// Updated MemoryToolResult to include new fields
-interface MemoryToolResult {
-  result_type: "internal_memory_result";
-  source_api: "internal_memory";
-  query: string;
-  found: boolean;
-  count: number;
-  memories?: Array<{
-    memory_id: string;
-    content: string;
-    updated_at: string | Date;
-    score?: number | null; // Search relevance score
-    is_latest_fact?: boolean | null;
-    memory_type?: string | null;
-    status?: string | null;
-    confidence_score?: number | null; // Intrinsic confidence
-  }>;
-  error?: string;
 }
 
 export class MemoryTool extends BaseTool {
@@ -70,7 +50,6 @@ export class MemoryTool extends BaseTool {
         description: `Maximum number of relevant memories to retrieve. Defaults to ${MEMORY_SEARCH_LIMIT_DEFAULT}.`,
         default: MEMORY_SEARCH_LIMIT_DEFAULT,
       },
-      // Example of how you might add new input args for filtering
       memory_type_filter: {
         type: "string",
         description: "Optional: Filter memories by a specific type (e.g., user_preference, fact).",
@@ -80,10 +59,11 @@ export class MemoryTool extends BaseTool {
         type: "string",
         description: "Optional: Filter memories by status (e.g., active, archived). Defaults to active if not specified by the underlying framework.",
         nullable: true,
-        default: "active", // Good practice to default to active
+        default: "active",
       },
     },
     required: ["query"],
+    additionalProperties: false as false,
   };
   cacheTTLSeconds = 15; // Short cache for memory lookups as context changes
 
@@ -108,10 +88,11 @@ export class MemoryTool extends BaseTool {
     let outputStructuredData: MemoryToolResult = {
       result_type: "internal_memory_result",
       source_api: "internal_memory",
-      query: query || "invalid", // Start with input query
+      query: { query: query || "invalid" },
       found: false,
       count: 0,
       error: undefined,
+      memories: undefined,
     };
 
      // Check abort signal early
@@ -124,18 +105,18 @@ export class MemoryTool extends BaseTool {
 
     if (!userId) {
       outputStructuredData.error = "User ID missing from context.";
-      return { error: outputStructuredData.error, result: "Cannot access memory without user context.", structuredData: outputStructuredData, };
+      return { error: outputStructuredData.error, result: "Cannot access memory without user context.", structuredData: outputStructuredData };
     }
     if (!query || typeof query !== "string" || query.trim().length === 0) {
       outputStructuredData.error = "Missing or empty memory 'query'.";
-      return { error: outputStructuredData.error, result: "What specific memory should I look for?", structuredData: outputStructuredData, };
+      return { error: outputStructuredData.error, result: "What specific memory should I look for?", structuredData: outputStructuredData };
     }
     if (action !== "retrieve") {
       outputStructuredData.error = `Action '${action}' not supported by agent.`;
-      return { error: outputStructuredData.error, result: "I can only retrieve memories right now.", structuredData: outputStructuredData, };
+      return { error: outputStructuredData.error, result: "I can only retrieve memories right now.", structuredData: outputStructuredData };
     }
     // Ensure query is updated in case it was initially invalid
-    outputStructuredData.query = query.trim();
+    outputStructuredData.query = { query: query.trim() };
 
     this.log("info", `${logPrefix} Query: "${query.substring(0, 50)}...", Limit: ${limit}`);
 
@@ -179,7 +160,7 @@ export class MemoryTool extends BaseTool {
       if (!memories || memories.length === 0) {
         this.log("info", `${logPrefix} No relevant memories found for query.`);
         // outputStructuredData defaults are already { found: false, count: 0 }
-        return { result: "I couldn't find a specific memory matching that query.", structuredData: outputStructuredData, };
+        return { result: "I couldn't find a specific memory matching that query.", structuredData: outputStructuredData };
       }
 
       this.log("info", `${logPrefix} Found ${memories.length} relevant memories.`);
@@ -191,8 +172,8 @@ export class MemoryTool extends BaseTool {
             const conflictFlag = mem.is_latest_fact === false ? " [Possibly Outdated]" : (mem.is_latest_fact === true ? " [Latest Info]" : "");
             const scoreInfo = (mem.final_score !== null && mem.final_score !== undefined) ? ` (Score: ${mem.final_score.toFixed(2)})` : '';
             const typeInfo = mem.memory_type ? ` [Type: ${mem.memory_type}]` : '';
-            const statusInfo = mem.status && mem.status !== 'active' ? ` [Status: ${mem.status}]` : ''; // Show status if not default active
-            const confidenceInfo = (mem.confidence_score !== null && mem.confidence_score !== undefined) ? ` (Confidence: ${(mem.confidence_score * 100).toFixed(0)}%)` : '';
+            const statusInfo = mem.metadata?.status && mem.metadata.status !== 'active' ? ` [Status: ${mem.metadata.status}]` : '';
+            const confidenceInfo = (mem.metadata?.confidence_score !== null && mem.metadata?.confidence_score !== undefined) ? ` (Confidence: ${(mem.metadata.confidence_score * 100).toFixed(0)}%)` : '';
 
             return `${index + 1}. (Around ${date}${scoreInfo}${confidenceInfo}${typeInfo}${statusInfo}${conflictFlag}): ${mem.content}`;
           })
@@ -209,8 +190,7 @@ export class MemoryTool extends BaseTool {
         is_latest_fact: m.is_latest_fact,
         // Add new fields
         memory_type: m.memory_type,
-        status: m.status,
-        confidence_score: m.confidence_score,
+        // status et confidence_score sont dans metadata si besoin
       }));
       outputStructuredData.error = undefined; // Clear error on success
 

@@ -1009,18 +1009,27 @@ declare module "../../memory-framework/core/CompanionCoreMemory" {
 // This is a simplified version; a more robust one would handle all JSON schema complexities.
 (global as any).sanitizeJsonSchemaForTools = (schema: Record<string, any>): Record<string, any> => {
     if (!schema || typeof schema !== 'object' || schema.type !== 'object') {
-        // If not an object schema or no properties, return a default strict empty object schema
         return { type: "object", properties: {}, required: [], additionalProperties: false };
     }
     const newSchema: any = { type: "object", properties: {}, required: [], additionalProperties: false };
     if (schema.properties && typeof schema.properties === 'object') {
         for (const propKey in schema.properties) {
-            // Simple pass-through for properties, assuming they are well-behaved for now.
-            // A deeper sanitization would recursively call this for nested objects.
-            newSchema.properties[propKey] = schema.properties[propKey];
+            const prop = schema.properties[propKey];
+            // Corrige le type readonly[] -> mutable []
+            if (Array.isArray(prop.type)) {
+                // Si un seul type, simplifie en string
+                if (prop.type.length === 1) {
+                    prop.type = prop.type[0];
+                } else {
+                    prop.type = Array.from(prop.type);
+                }
+            }
+            newSchema.properties[propKey] = prop;
         }
-        // All defined properties must be required for strict mode
-        newSchema.required = Object.keys(newSchema.properties);
+        newSchema.required = Array.isArray(schema.required)
+          ? schema.required
+          : Object.keys(newSchema.properties);
     }
+    newSchema.additionalProperties = false;
     return newSchema;
 };

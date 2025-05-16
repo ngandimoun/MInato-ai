@@ -1,4 +1,5 @@
 // FILE: lib/tools/TicketmasterEventFinderTool.ts
+//EventFinderTool.ts
 // (Content from finalcodebase.txt - verified)
 import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
 import fetch from "node-fetch";
@@ -6,393 +7,188 @@ import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import {
   EventFinderStructuredOutput,
-  TicketmasterEvent,
-} from "@/lib/types/index"; // Use types from index
+  TicketmasterEvent, // Assuming this type is well-defined in lib/types
+} from "@/lib/types/index";
 
 interface EventFinderInput extends ToolInput {
-  keyword?: string;
-  location?: string;
-  radius?: number;
-  radiusUnit?: "miles" | "km";
-  startDate?: string;
-  endDate?: string;
-  classification?: string;
-  limit?: number;
+  keyword?: string | null;
+  location?: string | null; // Can be city, postal code, or "lat,lon" string
+  radius?: number | null;
+  radiusUnit?: "miles" | "km" | null;
+  startDate?: string | null; // ISO 8601 YYYY-MM-DDTHH:mm:ssZ
+  endDate?: string | null;   // ISO 8601 YYYY-MM-DDTHH:mm:ssZ
+  classificationName?: string | null; // e.g., Music, Sports, Arts & Theatre
+  limit?: number | null;
+  countryCode?: string | null; // For country-specific searches if location is broad
+  source?: string | null; // e.g., ticketmaster, songkick (for future expansion, LLM might provide)
 }
-// Internal types for Ticketmaster response structure
-interface TicketmasterImage {
-  url: string;
-  ratio?: string;
-  width?: number;
-  height?: number;
-  fallback?: boolean;
-}
-interface TicketmasterDateInfo {
-  localDate: string;
-  localTime?: string;
-  dateTime?: string;
-  status?: { code: string };
-  spanMultipleDays?: boolean;
-}
-interface TicketmasterClassification {
-  primary?: boolean;
-  segment?: { id: string; name: string };
-  genre?: { id: string; name: string };
-  subGenre?: { id: string; name: string };
-  type?: { id: string; name: string };
-  subType?: { id: string; name: string };
-}
-interface TicketmasterVenue {
-  name: string;
-  id: string;
-  url?: string;
-  postalCode?: string;
-  city?: { name: string };
-  state?: { name: string; stateCode?: string };
-  country?: { name: string; countryCode: string };
-  address?: { line1?: string };
-  location?: { longitude: string; latitude: string };
-  images?: TicketmasterImage[];
-}
-interface TicketmasterAttraction {
-  name: string;
-  id: string;
-  url?: string;
-  images?: TicketmasterImage[];
-  classifications?: TicketmasterClassification[];
-}
-interface TicketmasterPriceRange {
-  type: string;
-  currency: string;
-  min: number;
-  max: number;
-}
-interface TicketmasterEventRaw {
-  name: string;
-  type: string;
-  id: string;
-  test?: boolean;
-  url?: string;
-  locale?: string;
-  images?: TicketmasterImage[];
-  dates?: {
-    start?: TicketmasterDateInfo;
-    end?: TicketmasterDateInfo;
-    timezone?: string;
-    status?: { code: string };
-    spanMultipleDays?: boolean;
-  };
-  classifications?: TicketmasterClassification[];
-  promoter?: { id: string; name: string; description?: string };
-  promoters?: Array<{ id: string; name: string; description?: string }>;
-  priceRanges?: TicketmasterPriceRange[];
-  seatmap?: { staticUrl?: string };
-  _links?: {
-    self: { href: string };
-    attractions?: Array<{ href: string }>;
-    venues?: Array<{ href: string }>;
-  };
-  _embedded?: {
-    venues?: TicketmasterVenue[];
-    attractions?: TicketmasterAttraction[];
-  };
-}
-interface TicketmasterDiscoveryResponse {
-  _embedded?: { events: TicketmasterEventRaw[] };
-  _links?: any;
-  page?: {
-    size: number;
-    totalElements: number;
-    totalPages: number;
-    number: number;
-  };
-  errors?: Array<{ code: string; detail: string; status: string }>;
-}
+
+// Internal types for Ticketmaster response structure (kept for mapping)
+interface TicketmasterImage { url: string; ratio?: string; width?: number; height?: number; fallback?: boolean; }
+interface TicketmasterDateInfo { localDate: string; localTime?: string; dateTime?: string; status?: { code: string }; spanMultipleDays?: boolean; }
+interface TicketmasterClassification { primary?: boolean; segment?: { id: string; name: string }; genre?: { id: string; name: string }; subGenre?: { id: string; name: string }; type?: { id: string; name: string }; subType?: { id: string; name: string }; }
+interface TicketmasterVenue { name: string; id: string; url?: string; postalCode?: string; city?: { name: string }; state?: { name: string; stateCode?: string }; country?: { name: string; countryCode: string }; address?: { line1?: string }; location?: { longitude: string; latitude: string }; images?: TicketmasterImage[]; }
+interface TicketmasterAttraction { name: string; id: string; url?: string; images?: TicketmasterImage[]; classifications?: TicketmasterClassification[]; }
+interface TicketmasterPriceRange { type: string; currency: string; min: number; max: number; }
+interface TicketmasterEventRaw { name: string; type: string; id: string; test?: boolean; url?: string; locale?: string; images?: TicketmasterImage[]; dates?: { start?: TicketmasterDateInfo; end?: TicketmasterDateInfo; timezone?: string; status?: { code: string }; spanMultipleDays?: boolean; }; classifications?: TicketmasterClassification[]; promoter?: { id: string; name: string; description?: string }; promoters?: Array<{ id: string; name: string; description?: string }>; priceRanges?: TicketmasterPriceRange[]; seatmap?: { staticUrl?: string }; _links?: { self: { href: string }; attractions?: Array<{ href: string }>; venues?: Array<{ href: string }>; }; _embedded?: { venues?: TicketmasterVenue[]; attractions?: TicketmasterAttraction[]; }; }
+interface TicketmasterDiscoveryResponse { _embedded?: { events: TicketmasterEventRaw[] }; _links?: any; page?: { size: number; totalElements: number; totalPages: number; number: number; }; errors?: Array<{ code: string; detail: string; status: string }>;}
 
 export class EventFinderTool extends BaseTool {
   name = "EventFinderTool";
   description =
-    "Finds upcoming events (concerts, sports, theater) near a location based on keywords, dates, or classifications using Ticketmaster.";
+    "Finds upcoming events (concerts, sports, theater, etc.) near a location or globally based on keywords, dates, or classifications. Primarily uses Ticketmaster but is designed to be adaptable.";
   argsSchema = {
     type: "object" as const,
     properties: {
-      keyword: {
-        type: "string",
-        description:
-          "Keywords to search events for (e.g., 'rock concert', 'baseball').",
-      },
-      location: {
-        type: "string",
-        description:
-          "City, state, or zip code to search near (e.g., 'London', 'New York, NY', '90210'). Uses context location if omitted.",
-      },
-      radius: {
-        type: "number",
-        description: "Search radius around the location. Defaults to 25.",
-        default: 25,
-      },
-      radiusUnit: {
-        type: "string",
-        enum: ["miles", "km"],
-        description: "Unit for the radius (miles or km). Defaults to miles.",
-        default: "miles",
-      },
-      startDate: {
-        type: "string",
-        format: "date-time",
-        description:
-          "Optional start date/time for the event search (ISO 8601 format, e.g., '2024-09-21T00:00:00Z'). Defaults to now.",
-      },
-      endDate: {
-        type: "string",
-        format: "date-time",
-        description:
-          "Optional end date/time for the event search (ISO 8601 format).",
-      },
-      classification: {
-        type: "string",
-        description:
-          "Filter by classification (e.g., 'Music', 'Sports', 'Arts & Theatre').",
-      },
-      limit: {
-        type: "number",
-        minimum: 1,
-        maximum: 10,
-        description: "Maximum number of events to return. Defaults to 5.",
-        default: 5,
-      },
+      keyword: { type: ["string", "null"], description: "Keywords to search events for (e.g., 'rock concert', 'Taylor Swift', 'baseball game')." },
+      location: { type: ["string", "null"], description: "City, state, postal code, or 'latitude,longitude' string to search near (e.g., 'London, UK', 'New York, NY', '90210', '40.7128,-74.0060'). Uses user's context location if omitted and available." },
+      radius: { type: ["number", "null"], description: "Search radius around the location. Defaults to 25.", default: 25 },
+      radiusUnit: { type: ["string", "null"], enum: ["miles", "km"], description: "Unit for the radius ('miles' or 'km'). Defaults to miles.", default: "miles" },
+      startDate: { type: ["string", "null"], format: "date-time", description: "Optional start date/time for event search (ISO 8601 format, e.g., '2024-09-21T00:00:00Z'). Defaults to now." },
+      endDate: { type: ["string", "null"], format: "date-time", description: "Optional end date/time for event search (ISO 8601 format)." },
+      classificationName: { type: ["string", "null"], description: "Filter by broad classification (e.g., 'Music', 'Sports', 'Arts & Theatre', 'Family'). Specific genre/subgenre can be part of keyword." },
+      limit: { type: ["number", "null"], minimum: 1, maximum: 10, description: "Maximum number of events to return. Defaults to 5.", default: 5 },
+      countryCode: { type: ["string", "null"], description: "Optional ISO 3166-1 alpha-2 country code (e.g., 'US', 'GB') to focus search. Useful if 'location' is broad or omitted." },
+      source: { type: ["string", "null"], enum: ["ticketmaster", "songkick"], description: "Preferred event source if known (for future expansion). Defaults to Ticketmaster if null.", default: "ticketmaster" },
     },
-    required: [],
+    required: ["keyword", "location", "radius", "radiusUnit", "startDate", "endDate", "classificationName", "limit", "countryCode", "source"],
+    additionalProperties: false as false,
   };
-  cacheTTLSeconds = 60 * 30;
+  cacheTTLSeconds = 60 * 15; // Cache events for 15 minutes
 
-  private readonly API_BASE =
-    "https://app.ticketmaster.com/discovery/v2/events.json";
+  private readonly API_BASE = "https://app.ticketmaster.com/discovery/v2/events.json";
   private readonly API_KEY: string;
-  private readonly USER_AGENT = "MinatoAICompanion/1.0";
+  private readonly USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app.url}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
 
   constructor() {
     super();
     this.API_KEY = appConfig.toolApiKeys.ticketmaster || "";
-    if (!this.API_KEY)
-      this.log("error", "Ticketmaster API Key missing. Tool will fail.");
+    if (!this.API_KEY) this.log("error", "Ticketmaster API Key missing. EventFinderTool will fail for Ticketmaster source.");
+    if (this.USER_AGENT.includes("support@example.com")) {
+        this.log("warn", "Update EventFinderTool USER_AGENT contact info with actual details.");
+    }
   }
 
-  private formatIsoDateTime(
-    dateInput: string | Date | undefined
-  ): string | undefined {
+  private formatIsoDateTime(dateInput: string | Date | undefined | null): string | undefined {
     if (!dateInput) return undefined;
     try {
       const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
-      if (isNaN(d.getTime())) {
-        this.log(
-          "warn",
-          `Invalid date input provided for formatting: ${dateInput}`
-        );
-        return undefined;
-      }
-      return d.toISOString().substring(0, 19) + "Z";
-    } catch (e: any) {
-      this.log(
-        "error",
-        `Error parsing date for formatting: ${dateInput}`,
-        e.message
-      );
-      return undefined;
-    }
+      if (isNaN(d.getTime())) { this.log("warn", `Invalid date input for formatting: ${dateInput}`); return undefined; }
+      return d.toISOString().substring(0, 19) + "Z"; // Ensures format like YYYY-MM-DDTHH:mm:ssZ
+    } catch (e: any) { this.log("error", `Error parsing date for formatting: ${dateInput}`, e.message); return undefined; }
   }
 
-  // Map raw TicketmasterEventRaw to simplified TicketmasterEvent used in types/index.d.ts
-  private mapRawEventToAppEvent(
-    rawEvent: TicketmasterEventRaw
-  ): TicketmasterEvent {
-    // Selectively map fields we defined in lib/types/index.d.ts
+  private mapRawEventToAppEvent(rawEvent: TicketmasterEventRaw): TicketmasterEvent {
     return {
-      name: rawEvent.name,
-      type: rawEvent.type,
-      id: rawEvent.id,
-      test: rawEvent.test,
-      url: rawEvent.url,
-      locale: rawEvent.locale,
-      images: rawEvent.images,
-      dates: rawEvent.dates,
-      classifications: rawEvent.classifications,
-      promoter: rawEvent.promoter,
-      priceRanges: rawEvent.priceRanges,
-      _embedded: rawEvent._embedded, // Include embedded venues/attractions
+      name: rawEvent.name, type: rawEvent.type, id: rawEvent.id,
+      test: rawEvent.test, url: rawEvent.url, locale: rawEvent.locale,
+      images: rawEvent.images, dates: rawEvent.dates, classifications: rawEvent.classifications,
+      promoter: rawEvent.promoter, priceRanges: rawEvent.priceRanges, _embedded: rawEvent._embedded,
     };
   }
 
-  async execute(
-    input: EventFinderInput,
-    abortSignal?: AbortSignal
-  ): Promise<ToolOutput> {
-    if (!this.API_KEY)
-      return {
-        error: "Event Finder Tool not configured.",
-        result: "Event search unavailable.",
-        structuredData: undefined,
-      };
+  async execute(input: EventFinderInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    if (!this.API_KEY && input.source !== "songkick") { // Assuming songkick won't need this key
+        return { error: "Event Finder Tool (Ticketmaster) not configured.", result: "Event search via Ticketmaster is unavailable." };
+    }
+    const queryInputForStructuredData = { ...input };
+    const effectiveLimit = input.limit ?? 5;
+    const logPrefix = `[EventFinderTool User:${input.context?.userId?.substring(0,8)}]`;
 
-    const limit = input.limit ? Math.max(1, Math.min(input.limit, 10)) : 5;
-    const params = new URLSearchParams({
-      apikey: this.API_KEY,
-      size: String(limit),
-      sort: "date,asc",
-      includeTBA: "no",
-      includeTBD: "no",
-    });
+    const params = new URLSearchParams({ apikey: this.API_KEY, size: String(effectiveLimit), sort: "date,asc", includeTBA: "no", includeTBD: "no" });
     let locationDescription = "your current area";
 
     if (input.keyword) params.set("keyword", input.keyword);
-    if (input.classification)
-      params.set("classificationName", input.classification);
+    if (input.classificationName) params.set("classificationName", input.classificationName);
+    if (input.countryCode) params.set("countryCode", input.countryCode);
 
     if (input.location) {
-      params.set("city", input.location);
-      locationDescription = `near ${input.location}`;
-      params.set("radius", String(input.radius || 25));
-      params.set("unit", input.radiusUnit || "miles");
-    } else if (
-      typeof input.context?.latitude === "number" &&
-      typeof input.context?.longitude === "number"
-    ) {
-      const geoPoint = `${input.context.latitude},${input.context.longitude}`;
-      params.set("geoPoint", geoPoint);
-      locationDescription = "near your current location";
-      this.log(
-        "info",
-        `Using context coordinates for event search: ${geoPoint}`
-      );
-      params.set("radius", String(input.radius || 25));
-      params.set("unit", input.radiusUnit || "miles");
+        if (input.location.match(/^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/)) { // Lat,Lon string
+            params.set("latlong", input.location);
+            locationDescription = `near coordinates ${input.location}`;
+        } else { // Assume city, postal code etc.
+            params.set("keyword", `${params.get("keyword") || ""} ${input.location}`.trim()); // Add location to keyword for TM
+            locationDescription = `near ${input.location}`;
+        }
+        params.set("radius", String(input.radius ?? 25));
+        params.set("unit", input.radiusUnit ?? "miles");
+    } else if (typeof input.context?.latitude === 'number' && typeof input.context?.longitude === 'number') {
+        const geoPoint = `${input.context.latitude},${input.context.longitude}`;
+        params.set("latlong", geoPoint);
+        locationDescription = "near your current location";
+        params.set("radius", String(input.radius ?? 25));
+        params.set("unit", input.radiusUnit ?? "miles");
     } else {
-      locationDescription = "globally";
-      this.log(
-        "warn",
-        "No location or context coordinates provided for event search. Searching globally."
-      );
+        locationDescription = "globally";
+        this.log("warn", `${logPrefix} No location. Searching globally.`);
     }
 
-    const startDateTime = this.formatIsoDateTime(input.startDate || new Date());
+    const startDateTime = this.formatIsoDateTime(input.startDate ?? new Date());
     if (startDateTime) params.set("startDateTime", startDateTime);
     const endDateTime = this.formatIsoDateTime(input.endDate);
     if (endDateTime) params.set("endDateTime", endDateTime);
 
     const url = `${this.API_BASE}?${params.toString()}`;
-    this.log(
-      "info",
-      `Searching Ticketmaster Events ${locationDescription} for "${
-        input.keyword || input.classification || "any"
-      }": ${url.split("apikey=")[0]}...`
-    );
+    this.log("info", `${logPrefix} Searching Ticketmaster: ${url.split("apikey=")[0]}...`);
 
-    // Initialize structured data
     let outputStructuredData: EventFinderStructuredOutput = {
-      result_type: "event_list",
-      source_api: "ticketmaster",
-      query: input,
-      locationDescription: locationDescription,
-      count: 0,
-      events: [],
-      error: undefined,
+      result_type: "event_list", source_api: "ticketmaster", query: queryInputForStructuredData,
+      locationDescription: locationDescription, count: 0, events: [], error: undefined,
     };
 
     try {
-      const response = await fetch(url, {
-        headers: { "User-Agent": this.USER_AGENT },
-        signal: abortSignal ?? AbortSignal.timeout(8000),
-      });
+      const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(8000) });
       const responseBody = await response.text();
       if (abortSignal?.aborted) {
-        logger.warn(`[EventFinderTool] Aborted after API call.`);
         outputStructuredData.error = "Request timed out or cancelled.";
-        return {
-          error: "Event search cancelled.",
-          result: "Cancelled.",
-          structuredData: outputStructuredData,
-        };
+        return { error: "Event search cancelled.", result: "Cancelled.", structuredData: outputStructuredData };
       }
 
       if (!response.ok) {
-        let errorDetail = `Event search failed: ${response.status} ${response.statusText}.`;
-        try {
-          const eJson = JSON.parse(responseBody);
-          errorDetail += ` Details: ${
-            eJson.errors?.[0]?.detail ||
-            eJson.errors?.[0]?.code ||
-            JSON.stringify(eJson)
-          }`;
-        } catch {
-          errorDetail += ` Response: ${responseBody.substring(0, 150)}...`;
-        }
-        this.log(
-          "error",
-          `Ticketmaster API Error ${response.status}: ${errorDetail}`
-        );
+        let errorDetail = `Ticketmaster API Error: ${response.status} ${response.statusText}.`;
+        try { const eJson = JSON.parse(responseBody); errorDetail += ` Details: ${eJson.errors?.[0]?.detail || JSON.stringify(eJson)}`; }
+        catch { errorDetail += ` Response: ${responseBody.substring(0,150)}...`; }
+        this.log("error", `${logPrefix} ${errorDetail}`);
         throw new Error(errorDetail);
       }
       const data: TicketmasterDiscoveryResponse = JSON.parse(responseBody);
       const rawEvents = data?._embedded?.events;
 
       if (!rawEvents || rawEvents.length === 0) {
-        const criteria = [
-          input.keyword ? `"${input.keyword}"` : "",
-          `loc:${locationDescription}`,
-          input.classification ? `cat:"${input.classification}"` : "",
-          startDateTime ? `after ${startDateTime.substring(0, 10)}` : "",
-        ]
-          .filter(Boolean)
-          .join(", ");
-        const msg = `No upcoming events found matching criteria (${criteria}).`;
-        this.log("info", msg);
+        const criteria = [input.keyword ? `"${input.keyword}"` : "", `loc:${locationDescription}`, input.classificationName ? `cat:"${input.classificationName}"` : "", startDateTime ? `after ${startDateTime.substring(0,10)}` : ""].filter(Boolean).join(", ");
+        const msg = `Minato couldn't find any upcoming events for ${input.context?.userName || "you"} matching criteria (${criteria}).`;
+        this.log("info", `${logPrefix} ${msg}`);
         outputStructuredData.totalFound = data.page?.totalElements || 0;
         return { result: msg, structuredData: outputStructuredData };
       }
 
-      this.log("info", `Found ${rawEvents.length} events via Ticketmaster.`);
-      const mappedEvents = rawEvents.map(this.mapRawEventToAppEvent); // Use mapper
-      const resultString =
-        `Upcoming events ${locationDescription}${
-          input.keyword ? ` related to "${input.keyword}"` : ""
-        }:\n` +
-        mappedEvents
-          .map((e, i) => {
-            const name = e.name;
-            const venue = e._embedded?.venues?.[0]?.name || "TBD";
-            const city = e._embedded?.venues?.[0]?.city?.name || "";
-            const state = e._embedded?.venues?.[0]?.state?.stateCode || "";
-            const venueLoc = [venue, city, state].filter(Boolean).join(", ");
-            const date = e.dates?.start?.localDate || "TBD";
-            const time = e.dates?.start?.localTime?.substring(0, 5);
-            const dtInfo = `${date}${time ? ` at ${time}` : ""}`;
-            return `${i + 1}. ${name} at ${venueLoc} on ${dtInfo}`;
-          })
-          .join("\n");
+      this.log("info", `${logPrefix} Found ${rawEvents.length} events via Ticketmaster.`);
+      const mappedEvents = rawEvents.map(this.mapRawEventToAppEvent);
+      const resultString = `Minato found these events ${locationDescription} for ${input.context?.userName || "you"}${input.keyword ? ` related to "${input.keyword}"` : ""}:\n` +
+        mappedEvents.map((e, i) => {
+          const name = e.name;
+          const venue = e._embedded?.venues?.[0]?.name || "TBD";
+          const city = e._embedded?.venues?.[0]?.city?.name || "";
+          const date = e.dates?.start?.localDate || "TBD";
+          const time = e.dates?.start?.localTime?.substring(0,5);
+          return `${i + 1}. ${name} at ${venue}${city ? ", "+city : ""} on ${date}${time ? ` at ${time}` : ""}`;
+        }).join("\n");
 
       outputStructuredData.count = mappedEvents.length;
       outputStructuredData.totalFound = data.page?.totalElements;
-      outputStructuredData.events = mappedEvents; // Store mapped events
+      outputStructuredData.events = mappedEvents;
       outputStructuredData.error = undefined;
       return { result: resultString, structuredData: outputStructuredData };
     } catch (error: any) {
-      const errorMessage = `Failed event search: ${error.message}`;
+      const errorMessage = `Event search failed: ${error.message}`;
       outputStructuredData.error = errorMessage;
-      if (error.name === "AbortError") {
-        this.log("error", `Ticketmaster request timed out or was aborted.`);
+      if (error.name === 'AbortError') {
+        this.log("error", `${logPrefix} Ticketmaster request timed out or was aborted.`);
         outputStructuredData.error = "Request timed out or cancelled.";
-        return {
-          error: "Event search timed out or cancelled.",
-          result: "Sorry, the search for events took too long.",
-          structuredData: outputStructuredData,
-        };
+        return { error: "Event search timed out.", result: `Sorry, ${input.context?.userName || "User"}, the event search took too long.`, structuredData: outputStructuredData };
       }
-      this.log("error", `Error fetching Ticketmaster events:`, error.message);
-      return {
-        error: errorMessage,
-        result: `Sorry, an error occurred while finding events.`,
-        structuredData: outputStructuredData,
-      };
+      this.log("error", `${logPrefix} Error fetching events:`, error.message);
+      return { error: errorMessage, result: `Sorry, ${input.context?.userName || "User"}, an error occurred while finding events.`, structuredData: outputStructuredData };
     }
   }
 }

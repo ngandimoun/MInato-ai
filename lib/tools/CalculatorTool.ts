@@ -1,5 +1,3 @@
-// FILE: lib/tools/CalculatorTool.ts
-// (Content from finalcodebase.txt - verified)
 import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
 import { logger } from "../../memory-framework/config";
 import { CachedCalculationOrFact, CachedSingleFact } from "@/lib/types/index";
@@ -13,8 +11,6 @@ const math: MathJsStatic = create(all, {
   predictable: false,
   randomSeed: null,
 });
-// Basic sanitization/safety: Limit evaluated functions further if needed
-// e.g., delete math.import; delete math.evaluate; (if not needed by other safe tools)
 
 interface CalculatorInput extends ToolInput {
   expression: string;
@@ -28,12 +24,13 @@ export class CalculatorTool extends BaseTool {
     type: "object" as const,
     properties: {
       expression: {
-        type: "string",
+        type: "string" as const,
         description:
           "The mathematical expression to evaluate (e.g., '2 + 2 * 3', 'sqrt(16) / (2^3 - 4)', 'log(100, 10)').",
       },
     },
     required: ["expression"],
+    additionalProperties: false as false,
   };
   cacheTTLSeconds = undefined;
 
@@ -47,22 +44,17 @@ export class CalculatorTool extends BaseTool {
     abortSignal?: AbortSignal
   ): Promise<ToolOutput> {
     const { expression } = input;
-    const logPrefix = `[CalculatorTool] Expr:"${expression?.substring(
-      0,
-      40
-    )}..."`;
+    const logPrefix = `[CalculatorTool] Expr:"${expression?.substring(0,40)}..."`;
+
     if (abortSignal?.aborted) {
       logger.warn(`${logPrefix} Execution aborted before starting.`);
-      return {
-        error: "Calculation cancelled.",
-        result: "Cancelled.",
-        structuredData: undefined,
-      };
+      return { error: "Calculation cancelled.", result: "Cancelled." };
     }
+
     let outputStructuredData: CachedSingleFact = {
       result_type: "calculation_or_fact",
       source_api: "internal_calculator",
-      query: input,
+      query: { expression: expression },
       data: {
         query: expression || "",
         result: null,
@@ -70,54 +62,42 @@ export class CalculatorTool extends BaseTool {
         error: "Invalid input",
       },
       error: "Invalid input",
-    }; // Init with error state
-    if (
-      !expression ||
-      typeof expression !== "string" ||
-      expression.trim().length === 0
-    ) {
+    };
+
+    if (!expression || typeof expression !== "string" || expression.trim().length === 0) {
+      outputStructuredData.data!.error = "Missing or invalid mathematical expression.";
+      outputStructuredData.error = "Missing or invalid mathematical expression.";
       return {
-        error: "Missing or invalid mathematical expression.",
+        error: outputStructuredData.error,
         result: "What calculation would you like Minato to perform?",
         structuredData: outputStructuredData,
       };
     }
 
-    // Allow basic math chars, letters (for functions like sqrt), digits, spaces, comma (some locales), period.
     const allowedCharsRegex = /^[0-9a-zA-Z\s()+\-*/.^,%]+$/;
     if (!allowedCharsRegex.test(expression)) {
       const errorMsg = "Expression contains invalid characters.";
       logger.warn(`${logPrefix} ${errorMsg} Original: ${expression}`);
-      outputStructuredData!.data!.error = errorMsg;
-      outputStructuredData!.error = errorMsg;
+      outputStructuredData.data!.error = errorMsg;
+      outputStructuredData.error = errorMsg;
       return {
         error: errorMsg,
-        result: `Sorry, ${
-          input.context?.userName || "User"
-        }, that expression contains characters Minato can't process for calculation. Please use standard math symbols.`,
+        result: `Sorry, ${input.context?.userName || "User"}, that expression contains characters Minato can't process for calculation. Please use standard math symbols.`,
         structuredData: outputStructuredData,
       };
     }
 
     try {
       this.log("info", `${logPrefix} Evaluating with math.js: ${expression}`);
-      const resultValue = math.evaluate(expression); // Safe evaluation
+      const resultValue = math.evaluate(expression);
 
-      // Check for complex results that shouldn't occur in basic calculations
       if (
         typeof resultValue === "function" ||
-        (typeof resultValue === "object" &&
-          resultValue !== null &&
-          !("compile" in resultValue) &&
-          !(resultValue instanceof Date) &&
-          !Array.isArray(resultValue) &&
-          !(
-            "re" in resultValue && "im" in resultValue
-          )) /* Allow complex numbers */
+        (typeof resultValue === "object" && resultValue !== null &&
+         !("compile" in resultValue) && !(resultValue instanceof Date) && !Array.isArray(resultValue) &&
+         !(typeof resultValue === 'object' && "re" in resultValue && "im" in resultValue))
       ) {
-        throw new Error(
-          "Expression resulted in a complex type, not a calculable value."
-        );
+        throw new Error("Expression resulted in a complex type, not a calculable value.");
       }
 
       let resultString: string;
@@ -130,35 +110,22 @@ export class CalculatorTool extends BaseTool {
       }
       this.log("info", `${logPrefix} Result: ${resultString}`);
 
-      const structuredResult: CachedCalculationOrFact = {
+      const structuredResultData: CachedCalculationOrFact = {
         query: expression,
         result: resultString,
         interpretation: `Minato calculated: ${expression} = ${resultString}`,
         sourcePlatform: "internal_calculator",
         error: undefined,
       };
-      outputStructuredData = {
-        result_type: "calculation_or_fact",
-        source_api: "internal_calculator",
-        query: input,
-        data: structuredResult,
-        error: undefined,
-      };
-      return { result: resultString, structuredData: outputStructuredData };
+      outputStructuredData.data = structuredResultData;
+      outputStructuredData.error = undefined;
+
+      return { result: `${expression} = ${resultString}`, structuredData: outputStructuredData };
     } catch (error: any) {
-      this.log(
-        "error",
-        `${logPrefix} math.js evaluation error:`,
-        error.message
-      );
-      const userErrorMessage = `Sorry, ${
-        input.context?.userName || "User"
-      }, Minato couldn't calculate that. The expression might be invalid or too complex. Error: ${error.message.substring(
-        0,
-        100
-      )}`;
-      outputStructuredData!.data!.error = `Calculation error: ${error.message}`;
-      outputStructuredData!.error = `Calculation error: ${error.message}`;
+      this.log("error", `${logPrefix} math.js evaluation error:`, error.message);
+      const userErrorMessage = `Sorry, ${input.context?.userName || "User"}, Minato couldn't calculate that. The expression might be invalid or too complex. Error: ${error.message.substring(0,100)}`;
+      outputStructuredData.data!.error = `Calculation error: ${error.message}`;
+      outputStructuredData.error = `Calculation error: ${error.message}`;
       return {
         error: `Calculation error with math.js: ${error.message}`,
         result: userErrorMessage,

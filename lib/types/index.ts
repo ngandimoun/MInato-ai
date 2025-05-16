@@ -460,8 +460,6 @@ export type ResponseApiInputMessage =
 // --- Memory Framework Types Re-export ---
 export type ReminderDetails = MemoryFrameworkReminderDetails;
 export type ExtractedEntity = MemoryFrameworkExtractedInfo["entities"][number];
-export type ExtractedRelationship =
-  MemoryFrameworkExtractedInfo["relationships"][number];
 export type ExtractedInfo = MemoryFrameworkExtractedInfo;
 export type BaseMemoryUnit = Omit<
   MemoryFrameworkStoredMemoryUnit,
@@ -911,7 +909,7 @@ export interface WaterIntakeStructuredOutput {
 export interface MemoryToolResult {
   result_type: "internal_memory_result";
   source_api: "internal_memory";
-  query: string;
+  query?: Record<string, any>;
   found: boolean;
   count: number;
   memories?: Array<{
@@ -920,6 +918,7 @@ export interface MemoryToolResult {
     updated_at: string;
     score?: number | null;
     is_latest_fact?: boolean | null;
+    memory_type?: string | null;
   }> | null;
   confirmation_message?: string;
   memory_id?: string;
