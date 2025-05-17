@@ -1,5 +1,5 @@
 // FILE: memory-framework/core/CompanionCoreMemory.ts
-// No Clerk/auth dependencies here. Methods accept userId which must be provided externally now.
+// (Content from finalcodebase.txt - verified)
 
 import { config as frameworkAppConfig, logger } from "../config";
 import { OpenAIService } from "../services/OpenAIService";
@@ -14,6 +14,7 @@ import {
 } from "./types";
 import { generateUUID, getCurrentISOTimestamp, safeJsonParse, generateStableCacheKey } from "./utils";
 import { AnyToolStructuredData } from "@/lib/types";
+import { supabaseAdmin } from "@/lib/supabaseClient";
 
 
 const TASK_MEMORY_CATEGORY = "task";
@@ -827,23 +828,24 @@ export class CompanionCoreMemory {
         return this.supabaseService.deleteUserPersona(userId, personaId);
    }
 
-
-   async getPersonaById(personaId: string): Promise<PredefinedPersona | UserPersona | null> { // Combined fetch
-         logger.debug(`[Persona] Fetching persona details for ID: ${personaId}`);
-         // Try predefined first
+   // FIXED: getPersonaById now accepts userId
+   async getPersonaById(personaId: string, userId: string): Promise<PredefinedPersona | UserPersona | null> {
+         logger.debug(`[Persona] Fetching persona details for ID: ${personaId} (User Context: ${userId.substring(0,8)})`);
+         
          const predefined = await this.supabaseService.getPredefinedPersonas().then(list => list.find(p => p.id === personaId));
          if (predefined) {
+              logger.debug(`[Persona] Found predefined persona: ${personaId}`);
               return predefined;
          }
-         // If not predefined, try user-specific (requires userId, needs adaptation or removal)
-         // Cannot fetch user persona without userId here. Remove this part or modify method signature.
-         logger.warn(`[Persona] Cannot fetch user-specific persona ${personaId} without userId context in getPersonaById.`);
-         // If SupabaseDB.getUserPersonaById needs userId, this path is problematic without it.
-         // const userPersona = await this.supabaseService.getUserPersonas(/* userId needed here */).then(list => list.find(p => p.id === personaId));
-         // if (userPersona) return userPersona;
 
+         // Fetch user-specific persona if not found in predefined
+         const userPersona = await supabaseAdmin.getUserPersonaById(userId, personaId);
+         if (userPersona) {
+             logger.debug(`[Persona] Found user-specific persona: ${personaId} for user ${userId.substring(0,8)}`);
+             return userPersona;
+         }
 
-         logger.warn(`[Persona] Persona with ID ${personaId} not found (predefined checked).`);
+         logger.warn(`[Persona] Persona with ID ${personaId} not found (checked predefined and user-specific for user ${userId.substring(0,8)}).`);
          return null;
    }
 
@@ -912,3 +914,14 @@ export class CompanionCoreMemory {
     logger.info("Framework connections closure process finished.");
   }
 } // End CompanionCoreMemory class
+
+// Add the add_memory_extracted and other extended methods to the declaration
+declare module "../../memory-framework/core/CompanionCoreMemory" {
+  interface CompanionCoreMemory {
+    add_memory_extracted(conversationTurn: MemoryFrameworkMessage[], userId: string, runId: string | null, toolSummary: string | null, extractedInfo: ExtractedInfo | null): Promise<boolean>;
+    // getPersonaById method already exists with parameters (personaId: string, userId: string)
+    // getDueReminders method already exists
+    // updateReminderStatus method already exists
+  }
+}
+export {};
