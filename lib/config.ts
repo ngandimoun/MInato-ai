@@ -7,13 +7,21 @@ import {
 } from "@/memory-framework/config/index"; // Ensure this path is correct
 
 // Helper to log missing envs
-function getEnvVar(name: string, fallback: string) {
+function getEnvVar(name: string, fallback: string | number | boolean | undefined, type?: 'string' | 'number' | 'boolean') {
   const value = process.env[name];
-  if (!value) {
-    if (typeof window === "undefined") {
+  if (value === undefined) {
+    if (fallback === undefined && typeof window === "undefined" && process.env.NODE_ENV !== 'test') { // Only error if no fallback and not in test
+      frameworkLoggerUnified.error(`[config] CRITICAL: Env var ${name} is missing and has no fallback.`);
+      // In production, you might want to throw new Error(`Missing env var: ${name}`);
+    } else if (typeof window === "undefined" && fallback !== undefined) {
       frameworkLoggerUnified.warn(`[config] Env var ${name} is missing, using fallback: ${fallback}`);
     }
     return fallback;
+  }
+  if (type === 'boolean') return value.toLowerCase() === 'true';
+  if (type === 'number') {
+      const num = Number(value);
+      return isNaN(num) ? (fallback as number | undefined) : num;
   }
   return value;
 }
@@ -21,54 +29,60 @@ function getEnvVar(name: string, fallback: string) {
 export const appConfig = {
   ...frameworkConfigUnified, // Merge in memory-framework config
   openai: {
-    apiKey: getEnvVar("OPENAI_API_KEY", ""),
-    ttsDefaultVoice: getEnvVar("OPENAI_TTS_VOICE", "nova"),
-    realtimeDefaultVoice: getEnvVar("OPENAI_REALTIME_VOICE", "verse"),
-    complexModel: getEnvVar("LLM_COMPLEX_MODEL", "gpt-4.1-2025-04-14"),
-    balancedModel: getEnvVar("LLM_BALANCED_MODEL", "gpt-4.1-mini-2025-04-14"),
-    fastModel: getEnvVar("LLM_FAST_MODEL", "gpt-4.1-nano-2025-04-14"),
-    developerModel: getEnvVar("LLM_DEVELOPER_MODEL", "o3-mini-2025-01-31"),
-    chatModel: getEnvVar("LLM_RESPONSE_TOOL_MODEL", "gpt-4.1-mini-2025-04-14"),
-    planningModel: getEnvVar("LLM_PLANNING_MODEL", "o4-mini-2025-04-16"),
-    visionModel: getEnvVar("LLM_VISION_MODEL", "gpt-4.1-mini-2025-04-14"),
-    extractionModel: getEnvVar("LLM_EXTRACTION_MODEL", "gpt-4.1-nano-2025-04-14"),
-    text: getEnvVar("LLM_TEXT_MODEL", "gpt-4.1-mini-2025-04-14"),
-    planning: getEnvVar("LLM_PLANNING_MODEL", "o4-mini-2025-04-16"),
-    vision: getEnvVar("LLM_VISION_MODEL", "gpt-4.1-mini-2025-04-14"),
-    extraction: getEnvVar("LLM_EXTRACTION_MODEL", "gpt-4.1-nano-2025-04-14"),
-    embedderModel: getEnvVar("LLM_EMBEDDER_MODEL", "text-embedding-3-small"),
-    ttsModel: getEnvVar("LLM_TTS_MODEL", "gpt-4o-mini-tts"),
-    sttModel: getEnvVar("LLM_STT_MODEL", "gpt-4o-mini-transcribe"),
-    tts: getEnvVar("LLM_TTS_MODEL", "gpt-4o-mini-tts"),
-    stt: getEnvVar("LLM_STT_MODEL", "gpt-4o-mini-transcribe"),
-    realtimeModel: getEnvVar("LLM_REALTIME_MODEL", "gpt-4o-mini-realtime-preview-2024-12-17"),
-    ttsVoiceDefault: getEnvVar("OPENAI_TTS_VOICE", "nova"),
-    ttsVoices: [
-      "nova", "alloy", "echo", "fable", "onyx", "shimmer", "ash", "ballad", "coral", "sage", "verse"
-    ],
-    realtimeVoices: [
-      "nova", "alloy", "echo", "fable", "onyx", "shimmer", "ash", "ballad", "coral", "sage", "verse"
-    ] as const,
-    realtimeVadConfig: {
-      type: "server_vad",
-      threshold: 0.5,
-      silence_duration_ms: 800,
-      prefix_padding_ms: 200,
-    },
-    enableVision: true,
-    visionDetail: "high",
-    maxTokens: Number(getEnvVar("GENERATION_MAX_TOKENS", "1536")),
-    maxVisionTokens: Number(getEnvVar("MAX_VISION_TOKENS", "2048")),
-    mediaUploadBucket: getEnvVar("MEDIA_UPLOAD_BUCKET", "images"),
-    embeddingDims: Number(getEnvVar("LLM_EMBEDDER_DIMENSIONS", "1536")),
+    apiKey: getEnvVar("OPENAI_API_KEY", "") as string,
+    // Main models based on new strategy
+    chatModel: getEnvVar("LLM_CHAT_MODEL", "gpt-4o-2024-08-06") as string, // Primary model for chat & vision
+    planningModel: getEnvVar("LLM_PLANNING_MODEL", "gpt-4.1-2025-04-14") as string, // For tool routing
+
+    // Specialized models (can be same as above if preferred, or more specific/cost-effective)
+    extractionModel: getEnvVar("LLM_EXTRACTION_MODEL", "gpt-4.1-nano-2025-04-14") as string, // For memory extraction
+    developerModel: getEnvVar("LLM_DEVELOPER_MODEL", "o3-mini-2025-01-31") as string, // If needed for specific dev tasks
+    
+    // STT/TTS (chained voice) - kept as gpt-4o-mini variants
+    sttModel: getEnvVar("LLM_STT_MODEL", "gpt-4o-mini-transcribe") as string,
+    ttsModel: getEnvVar("LLM_TTS_MODEL", "gpt-4o-mini-tts") as string,
+    
+    // Embedding model
+    embedderModel: getEnvVar("LLM_EMBEDDER_MODEL", "text-embedding-3-small") as string,
+    embeddingDims: getEnvVar("LLM_EMBEDDER_DIMENSIONS", 1536, 'number') as number,
+
+    // Default voices (ensure these are valid for gpt-4o-mini-tts)
+    ttsDefaultVoice: getEnvVar("OPENAI_TTS_VOICE", "nova") as typeof frameworkConfigUnified.llm.ttsDefaultVoice,
+    ttsVoices: frameworkConfigUnified.llm.ttsVoices, // Keep predefined list
+
+    // Remove Realtime specific voice configs
+    // realtimeDefaultVoice: "..." // REMOVED
+    // realtimeVoices: [...] // REMOVED
+    // realtimeVadConfig: { ... } // REMOVED
+    // realtimeBaseInstructions: "..." // REMOVED
+
+    enableVision: getEnvVar("ENABLE_VISION_ENV", true, 'boolean') as boolean,
+    visionDetail: getEnvVar("VISION_DETAIL", "auto", 'string') as "auto" | "low" | "high",
+    
+    temperature: getEnvVar("LLM_TEMPERATURE", 0.7, 'number') as number, // General temperature
+    maxTokens: getEnvVar("GENERATION_MAX_TOKENS", 1536, 'number') as number, // Max output for general responses
+    maxVisionTokens: getEnvVar("MAX_VISION_TOKENS", 2048, 'number') as number, // Max output for vision-related responses
+    
+    // Legacy fields (can be removed if not used elsewhere, mapping to new ones)
+    text: getEnvVar("LLM_CHAT_MODEL", "gpt-4o-2024-08-06") as string, // Mapped to chatModel
+    vision: getEnvVar("LLM_CHAT_MODEL", "gpt-4o-2024-08-06") as string, // Mapped to chatModel (as it handles vision)
+    planning: getEnvVar("LLM_PLANNING_MODEL", "gpt-4.1-2025-04-14") as string, // Mapped to planningModel
+    extraction: getEnvVar("LLM_EXTRACTION_MODEL", "gpt-4.1-nano-2025-04-14") as string, // Mapped to extractionModel
+    tts: getEnvVar("LLM_TTS_MODEL", "gpt-4o-mini-tts") as string, // Mapped
+    stt: getEnvVar("LLM_STT_MODEL", "gpt-4o-mini-transcribe") as string, // Mapped
+    
+    // Keeping from original framework config for consistency where used
+    complexModel: getEnvVar("LLM_COMPLEX_MODEL", "gpt-4o-2024-08-06") as string, // Could be GPT-4o or a specific GPT-4.1
+    balancedModel: getEnvVar("LLM_BALANCED_MODEL", "gpt-4o-2024-08-06") as string,
+    fastModel: getEnvVar("LLM_FAST_MODEL", "gpt-4.1-nano-2025-04-14") as string, // Typically for extraction
+
+    mediaUploadBucket: getEnvVar("MEDIA_UPLOAD_BUCKET", "images") as string,
   },
-  // ...other config
 };
 export const logger = frameworkLoggerUnified;
 export const injectPromptVariables = frameworkInjectPromptVariablesUnified;
 
-// Log config load (server-side only)
 if (typeof window === "undefined") {
-    // Use the imported logger which is now configured
     logger.info("[lib/config.ts] appConfig, logger, and injectPromptVariables are re-exporting from memory-framework/config.");
+    logger.info(`[lib/config.ts] Key Models - Chat/Vision: ${appConfig.openai.chatModel}, Planning: ${appConfig.openai.planningModel}, Extraction: ${appConfig.openai.extractionModel}`);
 }

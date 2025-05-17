@@ -76,7 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         googlecalendarenabled: false,
         googleemailenabled: false,
         chainedvoice: appConfig.openai?.ttsDefaultVoice ?? "default_voice_id",
-        realtimevoice: appConfig.openai.realtimeDefaultVoice,
+        //realtimevoice: appConfig.openai.realtimeDefaultVoice,
         toolconfirmation: false,
         workflow_preferences: null,
       };

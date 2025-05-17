@@ -1,18 +1,16 @@
 // FILE: components/header.tsx
-// (Content from finalcodebase.txt - verified)
 "use client";
 
 import React from "react";
 import { motion } from "framer-motion";
-import { MessageSquare, Phone, Settings, Brain, Bell } from "lucide-react";
+import { MessageSquare, Settings, Brain, Bell } from "lucide-react"; // Removed Phone icon
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button"; // Import Button
-import { Badge } from "@/components/ui/badge"; // Import Badge (optional)
-import { useAuth } from "@/context/auth-provider"; // For user info (optional)
+import { Button } from "@/components/ui/button"; 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { NotificationsPanel } from "@/components/ui/notifications-panel";
+import { useAuth } from "@/context/auth-provider"; // Optional for user info
 
-type View = "chat" | "call" | "settings" | "memory";
+type View = "chat" | "settings" | "memory"; // "call" view is removed
 
 interface HeaderProps {
   currentView: View;
@@ -20,12 +18,12 @@ interface HeaderProps {
 }
 
 export function Header({ currentView, onViewChange }: HeaderProps) {
-  const { user, profile } = useAuth(); // Optional: Get user info for display
+  const { user, profile } = useAuth(); // Optional
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [notifCount, setNotifCount] = React.useState(0);
 
-  // Poll for unread reminders/suggestions
   React.useEffect(() => {
+    // Notification count fetching logic (remains the same)
     let isMounted = true;
     async function fetchNotifCount() {
       try {
@@ -45,64 +43,52 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
 
   const navItems: { id: View; icon: React.ReactNode; label: string }[] = [
     { id: "chat", icon: <MessageSquare size={20} />, label: "Chat" },
-    { id: "call", icon: <Phone size={20} />, label: "Call" },
+    // { id: "call", icon: <Phone size={20} />, label: "Call" }, // REMOVED
     { id: "memory", icon: <Brain size={20} />, label: "Memory" },
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },
   ];
 
   return (
     <header className="fixed top-0 left-0 right-0 z-20 backdrop-blur-md bg-background/80 border-b border-border">
-      {" "}
-      {/* Increased z-index */}
       <div className="container max-w-5xl mx-auto px-4">
         <div className="flex items-center justify-between h-14">
-          {/* Left Side: Logo/Title */}
           <div className="flex items-center space-x-2">
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.3 }}
-              className="font-semibold text-lg text-foreground flex items-center gap-2" // Added flex items-center
+              className="font-semibold text-lg text-foreground flex items-center gap-2"
             >
-              {/* Optional: Replace text with an SVG Logo */}
               <span className="bg-gradient-to-r from-primary via-emerald-400 to-pink-500 bg-clip-text text-transparent font-bold">
                 Minato
               </span>
-              {/* Optional: Beta Badge */}
-              {/* <Badge variant="secondary" className="text-xs">Beta</Badge> */}
             </motion.div>
           </div>
 
-          {/* Center: Navigation */}
           <nav className="flex-1 flex justify-center">
-            {" "}
-            {/* Center navigation */}
             <ul className="flex space-x-1 sm:space-x-2 bg-muted/50 border border-border/50 p-1 rounded-full">
-              {" "}
-              {/* Encapsulate in styled background */}
               {navItems.map((item) => (
                 <li key={item.id}>
                   <Button
                     variant="ghost"
-                    size="sm" // Use sm size for buttons
+                    size="sm" 
                     onClick={() => onViewChange(item.id)}
                     className={cn(
-                      "relative flex items-center justify-center rounded-full px-3 py-1.5 text-sm font-medium transition-colors h-8", // Adjusted padding and height
-                      "hover:bg-background/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring", // Subtle hover/focus
+                      "relative flex items-center justify-center rounded-full px-3 py-1.5 text-sm font-medium transition-colors h-8", 
+                      "hover:bg-background/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring", 
                       currentView === item.id
                         ? "text-primary bg-background shadow-sm"
-                        : "text-muted-foreground hover:text-foreground" // Style active/inactive
+                        : "text-muted-foreground hover:text-foreground" 
                     )}
                   >
                     {item.icon}
                     <span className="sr-only sm:not-sr-only sm:ml-1.5 hidden md:inline">
                       {item.label}
-                    </span>{" "}
-                    {/* Adjusted margin */}
+                    </span>
                     {currentView === item.id && (
                       <motion.div
-                        layoutId="activeTabIndicator" // Unique layoutId
-                        className="absolute inset-0 bg-primary/10 rounded-full -z-10" // Background indicator
+                        layoutId="activeTabIndicator" 
+                        className="absolute inset-0 bg-primary/10 rounded-full -z-10" 
                         transition={{
                           type: "spring",
                           stiffness: 300,
@@ -116,16 +102,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
             </ul>
           </nav>
 
-          {/* Right Side: User Info/Actions (Optional) */}
           <div className="flex items-center space-x-2">
-            {/* Add User Profile/Logout Button Here if needed */}
-            {/* Example:
-              {profile && (
-                <span className="text-sm text-muted-foreground hidden lg:inline">
-                  Hi, {profile.first_name || 'User'}!
-                </span>
-              )}
-              */}
             <Popover open={notifOpen} onOpenChange={setNotifOpen}>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative rounded-full" aria-label="Notifications">

@@ -397,17 +397,16 @@ export type ChatMessageContentPart =
   | ChatMessageContentPartText
   | ChatMessageContentPartInputImage; // Use the renamed type
 
-  export interface MessageAttachment {
-    id: string; 
-    type: "image" | "video" | "document" | "audio" | "data_file";
-    name?: string | null;
-    url?: string | null; 
-    file?: File | Blob | null; 
-    size?: number | null;
-    mimeType?: string | null;
-    fileId?: string | null; 
-    storagePath?: string | null; 
-  }
+export type MessageAttachment = {
+  id?: string;
+  type: 'image' | 'file' | string;
+  url: string;
+  name?: string;
+  size?: number;
+  mimeType?: string;
+  file?: Blob;
+  storagePath?: string;
+};
 
 export type ChatMessage = {
   id?: string; // Use string for message IDs
@@ -1206,9 +1205,10 @@ export type OrchestratorResponse = {
     cacheHit?: boolean;
     cacheSourceApi?: string | null;
     latencyMs?: number;
-    flow_type?: "direct_llm" | "single_tool" | "workflow" | "clarification" | "error" | "cache_hit" | "pending" | "s2s_interaction";
+    flow_type?: 'pending' | 'clarification' | 'direct_llm' | 'single_tool' | 'workflow' | 'cache_hit' | 's2s_interaction' | 'direct_llm_after_router_fail' | 'workflow_synthesis' | 'direct_llm_synthesis' | 'error' | 'synthesis_error' | 'workflow_routed' | 'direct_llm_no_tools_routed';
     [key: string]: any; // Allow other debug fields
   } | null;
+  attachments?: MessageAttachment[];
 };
 
 // --- Realtime API Types (aligned with OpenAI documentation) ---

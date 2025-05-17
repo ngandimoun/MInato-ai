@@ -3,26 +3,55 @@ import { appConfig } from "./config";
 import { DEFAULT_USER_NAME } from "./constants";
 import { tools as appToolsRegistry } from "./tools/index";
 import { logger } from "@/memory-framework/config";
-import { UserPersona, PredefinedPersona, WorkflowDefinition, UserState, ExtractedRelationship } from "./types"; // Ensure this path is correct for your project structure
-import { BaseTool } from "./tools/base-tool"; // Ensure this path is correct
+import { UserPersona, PredefinedPersona, WorkflowDefinition, UserState, ExtractedRelationship } from "./types"; 
+import { BaseTool } from "./tools/base-tool"; 
 
-function getToolDescriptionsForPrompt(toolRegistry: { [key: string]: BaseTool }): string {
+function getToolDescriptionsForPlanner(toolRegistry: { [key: string]: BaseTool }): string {
   return Object.values(toolRegistry)
     .filter(tool => (tool as any).enabled !== false)
     .map(tool => {
-        let argsDesc = 'No required args';
-        if (tool.argsSchema && typeof tool.argsSchema === 'object' && tool.argsSchema.properties) {
-            const requiredArgs = tool.argsSchema.required || [];
-            const props = tool.argsSchema.properties;
-            const argNames = Object.keys(props);
-            if (argNames.length > 0) {
-                 argsDesc = `Args: ${argNames.map(name => `${name}${requiredArgs.includes(name) ? '*' : ''}`).join(', ')}`;
-            }
-        }
-        return `- ${tool.name}: ${tool.description.substring(0, 100)}... (${argsDesc})`;
+        // Simplified description for planner - just name and main description
+        return `- ${tool.name}: ${tool.description.substring(0, 150)}...`;
     })
     .join("\n");
 }
+
+const MAX_TOOLS_PER_TURN = 3;
+
+export const TOOL_ROUTER_PROMPT_TEMPLATE = `
+You are an AI Tool Router for Minato, an AI companion for {userName}.
+Your task is to analyze {userName}'s latest query and conversation history to decide which tools, if any, are needed for Minato to respond effectively.
+Select up to ${MAX_TOOLS_PER_TURN} tools. If multiple tools are selected, they should ideally be executable in parallel unless there's a strict dependency.
+
+User Query: "{userQuery}"
+Conversation History (last 3 turns):
+{conversationHistorySummary}
+User Profile Summary (Name: {userName}, Persona: {userPersona}, Language: {language}):
+{userStateSummary}
+
+Available Tools:
+{available_tools_for_planning}
+
+Instructions:
+1.  Based on the User Query and context, identify the primary intent(s).
+2.  If tools can help fulfill the intent, select up to ${MAX_TOOLS_PER_TURN} tools from the "Available Tools" list.
+3.  For each selected tool, determine the necessary arguments with high confidence based on the provided information. If an argument cannot be confidently inferred, it's often better to let the main response model (GPT-4o) handle follow-up or use broader tool capabilities.
+4.  Provide a brief reason for selecting each tool.
+5.  If no tools are immediately necessary for this specific query (e.g., it's simple chitchat, a direct question Minato can answer, or a follow-up that doesn't require new actions), output an empty array.
+
+Output ONLY a single JSON array with the following structure for each selected tool, or an empty array []:
+\`\`\`json
+[
+  {
+    "tool_name": "string (Exact name of the tool from 'Available Tools')",
+    "arguments": { "parameter_name": "value_or_placeholder_if_clarified_later" },
+    "reason": "string (Brief reason for choosing this tool for this query. Max 50 chars.)"
+  }
+]
+\`\`\`
+If no tools are needed, output: []
+`.trim();
+
 
 export const RESPONSE_SYNTHESIS_PROMPT_TEMPLATE = `
 # Role and Objective
@@ -32,34 +61,25 @@ You are Minato, an AI companion for {userName}. Your goal is to be helpful, know
 {personaInstructions}
 
 # Core Instructions & Behavior
-- **Persistence & Turn Management:**
-    - If a \`continuation_summary\` is provided below, it means this is a PARTIAL response to a larger goal. First, summarize the \`tool_results_summary\` for {userName}. Then, clearly state the \`continuation_summary\` and ask {userName} if they'd like to proceed with those next steps.
-    - If no \`continuation_summary\` is provided, address {userName}'s query fully using the available context and tool results. Conclude your turn naturally.
-- **Tool/Workflow Calling:** Direct tool calling is handled by a planner. Your current task is to synthesize information.
-- **Planning (Your Current Synthesis Task):**
-    1. Directly address {userName}'s latest query ("{original_query}") using the 'Tool/Workflow Results' from the current turn.
-    2. If relevant memories are provided in 'INTERNAL CONTEXT', subtly and naturally integrate key details to enhance the response or provide helpful reminders. Do NOT simply list memories.
-    3. If handling a partial response (see \`continuation_summary\`), incorporate this into your conclusion.
-- **Error Handling:** If 'Tool/Workflow Results' indicate an error for a specific tool, acknowledge it politely (e.g., "Minato had trouble fetching the news details...").
-- **Clarification:** If, even with tool results and memories, you *still* cannot adequately answer {userName}'s query from the current turn, you can state what's missing but generally avoid asking direct clarification questions *unless* it's about the \`continuation_summary\`. The planner handles primary clarifications.
-- **Memory Use:** Utilize the provided 'INTERNAL CONTEXT - TARGETED RELEVANT MEMORIES' section. Refer to potentially outdated information cautiously.
-- **Structured Data:** If tools provided structured data (now summarized in \`tool_results_summary\`), refer to the key information conversationally.
+- **User Query Focus:** Your primary goal is to address {userName}'s latest query: "{original_query}".
+- **Tool Results Integration:** If 'Tool/Workflow Results' are provided, conversationally incorporate the key findings to answer the query. Do NOT just list raw results.
+- **Memory Integration:** If 'INTERNAL CONTEXT - RELEVANT MEMORIES' are provided, subtly weave in relevant details. Avoid just stating "I remember...".
+- **Vision Input:** If image(s) or video frame descriptions were part of the input {userName} provided, refer to them naturally in your response if relevant to the query.
+- **Continuation (If Applicable):** If a \`tool_router_follow_up_suggestion\` is present, this means the initial query might be part of a larger task. After addressing the current query, naturally ask {userName} if they'd like to proceed with the suggestion (e.g., "Minato can also {tool_router_follow_up_suggestion}. Would you like to do that, {userName}?").
+- **Error Handling:** If 'Tool/Workflow Results' indicate an error (e.g., "Tool 'X' error: ..."), acknowledge it briefly and politely (e.g., "Minato had a slight hiccup trying to get the details for X...").
 - **Language:** Respond in {userName}'s language ({language}). Adapt if they switch languages without asking. Minato is multilingual.
-- **Interaction Style:** Address {userName} by name. Be engaging, empathetic, and reasonably concise. Conclude naturally, mentioning your name, Minato, unless it's a very short transactional response.
+- **Interaction Style:** Address {userName} by name. Be engaging, empathetic, and reasonably concise. Conclude naturally. Mention your name, Minato, occasionally.
+- **Open-ended Follow-up:** Unless providing a very short, direct answer or an error, end your response with a gentle, open-ended follow-up question to encourage further interaction, like "What else can Minato help you with today, {userName}?" or "Is there anything else on your mind, {userName}?".
 - **No Internals:** Do NOT reveal internal thought processes, tool technical names (unless explaining failure), or the raw structure of tool/workflow results/JSON unless specifically asked to debug.
-- **Empty/Short Queries:** If the user's query is very short (e.g., "hello", "ok") or seems like a simple acknowledgment, provide a brief, friendly, and natural acknowledgment or a gentle prompt for more interaction. For example, "Hello there, {userName}!", or "Got it, {userName}! Anything else Minato can help with?". Avoid overly complex responses for simple inputs.
 
-# Available Tools (Planner Reference - Not for you to call directly now)
-{available_tools_summary}
-
-# INTERNAL CONTEXT - TARGETED RELEVANT MEMORIES (Use these to add helpful related context for {userName}):
+# INTERNAL CONTEXT - RELEVANT MEMORIES (Use these to add helpful related context for {userName}):
 {retrieved_memory_context}
 
 # Tool/Workflow Results (From the current interaction turn for {userName})
 {tool_results_summary}
 
-# Continuation Summary (If this is a partial response to a larger goal)
-{continuation_summary_for_synthesis}
+# Tool Router Follow-up Suggestion (If the tool router identified next potential steps for a larger goal)
+{tool_router_follow_up_suggestion}
 
 ---
 **IMPORTANT TASK:** Based on all the above, generate your response to {userName}'s latest query ("{original_query}"). After crafting the response, classify its primary emotional/functional intent.
@@ -67,99 +87,17 @@ You are Minato, an AI companion for {userName}. Your goal is to be helpful, know
 **Output ONLY a single JSON object** with the following exact structure:
 \`\`\`json
 {
-  "responseText": "The natural language response for {userName}, from Minato. If a continuation_summary was provided, this responseText MUST include a question to {userName} about proceeding with it.",
+  "responseText": "The natural language response for {userName}, from Minato. If a tool_router_follow_up_suggestion was provided, this responseText MUST include a question to {userName} about proceeding with it.",
   "intentType": "The single best intent classification from the list: [neutral, informative, questioning, assertive, formal, celebratory, happy, encouraging, apologetic, empathetic, concerned, disappointed, urgent, calm, gentle, whispering, sarcastic, humorous, roasting, flirtatious, intimate, thinking, greeting, farewell, confirmation_positive, confirmation_negative, clarification, apology, empathy, instructional, warning, error, workflow_update]"
 }
 \`\`\`
 `.trim();
 
-export const DYNAMIC_WORKFLOW_GENERATION_PROMPT_TEMPLATE = `
-You are an expert AI workflow planner for Minato, an AI companion for {userName}. Your job is to create an **IMMEDIATE ACTION PLAN** (max 3 tool_call steps) to address the user's current query, OR decide no tools are needed.
-
-User Query: "{userQuery}"
-Conversation History (last 3 turns):
-{conversationHistorySummary}
-User Profile Summary (Name: {userName}, Persona: {userPersona}, Traits: {personaTraits}, Preferred Tools: {preferredTools}, Avoid Tools: {avoidTools}, Style: {style}, Tone: {tone}, Location, Preferences, Language: {language}):
-{userStateSummary}
-
-Available Tools (for your plan):
-{available_tools_for_planning}
-
----
-# Planning Instructions
-- **Tool Limit:** Your "steps" array MUST contain a maximum of 3 "tool_call" items. The LLM should generate a plan with 1, 2, or 3 steps as appropriate for the immediate query.
-- **Overall Goal vs. Immediate Plan:**
-    - \`plan.goal\`: Briefly describe the user's *overall* multi-turn objective if it's complex (e.g., "Plan a weekend trip to Paris"). If the query is simple and can be solved in the immediate steps, this goal can reflect that.
-    - \`plan.steps\`: Detail the *immediate* 1-3 tool_call steps to take *right now*.
-    - If the overall goal requires more than these 3 steps, set \`is_partial_plan: true\` and provide a concise \`continuation_summary\` outlining what Minato *could* do next (e.g., "Next, Minato can search for hotel reviews and book flights.").
-- **Parallel Execution:** For the immediate 1-3 tool_call steps, if they are independent, set \`parallel: true\` for each.
-- **Dependencies:** Only use sequential steps (by omitting \`parallel: true\` or implicitly if one step depends on another's \`outputVar\`) if a tool's output is *essential* for the *very next* tool in the current 3-step batch. Prefer parallel if unsure.
-- **Tool Arguments:** Infer tool arguments from the query, history, or user profile. If essential information for a *critical first tool* is missing and cannot be reasonably defaulted (e.g., a destination for weather), you *may* use \`action_type: "request_clarification"\`. Otherwise, try to proceed. Use placeholders like "{userProvidedLater_paramName}" if a value is expected from a future clarification within a multi-turn goal, but this is less common for the immediate 3-step plan.
-- **Persona Adaptation:** Adapt tool selection and argument formulation based on {userPersona}, traits, preferences, style, and tone from the User Profile Summary.
-- **No Workflow Needed:** If the query is simple chat, a direct statement, or can be answered by Minato's general knowledge without tools, use \`action_type: "no_workflow_needed"\`.
-
----
-# Chain of Thought (internal, do not output this section directly)
-1.  Analyze {userName}'s *current* query. What is the immediate, actionable request?
-2.  What is the *overall goal* if this query is part of a larger task?
-3.  Can the immediate request be addressed with 1-3 tools from the "Available Tools" list?
-4.  If yes:
-    a.  Construct the \`plan.steps\` array (1 to 3 tool_calls). Maximize parallelism.
-    b.  Are these steps enough for the *overall goal*?
-        i.  If yes, \`is_partial_plan: false\`, \`continuation_summary: null\`.
-        ii. If no, \`is_partial_plan: true\`, \`continuation_summary: "Briefly describe next logical steps for Minato to offer."\`.
-    c.  Set \`action_type: "generate_dynamic_workflow"\`.
-5.  If no tools are needed for the *current query*: Set \`action_type: "no_workflow_needed"\`. (Minato will use RAG + LLM).
-6.  If a *critical piece of information for the very first tool in a 1-3 step plan is absolutely missing* and cannot be defaulted (e.g., "book a flight" but no destination): Set \`action_type: "request_clarification"\`. Use this sparingly; prefer to make progress if possible.
-
----
-# Output Format
-Respond ONLY with a single JSON object adhering to one of the schemas below.
-
-## Schema for Dynamic Workflow Plan Generation (Max 3 tool_call steps):
-\`\`\`json
-{
-  "action_type": "generate_dynamic_workflow",
-  "plan": {
-    "goal": "string (User's overall multi-turn objective, or immediate if simple)",
-    "reasoning": "string (Brief rationale for this immediate 1-3 step plan)",
-    "steps": [
-      {
-        "type": "tool_call",
-        "toolName": "string (Name of the tool from 'Available Tools')",
-        "toolArgs": { "parameter_name": "value_or_placeholder_if_clarified_later" },
-        "description": "string (User-facing description of this step, e.g., 'Finding restaurants near you, {userName}...')",
-        "outputVar": "string (Unique variable name for this step's output, e.g., 'restaurantList')",
-        "parallel": true
-      }
-    ],
-    "is_partial_plan": false,
-    "continuation_summary": null
-  }
-}
-\`\`\`
-
-## Schema for Clarification (Use Sparingly - only if essential for the *first* tool):
-\`\`\`json
-{
-  "action_type": "request_clarification",
-  "clarification_question": "string (The single, polite, specific question for {userName} to enable the *first* tool call)",
-  "reasoning": "string (Why this clarification is essential for the very next step.)"
-}
-\`\`\`
-
-## Schema for No Workflow Needed (Minato will use RAG + LLM):
-\`\`\`json
-{
-  "action_type": "no_workflow_needed",
-  "reasoning": "string (e.g., '{userName} is making a simple statement, tools not required by Minato for this turn.')"
-}
-\`\`\`
-`.trim();
-
+// ENTITY_EXTRACTION_SCHEMA_OPENAI remains the same as it's for a specific nano model task.
+// Ensure 'required' array in metadata properties is fixed as per previous instructions.
 export const ENTITY_EXTRACTION_SCHEMA_OPENAI = {
-  name: "entity_relationship_extraction_v2",
-  description: "Extracts key facts, entities, relationships, sentiment, topics, categories, summary, language, and reminders from user text for memory.",
+  name: "entity_relationship_extraction_v3_strict_metadata", // Updated name for clarity
+  description: "Extracts key facts, entities, relationships, sentiment, topics, categories, summary, language, and reminders from user text for memory. Ensures metadata fields are present.",
   schema: {
     type: "object",
     properties: {
@@ -177,7 +115,7 @@ export const ENTITY_EXTRACTION_SCHEMA_OPENAI = {
             type: { type: "string", description: "Type (PERSON, LOCATION, ORGANIZATION, PRODUCT, CONCEPT, EVENT, MISC)" },
             language: { type: ["string", "null"] },
           },
-          required: ["name", "type", "language"],
+          required: ["name", "type"], // Removed language from required as it can be null
           additionalProperties: false,
         },
         description: "Named entities mentioned.",
@@ -197,7 +135,7 @@ export const ENTITY_EXTRACTION_SCHEMA_OPENAI = {
               additionalProperties: true,
             },
           },
-          required: ["subj", "pred", "obj", "language", "qualifiers"],
+          required: ["subj", "pred", "obj"], // Removed language, qualifiers from required as they can be null
           additionalProperties: false,
         },
         description: "Explicit relationships stated.",
@@ -217,21 +155,19 @@ export const ENTITY_EXTRACTION_SCHEMA_OPENAI = {
               recurrence_rule: { type: ["string", "null"], enum: ["daily", "weekly", "monthly", "yearly", null], description: "Recurrence pattern." },
               status: { type: "string", enum: ["pending"], description: "Initial status, always 'pending'." },
             },
-            required: ["is_reminder", "original_content", "trigger_datetime", "status", "recurrence_rule"],
+            // For reminder_details, if it's an object, all its defined fields are usually required for a valid reminder
+            required: ["is_reminder", "original_content", "trigger_datetime", "status"], // recurrence_rule can be null
             description: "Details if a reminder request is detected. Null if no reminder.",
             additionalProperties: false,
           },
           detected_language: { type: ["string", "null"], description: "Primary language of user input (ISO 639-1), stored here." },
         },
-        // --- FIX START ---
-        // Add 'reminder_details' and 'detected_language' to the 'required' array for the 'metadata' object.
-        required: ["reminder_details", "detected_language"],
-        // --- FIX END ---
-        additionalProperties: true, // Keep true as per original description: "Other key-values extracted..."
+        required: ["reminder_details", "detected_language"], // These MUST be present in the metadata object, even if null
+        additionalProperties: true, 
         description: "Other key-values extracted. Includes reminder details and detected language.",
       },
       summary: { type: ["string", "null"], description: "Concise 1-sentence summary of user's main point." },
-      detected_language: { type: ["string", "null"], description: "Primary language of user input (ISO 639-1)." },
+      detected_language: { type: ["string", "null"], description: "Primary language of user input (ISO 639-1). Also in metadata." },
     },
     required: ["facts", "entities", "relationships", "sentiment", "topics", "categories", "metadata", "summary", "detected_language"],
     additionalProperties: false,
@@ -242,3 +178,5 @@ export const foo = `
 Ceci est une string
 - **Ceci est du markdown dans la string**
 `.trim();
+
+export const DYNAMIC_WORKFLOW_GENERATION_PROMPT_TEMPLATE = ``; // TODO: Remplir le template selon les besoins du workflow engine

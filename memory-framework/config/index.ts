@@ -1,5 +1,5 @@
 // FILE: memory-framework/config/index.ts
-import { FrameworkConfig } from "../core/types"; // This type MUST be updated to be comprehensive
+import { FrameworkConfig } from "../core/types"; 
 import dotenv from "dotenv";
 import path from "path";
 import {
@@ -10,12 +10,12 @@ import {
   OpenAIVisionModel,
   OpenAITtsModel,
   OpenAISttModel,
-  OpenAIRealtimeModel,
-  OpenAIRealtimeVoice,
+  // OpenAIRealtimeModel, // REMOVED
+  // OpenAIRealtimeVoice, // REMOVED
   OpenAITtsVoice,
   OpenAIDeveloperModel,
   OpenAILLMComplex,
-  RealtimeSessionConfig,
+  // RealtimeSessionConfig, // REMOVED
 } from "../../lib/types/index";
 import {
   MEMORY_SEARCH_LIMIT_DEFAULT,
@@ -30,18 +30,18 @@ import {
 
 const ENV_KEYS = {
   OPENAI_API_KEY: "OPENAI_API_KEY",
-  LLM_PLANNING_MODEL: "LLM_PLANNING_MODEL",
-  LLM_RESPONSE_TOOL_MODEL: "LLM_RESPONSE_TOOL_MODEL",
-  LLM_COMPLEX_MODEL: "LLM_COMPLEX_MODEL",
-  LLM_EXTRACTION_MODEL: "LLM_EXTRACTION_MODEL",
-  LLM_DEVELOPER_MODEL: "LLM_DEVELOPER_MODEL",
-  LLM_VISION_MODEL: "LLM_VISION_MODEL",
-  LLM_TTS_MODEL: "LLM_TTS_MODEL",
-  LLM_STT_MODEL: "LLM_STT_MODEL",
-  LLM_REALTIME_MODEL: "LLM_REALTIME_MODEL",
-  LLM_REALTIME_STT_MODEL: "LLM_REALTIME_STT_MODEL",
+  LLM_PLANNING_MODEL: "LLM_PLANNING_MODEL", // Will be GPT-4.1 for tool routing
+  LLM_CHAT_MODEL: "LLM_CHAT_MODEL", // Will be GPT-4o for main responses
+  LLM_COMPLEX_MODEL: "LLM_COMPLEX_MODEL", // Could be GPT-4o or specific GPT-4.1
+  LLM_EXTRACTION_MODEL: "LLM_EXTRACTION_MODEL", // Nano
+  LLM_DEVELOPER_MODEL: "LLM_DEVELOPER_MODEL", // o3-mini
+  LLM_TTS_MODEL: "LLM_TTS_MODEL", // gpt-4o-mini-tts
+  LLM_STT_MODEL: "LLM_STT_MODEL", // gpt-4o-mini-transcribe
+  // LLM_REALTIME_MODEL: "LLM_REALTIME_MODEL", // REMOVED
+  // LLM_REALTIME_STT_MODEL: "LLM_REALTIME_STT_MODEL", // REMOVED
   LLM_EMBEDDER_MODEL: "LLM_EMBEDDER_MODEL",
   LLM_EMBEDDER_DIMENSIONS: "LLM_EMBEDDER_DIMENSIONS",
+  LLM_TEMPERATURE: "LLM_TEMPERATURE", // Added for general temperature
   VISION_DETAIL: "VISION_DETAIL",
   MAX_VISION_TOKENS: "MAX_VISION_TOKENS",
   GENERATION_MAX_TOKENS: "GENERATION_MAX_TOKENS",
@@ -97,53 +97,42 @@ const ENV_KEYS = {
   RESEND_API_KEY: "RESEND_API_KEY",
   EMAIL_FROM_ADDRESS: "EMAIL_FROM_ADDRESS",
   ENABLE_VISION_ENV: "ENABLE_VISION",
-  SEMANTIC_CACHE_ENABLED_ENV: "SEMANTIC_CACHE_ENABLED", 
+  SEMANTIC_CACHE_ENABLED_ENV: "SEMANTIC_CACHE_ENABLED",
+  MEDIA_UPLOAD_BUCKET: "MEDIA_UPLOAD_BUCKET",
 } as const;
 
 const ALL_TTS_VOICES: ReadonlyArray<OpenAITtsVoice> = [
   "alloy", "ash", "ballad", "coral", "echo", "fable",
   "nova", "onyx", "sage", "shimmer", "verse",
 ] as const;
-const ALL_REALTIME_VOICES: ReadonlyArray<OpenAIRealtimeVoice> = [
-  "alloy", "echo", "fable", "onyx", "nova", "shimmer", 
-  "verse", "ash", "ballad", "coral", "sage",
-] as const;
+// REMOVED ALL_REALTIME_VOICES
 
 const DEFAULT_TTS_VOICE_CONST: OpenAITtsVoice = ALL_TTS_VOICES.includes("nova")
   ? "nova"
   : ALL_TTS_VOICES[0];
-const DEFAULT_REALTIME_VOICE_CONST: OpenAIRealtimeVoice =
-  ALL_REALTIME_VOICES.includes("nova") ? "nova" : ALL_REALTIME_VOICES[0];
+// REMOVED DEFAULT_REALTIME_VOICE_CONST
 
 const DEFAULTS_UNIFIED = {
-  LLM_PLANNING_MODEL: "o4-mini-2025-04-16" as OpenAIPlanningModel,
-  LLM_RESPONSE_TOOL_MODEL: "gpt-4.1-mini-2025-04-14" as OpenAILLMBalanced,
-  LLM_COMPLEX_MODEL: "gpt-4.1-2025-04-14" as OpenAILLMComplex,
-  LLM_EXTRACTION_MODEL: "gpt-4.1-nano-2025-04-14" as OpenAILLMFast,
-  LLM_DEVELOPER_MODEL: "o3-mini-2025-01-31" as OpenAIDeveloperModel,
-  LLM_VISION_MODEL: "gpt-4.1-mini-2025-04-14" as OpenAIVisionModel,
+  LLM_PLANNING_MODEL: "gpt-4.1-2025-04-14" as OpenAIPlanningModel, // For tool routing
+  LLM_CHAT_MODEL: "gpt-4o-2024-08-06" as OpenAILLMBalanced, // For main responses and vision
+  LLM_COMPLEX_MODEL: "gpt-4o-2024-08-06" as OpenAILLMComplex, // Can be same as chat or a larger GPT-4.1
+  LLM_EXTRACTION_MODEL: "gpt-4.1-nano-2025-04-14" as OpenAILLMFast, // For memory facts
+  LLM_DEVELOPER_MODEL: "o3-mini-2025-01-31" as OpenAIDeveloperModel, // For specific dev tasks
+  LLM_VISION_MODEL: "gpt-4o-2024-08-06" as OpenAIVisionModel, // GPT-4o handles vision
   LLM_TTS_MODEL: "gpt-4o-mini-tts" as OpenAITtsModel,
   LLM_STT_MODEL: "gpt-4o-mini-transcribe" as OpenAISttModel,
-  LLM_REALTIME_MODEL:
-    "gpt-4o-mini-realtime-preview-2024-12-17" as OpenAIRealtimeModel,
-  LLM_REALTIME_STT_MODEL: "gpt-4o-mini-transcribe" as OpenAISttModel,
+  // LLM_REALTIME_MODEL: "..." // REMOVED
+  // LLM_REALTIME_STT_MODEL: "..." // REMOVED (STT_MODEL is used for chained)
   LLM_EMBEDDER_MODEL: "text-embedding-3-small" as OpenAIEmbeddingModel,
   LLM_EMBEDDER_DIMENSIONS: OPENAI_EMBEDDING_DIMENSION,
+  LLM_TEMPERATURE: 0.7, // Default temperature
   VISION_DETAIL: "auto" as "low" | "high" | "auto",
   MAX_VISION_TOKENS: 2048,
-  GENERATION_MAX_TOKENS: 1536,
+  GENERATION_MAX_TOKENS: 1536, // General max output
   TTS_DEFAULT_VOICE: DEFAULT_TTS_VOICE_CONST,
-  REALTIME_DEFAULT_VOICE: DEFAULT_REALTIME_VOICE_CONST,
-  REALTIME_VAD_CONFIG: {
-    type: "server_vad",
-    threshold: 0.5,
-    prefix_padding_ms: 300,
-    silence_duration_ms: 500,
-    create_response: true,
-    interrupt_response: true,
-  } as RealtimeSessionConfig["turn_detection"],
-  REALTIME_BASE_INSTRUCTIONS:
-    "You are Minato, a helpful and engaging AI voice companion. Please be concise and natural in your spoken responses.",
+  // REALTIME_DEFAULT_VOICE: "..." // REMOVED
+  // REALTIME_VAD_CONFIG: { ... } // REMOVED
+  // REALTIME_BASE_INSTRUCTIONS: "..." // REMOVED
 
   SUPABASE_TABLE_NAME: "memories",
   SUPABASE_MATCH_FUNCTION: "match_memories_v2",
@@ -219,7 +208,8 @@ const DEFAULTS_UNIFIED = {
 function getEnvVar(
   key: keyof typeof ENV_KEYS,
   required: boolean = true,
-  defaultValue?: string | number | boolean
+  defaultValue?: string | number | boolean,
+  type?: 'string' | 'number' | 'boolean' // Added type parameter
 ): string | number | boolean | undefined {
   const envVarName = ENV_KEYS[key];
   const value =
@@ -228,15 +218,15 @@ function getEnvVar(
       : undefined;
 
   if (value !== undefined) {
-    if (typeof defaultValue === "boolean")
+    if (type === "boolean" || typeof defaultValue === "boolean" && type === undefined)
       return value.toLowerCase() === "true";
-    if (typeof defaultValue === "number") {
+    if (type === "number" || typeof defaultValue === "number" && type === undefined) {
       const num = Number(value);
       return isNaN(num) ? defaultValue : num;
     }
     return value;
   }
-  if (required && defaultValue === undefined && typeof window === "undefined") {
+  if (required && defaultValue === undefined && typeof window === "undefined" && process.env.NODE_ENV !== 'test') {
     const message = `[Config Load] CRITICAL: Missing required environment variable: ${envVarName} (config key: ${key})`;
     console.error(message);
     if (process.env.NODE_ENV === "production") {
@@ -276,33 +266,17 @@ function loadConfig(): FrameworkConfig {
     getEnvVar("NEO4J_URI", true);
     getEnvVar("NEO4J_USERNAME", true);
     getEnvVar("NEO4J_PASSWORD", true);
-    const encryptionKey = getEnvVar(
-      "ENCRYPTION_KEY",
-      true,
-      DEFAULTS_UNIFIED.ENCRYPTION_KEY_DEFAULT
-    ) as string;
+    const encryptionKey = getEnvVar( "ENCRYPTION_KEY", true, DEFAULTS_UNIFIED.ENCRYPTION_KEY_DEFAULT ) as string;
     if (Buffer.from(encryptionKey, "utf-8").length !== 32) {
-      const errMsg =
-        "CRITICAL SECURITY: ENCRYPTION_KEY must be exactly 32 bytes long.";
+      const errMsg = "CRITICAL SECURITY: ENCRYPTION_KEY must be exactly 32 bytes long.";
       console.error(`[Config Load] ${errMsg}`);
-      if (
-        getEnvVar("NODE_ENV", false, DEFAULTS_UNIFIED.NODE_ENV) === "production"
-      )
-        throw new Error(errMsg);
+      if ( getEnvVar("NODE_ENV", false, DEFAULTS_UNIFIED.NODE_ENV) === "production" ) throw new Error(errMsg);
     }
-    if (
-      getEnvVar(
-        "CACHE_PROVIDER_ENV",
-        false,
-        DEFAULTS_UNIFIED.CACHE_PROVIDER
-      ) === "upstash_redis"
-    ) {
+    if ( getEnvVar( "CACHE_PROVIDER_ENV", false, DEFAULTS_UNIFIED.CACHE_PROVIDER ) === "upstash_redis" ) {
       getEnvVar("UPSTASH_REDIS_URL", true);
       getEnvVar("UPSTASH_REDIS_TOKEN", true);
     }
-    if (
-      getEnvVar("NODE_ENV", false, DEFAULTS_UNIFIED.NODE_ENV) === "production"
-    ) {
+    if ( getEnvVar("NODE_ENV", false, DEFAULTS_UNIFIED.NODE_ENV) === "production" ) {
       getEnvVar("VAPID_PUBLIC_KEY", true);
       getEnvVar("VAPID_PRIVATE_KEY", true);
       getEnvVar("VAPID_SUBJECT", true);
@@ -310,68 +284,56 @@ function loadConfig(): FrameworkConfig {
     getEnvVar("APP_URL", true); 
   }
 
-  const determinedCacheProvider = getEnvVar(
-    "CACHE_PROVIDER_ENV",
-    false,
-    DEFAULTS_UNIFIED.CACHE_PROVIDER
-  ) as FrameworkConfig["cache"]["provider"];
-  const nodeEnv = getEnvVar(
-    "NODE_ENV",
-    false,
-    DEFAULTS_UNIFIED.NODE_ENV
-  ) as string;
+  const determinedCacheProvider = getEnvVar( "CACHE_PROVIDER_ENV", false, DEFAULTS_UNIFIED.CACHE_PROVIDER ) as FrameworkConfig["cache"]["provider"];
+  const nodeEnv = getEnvVar( "NODE_ENV", false, DEFAULTS_UNIFIED.NODE_ENV ) as string;
 
   const loadedConfig = {
     llm: {
       provider: "openai",
       apiKey: getEnvVar("OPENAI_API_KEY", true, "") as string,
-      planningModel: getEnvVar( "LLM_PLANNING_MODEL", false, DEFAULTS_UNIFIED.LLM_PLANNING_MODEL ) as OpenAIPlanningModel,
-      chatModel: getEnvVar( "LLM_RESPONSE_TOOL_MODEL", false, DEFAULTS_UNIFIED.LLM_RESPONSE_TOOL_MODEL ) as OpenAILLMBalanced,
-      complexModel: getEnvVar( "LLM_COMPLEX_MODEL", false, DEFAULTS_UNIFIED.LLM_COMPLEX_MODEL ) as OpenAILLMComplex,
-      extractionModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL ) as OpenAILLMFast,
-      developerModel: getEnvVar( "LLM_DEVELOPER_MODEL", false, DEFAULTS_UNIFIED.LLM_DEVELOPER_MODEL ) as OpenAIDeveloperModel,
-      fastModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL ) as OpenAILLMFast,
-      visionModel: getEnvVar( "LLM_VISION_MODEL", false, DEFAULTS_UNIFIED.LLM_VISION_MODEL ) as OpenAIVisionModel,
-      ttsModel: getEnvVar( "LLM_TTS_MODEL", false, DEFAULTS_UNIFIED.LLM_TTS_MODEL ) as OpenAITtsModel,
-      sttModel: getEnvVar( "LLM_STT_MODEL", false, DEFAULTS_UNIFIED.LLM_STT_MODEL ) as OpenAISttModel,
-      realtimeModel: getEnvVar( "LLM_REALTIME_MODEL", false, DEFAULTS_UNIFIED.LLM_REALTIME_MODEL ) as OpenAIRealtimeModel,
-      realtimeSttModel: getEnvVar( "LLM_REALTIME_STT_MODEL", false, DEFAULTS_UNIFIED.LLM_REALTIME_STT_MODEL ) as OpenAISttModel,
-      enableVision: getEnvVar( "ENABLE_VISION_ENV", false, DEFAULTS_UNIFIED.ENABLE_VISION_APP ) as boolean,
-      temperature: 0.7,
-      maxTokens: getEnvVar( "GENERATION_MAX_TOKENS", false, DEFAULTS_UNIFIED.GENERATION_MAX_TOKENS ) as number,
+      planningModel: getEnvVar( "LLM_PLANNING_MODEL", false, DEFAULTS_UNIFIED.LLM_PLANNING_MODEL, 'string' ) as OpenAIPlanningModel,
+      chatModel: getEnvVar( "LLM_CHAT_MODEL", false, DEFAULTS_UNIFIED.LLM_CHAT_MODEL, 'string' ) as OpenAILLMBalanced,
+      complexModel: getEnvVar( "LLM_COMPLEX_MODEL", false, DEFAULTS_UNIFIED.LLM_COMPLEX_MODEL, 'string' ) as OpenAILLMComplex,
+      extractionModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL, 'string' ) as OpenAILLMFast,
+      developerModel: getEnvVar( "LLM_DEVELOPER_MODEL", false, DEFAULTS_UNIFIED.LLM_DEVELOPER_MODEL, 'string' ) as OpenAIDeveloperModel,
+      fastModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL, 'string' ) as OpenAILLMFast, // fastModel often alias for extraction
+      visionModel: getEnvVar( "LLM_CHAT_MODEL", false, DEFAULTS_UNIFIED.LLM_CHAT_MODEL, 'string' ) as OpenAIVisionModel, // GPT-4o handles vision
+      ttsModel: getEnvVar( "LLM_TTS_MODEL", false, DEFAULTS_UNIFIED.LLM_TTS_MODEL, 'string' ) as OpenAITtsModel,
+      sttModel: getEnvVar( "LLM_STT_MODEL", false, DEFAULTS_UNIFIED.LLM_STT_MODEL, 'string' ) as OpenAISttModel,
+      // REMOVED realtimeModel and realtimeSttModel
+      enableVision: getEnvVar( "ENABLE_VISION_ENV", false, DEFAULTS_UNIFIED.ENABLE_VISION_APP, 'boolean' ) as boolean,
+      temperature: getEnvVar( "LLM_TEMPERATURE", false, DEFAULTS_UNIFIED.LLM_TEMPERATURE, 'number' ) as number,
+      maxTokens: getEnvVar( "GENERATION_MAX_TOKENS", false, DEFAULTS_UNIFIED.GENERATION_MAX_TOKENS, 'number' ) as number,
       topP: 1.0,
       ttsDefaultVoice: DEFAULTS_UNIFIED.TTS_DEFAULT_VOICE,
       ttsVoices: ALL_TTS_VOICES,
-      realtimeDefaultVoice: DEFAULTS_UNIFIED.REALTIME_DEFAULT_VOICE,
-      realtimeVoices: ALL_REALTIME_VOICES,
-      realtimeVadConfig: DEFAULTS_UNIFIED.REALTIME_VAD_CONFIG,
-      realtimeTools: null,
-      visionDetail: getEnvVar( "VISION_DETAIL", false, DEFAULTS_UNIFIED.VISION_DETAIL ) as "low" | "high" | "auto",
-      maxVisionTokens: getEnvVar( "MAX_VISION_TOKENS", false, DEFAULTS_UNIFIED.MAX_VISION_TOKENS ) as number,
-      realtimeBaseInstructions: DEFAULTS_UNIFIED.REALTIME_BASE_INSTRUCTIONS,
+      // REMOVED realtimeDefaultVoice, realtimeVoices, realtimeVadConfig, realtimeBaseInstructions
+      visionDetail: getEnvVar( "VISION_DETAIL", false, DEFAULTS_UNIFIED.VISION_DETAIL, 'string' ) as "low" | "high" | "auto",
+      maxVisionTokens: getEnvVar( "MAX_VISION_TOKENS", false, DEFAULTS_UNIFIED.MAX_VISION_TOKENS, 'number' ) as number,
+      realtimeTools: null, // Keep as null since S2S realtime is removed
     },
     embedder: {
       provider: "openai",
-      model: getEnvVar( "LLM_EMBEDDER_MODEL", false, DEFAULTS_UNIFIED.LLM_EMBEDDER_MODEL ) as OpenAIEmbeddingModel,
+      model: getEnvVar( "LLM_EMBEDDER_MODEL", false, DEFAULTS_UNIFIED.LLM_EMBEDDER_MODEL, 'string' ) as OpenAIEmbeddingModel,
       apiKey: getEnvVar("OPENAI_API_KEY", true, "") as string,
-      dimensions: getEnvVar( "LLM_EMBEDDER_DIMENSIONS", false, DEFAULTS_UNIFIED.LLM_EMBEDDER_DIMENSIONS ) as number,
+      dimensions: getEnvVar( "LLM_EMBEDDER_DIMENSIONS", false, DEFAULTS_UNIFIED.LLM_EMBEDDER_DIMENSIONS, 'number' ) as number,
     },
     vectorStore: {
       provider: "supabase",
       url: getEnvVar("NEXT_PUBLIC_SUPABASE_URL", true, "") as string,
       serviceKey: getEnvVar("SUPABASE_SERVICE_ROLE_KEY", true, "") as string,
-      tableName: getEnvVar( "SUPABASE_MEMORY_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_TABLE_NAME ) as string,
-      cacheTableName: getEnvVar( "SUPABASE_CACHE_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_CACHE_TABLE_NAME ) as string,
-      matchCacheFunctionName: getEnvVar( "SUPABASE_MATCH_CACHE_FUNC", false, DEFAULTS_UNIFIED.SUPABASE_MATCH_CACHE_FUNCTION ) as string,
-      embeddingDimension: getEnvVar( "LLM_EMBEDDER_DIMENSIONS", false, DEFAULTS_UNIFIED.LLM_EMBEDDER_DIMENSIONS ) as number,
-      matchFunctionName: getEnvVar( "SUPABASE_MATCH_MEMORY_FUNC", false, DEFAULTS_UNIFIED.SUPABASE_MATCH_FUNCTION ) as string,
-      ftsConfiguration: getEnvVar( "SUPABASE_FTS_CONFIG", false, DEFAULTS_UNIFIED.SUPABASE_FTS_CONFIG ) as string,
-      personasTableName: getEnvVar( "SUPABASE_PERSONAS_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_PERSONAS_TABLE ) as string,
-      userPersonasTableName: getEnvVar( "SUPABASE_USER_PERSONAS_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_USER_PERSONAS_TABLE ) as string,
-      userIntegrationsTableName: getEnvVar( "SUPABASE_USER_INTEGRATIONS_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_USER_INTEGRATIONS_TABLE ) as string,
-      userStatesTableName: getEnvVar( "SUPABASE_USER_STATES_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_USER_STATES_TABLE ) as string,
-      userProfilesTableName: getEnvVar( "SUPABASE_USER_PROFILES_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_USER_PROFILES_TABLE ) as string,
-      userPushSubscriptionsTableName: getEnvVar( "SUPABASE_PUSH_SUBS_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_PUSH_SUBS_TABLE ) as string,
+      tableName: getEnvVar( "SUPABASE_MEMORY_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_TABLE_NAME, 'string' ) as string,
+      cacheTableName: getEnvVar( "SUPABASE_CACHE_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_CACHE_TABLE_NAME, 'string' ) as string,
+      matchCacheFunctionName: getEnvVar( "SUPABASE_MATCH_CACHE_FUNC", false, DEFAULTS_UNIFIED.SUPABASE_MATCH_CACHE_FUNCTION, 'string' ) as string,
+      embeddingDimension: getEnvVar( "LLM_EMBEDDER_DIMENSIONS", false, DEFAULTS_UNIFIED.LLM_EMBEDDER_DIMENSIONS, 'number' ) as number,
+      matchFunctionName: getEnvVar( "SUPABASE_MATCH_MEMORY_FUNC", false, DEFAULTS_UNIFIED.SUPABASE_MATCH_FUNCTION, 'string' ) as string,
+      ftsConfiguration: getEnvVar( "SUPABASE_FTS_CONFIG", false, DEFAULTS_UNIFIED.SUPABASE_FTS_CONFIG, 'string' ) as string,
+      personasTableName: getEnvVar( "SUPABASE_PERSONAS_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_PERSONAS_TABLE, 'string' ) as string,
+      userPersonasTableName: getEnvVar( "SUPABASE_USER_PERSONAS_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_USER_PERSONAS_TABLE, 'string' ) as string,
+      userIntegrationsTableName: getEnvVar( "SUPABASE_USER_INTEGRATIONS_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_USER_INTEGRATIONS_TABLE, 'string' ) as string,
+      userStatesTableName: getEnvVar( "SUPABASE_USER_STATES_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_USER_STATES_TABLE, 'string' ) as string,
+      userProfilesTableName: getEnvVar( "SUPABASE_USER_PROFILES_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_USER_PROFILES_TABLE, 'string' ) as string,
+      userPushSubscriptionsTableName: getEnvVar( "SUPABASE_PUSH_SUBS_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_PUSH_SUBS_TABLE, 'string' ) as string,
     },
     graphStore: {
       provider: DEFAULTS_UNIFIED.NEO4J_PROVIDER as "neo4j",
@@ -388,7 +350,7 @@ function loadConfig(): FrameworkConfig {
       extractionCacheTTLSeconds: DEFAULTS_UNIFIED.EXTRACTION_CACHE_TTL,
     },
     semanticCache: {
-      enabled: getEnvVar( "SEMANTIC_CACHE_ENABLED_ENV", false, DEFAULTS_UNIFIED.SEMANTIC_CACHE_ENABLED ) as boolean,
+      enabled: getEnvVar( "SEMANTIC_CACHE_ENABLED_ENV", false, DEFAULTS_UNIFIED.SEMANTIC_CACHE_ENABLED, 'boolean' ) as boolean,
       similarityThreshold: DEFAULTS_UNIFIED.SEMANTIC_CACHE_SIMILARITY_THRESHOLD,
       defaultLimit: DEFAULTS_UNIFIED.SEMANTIC_CACHE_DEFAULT_LIMIT,
       defaultTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_DEFAULT_TTL,
@@ -412,55 +374,58 @@ function loadConfig(): FrameworkConfig {
     },
     memory: {
       searchDefaultLimit: DEFAULTS_UNIFIED.MEMORY_SEARCH_LIMIT_DEFAULT,
-      extractionModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL ) as OpenAILLMFast,
+      extractionModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL, 'string' ) as OpenAILLMFast,
       addMemoryOnFailure: DEFAULTS_UNIFIED.ADD_MEMORY_ON_FAILURE,
     },
     notifications: {
-      vapidPublicKey: getEnvVar("VAPID_PUBLIC_KEY", false,) as string | null,
-      vapidPrivateKey: getEnvVar("VAPID_PRIVATE_KEY", false,) as string | null,
-      vapidSubject: getEnvVar( "VAPID_SUBJECT", false, DEFAULTS_UNIFIED.VAPID_SUBJECT ) as string,
+      vapidPublicKey: getEnvVar("VAPID_PUBLIC_KEY", false, undefined, 'string') as string | null,
+      vapidPrivateKey: getEnvVar("VAPID_PRIVATE_KEY", false, undefined, 'string') as string | null,
+      vapidSubject: getEnvVar( "VAPID_SUBJECT", false, DEFAULTS_UNIFIED.VAPID_SUBJECT, 'string' ) as string,
     },
     defaultCategories: DEFAULTS_UNIFIED.DEFAULT_CATEGORIES,
     conflictResolutionStrategy: DEFAULTS_UNIFIED.CONFLICT_RESOLUTION,
     hybridSearchEnabledDefault: DEFAULTS_UNIFIED.HYBRID_SEARCH_DEFAULT,
     graphSearchEnabledDefault: DEFAULTS_UNIFIED.GRAPH_SEARCH_DEFAULT,
     rerankEnabledDefault: DEFAULTS_UNIFIED.RERANK_DEFAULT,
-    logLevel: getEnvVar( "LOG_LEVEL", false, DEFAULTS_UNIFIED.LOG_LEVEL ) as FrameworkConfig["logLevel"],
-    defaultLocale: getEnvVar( "DEFAULT_LOCALE", false, DEFAULTS_UNIFIED.DEFAULT_LOCALE ) as string,
+    logLevel: getEnvVar( "LOG_LEVEL", false, DEFAULTS_UNIFIED.LOG_LEVEL, 'string' ) as FrameworkConfig["logLevel"],
+    defaultLocale: getEnvVar( "DEFAULT_LOCALE", false, DEFAULTS_UNIFIED.DEFAULT_LOCALE, 'string' ) as string,
     defaultUserName: DEFAULTS_UNIFIED.DEFAULT_USER_NAME_CONST,
     defaultPersonaId: DEFAULTS_UNIFIED.DEFAULT_PERSONA_ID_CONST,
-    allowDevUnauth: getEnvVar( "ALLOW_DEV_UNAUTH", false, DEFAULTS_UNIFIED.ALLOW_DEV_UNAUTH ) as boolean,
-    encryptionKey: getEnvVar( "ENCRYPTION_KEY", true, DEFAULTS_UNIFIED.ENCRYPTION_KEY_DEFAULT ) as string,
-    toolTimeoutMs: getEnvVar( "DEFAULT_TOOL_TIMEOUT_MS_ENV", false, DEFAULTS_UNIFIED.TOOL_TIMEOUT_MS ) as number,
+    allowDevUnauth: getEnvVar( "ALLOW_DEV_UNAUTH", false, DEFAULTS_UNIFIED.ALLOW_DEV_UNAUTH, 'boolean' ) as boolean,
+    encryptionKey: getEnvVar( "ENCRYPTION_KEY", true, DEFAULTS_UNIFIED.ENCRYPTION_KEY_DEFAULT, 'string' ) as string,
+    toolTimeoutMs: getEnvVar( "DEFAULT_TOOL_TIMEOUT_MS_ENV", false, DEFAULTS_UNIFIED.TOOL_TIMEOUT_MS, 'number' ) as number,
     app: {
-      url: getEnvVar("APP_URL", true, DEFAULTS_UNIFIED.APP_URL) as string,
+      url: getEnvVar("APP_URL", true, DEFAULTS_UNIFIED.APP_URL, 'string') as string,
       nodeEnv: nodeEnv,
     },
     toolApiKeys: {
-      serper: getEnvVar("SERPER_API_KEY", false) as string | undefined,
-      youtube: getEnvVar("YOUTUBE_API_KEY", false) as string | undefined,
-      unsplash: getEnvVar("UNSPLASH_ACCESS_KEY", false) as string | undefined,
-      pexels: getEnvVar("PEXELS_API_KEY", false) as string | undefined,
-      openweathermap: getEnvVar("OPENWEATHERMAP_API_KEY", false) as string | undefined,
-      wolframalpha: getEnvVar("WOLFRAMALPHA_APP_ID", false) as string | undefined,
-      theSportsDb: getEnvVar("THESPORTSDB_API_KEY", false) as string | undefined,
-      ticketmaster: getEnvVar("TICKETMASTER_API_KEY", false) as string | undefined,
-      googleClientId: getEnvVar("GOOGLE_CLIENT_ID", false) as string | undefined,
-      googleClientSecret: getEnvVar("GOOGLE_CLIENT_SECRET", false) as string | undefined,
-      googleRedirectUri: getEnvVar("GOOGLE_REDIRECT_URI", false) as string | undefined,
-      gnews: getEnvVar("GNEWS_API_KEY", false) as string | undefined,
-      newsapiOrg: getEnvVar("NEWSAPI_ORG_KEY", false) as string | undefined,
-      resend: getEnvVar("RESEND_API_KEY", false) as string | undefined,
+      serper: getEnvVar("SERPER_API_KEY", false, undefined, 'string') as string | undefined,
+      youtube: getEnvVar("YOUTUBE_API_KEY", false, undefined, 'string') as string | undefined,
+      unsplash: getEnvVar("UNSPLASH_ACCESS_KEY", false, undefined, 'string') as string | undefined,
+      pexels: getEnvVar("PEXELS_API_KEY", false, undefined, 'string') as string | undefined,
+      openweathermap: getEnvVar("OPENWEATHERMAP_API_KEY", false, undefined, 'string') as string | undefined,
+      wolframalpha: getEnvVar("WOLFRAMALPHA_APP_ID", false, undefined, 'string') as string | undefined,
+      theSportsDb: getEnvVar("THESPORTSDB_API_KEY", false, undefined, 'string') as string | undefined,
+      ticketmaster: getEnvVar("TICKETMASTER_API_KEY", false, undefined, 'string') as string | undefined,
+      googleClientId: getEnvVar("GOOGLE_CLIENT_ID", false, undefined, 'string') as string | undefined,
+      googleClientSecret: getEnvVar("GOOGLE_CLIENT_SECRET", false, undefined, 'string') as string | undefined,
+      googleRedirectUri: getEnvVar("GOOGLE_REDIRECT_URI", false, undefined, 'string') as string | undefined,
+      gnews: getEnvVar("GNEWS_API_KEY", false, undefined, 'string') as string | undefined,
+      newsapiOrg: getEnvVar("NEWSAPI_ORG_KEY", false, undefined, 'string') as string | undefined,
+      resend: getEnvVar("RESEND_API_KEY", false, undefined, 'string') as string | undefined,
     },
-    emailFromAddress: getEnvVar( "EMAIL_FROM_ADDRESS", false, DEFAULTS_UNIFIED.EMAIL_FROM_ADDRESS ) as string,
-    // --- NEW FIELDS FOR FRAMEWORKCONFIG ---
-    openaiApiKey: getEnvVar("OPENAI_API_KEY", true, "") as string, // Duplicate but needed for FrameworkConfig structure
-    supabaseUrl: getEnvVar("NEXT_PUBLIC_SUPABASE_URL", true, "") as string, // Duplicate
-    supabaseAnonKey: getEnvVar("NEXT_PUBLIC_SUPABASE_ANON_KEY", false, "") as string, // Allow optional for admin
+    emailFromAddress: getEnvVar( "EMAIL_FROM_ADDRESS", false, DEFAULTS_UNIFIED.EMAIL_FROM_ADDRESS, 'string' ) as string,
+    openaiApiKey: getEnvVar("OPENAI_API_KEY", true, "", 'string') as string, 
+    supabaseUrl: getEnvVar("NEXT_PUBLIC_SUPABASE_URL", true, "", 'string') as string, 
+    supabaseAnonKey: getEnvVar("NEXT_PUBLIC_SUPABASE_ANON_KEY", false, "", 'string') as string, 
     upstashRedisUrl: determinedCacheProvider === "upstash_redis" ? (getEnvVar("UPSTASH_REDIS_URL", true, "") as string) : "",
     upstashRedisToken: determinedCacheProvider === "upstash_redis" ? (getEnvVar("UPSTASH_REDIS_TOKEN", true, "") as string) : "",
     neo4jUri: getEnvVar("NEO4J_URI", true, "") as string,
-    embeddingDimension: getEnvVar( "LLM_EMBEDDER_DIMENSIONS", false, DEFAULTS_UNIFIED.LLM_EMBEDDER_DIMENSIONS ) as number, // Duplicate
+    embeddingDimension: getEnvVar( "LLM_EMBEDDER_DIMENSIONS", false, DEFAULTS_UNIFIED.LLM_EMBEDDER_DIMENSIONS, 'number' ) as number,
+    mediaUploadBucket: getEnvVar("MEDIA_UPLOAD_BUCKET", false, "images", 'string') as string,
+    maxToolsPerTurn: 3,
+    maxVideoFrames: 10,
+    maxVideoSizeBytes: 100 * 1024 * 1024,
   };
 
   const finalConfig = loadedConfig as unknown as FrameworkConfig;
@@ -496,14 +461,12 @@ export const logger = {
   },
   error: (message: string, ...args: any[]) => {
     const processedArgs = args.map(arg => {
-      if (arg === undefined) return "[Logger: UndefinedArg]"; // More descriptive string for undefined
+      if (arg === undefined) return "[Logger: UndefinedArg]"; 
       if (arg instanceof Error) {
         const errMessage = typeof arg.message === 'string' ? arg.message : '(No message property or undefined)';
         const errStack = typeof arg.stack === 'string' ? `\nStack: ${arg.stack}` : '';
-        // Avoid .substring on potentially undefined message within the return string itself if it's complex
         return `ErrorObj: ${errMessage}${errStack}`;
       }
-      // For non-Error objects, try to stringify safely
       try {
         return typeof arg === 'object' && arg !== null ? JSON.stringify(arg) : String(arg);
       } catch (e) {
@@ -520,7 +483,9 @@ if (typeof window === "undefined") {
   logger.info(`Node Env: ${config.app.nodeEnv}`);
   logger.info(`App URL: ${config.app.url}`);
   logger.info("LLM Settings:");
-  logger.info(`  Planning: ${config.llm.planningModel}`);
+  logger.info(`  Main Chat/Vision Model: ${config.llm.chatModel}`);
+  logger.info(`  Planning/Tool Routing Model: ${config.llm.planningModel}`);
+  logger.info(`  Extraction Model: ${config.llm.extractionModel}`);
   if (config.allowDevUnauth && config.app.nodeEnv === "production") {
     logger.error("CRITICAL SECURITY: ALLOW_DEV_UNAUTH IS TRUE IN PRODUCTION!");
   }
@@ -534,11 +499,23 @@ if (typeof window === "undefined") {
   }
 }
 
+// appConfig alias for easier import in other parts of the app, ensuring it points to the single source of truth
 export const appConfig = {
   ...config,
   openai: {
-    ...config.llm, 
-    embedderModel: config.embedder.model,
-    embeddingDims: config.embedder.dimensions,
+    ...(config.llm), 
+    embedderModel: config.embedder.model, // Keep separate for clarity if needed
+    embeddingDims: config.embedder.dimensions, // Keep separate for clarity if needed
+    // Add other openai specific settings from config.llm that might not be directly in frameworkConfig.llm if necessary
+    text: config.llm.chatModel, // alias for chatModel
+    vision: config.llm.chatModel, // alias for chatModel (as it handles vision)
+    planning: config.llm.planningModel,
+    extraction: config.llm.extractionModel,
+    tts: config.llm.ttsModel,
+    stt: config.llm.sttModel,
+    mediaUploadBucket: getEnvVar("MEDIA_UPLOAD_BUCKET", false, "images", 'string') as string,
+    maxToolsPerTurn: 3,
+    maxVideoFrames: 10,
+    maxVideoSizeBytes: 100 * 1024 * 1024,
   },
 };
