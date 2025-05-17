@@ -306,9 +306,8 @@ export async function POST(req: NextRequest) {
       googlecalendarenabled: stateUpdates.googlecalendarenabled ?? false,
       googleemailenabled: stateUpdates.googleemailenabled ?? false,
       chainedvoice:
-        stateUpdates.chainedvoice ?? appConfig.openai.ttsVoiceDefault,
-      realtimevoice:
-        stateUpdates.realtimevoice ?? appConfig.openai.realtimeDefaultVoice,
+        stateUpdates.chainedvoice ?? appConfig.openai.ttsDefaultVoice,
+      realtimevoice: stateUpdates.realtimevoice ?? undefined,
       toolconfirmation: stateUpdates.toolconfirmation ?? false,
       workflow_preferences: stateUpdates.workflow_preferences ?? null,
     };

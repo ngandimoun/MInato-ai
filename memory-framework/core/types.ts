@@ -231,6 +231,7 @@ export interface FrameworkConfig {
     realtimeVoices: ReadonlyArray<OpenAIRealtimeVoice>; // Available realtime voices
     realtimeVadConfig: RealtimeSessionConfig['turn_detection']; // VAD config for realtime
     realtimeTools?: OpenAI.Chat.Completions.ChatCompletionTool[] | null; // Tools available in realtime mode
+    maxToolsPerTurn?: number; // Ajouté pour la configuration du nombre d'outils max par tour
   };
   embedder: {
     provider: "openai";

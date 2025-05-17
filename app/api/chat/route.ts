@@ -1,3 +1,5 @@
+//app/api/chat/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
@@ -14,8 +16,6 @@ import { logger } from "../../../memory-framework/config";
 import { appConfig } from "@/lib/config";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { randomUUID } from "crypto";
-// Removed generateAgentResponse from here, Orchestrator handles it
-// Removed TTSService, OpenAITtsVoice as TTS is handled by Orchestrator
 import { getGlobalMemoryFramework } from "@/lib/memory-framework-global";
 
 let orchestratorInstance: Orchestrator | null = null;
@@ -23,7 +23,7 @@ function getOrchestrator(): Orchestrator {
   if (!orchestratorInstance) {
     logger.info("[API Chat] Initializing Orchestrator instance...");
     try {
-      getGlobalMemoryFramework(); // Ensure global memory framework is initialized first
+      getGlobalMemoryFramework(); 
       orchestratorInstance = new Orchestrator();
     } catch (e: any) {
       logger.error("[API Chat] FATAL: Failed to initialize Orchestrator:", e.message, e.stack);
@@ -37,7 +37,8 @@ function createSSEEvent(eventName: string, data: Record<string, any> | string): 
   return `event: ${eventName}\ndata: ${typeof data === "string" ? data : JSON.stringify(data)}\n\n`;
 }
 
-const openaiConfig = appConfig.openai as typeof appConfig.openai & { visionDetail: string };
+// Vision detail from the *newly structured* appConfig.openai
+const visionDetailConfig = appConfig.openai.visionDetail;
 
 export async function POST(req: NextRequest) {
   const logPrefix = "[API Chat]";
@@ -46,8 +47,8 @@ export async function POST(req: NextRequest) {
   let orchestrator: Orchestrator;
 
   if (!appConfig.openai.apiKey) {
-    logger.error(`${logPrefix} OpenAI API Key is missing. LLM clients will not function.`);
-    return NextResponse.json({ error: "OpenAI API Key is not configured. Please set OPENAI_API_KEY in your environment." }, { status: 503 });
+    logger.error(`${logPrefix} OpenAI API Key is missing.`);
+    return NextResponse.json({ error: "Service temporarily unavailable." }, { status: 503 });
   }
 
   try {
@@ -86,64 +87,71 @@ export async function POST(req: NextRequest) {
   let userMessageText: string | null = null;
   let sessionIdFromRequest: string | undefined;
   let attachmentsForOrchestrator: MessageAttachment[] = [];
+  let inputContentPartsForOrchestrator: ChatMessageContentPart[] = [];
   let clientDataFromRequest: any = null;
   let requestBodyForLog: any = null;
-  let isSimpleTextQuery = false;
 
   try {
     if (contentType.startsWith("application/json")) {
       const jsonData = await req.json();
       requestBodyForLog = jsonData;
       const allMessages: ChatMessage[] = jsonData.messages || [];
+      
       if (allMessages.length > 0) {
         const lastMessage = allMessages[allMessages.length - 1];
         if (lastMessage?.role === "user") {
           history = allMessages.slice(0, -1);
           if (typeof lastMessage.content === "string") {
             userMessageText = lastMessage.content;
-            isSimpleTextQuery = !((lastMessage as any).experimental_attachments && (lastMessage as any).experimental_attachments.length > 0);
+            inputContentPartsForOrchestrator.push({ type: "text", text: userMessageText });
           } else if (Array.isArray(lastMessage.content)) {
-            userMessageText = lastMessage.content.find(part => part.type === "text")?.text || null;
-            isSimpleTextQuery = !lastMessage.content.some(p => p.type === "input_image") && !((lastMessage as any).experimental_attachments && (lastMessage as any).experimental_attachments.length > 0);
-
-            const sdkAttachments = (lastMessage as any).experimental_attachments || [];
-            if (Array.isArray(sdkAttachments)) {
-              for (const att of sdkAttachments) {
-                if (att.url && att.contentType) {
-                  attachmentsForOrchestrator.push({
-                    id: randomUUID(), type: att.contentType.startsWith("image/") ? "image" : "document",
-                    name: att.name || `attachment_${Date.now()}`, url: att.url, mimeType: att.contentType,
-                    size: att.size, storagePath: undefined
-                  });
-                }
-              }
-            }
+            // Correctly process ChatMessageContentPart[]
             lastMessage.content.forEach(part => {
-              if (part.type === "input_image" && part.image_url) {
-                if (!attachmentsForOrchestrator.some(a => a.url === part.image_url)) {
-                  attachmentsForOrchestrator.push({
-                    id: randomUUID(), type: "image", name: `inline_image_${Date.now()}`, url: part.image_url,
-                    mimeType: part.image_url.startsWith("data:image/png") ? "image/png"
-                              : part.image_url.startsWith("data:image/jpeg") ? "image/jpeg"
-                              : part.image_url.startsWith("data:image/webp") ? "image/webp"
-                              : part.image_url.startsWith("data:image/gif") ? "image/gif"
-                              : "application/octet-stream",
-                    storagePath: undefined
+              if (part.type === "text" && typeof part.text === 'string') {
+                userMessageText = (userMessageText || "") + part.text; // Concatenate text parts
+                inputContentPartsForOrchestrator.push({ type: "text", text: part.text });
+              } else if ((part as any).type === 'input_image' && (part as any).image_url) {
+                inputContentPartsForOrchestrator.push({
+                  type: "input_image", // Use the correct type for GPT-4o
+                  image_url: (part as any).image_url, // This should be an object { url: string, detail?: string }
+                  detail: (part as any).detail || visionDetailConfig
+                });
+              } else if ((part as any).type === 'image_url' && typeof (part as any).image_url?.url === 'string') { // Already in OpenAI format
+                  inputContentPartsForOrchestrator.push({
+                      type: "input_image",
+                      image_url: (part as any).image_url,
+                      detail: (part as any).detail || visionDetailConfig
                   });
-                }
               }
             });
           }
         } else {
           history = allMessages;
-          isSimpleTextQuery = true; // No new user message implies a simple context continuation
         }
-      } else {
-        isSimpleTextQuery = true; // No messages implies new chat, likely simple text first
       }
       sessionIdFromRequest = jsonData.id;
       clientDataFromRequest = jsonData.data;
-      logger.debug(`${logPrefix} Parsed JSON. History: ${history.length}. Attachments: ${attachmentsForOrchestrator.length}. SimpleText: ${isSimpleTextQuery}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
+
+      // Process sdkAttachments for JSON if any (less common, usually for FormData)
+      const sdkAttachments = (jsonData.messages?.[jsonData.messages.length - 1] as any)?.experimental_attachments || [];
+      if (Array.isArray(sdkAttachments)) {
+        for (const att of sdkAttachments) {
+          if (att.url && att.contentType) {
+            const attachmentToAdd: MessageAttachment = {
+              id: randomUUID(), type: att.contentType.startsWith("image/") ? "image" : "document", // Adjust as needed
+              name: att.name || `attachment_${Date.now()}`, url: att.url, mimeType: att.contentType,
+              size: att.size, storagePath: undefined // Not uploaded via this path, URL is direct
+            };
+            attachmentsForOrchestrator.push(attachmentToAdd);
+            if (attachmentToAdd.type === "image" && attachmentToAdd.url) {
+                inputContentPartsForOrchestrator.push({
+                    type: "input_image", image_url: attachmentToAdd.url
+                });
+            }
+          }
+        }
+      }
+      logger.debug(`${logPrefix} Parsed JSON. History: ${history.length}. Orchestrator Input Parts: ${inputContentPartsForOrchestrator.length}. Attachments (from sdk): ${attachmentsForOrchestrator.length}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
 
     } else if (contentType.startsWith("multipart/form-data")) {
       const formData = await req.formData();
@@ -157,8 +165,12 @@ export async function POST(req: NextRequest) {
             const lastMessage = parsedMessages[parsedMessages.length - 1];
             if (lastMessage?.role === "user") {
               history = parsedMessages.slice(0, -1);
-              if (typeof lastMessage.content === "string") userMessageText = lastMessage.content;
-              // attachments will be handled by iterating formData
+              if (typeof lastMessage.content === "string") {
+                 userMessageText = lastMessage.content;
+                 inputContentPartsForOrchestrator.push({ type: "text", text: userMessageText });
+              }
+              // Note: ChatMessageContentPart[] in FormData 'messages' field is less common.
+              // If it occurs, it would need specific handling here.
             } else { history = parsedMessages; }
           } else { history = []; }
         } catch (e: any) {
@@ -166,65 +178,81 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: `Invalid 'messages' format: ${e.message}` }, { status: 400 });
         }
       }
+      if (!userMessageText && formData.has("prompt")) { // Fallback for simple text prompt in FormData
+         userMessageText = formData.get("prompt") as string;
+         if (userMessageText) inputContentPartsForOrchestrator.push({ type: "text", text: userMessageText });
+      }
+
       const sessionIdParam = formData.get("id") as string | null;
       const dataString = formData.get("data") as string | null;
       if (sessionIdParam) sessionIdFromRequest = sessionIdParam;
       if (dataString) try { clientDataFromRequest = JSON.parse(dataString); } catch (e: any) { logger.warn(`${logPrefix} No parse 'data' FormData: ${e.message}`); }
 
       const supabaseAdmin = getSupabaseAdminClient();
-      if (!supabaseAdmin) {
-        logger.error(`${logPrefix} Supabase admin client unavailable for file upload.`);
-        throw new Error("Storage service misconfiguration.");
-      }
+      if (!supabaseAdmin) { logger.error(`${logPrefix} Supabase admin client unavailable for file upload.`); throw new Error("Storage service misconfiguration."); }
+      
       const fileProcessingPromises: Promise<void>[] = [];
       for (const [key, value] of formData.entries()) {
         if (value instanceof File) {
           if (value.size === 0) { logger.warn(`${logPrefix} Skipping empty file: ${value.name}`); continue; }
-          const isVideo = value.type.startsWith("video/");
           const isImage = value.type.startsWith("image/");
-          if (!isImage && !isVideo) {
-            logger.warn(`${logPrefix} Rejected unsupported file: ${value.name} (${value.type})`);
-            return NextResponse.json({ error: `Unsupported file type: ${value.type}. Images/videos only.` }, { status: 400 });
+          const isVideo = value.type.startsWith("video/"); // For video frames, not direct video processing by GPT-4o here
+          
+          if (!isImage && !isVideo) { // Only allow images and videos for direct GPT-4o input, docs handled separately by settings panel
+            logger.warn(`${logPrefix} Rejected unsupported file type for direct chat input: ${value.name} (${value.type})`);
+            continue; // Skip non-image/video files for direct GPT-4o content parts
           }
-          logger.info(`${logPrefix} Uploading file: ${value.name} (${value.size}b, ${value.type}) for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
+
+          logger.info(`${logPrefix} Uploading file (for GPT-4o input): ${value.name} (${value.size}b, ${value.type}) for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
           const fileBuffer = Buffer.from(await value.arrayBuffer());
           const originalFileName = value.name.replace(/[^a-zA-Z0-9._-]/g, "_");
           const fileExtension = originalFileName.split(".").pop() || "bin";
           const uniqueFileName = `${randomUUID()}.${fileExtension}`;
-          const fileFolder = isImage ? "images" : "videos";
+          const fileFolder = isImage ? "images" : (isVideo ? "video_frames_temp" : "other_uploads"); // Temp folder for video frames if needed
           const filePath = `${fileFolder}/${userId}/${uniqueFileName}`;
           
           const uploadPromise = supabaseAdmin.storage.from(MEDIA_UPLOAD_BUCKET).upload(filePath, fileBuffer, { contentType: value.type, upsert: false })
-            .then(({ data: uploadData, error: uploadError }) => {
+            .then(async ({ data: uploadData, error: uploadError }) => {
               if (uploadError) {
                 logger.error(`${logPrefix} Supabase upload error for ${filePath} (User ${userId ? userId.substring(0,8) : 'UNKNOWN'}):`, uploadError.message);
                 throw new Error(`Upload to ${MEDIA_UPLOAD_BUCKET}/${filePath} failed: ${uploadError.message}`);
               }
               if (uploadData) {
                 logger.debug(`${logPrefix} Upload OK to ${filePath} for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
-                attachmentsForOrchestrator.push({
-                  id: randomUUID(), type: isImage ? "image" : "video", name: originalFileName,
-                  storagePath: filePath, mimeType: value.type, size: value.size,
-                });
+                const { data: publicUrlData } = supabaseAdmin.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(filePath);
+                if (publicUrlData?.publicUrl) {
+                  if (isImage) {
+                    inputContentPartsForOrchestrator.push({
+                      type: "input_image",
+                      image_url: publicUrlData.publicUrl
+                    });
+                  } else if (isVideo) {
+                    // Video analysis is now separate, handle by sending to /api/video/analyze in frontend or specialized orchestrator path
+                    // For now, just log it was received. If frames were extracted client-side and sent, they'd be handled as images.
+                    logger.info(`${logPrefix} Video file ${originalFileName} uploaded, analysis via /api/video/analyze expected if needed.`);
+                     attachmentsForOrchestrator.push({
+                        id: randomUUID(), type: "video", name: originalFileName, url: publicUrlData.publicUrl,
+                        mimeType: value.type, size: value.size, storagePath: filePath,
+                    });
+                  }
+                } else {
+                   logger.warn(`${logPrefix} Could not get public URL for uploaded file ${filePath}. Will not be sent to GPT-4o.`);
+                }
               }
             });
           fileProcessingPromises.push(uploadPromise);
         }
       }
       await Promise.allSettled(fileProcessingPromises);
-      // isSimpleTextQuery determined by presence of attachments
-      isSimpleTextQuery = !userMessageText && attachmentsForOrchestrator.length === 0 || !!userMessageText && attachmentsForOrchestrator.length === 0;
-      logger.debug(`${logPrefix} Parsed FormData. Attachments: ${attachmentsForOrchestrator.length}. SimpleText: ${isSimpleTextQuery}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
+      logger.debug(`${logPrefix} Parsed FormData. Orchestrator Input Parts: ${inputContentPartsForOrchestrator.length}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
 
     } else {
       logger.error(`${logPrefix} Unsupported Content-Type: ${contentType}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
       return NextResponse.json({ error: "Unsupported Content-Type" }, { status: 415 });
     }
 
-    logger.debug(`${logPrefix} Request body log for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}:\n${JSON.stringify(requestBodyForLog, null, 2).substring(0, 500)}`);
-
-    if (!userMessageText && attachmentsForOrchestrator.length === 0) {
-      logger.warn(`${logPrefix} No text or attachments. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
+    if (inputContentPartsForOrchestrator.length === 0 && attachmentsForOrchestrator.length === 0) {
+      logger.warn(`${logPrefix} No text or processable attachments/content parts. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
       return NextResponse.json({ error: "Message content or file is required." }, { status: 400 });
     }
 
@@ -234,28 +262,17 @@ export async function POST(req: NextRequest) {
       locale: req.headers.get("accept-language")?.split(",")[0] || appConfig.defaultLocale,
       origin: req.headers.get("origin"),
       sessionId: sessionIdFromRequest,
-      runId: sessionIdFromRequest, // Using sessionId as runId for chat
+      runId: sessionIdFromRequest, 
       ...(clientDataFromRequest && { clientData: clientDataFromRequest }),
     };
 
-    let orchestratorInput: string | ChatMessageContentPart[];
-    if (attachmentsForOrchestrator.some(att => att.type === "image" || att.type === "video")) {
-      const contentParts: ChatMessageContentPart[] = [];
-      if (userMessageText) contentParts.push({ type: "text", text: userMessageText });
-      for (const att of attachmentsForOrchestrator) {
-        if (att.type === "image" || att.type === "video") {
-          if (att.url) { // Pasted URL or already uploaded
-            contentParts.push({ type: "input_image", image_url: att.url, detail: openaiConfig.visionDetail as "auto" | "low" | "high" });
-          } else if (att.storagePath) { // Freshly uploaded file
-            contentParts.push({ type: "input_image", image_url: `supabase_storage:${att.storagePath}`, detail: openaiConfig.visionDetail as "auto" | "low" | "high" });
-          }
-        }
-      }
-      orchestratorInput = contentParts;
-      logger.debug(`${logPrefix} Multimodal input for orchestrator. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
-    } else {
-      orchestratorInput = userMessageText || "";
-    }
+    // Use inputContentPartsForOrchestrator directly if it's populated (multimodal)
+    // Otherwise, fallback to userMessageText for text-only input.
+    const orchestratorFinalInput: string | ChatMessageContentPart[] =
+        inputContentPartsForOrchestrator.length > 0
+            ? inputContentPartsForOrchestrator
+            : (userMessageText || "");
+
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -270,14 +287,13 @@ export async function POST(req: NextRequest) {
         };
 
         try {
-          // No direct LLM call optimization here for simplicity with Responses API
-          // The Orchestrator will handle all LLM calls.
           logger.info(`${logPrefix} Calling orchestrator.runOrchestration... User ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
           const orchestratorResult = await orchestrator.runOrchestration(
-            userId || '',
-            orchestratorInput, // This is now string | ChatMessageContentPart[]
+            userId || '', // userId is guaranteed to be non-null here
+            orchestratorFinalInput,
             history,
-            effectiveApiContext
+            effectiveApiContext,
+            attachmentsForOrchestrator // Pass along any attachments that weren't image/video for GPT-4o
           );
           logger.debug(`${logPrefix} Orchestrator finished. Error: ${orchestratorResult.error}. Response: ${!!orchestratorResult.response}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
 
@@ -289,12 +305,11 @@ export async function POST(req: NextRequest) {
 
           if (orchestratorResult.response) {
             const fullTextResponse = orchestratorResult.response;
-            // Stream text in chunks
-            const chunkSize = 30; // Adjust chunk size as needed
+            const chunkSize = 30; 
             for (let i = 0; i < fullTextResponse.length; i += chunkSize) {
               const chunk = fullTextResponse.substring(i, i + chunkSize);
               controller.enqueue(encoder.encode(createSSEEvent("text-chunk", { text: chunk })));
-              await new Promise(resolve => setTimeout(resolve, 10)); // Small delay for smoother streaming
+              await new Promise(resolve => setTimeout(resolve, 10)); 
             }
           }
 
@@ -305,13 +320,17 @@ export async function POST(req: NextRequest) {
           const annotations: Record<string, any> = {};
           if (orchestratorResult.intentType) annotations.intentType = orchestratorResult.intentType;
           if (orchestratorResult.ttsInstructions) annotations.ttsInstructions = orchestratorResult.ttsInstructions;
-          if (orchestratorResult.audioUrl) { // For chained voice responses
+          if (orchestratorResult.audioUrl) { 
             annotations.audioUrl = orchestratorResult.audioUrl;
             annotations.audioResponseUrl = orchestratorResult.audioUrl;
           }
           if (orchestratorResult.debugInfo) annotations.debugInfo = orchestratorResult.debugInfo;
           if (orchestratorResult.workflowFeedback) annotations.workflowFeedback = orchestratorResult.workflowFeedback;
           if (orchestratorResult.clarificationQuestion) annotations.clarificationQuestion = orchestratorResult.clarificationQuestion;
+          if (orchestratorResult.attachments && orchestratorResult.attachments.length > 0) {
+            annotations.attachments = orchestratorResult.attachments;
+          }
+
 
           if (Object.keys(annotations).length > 0) {
             controller.enqueue(encoder.encode(createSSEEvent("annotations", annotations)));
@@ -335,7 +354,7 @@ export async function POST(req: NextRequest) {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
         "Connection": "keep-alive",
-        "X-Accel-Buffering": "no", // Useful for Nginx
+        "X-Accel-Buffering": "no", 
       },
     });
 

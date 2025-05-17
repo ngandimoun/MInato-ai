@@ -54,7 +54,7 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
     const newMessage: Message = {
       id: optimisticId, role: "user", content: content,
       attachments: (attachmentsFromInputArea || []).map(att => ({
-          ...att, storagePath: att.storagePath || null, fileId: att.fileId || null,
+          ...att, storagePath: att.storagePath ?? undefined
       })),
       timestamp: new Date().toISOString(),
       audioUrl: undefined, structured_data: null, debugInfo: null, workflowFeedback: null,
@@ -69,7 +69,7 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
       if (inputDisabled) return;
       const currentText = text.trim();
       const currentAttachments: MessageAttachment[] = (attachmentsFromInputArea || []).map(att => ({
-        ...att, storagePath: att.storagePath || null, fileId: att.fileId || null,
+        ...att, storagePath: att.storagePath ?? undefined
       }));
 
       if (!currentText && currentAttachments.length === 0) {
