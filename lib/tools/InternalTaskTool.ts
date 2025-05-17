@@ -1,4 +1,5 @@
-import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
+// FILE: lib/tools/InternalTaskTool.ts
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import { CompanionCoreMemory } from "../../memory-framework/core/CompanionCoreMemory";
 import { logger } from "../../memory-framework/config";
 import { InternalTask, InternalTaskResult } from "@/lib/types";
@@ -7,11 +8,11 @@ import { randomUUID } from "crypto";
 
 interface InternalTaskInput extends ToolInput {
   action: "add_task" | "list_tasks" | "complete_task";
-  task_content?: string;
-  task_id?: string;
-  filter?: "pending" | "completed" | "all";
-  due_date?: string; // YYYY-MM-DD
-  limit?: number;
+  task_content?: string | null;
+  task_id?: string | null;
+  filter?: "pending" | "completed" | "all" | null;
+  due_date?: string | null; // YYYY-MM-DD
+  limit?: number | null;
 }
 
 const TASK_MEMORY_CATEGORY = "task";
@@ -25,12 +26,12 @@ export class InternalTaskTool extends BaseTool {
   argsSchema = {
     type: "object" as const,
     properties: {
-      action: { type: "string" as const, enum: ["add_task", "list_tasks", "complete_task"], description: "The action to perform." },
-      task_content: { type: ["string", "null"], description: "The content of the task to add." },
-      task_id: { type: ["string", "null"], description: "The ID (memory_id) of the task to complete." },
-      filter: { type: ["string", "null"], enum: ["pending", "completed", "all"], description: "Filter tasks by status when listing.", default: "pending" },
-      due_date: { type: ["string", "null"], format: "date", description: "Optional due date (YYYY-MM-DD) when adding." },
-      limit: { type: ["number", "null"], minimum: 1, maximum: 20, description: "Max tasks to list (default 10).", default: 10 },
+      action: { type: "string" as const, enum: ["add_task", "list_tasks", "complete_task"], description: "The action to perform. This is required." } as OpenAIToolParameterProperties,
+      task_content: { type: ["string", "null"] as const, description: "The content of the task to add. Required for 'add_task'. Can be null otherwise." } as OpenAIToolParameterProperties,
+      task_id: { type: ["string", "null"] as const, description: "The ID (memory_id) of the task to complete. Required for 'complete_task'. Can be null otherwise." } as OpenAIToolParameterProperties,
+      filter: { type: ["string", "null"] as const, enum: ["pending", "completed", "all", null], description: "Filter tasks by status when listing. If null or omitted for 'list_tasks', defaults to 'pending'." } as OpenAIToolParameterProperties,
+      due_date: { type: ["string", "null"] as const, description: "Optional due date (YYYY-MM-DD format, e.g., '2024-08-15') when adding a task. Can be null." } as OpenAIToolParameterProperties, // Removed format: "date"
+      limit: { type: ["number", "null"] as const, description: "Maximum number of tasks to list (must be between 1 and 20). If null or omitted for 'list_tasks', defaults to 10." } as OpenAIToolParameterProperties, // Removed min/max/default
     },
     required: ["action", "task_content", "task_id", "filter", "due_date", "limit"],
     additionalProperties: false as false,
@@ -46,7 +47,7 @@ export class InternalTaskTool extends BaseTool {
     this.log("info", "InternalTaskTool initialized.");
   }
 
-  private mapMemoryToTask(memory: StoredMemoryUnit | null): InternalTask | null { // Allow null input
+  private mapMemoryToTask(memory: StoredMemoryUnit | null): InternalTask | null {
     if (!memory) return null;
     if (memory.categories.includes(TASK_MEMORY_CATEGORY)) {
       return {
@@ -60,30 +61,35 @@ export class InternalTaskTool extends BaseTool {
   }
 
   async execute(input: InternalTaskInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    const { userId: contextUserId, action, task_content, task_id, filter, due_date, limit } = input;
+    const { userId: contextUserId, action } = input;
+    // Defaulting logic
+    const task_content = (input.task_content === null) ? undefined : input.task_content;
+    const task_id = (input.task_id === null) ? undefined : input.task_id;
+    const effectiveFilter = (input.filter === null || input.filter === undefined) ? "pending" : input.filter;
+    const due_date = (input.due_date === null) ? undefined : input.due_date;
+    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 10 : Math.max(1, Math.min(input.limit, 20));
+
+
     const userId = input.context?.userId || contextUserId;
-    const effectiveFilter = filter ?? "pending";
-    const effectiveLimit = limit ?? 10;
     const logPrefix = `[InternalTaskTool User:${userId?.substring(0,8)} Action:${action}]`;
     const queryInputForStructuredData = {...input, filter: effectiveFilter, limit: effectiveLimit};
-
 
     let outputStructuredData: InternalTaskResult = {
       result_type: "internal_tasks", source_api: "internal_memory", query: queryInputForStructuredData,
       action: action, status: "error", tasks: [], error: "Action not processed",
     };
 
-    if (!userId) { /* ... error handling ... */ return { error: "User ID missing.", result: `I need to know who you are, ${input.context?.userName || "User"}, to manage tasks.`, structuredData: {...outputStructuredData, error: "User ID missing."} }; }
-    if (action === "add_task" && (!task_content || typeof task_content !== "string" || task_content.trim().length === 0)) {
-      return { error: "Task content is required to add a task.", result: "What is the task, {userName}?", structuredData: {...outputStructuredData, error: "Task content required." } };
+    if (!userId) { outputStructuredData.error = "User ID missing."; return { error: "User ID missing.", result: `I need to know who you are, ${input.context?.userName || "User"}, to manage tasks.`, structuredData: outputStructuredData }; }
+    if (action === "add_task" && (!task_content || task_content.trim().length === 0)) {
+      outputStructuredData.error = "Task content required."; return { error: "Task content is required to add a task.", result: `What is the task, ${input.context?.userName || "User"}?`, structuredData: outputStructuredData };
     }
     if (action === "complete_task" && (!task_id || typeof task_id !== "string")) {
-      return { error: "Task ID is required to complete a task.", result: "Which task ID should Minato complete, {userName}?", structuredData: {...outputStructuredData, error: "Task ID required." } };
+      outputStructuredData.error = "Task ID required."; return { error: "Task ID is required to complete a task.", result: `Which task ID should Minato complete, ${input.context?.userName || "User"}?`, structuredData: outputStructuredData };
     }
 
     try {
       if (action === "add_task") {
-        if (!task_content) { /* Redundant but safe */ return { error: "Task content missing.", result: "What task to add?", structuredData: {...outputStructuredData, error: "Task content missing."} }; }
+        if (!task_content) { outputStructuredData.error = "Task content missing."; return { error: "Task content missing.", result: "What task to add?", structuredData: outputStructuredData }; }
         const memoryId = randomUUID();
         const now = new Date().toISOString();
         const memoryToAdd: StoredMemoryUnit = {
@@ -105,8 +111,8 @@ export class InternalTaskTool extends BaseTool {
       } else if (action === "list_tasks") {
         logger.info(`${logPrefix} Listing tasks with filter: ${effectiveFilter}`);
         const searchFilters: Record<string, any> = { categories: [TASK_MEMORY_CATEGORY], metadata: {} };
-        if (effectiveFilter === "completed") searchFilters.metadata.status = TASK_STATUS_COMPLETED;
-        else if (effectiveFilter === "pending") searchFilters.metadata.status = TASK_STATUS_PENDING;
+        if (effectiveFilter === "completed") (searchFilters.metadata as Record<string, any>).status = TASK_STATUS_COMPLETED;
+        else if (effectiveFilter === "pending") (searchFilters.metadata as Record<string, any>).status = TASK_STATUS_PENDING;
 
         const searchResults = await this.memoryFramework.search_memory("task list", userId, { limit: Math.min(effectiveLimit, 25), offset: 0 }, null, { filters: searchFilters, enableHybridSearch: false, enableGraphSearch: false });
         const tasks = searchResults.results.map(mem => this.mapMemoryToTask(mem as StoredMemoryUnit)).filter((task): task is InternalTask => task !== null);
@@ -121,11 +127,11 @@ export class InternalTaskTool extends BaseTool {
         return { result: resultString, structuredData: outputStructuredData };
 
       } else if (action === "complete_task") {
-        if (!task_id) { return { error: "Task ID required.", result: "Which task ID to complete?", structuredData: {...outputStructuredData, error: "Task ID required."} }; }
+        if (!task_id) { outputStructuredData.error = "Task ID required."; return { error: "Task ID required.", result: "Which task ID to complete?", structuredData: outputStructuredData }; }
         logger.info(`${logPrefix} Completing task ID: ${task_id.substring(0,8)}...`);
         const taskMemory = await this.memoryFramework.fetchMemoryById(task_id);
-        if (!taskMemory) { outputStructuredData.error = "Task not found."; return { error: outputStructuredData.error, result: `Minato couldn't find a task with ID starting ${task_id.substring(0,6)}, ${input.context?.userName || "User"}.`, structuredData: outputStructuredData }; }
-        if (!taskMemory.categories.includes(TASK_MEMORY_CATEGORY)) { outputStructuredData.error = "This item is not a task."; return { error: outputStructuredData.error, result: `Item with ID starting ${task_id.substring(0,6)} is not a task, ${input.context?.userName || "User"}.`, structuredData: outputStructuredData }; }
+        if (!taskMemory) { outputStructuredData.error = "Task not found."; outputStructuredData.status = "not_found"; return { error: outputStructuredData.error, result: `Minato couldn't find a task with ID starting ${task_id.substring(0,6)}, ${input.context?.userName || "User"}.`, structuredData: outputStructuredData }; }
+        if (!taskMemory.categories.includes(TASK_MEMORY_CATEGORY)) { outputStructuredData.error = "This item is not a task."; outputStructuredData.status = "not_found"; return { error: outputStructuredData.error, result: `Item with ID starting ${task_id.substring(0,6)} is not a task, ${input.context?.userName || "User"}.`, structuredData: outputStructuredData }; }
         if (taskMemory.metadata?.status === TASK_STATUS_COMPLETED) {
             const mappedTask = this.mapMemoryToTask(taskMemory);
             outputStructuredData.status = "already_completed"; outputStructuredData.tasks = mappedTask ? [mappedTask] : []; outputStructuredData.error = null;
@@ -139,7 +145,7 @@ export class InternalTaskTool extends BaseTool {
         logger.info(`${logPrefix} Task ${task_id.substring(0,8)} marked as complete.`);
         return { result: `Okay, ${input.context?.userName || "User"}, Minato marked task "${updatedMemory.content}" as complete.`, structuredData: outputStructuredData };
       } else {
-        const exhaustiveCheck: never = action; // Should not be reached
+        const exhaustiveCheck: never = action;
         outputStructuredData.error = `Invalid action: ${action}`;
         logger.error(`${logPrefix} Reached invalid action case: ${action}`);
         return { error: outputStructuredData.error, result: `Unknown task action: ${action}`, structuredData: outputStructuredData };

@@ -1,55 +1,54 @@
-import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
+// FILE: lib/tools/GoogleCalendarReaderTool.ts
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { CalendarEvent, CalendarEventList, UserState } from "@/lib/types";
 import { google, calendar_v3 } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
-import { supabase } from "../supabaseClient"; // Use the public client from supabaseClient.ts
+import { supabase } from "../supabaseClient";
 import { decryptData } from "../utils/encryption";
 import { randomUUID } from "crypto";
 
 // Helper function implementations (getGoogleRefreshToken, getGoogleAuthClient, handleGoogleAuthFailure)
-// should be kept as previously provided, or refactored into a common auth utility if used by multiple Google tools.
-// For brevity, I'm assuming they are correctly defined as in your provided `tools2.txt`.
-
 async function getGoogleRefreshToken(userId: string): Promise<string | null> {
   const logPrefix = `[getGoogleRefreshToken User:${userId?.substring(0, 8)}]`;
-  if (!userId || !supabase || !appConfig.encryptionKey) { /* ... */ return null; }
+  if (!userId || !supabase || !appConfig.encryptionKey) { logger.error(`${logPrefix} Missing critical prerequisites (userId, supabase client, or encryptionKey).`); return null; }
   try {
     const { data, error } = await supabase.from("user_integrations").select("refresh_token_encrypted").eq("user_id", userId).eq("provider", "google").maybeSingle();
-    if (error) { /* ... */ return null; }
-    const encryptedToken = data?.refresh_token_encrypted;
-    if (!encryptedToken) { /* ... */ return null; }
-    const decryptedToken = decryptData(encryptedToken, appConfig.encryptionKey);
-    if (!decryptedToken) { /* ... */ return null; }
-    return decryptedToken;
-  } catch (dbError: any) { /* ... */ return null; }
+    if (error && error.code !== "PGRST116") { logger.error(`${logPrefix} Supabase error fetching refresh token:`, error); return null; }
+    if (!data?.refresh_token_encrypted) { logger.info(`${logPrefix} No encrypted refresh token found in DB.`); return null; }
+    const decryptedToken = decryptData(data.refresh_token_encrypted, appConfig.encryptionKey);
+    if (!decryptedToken) logger.warn(`${logPrefix} Failed to decrypt refresh token.`);
+    return decryptedToken || null;
+  } catch (dbError: any) { logger.error(`${logPrefix} Exception fetching/decrypting refresh token:`, dbError.message); return null; }
 }
 function getGoogleAuthClient(refreshToken: string): OAuth2Client {
   if (!appConfig.toolApiKeys.googleClientId || !appConfig.toolApiKeys.googleClientSecret || !process.env.GOOGLE_REDIRECT_URI) {
-    logger.error("CRITICAL: Google OAuth Client ID, Secret, or Redirect URI missing.");
-    throw new Error("Google OAuth Client credentials configuration error.");
+    logger.error("CRITICAL: Google OAuth Client ID, Secret, or Redirect URI missing in server configuration.");
+    throw new Error("Google OAuth Client credentials configuration error on server.");
   }
   const oauth2Client = new OAuth2Client(appConfig.toolApiKeys.googleClientId, appConfig.toolApiKeys.googleClientSecret, process.env.GOOGLE_REDIRECT_URI);
   oauth2Client.setCredentials({ refresh_token: refreshToken });
-  oauth2Client.on("tokens", (tokens) => { /* ... logging ... */ });
+  oauth2Client.on("tokens", (tokens) => { if (tokens.refresh_token) logger.info("[getGoogleAuthClient] New Google refresh token received during token refresh."); if (tokens.access_token) logger.debug(`[getGoogleAuthClient] Google Access token refreshed successfully.`); });
   return oauth2Client;
 }
 async function handleGoogleAuthFailure(userId: string, errorMessage: string): Promise<void> {
   const logPrefix = `[handleGoogleAuthFailure User:${userId.substring(0,8)}]`;
-  logger.warn(`${logPrefix} Google Auth Error: ${errorMessage}. Marking integration revoked.`);
+  logger.warn(`${logPrefix} Google Auth Error: ${errorMessage}. Marking Google integration as revoked in DB.`);
   try {
     if (userId && supabase) {
-      await supabase.from("user_integrations").update({ status: "revoked", last_error: errorMessage.substring(0, 250), refresh_token_encrypted: null, access_token_encrypted: null, token_expires_at: null }).eq("user_id", userId).eq("provider", "google");
+      const { error: updateError } = await supabase.from("user_integrations").update({ status: "revoked", last_error: errorMessage.substring(0, 250), refresh_token_encrypted: null, access_token_encrypted: null, token_expires_at: null }).eq("user_id", userId).eq("provider", "google");
+      if (updateError) logger.error(`${logPrefix} Failed to mark integration as revoked in DB:`, updateError);
+      else logger.info(`${logPrefix} Successfully marked Google integration as revoked for user.`);
     }
-  } catch (dbError) { logger.error(`${logPrefix} Exception marking revoked:`, dbError); }
+  } catch (dbException) { logger.error(`${logPrefix} Exception during attempt to mark integration as revoked:`, dbException); }
 }
 
 
 interface CalendarInput extends ToolInput {
-  action?: "get_today_events" | null; // Allow null
-  maxResults?: number | null; // Allow null
-  calendarId?: string | null; // Allow null
+  action?: "get_today_events" | null;
+  maxResults?: number | null;
+  calendarId?: string | null;
 }
 
 export class GoogleCalendarReaderTool extends BaseTool {
@@ -59,25 +58,37 @@ export class GoogleCalendarReaderTool extends BaseTool {
   argsSchema = {
     type: "object" as const,
     properties: {
-      action: { type: ["string", "null"], enum: ["get_today_events"], description: "Action (default 'get_today_events').", default: "get_today_events" },
-      maxResults: { type: ["number", "null"], minimum: 1, maximum: 10, description: "Max events (default 5).", default: 5 },
-      calendarId: { type: ["string", "null"], description: "Optional Calendar ID (e.g., user's email, 'primary'). Defaults to 'primary'.", default: "primary" },
+      action: {
+        type: ["string", "null"] as const,
+        enum: ["get_today_events", null],
+        description: "Action to perform. If null or omitted, defaults to 'get_today_events'.",
+      } as OpenAIToolParameterProperties,
+      maxResults: {
+        type: ["number", "null"] as const,
+        description: "Maximum number of events to return (must be between 1 and 10). If null or omitted, defaults to 5.",
+        // Removed: minimum, maximum, default
+      } as OpenAIToolParameterProperties,
+      calendarId: {
+        type: ["string", "null"] as const,
+        description: "Optional Calendar ID (e.g., user's email, 'primary'). If null or omitted, defaults to 'primary'.",
+      } as OpenAIToolParameterProperties,
     },
-    required: ["action", "maxResults", "calendarId"],
+    required: ["action", "maxResults", "calendarId"], // All defined properties are required
     additionalProperties: false as false,
   };
-  cacheTTLSeconds = 60 * 5; // Cache for 5 minutes
+  cacheTTLSeconds = 60 * 5;
 
   async execute(input: CalendarInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    const { userId: contextUserId, maxResults, calendarId } = input; // Removed action as it defaults
-    const userId = input.context?.userId || contextUserId;
-    const effectiveMaxResults = maxResults ?? 5;
-    const effectiveCalendarId = calendarId ?? "primary";
+    // Defaulting logic for nullable inputs
+    const effectiveAction = (input.action === null || input.action === undefined) ? "get_today_events" : input.action;
+    const effectiveMaxResults = (input.maxResults === null || input.maxResults === undefined) ? 5 : Math.max(1, Math.min(input.maxResults, 10));
+    const effectiveCalendarId = (input.calendarId === null || input.calendarId === undefined) ? "primary" : input.calendarId;
 
+    const userId = input.context?.userId || input.userId; // Ensure userId is sourced
     const logPrefix = `[GoogleCalendarReaderTool User:${userId?.substring(0,8)} Cal:${effectiveCalendarId}]`;
-    const queryInputForStructuredData = { ...input, maxResults: effectiveMaxResults, calendarId: effectiveCalendarId };
+    const queryInputForStructuredData = { ...input, action: effectiveAction, maxResults: effectiveMaxResults, calendarId: effectiveCalendarId };
 
-    if (abortSignal?.aborted) { /* ... */ return { error: "Calendar check cancelled.", result: "Cancelled." }; }
+    if (abortSignal?.aborted) { return { error: "Calendar check cancelled.", result: "Cancelled." }; }
     if (!userId) return { error: "User ID missing.", result: "I need to know who you are to check your calendar.", structuredData: { result_type: "calendar_events", source_api: "google_calendar", query: queryInputForStructuredData, events: [], error: "User ID missing" } };
 
     const userState = input.context?.userState as UserState | null;
@@ -105,11 +116,8 @@ export class GoogleCalendarReaderTool extends BaseTool {
     }
 
     let outputStructuredData: CalendarEventList = {
-      result_type: "calendar_events",
-      source_api: "google_calendar",
-      query: queryInputForStructuredData,
-      events: [],
-      error: undefined,
+      result_type: "calendar_events", source_api: "google_calendar",
+      query: queryInputForStructuredData, events: [], error: undefined,
     };
 
     try {
@@ -119,22 +127,13 @@ export class GoogleCalendarReaderTool extends BaseTool {
       let timeMinISO: string, timeMaxISO: string;
 
       try {
-        // Get start and end of today in user's timezone or UTC
         const year = parseInt(now.toLocaleDateString('en-US', { year: 'numeric', timeZone: userTimezone || 'UTC' }));
         const month = parseInt(now.toLocaleDateString('en-US', { month: '2-digit', timeZone: userTimezone || 'UTC' })) - 1;
         const day = parseInt(now.toLocaleDateString('en-US', { day: '2-digit', timeZone: userTimezone || 'UTC' }));
-        
-        // Create Date objects based on the user's local day, then convert to ISO
-        // This ensures we get events for "today" according to the user, not just UTC "today"
         const localTodayStart = new Date(year, month, day, 0, 0, 0, 0);
         const localTodayEnd = new Date(year, month, day, 23, 59, 59, 999);
-
-        // If userTimezone is known, we can be more precise by converting these local start/end to UTC for the API query
-        // However, Google Calendar API's `timeZone` parameter for `events.list` handles this.
-        // So, we'll provide the local start/end and the user's timezone to the API.
         timeMinISO = localTodayStart.toISOString();
         timeMaxISO = localTodayEnd.toISOString();
-
       } catch (tzError: any) {
         logger.warn(`${logPrefix} Error creating date range with TZ '${userTimezone}'. Falling back to simple UTC today.`, tzError.message);
         const utcStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0,0,0,0));
@@ -145,16 +144,12 @@ export class GoogleCalendarReaderTool extends BaseTool {
 
       logger.info(`${logPrefix} Fetching up to ${effectiveMaxResults} events for today (${timeMinISO.substring(0,10)}) [API TZ Param: ${userTimezone || "Default"}]...`);
       const response = await calendar.events.list({
-        calendarId: effectiveCalendarId,
-        timeMin: timeMinISO,
-        timeMax: timeMaxISO,
-        maxResults: Math.max(1, Math.min(effectiveMaxResults, 15)),
-        singleEvents: true,
-        orderBy: 'startTime',
-        timeZone: userTimezone || undefined, // Let Google API handle timezone conversion for query range
+        calendarId: effectiveCalendarId, timeMin: timeMinISO, timeMax: timeMaxISO,
+        maxResults: Math.max(1, Math.min(effectiveMaxResults, 15)), // API constraint
+        singleEvents: true, orderBy: 'startTime', timeZone: userTimezone || undefined,
       });
 
-      if (abortSignal?.aborted) { /* ... */ return { error: "Calendar check cancelled.", result: "Cancelled." }; }
+      if (abortSignal?.aborted) { return { error: "Calendar check cancelled.", result: "Cancelled." }; }
       const events = response.data.items;
       if (!events || events.length === 0) {
         logger.info(`${logPrefix} No events found for today in calendar '${effectiveCalendarId}'.`);
@@ -167,11 +162,9 @@ export class GoogleCalendarReaderTool extends BaseTool {
         const endTime = event.end?.dateTime || event.end?.date || null;
         const isAllDay = !!event.start?.date && !event.start?.dateTime;
         let timeString = "Time TBD";
-        if (isAllDay) {
-          timeString = "All day";
-        } else if (startTime) {
+        if (isAllDay) { timeString = "All day"; }
+        else if (startTime) {
           try {
-            // Use the event's own timezone if provided, otherwise the user's context, fallback to UTC for display
             const displayTimeZone = event.start?.timeZone || userState?.timezone || input.context?.timezone || 'UTC';
             timeString = new Date(startTime).toLocaleTimeString(input.context?.locale || 'en-US', { hour: 'numeric', minute: '2-digit', timeZone: displayTimeZone, hour12: true });
           } catch (e: any) {
@@ -208,8 +201,8 @@ export class GoogleCalendarReaderTool extends BaseTool {
         outputStructuredData.error = "Google authentication failed. Please reconnect your account.";
         return { error: outputStructuredData.error, result: `Minato couldn't access your Google Calendar, ${input.context?.userName || "User"}. Please try reconnecting it in settings.`, structuredData: outputStructuredData };
       } else if (statusCode === 403 && (apiErrorMessage?.includes("forbidden") || apiErrorMessage?.includes("insufficient permissions"))) {
-        outputStructuredData.error = "Permission denied by Google. Please ensure calendar access is granted with the correct scopes.";
-        return { error: outputStructuredData.error, result: `It seems Minato doesn't have permission to access this calendar ('${effectiveCalendarId}'), ${input.context?.userName || "User"}. Please check your Google connection settings.`, structuredData: outputStructuredData };
+        outputStructuredData.error = "Permission denied by Google. Required scope (e.g., calendar.readonly) might be missing or revoked.";
+        return { error: outputStructuredData.error, result: `It seems Minato doesn't have permission to access this calendar ('${effectiveCalendarId}'), ${input.context?.userName || "User"}. Please check connection settings.`, structuredData: outputStructuredData };
       } else if (statusCode === 404) {
         outputStructuredData.error = `Calendar with ID '${effectiveCalendarId}' not found or you don't have access.`;
         return { error: outputStructuredData.error, result: `Minato couldn't find a calendar named '${effectiveCalendarId}' or doesn't have permission to view it, ${input.context?.userName || "User"}.`, structuredData: outputStructuredData };

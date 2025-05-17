@@ -20,7 +20,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
   const cookieStore = cookies();
 
   try {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const {
       data: { user },
       error: userError,
@@ -51,7 +51,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
   if (!personaId) {
     logger.warn(
-      `${logPrefix} Missing personaId parameter for user ${userId.substring(
+      `${logPrefix} Missing personaId parameter for user ${userId!.substring(
         0,
         8
       )}`
@@ -62,7 +62,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     );
   }
   logger.info(
-    `${logPrefix} Update request for persona ${personaId} from user: ${userId.substring(
+    `${logPrefix} Update request for persona ${personaId} from user: ${userId!.substring(
       0,
       8
     )}...`
@@ -99,7 +99,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     if (Object.keys(updates).length === 0) {
       logger.warn(
-        `${logPrefix} No valid fields provided for update on persona ${personaId} by user ${userId.substring(
+        `${logPrefix} No valid fields provided for update on persona ${personaId} by user ${userId!.substring(
           0,
           8
         )}.`
@@ -110,14 +110,14 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       );
     }
     logger.info(
-      `${logPrefix} Updating persona ${personaId} for user ${userId.substring(
+      `${logPrefix} Updating persona ${personaId} for user ${userId!.substring(
         0,
         8
       )} with keys: ${Object.keys(updates).join(", ")}`
     );
   } catch (e: any) {
     logger.error(
-      `${logPrefix} Invalid request body for user ${userId.substring(
+      `${logPrefix} Invalid request body for user ${userId!.substring(
         0,
         8
       )} updating persona ${personaId}:`,
@@ -131,13 +131,13 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
   try {
     const updatedPersona = await supabaseAdmin.updateUserPersona(
-      userId,
+      userId!,
       personaId,
       updates
     ); // userId est garanti non-null
     if (!updatedPersona) {
       logger.warn(
-        `${logPrefix} Persona ${personaId} not found or user ${userId.substring(
+        `${logPrefix} Persona ${personaId} not found or user ${userId!.substring(
           0,
           8
         )} not authorized to update. SupabaseDB.updateUserPersona returned null/undefined.`
@@ -151,7 +151,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       );
     }
     logger.info(
-      `${logPrefix} Persona ${personaId} updated successfully for user ${userId.substring(
+      `${logPrefix} Persona ${personaId} updated successfully for user ${userId!.substring(
         0,
         8
       )}.`
@@ -159,7 +159,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json(updatedPersona as UserPersona); // Cast si nécessaire
   } catch (error: any) {
     logger.error(
-      `${logPrefix} Error updating persona ${personaId} for user ${userId.substring(
+      `${logPrefix} Error updating persona ${personaId} for user ${userId!.substring(
         0,
         8
       )}:`,
@@ -191,7 +191,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
   const cookieStore = cookies();
 
   try {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const {
       data: { user },
       error: userError,
@@ -222,7 +222,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
   if (!personaId) {
     logger.warn(
-      `${logPrefix} Missing personaId parameter for user ${userId.substring(
+      `${logPrefix} Missing personaId parameter for user ${userId!.substring(
         0,
         8
       )}`
@@ -233,17 +233,17 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     );
   }
   logger.warn(
-    `${logPrefix} Received request to DELETE persona ${personaId} for user ${userId.substring(
+    `${logPrefix} Received request to DELETE persona ${personaId} for user ${userId!.substring(
       0,
       8
     )}.`
   );
 
   try {
-    const success = await supabaseAdmin.deleteUserPersona(userId, personaId); // userId est garanti non-null
+    const success = await supabaseAdmin.deleteUserPersona(userId!, personaId); // userId est garanti non-null
     if (success) {
       logger.info(
-        `${logPrefix} Persona ${personaId} deleted successfully for user ${userId.substring(
+        `${logPrefix} Persona ${personaId} deleted successfully for user ${userId!.substring(
           0,
           8
         )}.`
@@ -251,7 +251,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       return new NextResponse(null, { status: 204 }); // Success, No Content
     } else {
       logger.warn(
-        `${logPrefix} Persona ${personaId} not found or user ${userId.substring(
+        `${logPrefix} Persona ${personaId} not found or user ${userId!.substring(
           0,
           8
         )} not authorized to delete. SupabaseDB.deleteUserPersona returned false.`
@@ -266,7 +266,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
   } catch (error: any) {
     logger.error(
-      `${logPrefix} Error deleting persona ${personaId} for user ${userId.substring(
+      `${logPrefix} Error deleting persona ${personaId} for user ${userId!.substring(
         0,
         8
       )}:`,

@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
   // --- Authentication ---
   try {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient(); // Correction: attendre la Promise
     const {
       data: { user },
       error: userError,
@@ -44,7 +44,6 @@ export async function POST(req: NextRequest) {
         `${logPrefix} Auth] Supabase getUser() error: ${userError.message} (Status: ${userError.status})`,
         userError
       );
-      // Si getUser() retourne une erreur explicite, il est préférable de la retourner directement
       return NextResponse.json(
         { error: `Authentication check failed: ${userError.message}` },
         { status: userError.status || 500 }
@@ -57,6 +56,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     userId = user.id;
+    // Vérification stricte de userId juste avant usage
+    if (!userId) {
+      logger.error(`${logPrefix} User ID missing after authentication step.`);
+      return NextResponse.json(
+        { error: "User ID missing after authentication." },
+        { status: 500 }
+      );
+    }
     logger.info(
       `${logPrefix} Search request from user: ${userId.substring(
         0,
@@ -77,12 +84,12 @@ export async function POST(req: NextRequest) {
   // --- Fin Authentication ---
 
   // Input Validation
-  let query: string;
-  let pagination: PaginationParams;
+  let query: string = "";
+  let pagination: PaginationParams = { limit: 10, offset: 0 };
   let searchOptions: SearchOptions | null = null; // searchOptions peut être null
 
   try {
-    let body;
+    let body: any;
     try {
       body = await req.json();
     } catch (parseError: any) {
@@ -131,48 +138,39 @@ export async function POST(req: NextRequest) {
       } else {
         // Create a safe search options object
         const safeOptions: SearchOptions = {};
-        
-        // Type-safe copying of boolean properties
         if (typeof body.searchOptions.enableHybridSearch === 'boolean') {
           safeOptions.enableHybridSearch = body.searchOptions.enableHybridSearch;
         } else if (body.searchOptions.enableHybridSearch !== undefined) {
           throw new Error("'searchOptions.enableHybridSearch' must be a boolean if provided");
         }
-        
         if (typeof body.searchOptions.enableGraphSearch === 'boolean') {
           safeOptions.enableGraphSearch = body.searchOptions.enableGraphSearch;
         } else if (body.searchOptions.enableGraphSearch !== undefined) {
           throw new Error("'searchOptions.enableGraphSearch' must be a boolean if provided");
         }
-        
         if (typeof body.searchOptions.enableConflictResolution === 'boolean') {
           safeOptions.enableConflictResolution = body.searchOptions.enableConflictResolution;
         } else if (body.searchOptions.enableConflictResolution !== undefined) {
           throw new Error("'searchOptions.enableConflictResolution' must be a boolean if provided");
         }
-        
         if (typeof body.searchOptions.rerank === 'boolean') {
           safeOptions.rerank = body.searchOptions.rerank;
         } else if (body.searchOptions.rerank !== undefined) {
           throw new Error("'searchOptions.rerank' must be a boolean if provided");
         }
-        
         // Handle numeric properties - be explicit about property names to avoid indexing errors
-        const numericProps = ['vectorWeight', 'keywordWeight', 'graphWeight'];
+        const numericProps = ['vectorWeight', 'keywordWeight', 'graphWeight'] as const;
         numericProps.forEach(prop => {
           if (body.searchOptions[prop] !== undefined) {
             const val = Number(body.searchOptions[prop]);
             if (isNaN(val) || val < 0 || val > 1) {
               throw new Error(`'searchOptions.${prop}' must be a number between 0 and 1 if provided`);
             }
-            
-            // Type-safe assignment for each specific property
             if (prop === 'vectorWeight') safeOptions.vectorWeight = val;
             if (prop === 'keywordWeight') safeOptions.keywordWeight = val;
             if (prop === 'graphWeight') safeOptions.graphWeight = val;
           }
         });
-        
         // Handle filters object
         if (body.searchOptions.filters !== undefined) {
           if (body.searchOptions.filters === null) {
@@ -183,20 +181,11 @@ export async function POST(req: NextRequest) {
             safeOptions.filters = { ...body.searchOptions.filters };
           }
         }
-        
         searchOptions = safeOptions;
       }
     }
-
     logger.debug(
-      `${logPrefix} Validated input for user ${userId.substring(
-        0,
-        8
-      )}. Query: "${query.substring(0, 30)}...", Limit: ${
-        pagination.limit
-      }, Offset: ${pagination.offset}, Options: ${JSON.stringify(
-        searchOptions
-      )}`
+      `${logPrefix} Validated input for user ${userId.substring(0, 8)}. Query: "${query.substring(0, 30)}...", Limit: ${pagination.limit}, Offset: ${pagination.offset}, Options: ${JSON.stringify(searchOptions)}`
     );
   } catch (e: any) {
     logger.error(
@@ -213,44 +202,27 @@ export async function POST(req: NextRequest) {
   try {
     const memory = getMemoryFramework(); // Peut lancer une erreur si l'initialisation a échoué
     logger.info(
-      `${logPrefix} Searching memory for user ${userId.substring(
-        0,
-        8
-      )} with query "${query.substring(0, 50)}...", Limit: ${
-        pagination.limit
-      }, Offset: ${pagination.offset}`
+      `${logPrefix} Searching memory for user ${userId.substring(0, 8)} with query "${query.substring(0, 50)}...", Limit: ${pagination.limit}, Offset: ${pagination.offset}`
     );
-
-    // L'appel à search_memory
     const results: PaginatedResults<MemoryFrameworkSearchResult> =
       await memory.search_memory(
         query,
-        userId,
+        userId!, // On a vérifié userId plus haut
         pagination,
         null, // runId - passer null si non pertinent pour cette recherche spécifique
         searchOptions
       );
-
     logger.info(
-      `${logPrefix} Search completed for user ${userId.substring(
-        0,
-        8
-      )}. Found ${results.results.length} results (Est. Total: ${
-        results.total_estimated ?? "N/A"
-      }).`
+      `${logPrefix} Search completed for user ${userId.substring(0, 8)}. Found ${results.results.length} results (Est. Total: ${results.total_estimated ?? "N/A"}).`
     );
     return NextResponse.json(results);
   } catch (error: any) {
     logger.error(
-      `${logPrefix} Error during memory search for user ${userId.substring(
-        0,
-        8
-      )}:`,
+      `${logPrefix} Error during memory search for user ${userId.substring(0, 8)}:`,
       error.message,
       error.stack
     );
-    // Gérer le cas où l'erreur vient de getMemoryFramework()
-    if (error.message.includes("Memory Framework initialization failed")) {
+    if (error.message && error.message.includes("Memory Framework initialization failed")) {
       return NextResponse.json(
         { error: "Core service unavailable." },
         { status: 503 }

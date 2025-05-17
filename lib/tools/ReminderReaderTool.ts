@@ -1,5 +1,6 @@
-import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
-import { supabaseAdmin } from "../supabaseClient";
+// FILE: lib/tools/ReminderReaderTool.ts
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
+import { supabaseAdmin } from "../supabaseClient"; // Assuming this is the admin client from getSupabaseAdminClient
 import { logger } from "../../memory-framework/config";
 import { ReminderInfo, ReminderResult, StoredMemoryUnit } from "@/lib/types/index";
 import { formatDistanceToNowStrict, format } from "date-fns";
@@ -9,7 +10,7 @@ interface ReminderInput extends ToolInput {
   daysAhead?: number | null;
   limit?: number | null;
 }
-const RPC_FUNCTION_NAME = "get_pending_reminders"; // Ensure this RPC exists and matches expected params
+const RPC_FUNCTION_NAME = "get_pending_reminders";
 
 export class ReminderReaderTool extends BaseTool {
   name = "ReminderReaderTool";
@@ -17,22 +18,25 @@ export class ReminderReaderTool extends BaseTool {
   argsSchema = {
     type: "object" as const,
     properties: {
-      action: { type: ["string", "null"], enum: ["get_pending"], description: "Action (default 'get_pending').", default: "get_pending" },
-      daysAhead: { type: ["number", "null"], minimum: 0, maximum: 30, description: "Days ahead to check (default 7).", default: 7 },
-      limit: { type: ["number", "null"], minimum: 1, maximum: 15, description: "Max reminders (default 10).", default: 10 },
+      action: { type: ["string", "null"] as const, enum: ["get_pending", null], description: "Action to perform. If null or omitted, defaults to 'get_pending'." } as OpenAIToolParameterProperties,
+      daysAhead: { type: ["number", "null"] as const, description: "Number of days ahead to check for reminders (must be between 0 and 30). If null or omitted, defaults to 7." } as OpenAIToolParameterProperties, // Removed min/max/default
+      limit: { type: ["number", "null"] as const, description: "Maximum number of reminders to return (must be between 1 and 15). If null or omitted, defaults to 10." } as OpenAIToolParameterProperties, // Removed min/max/default
     },
-    required: ["action", "daysAhead", "limit"],
+    required: ["action", "daysAhead", "limit"], // All defined properties are required
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 60 * 1; // Cache for 1 minute
 
   async execute(input: ReminderInput): Promise<ToolOutput> {
-    const { userId: contextUserId, daysAhead, limit } = input;
+    const { userId: contextUserId } = input;
+    // Defaulting logic
+    const effectiveAction = (input.action === null || input.action === undefined) ? "get_pending" : input.action;
+    const effectiveDaysAhead = (input.daysAhead === null || input.daysAhead === undefined) ? 7 : Math.max(0, Math.min(input.daysAhead, 30));
+    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 10 : Math.max(1, Math.min(input.limit, 15));
+
     const userId = input.context?.userId || contextUserId;
-    const effectiveDaysAhead = daysAhead ?? 7;
-    const effectiveLimit = limit ?? 10;
     const logPrefix = `[ReminderReaderTool User:${userId?.substring(0,8)}]`;
-    const queryInputForStructuredData = {...input, daysAhead: effectiveDaysAhead, limit: effectiveLimit};
+    const queryInputForStructuredData = {...input, action: effectiveAction, daysAhead: effectiveDaysAhead, limit: effectiveLimit};
 
     if (!userId) return { error: "User ID missing.", result: `I need to know who you are, ${input.context?.userName || "User"}, to check reminders.`, structuredData: {result_type: "reminders", source_api: "internal_memory", query: queryInputForStructuredData, reminders: [], error: "User ID missing"} };
     if (!supabaseAdmin) {
@@ -47,13 +51,13 @@ export class ReminderReaderTool extends BaseTool {
     try {
       const now = new Date();
       const dueBeforeDate = new Date(now.getTime() + effectiveDaysAhead * 24 * 60 * 60 * 1000);
-      dueBeforeDate.setUTCHours(23, 59, 59, 999); // End of the target day
+      dueBeforeDate.setUTCHours(23, 59, 59, 999);
       const dueBeforeISO = dueBeforeDate.toISOString();
 
       logger.info(`${logPrefix} Fetching pending reminders (Due <= ${dueBeforeISO}, Limit: ${effectiveLimit}). Calling RPC: ${RPC_FUNCTION_NAME}...`);
       const rpcParams = {
         p_user_id: userId,
-        p_max_results: Math.max(1, Math.min(effectiveLimit, 25)),
+        p_max_results: Math.max(1, Math.min(effectiveLimit, 25)), // Supabase function might have its own cap
         p_due_before: dueBeforeISO,
       };
       const { data, error } = await supabaseAdmin.rpc(RPC_FUNCTION_NAME, rpcParams);
@@ -68,9 +72,10 @@ export class ReminderReaderTool extends BaseTool {
         const reminderDetails = item.metadata.reminder_details;
         return {
           memory_id: item.id, user_id: item.user_id, original_content: item.content,
-          trigger_datetime: reminderDetails.trigger_datetime, recurrence_rule: reminderDetails.recurrence_rule,
-          status: reminderDetails.status, last_sent_at: reminderDetails.last_sent_at, error_message: reminderDetails.error_message,
-          metadata: item.metadata, content: item.content,
+          trigger_datetime: reminderDetails.trigger_datetime, recurrence_rule: reminderDetails.recurrence_rule || null, // Ensure null if undefined
+          status: reminderDetails.status, last_sent_at: reminderDetails.last_sent_at || null,
+          error_message: reminderDetails.error_message || null,
+          metadata: item.metadata, content: item.content, // Keep these for broader context if needed
         };
       }).filter((r): r is ReminderInfo => r !== null && r.user_id === userId);
 

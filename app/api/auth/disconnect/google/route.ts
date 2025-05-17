@@ -17,7 +17,7 @@ const chatModel = appConfig?.llm?.chatModel ?? "gpt-4.1-mini-2025-04-14";
 async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {
   const cookieStore = cookies();
   try {
-    const supabase = createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
+    const supabase = await createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
     const {
       data: { session },
       error: sessionError,
@@ -35,8 +35,8 @@ async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {
 
 export async function POST(req: NextRequest) {
   const logPrefix = "[API Auth Disconnect Google]";
-  const cookieStore = cookies();
-  const supabase = createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
+  const cookieStore = await cookies();
+  const supabase = await createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
   let userId: string;
 
   try {
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: authError.message }, { status });
   }
 
-  logger.info(`${logPrefix} Request for user: ${userId.substring(0, 8)}`);
+  logger.info(`${logPrefix} Request for user: ${(userId ?? "unknown").substring(0, 8)}`);
 
   const supabaseAdmin = getSupabaseAdminClient();
   if (!supabaseAdmin) {
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (fetchError) {
       logger.error(
-        `${logPrefix} Error fetching Google integration data for user ${userId}:`,
+        `${logPrefix} Error fetching Google integration data for user ${(userId ?? "unknown").substring(0, 8)}:`,
         fetchError
       );
       throw new Error("Database error fetching integration details.");
@@ -103,36 +103,24 @@ export async function POST(req: NextRequest) {
           );
           await oauth2Client.revokeToken(refreshToken);
           logger.info(
-            `${logPrefix} Google refresh token successfully revoked for user ${userId.substring(
-              0,
-              8
-            )}.`
+            `${logPrefix} Google refresh token successfully revoked for user ${(userId ?? "unknown").substring(0, 8)}.`
           );
           tokenRevoked = true;
         } catch (revokeError: any) {
           logger.warn(
-            `${logPrefix} Failed to revoke Google token for user ${userId.substring(
-              0,
-              8
-            )} (maybe already invalid):`,
+            `${logPrefix} Failed to revoke Google token for user ${(userId ?? "unknown").substring(0, 8)} (maybe already invalid):`,
             revokeError.message
           );
           tokenRevoked = false;
         }
       } else {
         logger.warn(
-          `${logPrefix} Failed to decrypt refresh token for user ${userId.substring(
-            0,
-            8
-          )}. Cannot revoke.`
+          `${logPrefix} Failed to decrypt refresh token for user ${(userId ?? "unknown").substring(0, 8)}. Cannot revoke.`
         );
       }
     } else {
       logger.info(
-        `${logPrefix} No refresh token found in DB for user ${userId.substring(
-          0,
-          8
-        )}. Skipping Google revocation.`
+        `${logPrefix} No refresh token found in DB for user ${(userId ?? "unknown").substring(0, 8)}. Skipping Google revocation.`
       );
       tokenRevoked = true;
     }
@@ -143,25 +131,16 @@ export async function POST(req: NextRequest) {
       .eq("provider", "google");
     if (deleteError) {
       logger.warn(
-        `${logPrefix} Failed to delete integration record from DB for user ${userId.substring(
-          0,
-          8
-        )}, but token might be revoked.`,
+        `${logPrefix} Failed to delete integration record from DB for user ${(userId ?? "unknown").substring(0, 8)}, but token might be revoked.`,
         deleteError.message
       );
     } else {
       logger.info(
-        `${logPrefix} Successfully deleted Google integration record for user ${userId.substring(
-          0,
-          8
-        )}.`
+        `${logPrefix} Successfully deleted Google integration record for user ${(userId ?? "unknown").substring(0, 8)}.`
       );
     }
     logger.info(
-      `${logPrefix} Updating user state to remove Google consent flags for user ${userId.substring(
-        0,
-        8
-      )}...`
+      `${logPrefix} Updating user state to remove Google consent flags for user ${(userId ?? "unknown").substring(0, 8)}...`
     );
     const { error: updateError } = await supabaseAdmin
       .from("user_state")
@@ -172,10 +151,7 @@ export async function POST(req: NextRequest) {
       .eq("user_id", userId);
     if (updateError) {
       logger.warn(
-        `${logPrefix} Failed to update user state for user ${userId.substring(
-          0,
-          8
-        )}.`,
+        `${logPrefix} Failed to update user state for user ${(userId ?? "unknown").substring(0, 8)}.`,
         updateError.message
       );
     }
@@ -185,7 +161,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     logger.error(
-      `${logPrefix} Error disconnecting Google for user ${userId}:`,
+      `${logPrefix} Error disconnecting Google for user ${(userId ?? "unknown").substring(0, 8)}:`,
       error
     );
     return NextResponse.json(

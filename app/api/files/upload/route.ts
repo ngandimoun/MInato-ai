@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   let userId: string | null = null;
 
   try {
-    const supabaseAuth = createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
+    const supabaseAuth = await createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
     const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
     if (userError) {
       logger.error(`${logPrefix} Auth Supabase getUser error:`, userError.message);
@@ -28,20 +28,24 @@ export async function POST(req: NextRequest) {
       throw new Error("Unauthorized");
     }
     userId = user.id;
-    logger.info(`${logPrefix} Upload request from user: ${userId.substring(0, 8)}...`);
+    logger.info(`${logPrefix} Upload request from user: ${userId ? userId.substring(0, 8) : 'UNKNOWN'}...`);
 
     const formData = await req.formData();
-    const file = formData.get("file") as File | null;
+    // TypeScript: fallback si File n'est pas reconnu (Next.js API route)
+    type AnyFile = File | (Blob & { name?: string; size?: number; type?: string });
+    const file = formData.get("file") as AnyFile | null;
 
     if (!file) {
       return NextResponse.json({ error: "No file provided." }, { status: 400 });
     }
-
+    // Vérifier la présence des propriétés nécessaires
+    if (typeof file.size !== 'number' || typeof file.type !== 'string' || typeof file.name !== 'string') {
+      return NextResponse.json({ error: "Invalid file object received." }, { status: 400 });
+    }
     if (file.size > MAX_CSV_XLSX_SIZE_BYTES) {
-      logger.warn(`${logPrefix} File too large for user ${userId.substring(0,8)}: ${file.name}, ${file.size} bytes`);
+      logger.warn(`${logPrefix} File too large for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}: ${file.name}, ${file.size} bytes`);
       return NextResponse.json({ error: `File too large. Max ${MAX_CSV_XLSX_SIZE_BYTES / (1024*1024)}MB` }, { status: 413 });
     }
-
     // Valider le type de fichier (simplifié ici, pourrait être plus robuste)
     const allowedMimeTypes = [
         "text/csv",
@@ -49,10 +53,9 @@ export async function POST(req: NextRequest) {
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" // .xlsx
     ];
     if (!allowedMimeTypes.includes(file.type)) {
-        logger.warn(`${logPrefix} Unsupported file type for user ${userId.substring(0,8)}: ${file.name}, ${file.type}`);
+        logger.warn(`${logPrefix} Unsupported file type for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}: ${file.name}, ${file.type}`);
         return NextResponse.json({ error: `Unsupported file type: ${file.type}. Allowed: CSV, XLS, XLSX.`}, { status: 415 });
     }
-
 
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const originalFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_"); // Sanitize
@@ -66,25 +69,24 @@ export async function POST(req: NextRequest) {
     }
 
     const { error: uploadError } = await supabaseAdmin.storage
-      .from(MEDIA_UPLOAD_BUCKET) // Ensure this bucket exists and has correct policies
+      .from(MEDIA_UPLOAD_BUCKET)
       .upload(filePath, fileBuffer, {
         contentType: file.type,
-        upsert: false, // Do not overwrite if somehow a file with the same UUID name exists
+        upsert: false,
       });
 
     if (uploadError) {
-      logger.error(`${logPrefix} Supabase storage upload failed for ${filePath} (User: ${userId.substring(0,8)}):`, uploadError);
+      logger.error(`${logPrefix} Supabase storage upload failed for ${filePath} (User: ${userId ? userId.substring(0,8) : 'UNKNOWN'}):`, uploadError);
       throw new Error(`Storage upload failed: ${uploadError.message}`);
     }
 
-    logger.info(`${logPrefix} File '${originalFileName}' uploaded successfully to '${filePath}' for user ${userId.substring(0,8)}.`);
+    logger.info(`${logPrefix} File '${originalFileName}' uploaded successfully to '${filePath}' for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
 
-    // Le fileId sera le filePath utilisé pour le stockage, car c'est ce dont DataParsingTool aura besoin.
     return NextResponse.json({
       success: true,
-      fileId: filePath, // This is the path within the bucket
+      fileId: filePath,
       fileName: originalFileName,
-      fileType: file.type, // MIME Type
+      fileType: file.type,
       size: file.size,
     });
 

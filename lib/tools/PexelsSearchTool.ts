@@ -1,13 +1,14 @@
-import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
+// FILE: lib/tools/PexelsSearchTool.ts
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import { createClient, PhotosWithTotalResults, ErrorResponse as PexelsErrorResponse, Photo } from "pexels";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { CachedImage, CachedImageList } from "@/lib/types/index";
-import nodeFetch from "node-fetch"; // Keep for Node.js environment
+import nodeFetch from "node-fetch";
 
 interface PexelsSearchInput extends ToolInput {
   query: string;
-  limit?: number | null; // Allow null
+  limit?: number | null;
 }
 type PexelsClient = ReturnType<typeof createClient>;
 
@@ -17,18 +18,20 @@ export class PexelsSearchTool extends BaseTool {
   argsSchema = {
     type: "object" as const,
     properties: {
-      query: { type: "string" as const, description: "Keywords or description of the photo to search for." },
-      limit: { type: ["number", "null"], minimum: 1, maximum: 5, description: "Maximum number of results to return (1-5). Defaults to 3.", default: 3 },
+      query: { type: "string" as const, description: "Keywords or description of the photo to search for." } as OpenAIToolParameterProperties,
+      limit: {
+        type: ["number", "null"] as const,
+        description: "Maximum number of results to return (must be between 1 and 5). If null or not provided, defaults to 3.",
+        // Removed: minimum, maximum, default
+      } as OpenAIToolParameterProperties,
     },
-    required: ["query", "limit"],
+    required: ["query", "limit"], // All defined properties are required for strict mode
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 3600 * 24;
 
   private readonly pexelsClient: PexelsClient | null;
-  // Use a type assertion for fetch as it can be window.fetch or node-fetch
   private fetchImplementation: typeof fetch = (typeof window !== 'undefined' ? window.fetch : nodeFetch) as typeof fetch;
-
 
   constructor() {
     super();
@@ -38,9 +41,6 @@ export class PexelsSearchTool extends BaseTool {
       this.pexelsClient = null;
     } else {
       try {
-        // Pexels client does not take a fetch implementation directly.
-        // It uses the global fetch or a polyfill if in Node without one.
-        // Ensure node-fetch is available in Node or use a polyfill.
         this.pexelsClient = createClient(apiKey);
         this.log("info", "Pexels API client initialized.");
       } catch (initError: any) {
@@ -51,15 +51,17 @@ export class PexelsSearchTool extends BaseTool {
   }
 
   async execute(input: PexelsSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    const { query, limit } = input;
-    const effectiveLimit = limit ?? 3;
+    const { query } = input;
+    // Handle limit defaulting logic
+    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 3 : Math.max(1, Math.min(input.limit, 5));
+
     const logPrefix = `[PexelsTool Type:photos] Query:"${query.substring(0,30)}..."`;
     const queryInputForStructuredData = { ...input, limit: effectiveLimit };
 
 
-    if (abortSignal?.aborted) { /* ... */ return { error: "Pexels search cancelled.", result: "Cancelled." }; }
-    if (!this.pexelsClient) { /* ... */ return { error: "Pexels Tool is not configured.", result: `Sorry, ${input.context?.userName || "User"}, I cannot search Pexels right now.` }; }
-    if (!query?.trim()) { /* ... */ return { error: "Missing search query.", result: `What photos should Minato look for on Pexels, ${input.context?.userName || "User"}?` }; }
+    if (abortSignal?.aborted) { return { error: "Pexels search cancelled.", result: "Cancelled." }; }
+    if (!this.pexelsClient) { return { error: "Pexels Tool is not configured.", result: `Sorry, ${input.context?.userName || "User"}, I cannot search Pexels right now.` }; }
+    if (!query?.trim()) { return { error: "Missing search query.", result: `What photos should Minato look for on Pexels, ${input.context?.userName || "User"}?` }; }
 
     this.log("info", `${logPrefix} Searching Pexels (Limit: ${effectiveLimit})...`);
     let outputData: CachedImageList = {
@@ -67,15 +69,10 @@ export class PexelsSearchTool extends BaseTool {
     };
 
     try {
-      const params = { query: query.trim(), per_page: Math.max(1, Math.min(effectiveLimit, 5)), page: 1 };
-      
-      // Pexels client doesn't directly support AbortSignal in its method signature.
-      // The timeout will be handled by the Orchestrator or higher-level fetch wrapper if one exists.
-      // For direct fetch, we'd need to wrap this.pexelsClient.photos.search if it uses fetch internally
-      // or handle timeout at a higher level. For now, we rely on Orchestrator's timeout.
-      const response = await this.pexelsClient.photos.search(params);
+      const params = { query: query.trim(), per_page: effectiveLimit, page: 1 };
+      const response = await this.pexelsClient.photos.search(params); // AbortSignal not directly supported by pexels client
 
-      if (abortSignal?.aborted && !(response && 'photos' in response)) { // Check if aborted before response received or if response indicates failure
+      if (abortSignal?.aborted && !(response && 'photos' in response)) {
         logger.warn(`${logPrefix} Execution aborted after Pexels API call or during.`);
         outputData.error = "Request timed out or cancelled.";
         return { error: "Pexels search cancelled.", result: "Cancelled.", structuredData: outputData };
@@ -110,7 +107,7 @@ export class PexelsSearchTool extends BaseTool {
     } catch (error: any) {
       const errorMessage = `Pexels search failed: ${error.message}`;
       outputData.error = errorMessage;
-      if (error.name === 'AbortError' || abortSignal?.aborted) { // Check AbortError specifically
+      if (error.name === 'AbortError' || abortSignal?.aborted) {
         this.log("error", `${logPrefix} Request timed out or was aborted.`);
         outputData.error = "Request timed out or cancelled.";
         return { error: "Pexels search timed out or cancelled.", result: `Sorry, ${input.context?.userName || "User"}, the Pexels search took too long.`, structuredData: outputData };

@@ -1,15 +1,15 @@
-import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
+// FILE: lib/tools/WeatherTool.ts
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import fetch from "node-fetch";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { CachedSingleWeather, CachedWeather } from "@/lib/types/index";
 
 interface WeatherInput extends ToolInput {
-  location: string; // Now always required
-  units?: "metric" | "imperial" | null; // Allow null
+  location: string;
+  units?: "metric" | "imperial" | null;
 }
 
-// Internal OWM types (as previously defined)
 interface OWMWeather { id: number; main: string; description: string; icon: string; }
 interface OWMMain { temp: number; feels_like: number; temp_min: number; temp_max: number; pressure: number; humidity: number; sea_level?: number; grnd_level?: number; }
 interface OWMWind { speed: number; deg: number; gust?: number; }
@@ -24,13 +24,19 @@ export class WeatherTool extends BaseTool {
   argsSchema = {
     type: "object" as const,
     properties: {
-      location: { type: "string" as const, description: "The city name (e.g., 'London, UK', 'Paris') or zip code." },
-      units: { type: ["string", "null"], enum: ["metric", "imperial"], description: "Optional. Units preference ('metric' for Celsius, 'imperial' for Fahrenheit). Defaults to metric or user's preference." },
+      location: { type: "string" as const, description: "The city name (e.g., 'London, UK', 'Paris') or zip code. This is a required field." } as OpenAIToolParameterProperties,
+      units: {
+        type: ["string", "null"] as const, // Nullable
+        enum: ["metric", "imperial", null], // Explicitly include null if it can be null
+        description: "Units preference: 'metric' for Celsius, 'imperial' for Fahrenheit. If null or omitted, defaults based on user context or 'metric'.",
+      } as OpenAIToolParameterProperties,
     },
-    required: ["location"],
-    additionalProperties: false as const,
+    // All properties defined above must be in 'required' for strict mode,
+    // LLM should send `null` for optional ones.
+    required: ["location", "units"],
+    additionalProperties: false as false,
   };
-  cacheTTLSeconds = 60 * 15; // Cache weather for 15 minutes
+  cacheTTLSeconds = 60 * 15;
 
   private readonly API_KEY: string;
   private readonly API_BASE = "https://api.openweathermap.org/data/2.5/weather";
@@ -56,15 +62,17 @@ export class WeatherTool extends BaseTool {
   }
 
   async execute(input: WeatherInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    // Defaulting logic for 'units'
     const displayUnits = input.units ?? (input.context?.countryCode === "US" ? "imperial" : "metric");
-    const { location } = input;
+    const { location } = input; // location is now guaranteed by 'required'
     const logPrefix = `[WeatherTool] Loc:"${location.substring(0,30)}..." Units:${displayUnits}`;
     const queryInputForStructuredData = { ...input, units: displayUnits };
 
 
     if (abortSignal?.aborted) { return { error: "Weather check cancelled.", result: "Cancelled." }; }
     if (!this.API_KEY) { return { error: "Weather Tool is not configured.", result: `Sorry, ${input.context?.userName || "User"}, Minato cannot check the weather right now.` }; }
-    if (!location?.trim()) { return { error: "Missing location.", result: `Where should Minato check the weather for, ${input.context?.userName || "User"}?`, structuredData: {result_type: "weather", source_api: "openweathermap", query: queryInputForStructuredData, weather: null, error: "Missing location"} }; }
+    // Location is now required by schema, so no need to check if it's empty here (LLM must provide it).
+    // If it *could* be empty from LLM despite 'required', add check: if (!location?.trim()) ...
 
     const params = new URLSearchParams({ q: location.trim(), appid: this.API_KEY, units: "metric", lang: input.context?.locale?.split("-")[0] || input.lang?.split("-")[0] || "en" });
     const url = `${this.API_BASE}?${params.toString()}`;
@@ -76,7 +84,7 @@ export class WeatherTool extends BaseTool {
 
     try {
       const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(6000) });
-      if (abortSignal?.aborted) { /* ... */ finalStructuredData.error = "Request timed out or cancelled."; return { error: "Weather check cancelled.", result: "Cancelled.", structuredData: finalStructuredData }; }
+      if (abortSignal?.aborted) { finalStructuredData.error = "Request timed out or cancelled."; return { error: "Weather check cancelled.", result: "Cancelled.", structuredData: finalStructuredData }; }
       const data: OWMResponse = await response.json() as OWMResponse;
 
       if (!response.ok || String(data.cod) !== "200") {
@@ -113,16 +121,11 @@ export class WeatherTool extends BaseTool {
       this.log("info", `${logPrefix} Weather fetched: ${description}, ${tempC}°C`);
 
       const structuredDataForUI: CachedWeather = {
-        locationName,
-        description,
-        temperatureCelsius: tempC ?? null,
-        temperatureFahrenheit: tempF ?? null,
-        feelsLikeCelsius: feelsLikeC ?? null,
-        feelsLikeFahrenheit: feelsLikeF ?? null,
-        humidityPercent: humidity ?? null,
-        windSpeedKph: windSpeedKph ?? null,
-        windDirection: windDir ?? null,
-        iconCode: iconCode || undefined,
+        locationName, description,
+        temperatureCelsius: tempC ?? null, temperatureFahrenheit: tempF ?? null,
+        feelsLikeCelsius: feelsLikeC ?? null, feelsLikeFahrenheit: feelsLikeF ?? null,
+        humidityPercent: humidity ?? null, windSpeedKph: windSpeedKph ?? null,
+        windDirection: windDir ?? null, iconCode: iconCode || undefined,
         timestamp: observationTime,
       };
       finalStructuredData.weather = structuredDataForUI; finalStructuredData.error = undefined;
@@ -130,7 +133,7 @@ export class WeatherTool extends BaseTool {
     } catch (error: any) {
       const errorMsg = `Weather fetch failed: ${error.message}`;
       finalStructuredData.error = errorMsg;
-      if (error.name === 'AbortError') { /* ... */ finalStructuredData.error = "Request timed out."; return { error: "Weather request timed out.", result: `Sorry, ${input.context?.userName || "User"}, checking the weather took too long.`, structuredData: finalStructuredData };}
+      if (error.name === 'AbortError') { finalStructuredData.error = "Request timed out."; return { error: "Weather request timed out.", result: `Sorry, ${input.context?.userName || "User"}, checking the weather took too long.`, structuredData: finalStructuredData };}
       this.log("error", `${logPrefix} Failed:`, error.message);
       return { error: errorMsg, result: `Sorry, ${input.context?.userName || "User"}, Minato encountered an error checking the weather.`, structuredData: finalStructuredData };
     }

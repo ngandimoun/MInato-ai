@@ -1,58 +1,62 @@
+// FILE: lib/tools/base-tool.ts
 import { UserState, AnyToolStructuredData } from "@/lib/types/index";
 import { logger } from "../../memory-framework/config";
 
+// Define a more restrictive type for properties within OpenAI tool parameters
+export type OpenAIToolParameterProperties = {
+    type: string | string[]; // e.g., "string", "number", "boolean", "object", "array", or ["string", "null"]
+    description?: string;
+    enum?: readonly string[] | string[]; // Allowed for string, number, integer types
+    items?: OpenAIToolParameterProperties | { type: string }; // For array type
+    properties?: Record<string, OpenAIToolParameterProperties>; // For object type
+    required?: string[]; // For object type
+    // Keywords like 'minimum', 'maximum', 'format', 'pattern' are NOT directly supported by OpenAI for tool parameters.
+    // Convey these constraints in the 'description' field.
+};
+
 export interface ToolInput {
-  query?: string; // Often the primary input for search-like tools
-  action?: string | null; // For tools with multiple actions
-  userId?: string; // User ID from context, will be injected by Orchestrator/ToolExecute API
-  lang?: string | null; // Language from context
-  sessionId?: string; // Session ID from context
+  query?: string;
+  action?: string | null;
+  userId?: string;
+  lang?: string | null;
+  sessionId?: string;
   context?: {
     ipAddress?: string;
     latitude?: number | null;
     longitude?: number | null;
     timezone?: string | null;
-    locale?: string; // Full locale like en-US
-    countryCode?: string; // e.g., US
-    runId?: string; // Specific run ID for an interaction
+    locale?: string;
+    countryCode?: string;
+    runId?: string;
     userState?: UserState | null;
-    abortSignal?: AbortSignal; // Optional AbortSignal for cancellation
-    userName?: string; // Added for personalized tool responses
-    [key: string]: any; // For other contextual data
+    abortSignal?: AbortSignal;
+    userName?: string;
+    [key: string]: any;
   };
-  [key: string]: any; // For tool-specific arguments passed by the LLM
+  [key: string]: any;
 }
 
 export interface ToolOutput {
-  result?: string | null; // User-facing text summary of the tool's action/result
-  structuredData?: AnyToolStructuredData; // Data for UI rendering or further processing
+  result?: string | null;
+  structuredData?: AnyToolStructuredData;
   error?: string | null;
   needsFollowUp?: boolean;
-  requiredInfo?: string[]; // If tool needs more info from user (rare, usually handled by LLM clarification)
+  requiredInfo?: string[];
 }
 
 export abstract class BaseTool {
   abstract name: string;
   abstract description: string;
-  abstract argsSchema: { // More specific type for argsSchema
-    type: "object";
-    properties: Record<string, {
-        type: string | string[];
-        description?: string;
-        enum?: readonly string[] | string[];
-        format?: string;
-        minimum?: number;
-        maximum?: number;
-        default?: any;
-        items?: any; // For array types
-        nullable?: boolean; // Custom flag, OpenAPI uses `type: ["string", "null"]`
-    }>;
-    required: string[];
-    additionalProperties: false;
-    description?: string; // Optional description for the overall args object
+  // Updated argsSchema structure to be more compliant
+  abstract argsSchema: {
+    type: "object"; // Root must be object
+    properties: Record<string, OpenAIToolParameterProperties>;
+    required?: string[]; // Optional at the root, but planner should be guided to fill them
+    additionalProperties: false; // Must be false for strict mode
+    description?: string;
   };
-  cacheTTLSeconds?: number = 90; // Default TTL for caching tool output
-  enabled: boolean = true; // Default to enabled
+  cacheTTLSeconds?: number = 90;
+  enabled: boolean = true;
 
   abstract execute( input: ToolInput, abortSignal?: AbortSignal ): Promise<ToolOutput>;
 

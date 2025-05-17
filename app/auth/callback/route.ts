@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
   const cookieStore = cookies();
   // Utiliser createServerSupabaseClient comme défini dans lib/supabase/server.ts
-  const supabase = createServerSupabaseClient(); // createSupabaseRouteHandlerClient({ cookies: () => cookieStore })
+  const supabase = await createServerSupabaseClient(); // Ajout de await ici
 
   const { error: exchangeError, data } =
     await supabase.auth.exchangeCodeForSession(code);

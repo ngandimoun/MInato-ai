@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
   // --- Integrated Auth Check --- 
   const cookieStore = cookies();
-  const supabase = createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
+  const supabase = await createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
   let userId: string;
   try {
     const {
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const userState: UserState | null = await supabaseAdmin.getUserState(userId);
-    const ipAddress = req.headers.get("x-forwarded-for") ?? req.ip ?? "unknown";
+    const ipAddress = req.headers.get("x-forwarded-for") ?? "unknown";
     let locale = req.headers.get("accept-language")?.split(",")[0]
       ?? userState?.preferred_locale
       ?? undefined;

@@ -1,4 +1,5 @@
-import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
+// FILE: lib/tools/DataAnalysisTool.ts
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import {
   DataProfile,
   AnalysisResultData,
@@ -9,55 +10,54 @@ import {
 } from "@/lib/types";
 import { logger } from "../../memory-framework/config";
 
-// This DataProfileSchema is for the *input argument* to the tool
 const DataProfileSchemaForArgs = {
     type: "object" as const,
-    properties: {
-        rowCount: { type: "integer" as const },
-        columnCount: { type: "integer" as const },
+    description: "The data profile object from DataProfilingTool. This is required.",
+    properties: { // Define expected top-level properties of DataProfile
+        rowCount: { type: "number" as const, description: "Number of rows in the dataset." } as OpenAIToolParameterProperties,
+        columnCount: { type: "number" as const, description: "Number of columns in the dataset." } as OpenAIToolParameterProperties,
         columnDetails: {
             type: "object" as const,
-            // Here, if column names are dynamic, we cannot list them in properties.
-            // `additionalProperties: true` with `patternProperties` might work for some LLMs,
-            // but for strict Responses API, it's safer to expect a known structure or an array of key-value pairs.
-            // For this tool's input, let's assume the LLM will provide this as a structured object.
-            // We need to ensure the schema is strict. If `columnDetails` itself has dynamic keys,
-            // this schema becomes problematic for `additionalProperties: false` at the root of `columnDetails`.
-            // A safer bet if keys are truly dynamic: make columnDetails an array of { columnName: string, details: object }.
-            // For now, assuming the LLM *can* structure this even if keys are dynamic, but it's a common failure point.
-            // Let's simplify and assume columnDetails's *value* structure is fixed, but keys are dynamic.
-            // This requires the `sanitizeJsonSchema` to handle `patternProperties` if used, or make this `additionalProperties: true`
-            // which might violate strictness rules if not handled carefully by `sanitizeJsonSchema`.
-            // To be fully compliant:
-            additionalProperties: true, // This might need to be `false` and specific properties listed or use patternProperties
-                                        // For now, let's assume `additionalProperties: true` if the sanitization handles it.
-                                        // If not, this has to be an array of {name: string, detail: object}
-            properties: {}, // No fixed properties for the keys themselves, keys are the column names
-            required: [],
-        },
-        potentialDateColumns: { type: ["array", "null"], items: { type: "string" as const } },
-        potentialRevenueColumns: { type: ["array", "null"], items: { type: "string" as const } },
-        potentialExpenseColumns: { type: ["array", "null"], items: { type: "string" as const } },
-        potentialCategoryColumns: { type: ["array", "null"], items: { type: "string" as const } },
-        potentialIdColumns: { type: ["array", "null"], items: { type: "string" as const } },
-        warnings: { type: ["array", "null"], items: { type: "string" as const } },
-        fileName: { type: ["string", "null"], },
-        fileType: { type: ["string", "null"], },
+            description: "Details about each column, where keys are column names.",
+            // Since column names are dynamic, we cannot list them as fixed properties for OpenAI strict mode.
+            // This implies the LLM should provide this as an object, and we'll process its dynamic keys.
+            // For strictness with OpenAI, if we knew specific columns, we'd list them.
+            // `additionalProperties: true` here would be for the *values* of columnDetails, if those values had dynamic keys.
+            // The keys of `columnDetails` *are themselves* dynamic.
+            // A common way to handle this for LLMs is to expect an array of objects:
+            // items: { type: "object", properties: { columnName: {type: "string"}, details: { ...fixed detail schema ... }}}
+            // But since the prompt asks for an object, we'll assume `additionalProperties: true` is implicitly handled by parsing
+            // and the values adhere to a fixed (though not fully specified here for brevity) structure.
+            // Let's define a minimal structure for what a column detail might contain for the LLM's understanding.
+            additionalProperties: { // This allows dynamic keys (column names)
+                type: "object" as const,
+                properties: {
+                    originalHeader: { type: "string", description: "Original header name." } as OpenAIToolParameterProperties,
+                    inferredType: { type: "string", description: "Inferred data type." } as OpenAIToolParameterProperties,
+                    // Add other common fields if the LLM needs to be aware of them for planning
+                },
+                required: ["originalHeader", "inferredType"], // Example minimal requirement
+            } as OpenAIToolParameterProperties,
+        } as OpenAIToolParameterProperties,
+        fileName: { type: ["string", "null"] as const, description: "Original name of the file." } as OpenAIToolParameterProperties,
+        fileType: { type: ["string", "null"] as const, description: "MIME type of the file." } as OpenAIToolParameterProperties,
+        // Other DataProfile fields (warnings, potential columns) are harder for LLM to provide accurately in this context.
+        // The description of `dataProfile` argument should guide LLM about what it needs.
     },
-    required: ["rowCount", "columnCount", "columnDetails", "potentialDateColumns", "potentialRevenueColumns", "potentialExpenseColumns", "potentialCategoryColumns", "potentialIdColumns", "warnings", "fileName", "fileType"],
-    additionalProperties: false as false,
-    description: "The data profile object from DataProfilingTool."
+    // All these top-level fields of DataProfile are expected to be provided by the previous tool.
+    required: ["rowCount", "columnCount", "columnDetails", "fileName", "fileType"],
+    additionalProperties: false as false, // The DataProfile object itself has a fixed structure
 };
 
 
 interface DataAnalysisInput extends ToolInput {
-  dataProfile: DataProfile; // This is the complex input
+  dataProfile: DataProfile;
   analysisType: "sum" | "average" | "count" | "group_by" | "filter" | "time_series" | "top_n";
   targetColumn: string;
-  groupByColumns?: string[] | null; // Made nullable
-  dateColumn?: string | null;     // Made nullable
-  filterCriteria?: Record<string, any> | null; // Made nullable
-  topN?: number | null;           // Made nullable
+  groupByColumns?: string[] | null;
+  dateColumn?: string | null;
+  filterCriteria?: Record<string, any> | null;
+  topN?: number | null;
 }
 
 export class DataAnalysisTool extends BaseTool {
@@ -67,28 +67,28 @@ export class DataAnalysisTool extends BaseTool {
   argsSchema = {
     type: "object" as const,
     properties: {
-      dataProfile: DataProfileSchemaForArgs, // Use the defined schema
+      dataProfile: DataProfileSchemaForArgs as OpenAIToolParameterProperties, // Use the defined schema
       analysisType: {
         type: "string" as const,
         enum: ["sum", "average", "count", "group_by", "filter", "time_series", "top_n"],
-        description: "The type of analysis to perform.",
-      },
+        description: "The type of analysis to perform. This is required.",
+      } as OpenAIToolParameterProperties,
       targetColumn: {
         type: "string" as const,
-        description: "The primary column for the analysis (e.g., the column to sum or average).",
-      },
-      groupByColumns: { type: ["array", "null"], items: { type: "string" as const }, description: "Column(s) to group by for aggregation." },
-      dateColumn: { type: ["string", "null"], description: "The date column for time-series analysis." },
+        description: "The primary column for the analysis (e.g., the column to sum or average). This is required.",
+      } as OpenAIToolParameterProperties,
+      groupByColumns: { type: ["array", "null"] as const, items: { type: "string" as const }, description: "Column(s) to group by for aggregation. Provide as an array of strings, or null if not applicable." } as OpenAIToolParameterProperties,
+      dateColumn: { type: ["string", "null"] as const, description: "The date column for time-series analysis. Provide as string, or null if not applicable." } as OpenAIToolParameterProperties,
       filterCriteria: {
-        type: ["object", "null"],
-        description: "Criteria for filtering data before analysis (e.g., {'Region': 'North'}).",
-        properties: {}, // No fixed properties for filterCriteria object itself
+        type: ["object", "null"] as const,
+        description: "Criteria for filtering data before analysis (e.g., {'Region': 'North'}). Provide as a JSON object or null if no filter.",
+        // For an object with dynamic keys, `additionalProperties: true` makes sense if values have a consistent type.
+        // Or, more strictly, define it as an array of key-operator-value triplets.
+        // Given OpenAI's preference for simpler structures for LLM generation, an object is often fine,
+        // assuming the LLM can construct it based on description.
         additionalProperties: true, // Allow any key-value pairs for filter criteria
-        // Note: if `additionalProperties: true` is an issue for the root of filterCriteria,
-        // it would need to be an array of {key, operator, value} objects.
-        // However, usually an object with dynamic keys is fine for this type of input.
-      },
-      topN: { type: ["number", "null"], description: "The number of top results to return for 'top_n' analysis." },
+      } as OpenAIToolParameterProperties,
+      topN: { type: ["number", "null"] as const, description: "The number of top results to return for 'top_n' analysis. Must be a positive integer. Provide as number or null." } as OpenAIToolParameterProperties, // Removed minimum
     },
     required: ["dataProfile", "analysisType", "targetColumn", "groupByColumns", "dateColumn", "filterCriteria", "topN"],
     additionalProperties: false as false,
@@ -99,29 +99,28 @@ export class DataAnalysisTool extends BaseTool {
     input: DataAnalysisInput,
     abortSignal?: AbortSignal
   ): Promise<ToolOutput> {
-    const {
-      userId: contextUserId,
-      dataProfile,
-      analysisType,
-      targetColumn,
-      groupByColumns,
-      dateColumn,
-      filterCriteria,
-      topN,
-    } = input;
+    const { userId: contextUserId, dataProfile, analysisType, targetColumn } = input;
+    // Handle defaulting for nullable fields that LLM might send as null
+    const groupByColumns = input.groupByColumns === null ? undefined : input.groupByColumns;
+    const dateColumn = input.dateColumn === null ? undefined : input.dateColumn;
+    const filterCriteria = input.filterCriteria === null ? undefined : input.filterCriteria;
+    const topN = (input.topN === null || input.topN === undefined) ? undefined : Math.max(1, input.topN);
+
+
     const userId = input.context?.userId || contextUserId;
     const logPrefix = `[DataAnalysisTool User:${userId?.substring(0,8)} Type:${analysisType}]`;
-    logger.info(`${logPrefix} Starting analysis. Target: ${targetColumn}, GroupBy: ${groupByColumns?.join(",")}, DateCol: ${dateColumn}`);
+    logger.info(`${logPrefix} Starting analysis. Target: ${targetColumn}, GroupBy: ${groupByColumns?.join(",")}, DateCol: ${dateColumn}, TopN: ${topN}`);
 
-    const queryInputForStructuredData = { ...input, dataProfile: "[DataProfile Object]" }; // Avoid logging large data
+    const queryInputForStructuredData = { ...input, dataProfile: "[DataProfile Object]" };
 
-    if (!userId) return { error: "User ID required.", result: "Cannot analyze data without user context.", structuredData: { result_type: "analysis_error", query: queryInputForStructuredData, error: "User ID required", source_api:"data_analysis_tool" } };
-    if (!dataProfile || !analysisType || !targetColumn) return { error: "Missing required arguments (profile, type, target).", result: "Need more details to perform analysis.", structuredData: { result_type: "analysis_error", query: queryInputForStructuredData, error: "Missing required arguments", source_api:"data_analysis_tool" } };
+    if (!userId) return { error: "User ID required.", result: "Cannot analyze data without user context.", structuredData: { result_type: "analysis_error" as any, query: queryInputForStructuredData, error: "User ID required", source_api:"data_analysis_tool" } };
+    if (!dataProfile || !analysisType || !targetColumn) return { error: "Missing required arguments (profile, type, target).", result: "Need more details to perform analysis.", structuredData: { result_type: "analysis_error" as any, query: queryInputForStructuredData, error: "Missing required arguments", source_api:"data_analysis_tool" } };
 
+    // Simulate processing delay
     await new Promise(resolve => setTimeout(resolve, 1500));
     if (abortSignal?.aborted) {
       logger.warn(`${logPrefix} Analysis aborted.`);
-      return { error: "Data analysis cancelled.", result: "Cancelled.", structuredData: { result_type: "analysis_error", query: queryInputForStructuredData, error: "Cancelled", source_api:"data_analysis_tool" } };
+      return { error: "Data analysis cancelled.", result: "Cancelled.", structuredData: { result_type: "analysis_error" as any, query: queryInputForStructuredData, error: "Cancelled", source_api:"data_analysis_tool" } };
     }
 
     let resultData: AnalysisResultData | null = null;
@@ -129,69 +128,51 @@ export class DataAnalysisTool extends BaseTool {
     let finalStructuredOutput: AnyToolStructuredData;
 
     try {
+      // Placeholder logic - replace with actual data analysis
       if (analysisType === "group_by" && groupByColumns && groupByColumns.length > 0) {
         resultSummary = `Minato calculated total ${targetColumn} grouped by ${groupByColumns.join(" & ")} for ${input.context?.userName || "user"}.`;
         resultData = {
           type: "table",
           title: `Total ${targetColumn} by ${groupByColumns.join(" & ")}`,
           description: resultSummary,
-          data: [
-            { [groupByColumns[0]]: "Category A", [targetColumn]: 500 },
-            { [groupByColumns[0]]: "Category B", [targetColumn]: 750 },
-            { [groupByColumns[0]]: "Category C", [targetColumn]: 300 },
+          data: [ // Sample data
+            { [groupByColumns[0]]: "Category A", [targetColumn]: Math.floor(Math.random() * 1000) },
+            { [groupByColumns[0]]: "Category B", [targetColumn]: Math.floor(Math.random() * 1000) },
+            { [groupByColumns[0]]: "Category C", [targetColumn]: Math.floor(Math.random() * 1000) },
           ],
         };
         finalStructuredOutput = {
-          result_type: "analysis_table",
-          source_api: "data_analysis_tool",
-          query: queryInputForStructuredData,
-          analysis: resultData,
-          title: resultData.title!,
-          description: resultData.description!,
-          error: undefined,
-        } as AnalysisTableResult;
+          result_type: "analysis_table", source_api: "data_analysis_tool",
+          analysis: resultData, error: undefined,
+        } as AnalysisTableResult; // Removed query, title, desc as they are inside analysis
         logger.info(`${logPrefix} Simulated group_by sum successful.`);
       } else if (analysisType === "time_series" && dateColumn) {
         resultSummary = `Minato aggregated ${targetColumn} over time (using ${dateColumn}) for ${input.context?.userName || "user"}.`;
         resultData = {
-          type: "chart_data",
-          title: `${targetColumn} Trend`,
-          description: resultSummary,
+          type: "chart_data", title: `${targetColumn} Trend`, description: resultSummary,
           data: {
             x: ["2024-01", "2024-02", "2024-03", "2024-04"],
-            y: [1000, 1200, 1150, 1300],
+            y: [Math.random()*100, Math.random()*150, Math.random()*120, Math.random()*180].map(v => Math.round(v)),
             type: "line",
           },
         };
         finalStructuredOutput = {
-          result_type: "analysis_chart",
-          source_api: "data_analysis_tool",
-          query: queryInputForStructuredData,
-          analysis: resultData,
-          title: resultData.title!,
-          description: resultData.description!,
-          error: undefined,
+          result_type: "analysis_chart", source_api: "data_analysis_tool",
+          analysis: resultData, error: undefined,
         } as AnalysisChartResult;
         logger.info(`${logPrefix} Simulated time_series aggregation successful.`);
-      } else {
-        resultSummary = `Minato successfully performed analysis: ${analysisType} on ${targetColumn} for ${input.context?.userName || "user"}.`;
-        resultData = {
-          type: "summary",
-          description: "Analysis complete.",
-          data: resultSummary,
-        };
+      } else { // sum, average, count, filter, top_n - generic summary for now
+        resultSummary = `Minato successfully performed analysis: ${analysisType} on ${targetColumn} for ${input.context?.userName || "user"}. Example result: ${Math.floor(Math.random()*1000)}.`;
+        resultData = { type: "summary", description: "Analysis complete.", data: resultSummary };
         finalStructuredOutput = {
-          result_type: "analysis_summary",
-          source_api: "data_analysis_tool",
-          query: queryInputForStructuredData,
-          analysis: resultData,
-          error: undefined,
+          result_type: "analysis_summary", source_api: "data_analysis_tool",
+          analysis: resultData, error: undefined,
         } as AnalysisSummaryResult;
         logger.info(`${logPrefix} Simulated ${analysisType} successful.`);
       }
     } catch (error: any) {
       logger.error(`${logPrefix} Analysis execution failed: ${error.message}`);
-      return { error: `Analysis failed: ${error.message}`, result: `Sorry, ${input.context?.userName || "User"}, Minato couldn't perform that analysis.`, structuredData: { result_type: "analysis_error", query: queryInputForStructuredData, error: `Analysis failed: ${error.message}`, source_api:"data_analysis_tool" } };
+      return { error: `Analysis failed: ${error.message}`, result: `Sorry, ${input.context?.userName || "User"}, Minato couldn't perform that analysis.`, structuredData: { result_type: "analysis_error" as any, query: queryInputForStructuredData, error: `Analysis failed: ${error.message}`, source_api:"data_analysis_tool" } };
     }
 
     return { result: resultSummary, structuredData: finalStructuredOutput };

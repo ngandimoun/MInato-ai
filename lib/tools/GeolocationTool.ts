@@ -1,4 +1,5 @@
-import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
+// FILE: lib/tools/GeolocationTool.ts
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import fetch from "node-fetch";
 import { GeolocationStructuredOutput } from "@/lib/types/index";
 import { appConfig } from "../config";
@@ -32,10 +33,13 @@ export class GeolocationTool extends BaseTool {
     "Estimates the user's current approximate location (City, Region, Country, Timezone, Lat/Lon) based on their connection IP address. Provides context for location-aware queries.";
   argsSchema = {
     type: "object" as const,
-    properties: {}, // No user-settable properties for this tool
-    required: [],
+    properties: {
+        // No user-settable properties defined for the LLM to fill.
+        // The tool uses context.ipAddress.
+    },
+    required: [], // No properties are defined, so 'required' is empty.
     additionalProperties: false as false,
-    description: "No arguments needed; uses connection info from context.",
+    description: "No arguments needed; uses connection info from context automatically.",
   };
   cacheTTLSeconds = 3600 * 6; // Cache for 6 hours
 
@@ -50,24 +54,25 @@ export class GeolocationTool extends BaseTool {
 
   private isPrivateIP(ip: string): boolean {
     if (!ip) return false;
-    if (ip === "::1" || ip.startsWith("fe80:")) return true; // IPv6 localhost and link-local
-    if (ip === "127.0.0.1") return true; // IPv4 localhost
+    if (ip === "::1" || ip.startsWith("fe80:")) return true;
+    if (ip === "127.0.0.1") return true;
     const parts = ip.split(".").map(Number);
-    if (parts.length !== 4 || parts.some(isNaN)) return false; // Not a valid IPv4
-    if (parts[0] === 10) return true; // 10.0.0.0/8
-    if (parts[0] === 192 && parts[1] === 168) return true; // 192.168.0.0/16
-    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true; // 172.16.0.0/12
+    if (parts.length !== 4 || parts.some(isNaN)) return false;
+    if (parts[0] === 10) return true;
+    if (parts[0] === 192 && parts[1] === 168) return true;
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
     return false;
   }
 
   async execute(input: GeolocationInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    // No input arguments to default for this tool, it uses context.
     const ipAddress = input.context?.ipAddress;
     const logPrefix = `[GeolocationTool IP:${ipAddress?.substring(0,15) || "N/A"}]`;
-    const queryInputForStructuredData = { ...input };
+    const queryInputForStructuredData = { ...input }; // Capture original input for logging/structured data
 
     let outputStructuredData: GeolocationStructuredOutput = {
       result_type: "geolocation",
-      source_api: "geolocation_tool", // Or "ip-api.com"
+      source_api: "geolocation_tool",
       query: queryInputForStructuredData,
       queryIP: ipAddress || null,
       status: "error",

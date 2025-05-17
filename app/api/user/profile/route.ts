@@ -18,7 +18,7 @@ import { DEFAULT_USER_NAME, DEFAULT_PERSONA_ID } from "@/lib/constants";
 
 async function getUserIdFromSession(req: NextRequest): Promise<string | null> {
   // Utilisation de createSupabaseRouteHandlerClient corrigée
-  const supabase = createSupabaseRouteHandlerClient({
+  const supabase = await createSupabaseRouteHandlerClient({
     cookies: () => cookies(),
   });
   try {

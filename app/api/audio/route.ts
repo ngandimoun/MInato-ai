@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   try {
     // --- Authentication ---
     try {
-      const supabase = createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
+      const supabase = await createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
       const {
         data: { session },
         error: sessionError,
@@ -45,10 +45,7 @@ export async function POST(req: NextRequest) {
       }
       userId = session.user.id;
       logger.info(
-        `${logPrefix} Request received from authenticated Supabase user: ${userId.substring(
-          0,
-          8
-        )}...`
+        `${logPrefix} Request received from authenticated Supabase user: ${(userId ?? "unknown").substring(0, 8)}...`
       );
     } catch (authError: any) {
       logger.error(
@@ -67,12 +64,12 @@ export async function POST(req: NextRequest) {
 
     // --- Rate Limiting ---
     const { success: rateLimitSuccess } = await checkRateLimit(
-      userId!,
+      userId ?? "unknown",
       RATE_LIMIT_ID_AUDIO_INPUT
     );
     if (!rateLimitSuccess) {
       logger.warn(
-        `${logPrefix} Rate limit exceeded for user ${userId!.substring(0, 8)}`
+        `${logPrefix} Rate limit exceeded for user ${(userId ?? "unknown").substring(0, 8)}`
       );
       return NextResponse.json(
         { error: "Rate limit exceeded" },
@@ -83,7 +80,7 @@ export async function POST(req: NextRequest) {
     // --- Request Validation ---
     if (!contentType.startsWith("multipart/form-data")) {
       logger.warn(
-        `${logPrefix} Invalid Content-Type for user ${userId!.substring(0, 8)}`
+        `${logPrefix} Invalid Content-Type for user ${(userId ?? "unknown").substring(0, 8)}`
       );
       return NextResponse.json(
         { error: "Invalid Content-Type, expected multipart/form-data" },
@@ -110,7 +107,7 @@ export async function POST(req: NextRequest) {
             throw new Error("History is not an array");
         } catch (e: any) {
           logger.error(
-            `${logPrefix} Invalid history JSON provided by user ${userId!.substring(0, 8)}:`,
+            `${logPrefix} Invalid history JSON provided by user ${(userId ?? "unknown").substring(0, 8)}:`,
             e.message
           );
           return NextResponse.json(
@@ -153,14 +150,14 @@ export async function POST(req: NextRequest) {
       audioBuffer = Buffer.from(await audioFile.arrayBuffer());
       // --- LOG: Détail du buffer reçu ---
       logger.info(
-        `${logPrefix} [RECV] Audio: ${originalFilename} (${audioFile.size} bytes, type: ${detectedMimeType}) for user ${userId!.substring(0, 8)}`
+        `${logPrefix} [RECV] Audio: ${originalFilename} (${audioFile.size} bytes, type: ${detectedMimeType}) for user ${(userId ?? "unknown").substring(0, 8)}`
       );
       logger.debug(
         `${logPrefix} [RECV] Buffer: size=${audioBuffer.length} bytes, firstBytes=${audioBuffer.slice(0, 16).toString("hex")}, sha256=${require("crypto").createHash("sha256").update(audioBuffer).digest("hex").substring(0, 16)}`
       );
     } catch (e: any) {
       logger.error(
-        `${logPrefix} Error parsing form data for user ${userId!.substring(0, 8)}:`,
+        `${logPrefix} Error parsing form data for user ${(userId ?? "unknown").substring(0, 8)}:`,
         e
       );
       return NextResponse.json(
@@ -198,10 +195,7 @@ export async function POST(req: NextRequest) {
       });
     if (uploadError) {
       logger.error(
-        `${logPrefix} Supabase upload error for user ${userId!.substring(
-          0,
-          8
-        )}: ${uploadError.message}`,
+        `${logPrefix} Supabase upload error for user ${(userId ?? "unknown").substring(0, 8)}: ${uploadError.message}`,
         uploadError
       );
       throw new Error(`Storage upload failed: ${uploadError.message}`);
@@ -215,10 +209,7 @@ export async function POST(req: NextRequest) {
       .createSignedUrl(uploadPath, SIGNED_URL_EXPIRY_SECONDS);
     if (signError || !urlData?.signedUrl) {
       logger.error(
-        `${logPrefix} Failed to create signed URL for user ${userId!.substring(
-          0,
-          8
-        )}: ${signError?.message || "Unknown error"}`
+        `${logPrefix} Failed to create signed URL for user ${(userId ?? "unknown").substring(0, 8)}: ${signError?.message || "Unknown error"}`
       );
       throw new Error(
         `Failed to create signed URL: ${signError?.message || "Unknown error"}`
@@ -226,13 +217,10 @@ export async function POST(req: NextRequest) {
     }
     const signedUrl = urlData.signedUrl;
     logger.debug(
-      `${logPrefix} Created signed URL for user ${userId!.substring(
-        0,
-        8
-      )} (expires ${SIGNED_URL_EXPIRY_SECONDS}s)`
+      `${logPrefix} Created signed URL for user ${(userId ?? "unknown").substring(0, 8)} (expires ${SIGNED_URL_EXPIRY_SECONDS}s)`
     );
 
-    const ipAddress = req.headers.get("x-forwarded-for") ?? req.ip ?? "unknown";
+    const ipAddress = req.headers.get("x-forwarded-for") ?? "unknown";
     const locale =
       req.headers.get("accept-language")?.split(",")[0] || undefined;
     const context = {
@@ -245,7 +233,7 @@ export async function POST(req: NextRequest) {
 
     // Call orchestrator with the authenticated userId
     const response = await orchestrator.processAudioMessage(
-      userId!,
+      userId ?? "unknown",
       signedUrl,
       history,
       sessionId,
@@ -258,12 +246,12 @@ export async function POST(req: NextRequest) {
           ? "Error processing audio."
           : response.error;
       logger.error(
-        `[API Audio] Orchestrator error processing audio for user ${userId}: ${response.error}`
+        `[API Audio] Orchestrator error processing audio for user ${(userId ?? "unknown")}: ${response.error}`
       );
       return NextResponse.json({ error: userError }, { status: 500 });
     }
     logger.info(
-      `${logPrefix} [ORCH] Calling orchestrator.processAudioMessage with: userId=${userId}, signedUrl=${signedUrl}, size=${audioBuffer.length} bytes, type=${detectedMimeType}`
+      `${logPrefix} [ORCH] Calling orchestrator.processAudioMessage with: userId=${userId ?? "unknown"}, signedUrl=${signedUrl}, size=${audioBuffer.length} bytes, type=${detectedMimeType}`
     );
     return NextResponse.json(response);
   } catch (error: any) {
