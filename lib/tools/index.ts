@@ -10,7 +10,7 @@ import { YouTubeSearchTool } from "./YouTubeSearchTool";
 import { PexelsSearchTool } from "./PexelsSearchTool";
 import { WeatherTool } from "./WeatherTool";
 import { PlaceSearchTool } from "./PlaceSearchTool";
-import { WolframAlphaTool } from "./WolframAlphaTool";
+//import { WolframAlphaTool } from "./WolframAlphaTool";
 import { RecipeSearchTool } from "./RecipeSearchTool";
 import { DateTimeTool } from "./DateTimeTool";
 import { PublicHolidayTool } from "./PublicHolidayTool";
@@ -45,7 +45,7 @@ export const tools: { [key: string]: BaseTool } = {
   PexelsSearchTool: new PexelsSearchTool(),
   WeatherTool: new WeatherTool(),
   PlaceSearchTool: new PlaceSearchTool(),
-  WolframAlphaTool: new WolframAlphaTool(),
+  //WolframAlphaTool: new WolframAlphaTool(),
   RecipeSearchTool: new RecipeSearchTool(),
   NewsAggregatorTool: new NewsAggregatorTool(),
   DateTimeTool: new DateTimeTool(),
