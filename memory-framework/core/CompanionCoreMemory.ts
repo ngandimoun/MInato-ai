@@ -14,7 +14,7 @@ import {
 } from "./types";
 import { generateUUID, getCurrentISOTimestamp, safeJsonParse, generateStableCacheKey } from "./utils";
 import { AnyToolStructuredData } from "@/lib/types";
-import { supabaseAdmin } from "@/lib/supabaseClient";
+import { supabaseAdmin as rawSupabaseAdminClient } from "@/lib/supabaseClient"; // Use the direct admin client
 
 
 const TASK_MEMORY_CATEGORY = "task";
@@ -52,7 +52,7 @@ export class CompanionCoreMemory {
   // --- Core Memory Operations ---
   async add_memory(
     conversationTurn: MemoryFrameworkMessage[],
-    userId: string, // userId must be provided externally
+    userId: string, 
     runId: string | null = null,
     discoveredContentFact?: string | null
   ): Promise<boolean> {
@@ -134,19 +134,24 @@ export class CompanionCoreMemory {
       logger.warn(`${logPrefix}: No content available for embedding or storage.`);
       if (extractedInfo && (extractedInfo.entities?.length || extractedInfo.relationships?.length)) {
         logger.error(`${logPrefix}: Graph data extracted but no text snippet for anchoring. Graph data may be lost or unlinked.`);
-        return false;
+        // Allow proceeding if only graph data is present, but log it.
+        // It might be linked later or exist as standalone graph entities.
+        // However, for consistency, we might prefer to always have an anchor memory.
+        // If it's critical to always have an anchor, return false here.
+        // For now, let's allow it and see how Neo4j handles it.
+      } else {
+        return true; // No snippets and no graph data, so nothing to do.
       }
-      return true;
     }
 
 
     logger.debug(`${logPrefix}: Generating ${snippetsToEmbed.length} embeddings...`);
-    const embeddings = await this.openAIService.getEmbeddings(snippetsToEmbed);
+    const embeddings = snippetsToEmbed.length > 0 ? await this.openAIService.getEmbeddings(snippetsToEmbed) : [];
     let primaryMemoryIdForGraph: string | undefined = undefined;
 
 
-    if (!embeddings || embeddings.length === 0 || embeddings.length !== snippetsToEmbed.length) {
-      logger.error(`${logPrefix}: Embeddings generation failed or returned incorrect count.`);
+    if (snippetsToEmbed.length > 0 && (!embeddings || embeddings.length === 0 || embeddings.length !== snippetsToEmbed.length)) {
+      logger.error(`${logPrefix}: Embeddings generation failed or returned incorrect count for actual snippets.`);
       if (extractedInfo && (extractedInfo.entities?.length || extractedInfo.relationships?.length)) {
           logger.error(`${logPrefix}: Embedding failure prevents linking of associated graph data.`);
       }
@@ -159,7 +164,7 @@ export class CompanionCoreMemory {
 
 
     for (let i = 0; i < snippetsToEmbed.length; i++) {
-      const embedding = embeddings[i];
+      const embedding = embeddings[i]; // Will be null if embedding failed for this snippet
       const contentSnippet = snippetsToEmbed[i];
       const isPrimarySnippet = i === 0;
       const isDiscoveryFactSnippet = hasDiscoveryFact && (contentSnippet === trimmedDiscoveryFact);
@@ -194,7 +199,7 @@ export class CompanionCoreMemory {
           user_id: userId,
           run_id: runId,
           content: contentSnippet,
-          embedding: embedding,
+          embedding: embedding, // This can be null if individual embedding failed but others succeeded
           metadata: metadataForUnit,
           categories: categoriesForUnit,
           language: detectedLanguage || undefined,
@@ -202,7 +207,7 @@ export class CompanionCoreMemory {
           created_at: now,
           updated_at: now,
           expires_at: null,
-          role: "user", // DEFAULT ROLE, might need adjustment based on extraction/source
+          role: "user", 
         });
       } else {
         logger.warn(`${logPrefix}: Skipping memory unit creation for empty snippet index ${i}.`);
@@ -220,25 +225,31 @@ export class CompanionCoreMemory {
     }
 
 
-    if (memoryUnitsToStore.length === 0) {
-      logger.warn(`${logPrefix}: No valid memory units generated after embedding/processing.`);
-      if (extractedInfo && (extractedInfo.entities?.length || extractedInfo.relationships?.length) && !primaryMemoryIdForGraph) {
-          logger.error(`${logPrefix}: Graph data extracted but no valid memory units stored. Graph data lost.`);
-      }
-      return true;
-    }
-
-
-    logger.debug(`${logPrefix}: Attempting to insert ${memoryUnitsToStore.length} units into Supabase...`);
-    const supabaseSuccess = await this.supabaseService.insertMemoryUnits(memoryUnitsToStore);
-    if (!supabaseSuccess) {
-      logger.error(`${logPrefix}: Failed Supabase insert. Aborting associated graph update.`);
-      return false;
+    let supabaseSuccess = true;
+    if (memoryUnitsToStore.length > 0) {
+        logger.debug(`${logPrefix}: Attempting to insert ${memoryUnitsToStore.length} units into Supabase...`);
+        supabaseSuccess = await this.supabaseService.insertMemoryUnits(memoryUnitsToStore);
+        if (!supabaseSuccess) {
+          logger.error(`${logPrefix}: Failed Supabase insert. Aborting associated graph update.`);
+          return false;
+        }
+    } else {
+        logger.info(`${logPrefix}: No textual memory units to store in Supabase.`);
+        // If only graph data exists, we need a way to anchor it or store it differently.
+        // For now, if no text memory units, graph data might be lost if it requires an anchor.
+        // However, if primaryMemoryIdForGraph was set because we *expect* to store a graph-only representation,
+        // this logic might need adjustment. Current flow assumes text memories are primary.
+        if (!primaryMemoryIdForGraph && extractedInfo && (extractedInfo.entities?.length || extractedInfo.relationships?.length)) {
+            logger.warn(`${logPrefix}: Graph data extracted but no text memories stored. Graph data may be unlinked if it requires a Memory node anchor.`);
+            // If you want to create a "placeholder" memory for graph data:
+            // primaryMemoryIdForGraph = generateUUID();
+            // And then insert a minimal memory unit for it or adapt Neo4jService.
+        }
     }
 
 
     const hasGraphData = !!(extractedInfo && (extractedInfo.entities?.length || extractedInfo.relationships?.length));
-    let graphSuccess = true;
+    let graphSuccess = true; // Assume success if no graph data
     if (primaryMemoryIdForGraph && hasGraphData && extractedInfo) {
       logger.debug(`${logPrefix}: Attempting to store graph data linked to memory ${primaryMemoryIdForGraph.substring(0, 8)}...`);
       try {
@@ -258,13 +269,13 @@ export class CompanionCoreMemory {
 
 
     logger.info(`${logPrefix} Finished. Vector Store Success: ${supabaseSuccess}, Graph Store Success: ${graphSuccess}. Stored ${memoryUnitsToStore.length} memory unit(s).`);
-    return supabaseSuccess;
+    return supabaseSuccess && graphSuccess; // Overall success depends on both if graph data was present
   }
 
 
   async search_memory(
     query: string,
-    userId: string, // userId must be provided externally
+    userId: string, 
     pagination: PaginationParams,
     runId: string | null = null,
     options?: SearchOptions | null,
@@ -285,8 +296,8 @@ export class CompanionCoreMemory {
       vectorWeight: options?.vectorWeight ?? 0.7,
       keywordWeight: options?.keywordWeight ?? 0.3,
       graphWeight: options?.graphWeight ?? 0.6,
-      exclude_expired: false,
-      fts_configuration: ""
+      exclude_expired: options?.exclude_expired ?? false, // Default changed to false for explicit control
+      fts_configuration: options?.fts_configuration || this.config.vectorStore.ftsConfiguration || "english"
     };
     const turnIdentifier = `Search Mem User:${userId.substring(0, 8)}, Run:${runId?.substring(0, 8) || "G"}`;
     logger.info(`${turnIdentifier}: Query="${trimmedQuery.substring(0, 50)}...", Limit:${pagination.limit}, Offset:${pagination.offset}`);
@@ -295,7 +306,7 @@ export class CompanionCoreMemory {
 
     const cachePrefix = `internal_mem_search_v2:${userId}:${runId || "global"}`;
     const cacheInput = { query: trimmedQuery, pagination, opts: effectiveOptions };
-    const cacheKey = generateStableCacheKey(cachePrefix, cacheInput);
+    // const cacheKey = generateStableCacheKey(cachePrefix, cacheInput); // Cache key not used directly with cacheService.get
     if (this.config.cache.searchCacheTTLSeconds > 0) {
       const cachedSearch = await this.cacheService.get<PaginatedResults<SearchResult>>(cachePrefix, cacheInput);
       if (cachedSearch) { logger.info(`${turnIdentifier}: Internal Memory Cache HIT`); return cachedSearch; }
@@ -325,6 +336,8 @@ export class CompanionCoreMemory {
      }
      supabaseFilters.vector_weight = effectiveOptions.vectorWeight;
      supabaseFilters.keyword_weight = effectiveOptions.keywordWeight;
+     supabaseFilters.exclude_expired_filter = effectiveOptions.exclude_expired;
+     supabaseFilters.fts_configuration = effectiveOptions.fts_configuration;
 
 
     const searchPromises: [
@@ -441,7 +454,6 @@ export class CompanionCoreMemory {
 
     logger.info(`${turnIdentifier}: Internal Memory Search Complete. Returning ${paginatedFinalResults.length}/${dbTotalEstimate} results.`);
 
-    // After finalRankedResults is computed, apply personaContext bias
     if (personaContext) {
       finalRankedResults = finalRankedResults.map(result => {
         let bias = 0;
@@ -452,7 +464,7 @@ export class CompanionCoreMemory {
         }
         if (personaContext.traits && result.metadata?.topics) {
           for (const trait of personaContext.traits) {
-            if (result.metadata.topics.includes(trait)) bias += 0.1;
+            if (Array.isArray(result.metadata.topics) && result.metadata.topics.includes(trait)) bias += 0.1;
           }
         }
         if (personaContext.avoidTools && result.categories) {
@@ -465,7 +477,13 @@ export class CompanionCoreMemory {
       finalRankedResults.sort((a, b) => (b.final_score ?? -Infinity) - (a.final_score ?? -Infinity));
     }
 
-    return finalPaginatedResponse;
+    // Re-paginate after persona context bias, if applied
+    const finalBiasedPaginatedResults = finalRankedResults.slice(pagination.offset, pagination.offset + pagination.limit);
+    return {
+        ...finalPaginatedResponse,
+        results: finalBiasedPaginatedResults, // Use the potentially re-sorted and re-paginated results
+        total_estimated: finalRankedResults.length, // Update total_estimated based on the full biased list
+    };
   }
 
 
@@ -534,12 +552,13 @@ export class CompanionCoreMemory {
       event: this.config.semanticCache.eventTTL, tiktok: this.config.semanticCache.tiktokTTL,
       calendar: this.config.semanticCache.calendarTTL, email: this.config.semanticCache.emailTTL,
       task: this.config.semanticCache.taskTTL, reminder: this.config.semanticCache.reminderTTL,
+      calculation_or_fact: this.config.semanticCache.calculation_or_factTTL, // Added alias explicitly
     };
     if (ttlConfigMap[typeLower] !== undefined && ttlConfigMap[typeLower]! > 0) {
       ttlSeconds = ttlConfigMap[typeLower]!;
       logger.debug(`${logPrefix} Using TTL for type '${typeLower}': ${ttlSeconds}s`);
     } else {
-      logger.debug(`${logPrefix} Using default TTL: ${ttlSeconds}s`);
+      logger.debug(`${logPrefix} Using default TTL: ${ttlSeconds}s for type '${typeLower}'`);
     }
 
 
@@ -576,6 +595,14 @@ export class CompanionCoreMemory {
         if (typeNorm.includes('sun_times') || typeNorm.includes('sunrise')) return 'sun_times';
         if (typeNorm.includes('water')) return 'water_intake_result';
         if (typeNorm.includes('internal_memory_result')) return 'internal_memory_result';
+        // Added cases for analysis results
+        if (typeNorm.includes("analysis_table")) return "analysis_table";
+        if (typeNorm.includes("analysis_chart")) return "analysis_chart";
+        if (typeNorm.includes("analysis_summary")) return "analysis_summary";
+        if (typeNorm.includes("parsed_data_internal")) return "parsed_data_internal";
+        if (typeNorm.includes("data_profile_internal")) return "data_profile_internal";
+        if (typeNorm.includes("permission_denied")) return "permission_denied";
+
         logger.warn(`${logPrefix} Unknown result_type '${resultType}', storing as 'other'.`);
         return 'other';
      })();
@@ -622,7 +649,7 @@ export class CompanionCoreMemory {
 
     const existingMemory = await this.supabaseService.fetchMemoryById(memoryId);
     if (!existingMemory) { logger.error(`${logPrefix}: Memory not found.`); return null; }
-    const userId = existingMemory.user_id; // userId must be provided externally to have existing memory
+    const userId = existingMemory.user_id; 
 
 
     let supabaseUpdatePayload: Partial<Omit<StoredMemoryUnit, "memory_id" | "user_id" | "run_id" | "created_at">> = {};
@@ -699,12 +726,11 @@ export class CompanionCoreMemory {
       if (!memoryToDelete) {
         logger.warn(`${logPrefix}: Memory not found in Supabase. Attempting graph cleanup just in case.`);
         await this.neo4jService.deleteMemoryNodes(memoryId);
-        return true; // Return true as the item is effectively gone from the perspective of the caller
+        return true; 
       }
       userId = memoryToDelete.user_id;
     } catch (fetchError: any) {
       logger.error(`${logPrefix}: Error fetching memory details before delete: ${fetchError.message}`);
-      // Don't necessarily abort, try deleting anyway
     }
 
 
@@ -723,7 +749,7 @@ export class CompanionCoreMemory {
     if (!supabaseSuccess) logger.error(`${logPrefix}: Supabase deletion failed/rejected. Status: ${supabaseResult.status}`, supabaseResult.status === 'rejected' ? supabaseResult.reason : '');
 
 
-    const overallSuccess = supabaseSuccess; // Success defined by Supabase delete primarily
+    const overallSuccess = supabaseSuccess; 
 
 
     if (overallSuccess) {
@@ -739,7 +765,7 @@ export class CompanionCoreMemory {
   }
 
 
-  async delete_user_memory(userId: string): Promise<boolean> { // userId must be provided externally
+  async delete_user_memory(userId: string): Promise<boolean> { 
     const logPrefix = `DELETE_USER_MEMORY (User:${userId.substring(0, 8)})`;
     logger.warn(`${logPrefix} Start. IRREVERSIBLE operation.`);
     if (!userId) { logger.error(`${logPrefix}: userId required.`); return false; }
@@ -750,7 +776,7 @@ export class CompanionCoreMemory {
         await Promise.allSettled([
              this.cacheService.deleteByPrefix(`internal_mem_search_v2:${userId}:*`),
              this.cacheService.deleteByPrefix(`extraction:${userId}:*`),
-             this.cacheService.deleteByPrefix(`embedding:*:${userId}:*`), // Adjust prefix if needed
+             this.cacheService.deleteByPrefix(`embedding:*:${userId}:*`), 
         ]);
       logger.info(`${logPrefix}: User cache invalidation attempted.`);
     } catch (cacheError: any) {
@@ -804,7 +830,7 @@ export class CompanionCoreMemory {
 
 
   // --- Persona Management Methods ---
-  async getAvailablePersonas(userId: string): Promise<{ predefined: PredefinedPersona[], user: UserPersona[] }> { // userId must be provided externally
+  async getAvailablePersonas(userId: string): Promise<{ predefined: PredefinedPersona[], user: UserPersona[] }> { 
      logger.debug(`[Persona] Fetching available personas for user ${userId.substring(0,8)}`);
      const [predefined, user] = await Promise.all([
           this.supabaseService.getPredefinedPersonas(),
@@ -814,36 +840,45 @@ export class CompanionCoreMemory {
   }
 
 
-  async createUserPersona(userId: string, personaData: Omit<UserPersona, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<UserPersona | null> { // userId must be provided externally
+  async createUserPersona(userId: string, personaData: Omit<UserPersona, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<UserPersona | null> { 
        return this.supabaseService.createUserPersona(userId, personaData);
   }
 
 
-   async updateUserPersona(userId: string, personaId: string, updates: Partial<Omit<UserPersona, 'id' | 'user_id' | 'created_at'>>): Promise<UserPersona | null> { // userId must be provided externally
+   async updateUserPersona(userId: string, personaId: string, updates: Partial<Omit<UserPersona, 'id' | 'user_id' | 'created_at'>>): Promise<UserPersona | null> { 
         return this.supabaseService.updateUserPersona(userId, personaId, updates);
    }
 
 
-   async deleteUserPersona(userId: string, personaId: string): Promise<boolean> { // userId must be provided externally
+   async deleteUserPersona(userId: string, personaId: string): Promise<boolean> { 
         return this.supabaseService.deleteUserPersona(userId, personaId);
    }
 
-   // FIXED: getPersonaById now accepts userId
+   
    async getPersonaById(personaId: string, userId: string): Promise<PredefinedPersona | UserPersona | null> {
          logger.debug(`[Persona] Fetching persona details for ID: ${personaId} (User Context: ${userId.substring(0,8)})`);
          
-         const predefined = await this.supabaseService.getPredefinedPersonas().then(list => list.find(p => p.id === personaId));
-         if (predefined) {
-              logger.debug(`[Persona] Found predefined persona: ${personaId}`);
-              return predefined;
+         // Check if it's a predefined persona first
+         if (personaId.startsWith("minato_")) { // Or any other prefix/check for predefined IDs
+            const predefined = await this.supabaseService.getPredefinedPersonas().then(list => list.find(p => p.id === personaId));
+            if (predefined) {
+                logger.debug(`[Persona] Found predefined persona: ${personaId}`);
+                return predefined;
+            }
          }
 
-         // Fetch user-specific persona if not found in predefined
-         const userPersona = await supabaseAdmin.getUserPersonaById(userId, personaId);
-         if (userPersona) {
-             logger.debug(`[Persona] Found user-specific persona: ${personaId} for user ${userId.substring(0,8)}`);
-             return userPersona;
+         // If not predefined or ID doesn't match predefined pattern, try fetching user-specific persona
+         // Ensure rawSupabaseAdminClient is correctly typed or use a specific method from SupabaseService if available
+         if (rawSupabaseAdminClient) { // Check if client is available
+            const userPersona = await rawSupabaseAdminClient.getUserPersonaById(userId, personaId);
+            if (userPersona) {
+                logger.debug(`[Persona] Found user-specific persona: ${personaId} for user ${userId.substring(0,8)}`);
+                return userPersona;
+            }
+         } else {
+            logger.error("[Persona GetByID] Supabase admin client not available for fetching user persona.");
          }
+
 
          logger.warn(`[Persona] Persona with ID ${personaId} not found (checked predefined and user-specific for user ${userId.substring(0,8)}).`);
          return null;
@@ -853,7 +888,7 @@ export class CompanionCoreMemory {
   // --- Reminder Operations ---
   async getDueReminders(
       dueBefore: string = new Date().toISOString(),
-      userId?: string | null, // userId is optional for fetching global reminders
+      userId?: string | null, 
       limit: number = 20
   ): Promise<StoredMemoryUnit[] | null> {
        const logTarget = userId ? `user ${userId.substring(0, 8)}` : 'all users';
@@ -913,15 +948,11 @@ export class CompanionCoreMemory {
     });
     logger.info("Framework connections closure process finished.");
   }
-} // End CompanionCoreMemory class
+} 
 
-// Add the add_memory_extracted and other extended methods to the declaration
 declare module "../../memory-framework/core/CompanionCoreMemory" {
   interface CompanionCoreMemory {
     add_memory_extracted(conversationTurn: MemoryFrameworkMessage[], userId: string, runId: string | null, toolSummary: string | null, extractedInfo: ExtractedInfo | null): Promise<boolean>;
-    // getPersonaById method already exists with parameters (personaId: string, userId: string)
-    // getDueReminders method already exists
-    // updateReminderStatus method already exists
   }
 }
 export {};

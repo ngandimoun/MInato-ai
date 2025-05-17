@@ -81,7 +81,7 @@ export class RecipeSearchTool extends BaseTool {
 
   async execute(input: RecipeSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
     const { query } = input; // query is required
-    const logPrefix = `[RecipeTool] Query:"${query.substring(0,30)}..."`;
+    const logPrefix = `[RecipeTool] Query:"${query.substring(0, 30)}..."`;
     const queryInputForStructuredData = { ...input };
 
     if (abortSignal?.aborted) { return { error: "Recipe search cancelled.", result: "Cancelled." }; }
