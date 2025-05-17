@@ -217,15 +217,17 @@ export const ENTITY_EXTRACTION_SCHEMA_OPENAI = {
               recurrence_rule: { type: ["string", "null"], enum: ["daily", "weekly", "monthly", "yearly", null], description: "Recurrence pattern." },
               status: { type: "string", enum: ["pending"], description: "Initial status, always 'pending'." },
             },
-            // FIXED: Add 'recurrence_rule' to required array for reminder_details
             required: ["is_reminder", "original_content", "trigger_datetime", "status", "recurrence_rule"],
             description: "Details if a reminder request is detected. Null if no reminder.",
             additionalProperties: false,
           },
           detected_language: { type: ["string", "null"], description: "Primary language of user input (ISO 639-1), stored here." },
         },
-        required: [],
-        additionalProperties: true,
+        // --- FIX START ---
+        // Add 'reminder_details' and 'detected_language' to the 'required' array for the 'metadata' object.
+        required: ["reminder_details", "detected_language"],
+        // --- FIX END ---
+        additionalProperties: true, // Keep true as per original description: "Other key-values extracted..."
         description: "Other key-values extracted. Includes reminder details and detected language.",
       },
       summary: { type: ["string", "null"], description: "Concise 1-sentence summary of user's main point." },
