@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const cookieStore = cookies();
 
   try {
-    const supabase = createServerSupabaseClient(); // Utiliser le client Supabase pour les Route Handlers
+    const supabase = await createServerSupabaseClient(); // Utiliser le client Supabase pour les Route Handlers
     const {
       data: { user },
       error: userError,
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     }
     userId = user.id;
     logger.info(
-      `${logPrefix} Request received from user: ${userId.substring(0, 8)}...`
+      `${logPrefix} Request received from user: ${userId!.substring(0, 8)}...`
     );
   } catch (authError: any) {
     logger.error(
@@ -51,16 +51,16 @@ export async function GET(req: NextRequest) {
 
   try {
     logger.info(
-      `${logPrefix} Fetching personas for user ${userId.substring(0, 8)}`
+      `${logPrefix} Fetching personas for user ${userId!.substring(0, 8)}`
     );
     const [predefinedPersonas, userPersonas] = await Promise.all([
       supabaseAdmin.getAllPredefinedPersonas(),
-      supabaseAdmin.getAllUserPersonas(userId), // userId est garanti non-null ici
+      supabaseAdmin.getAllUserPersonas(userId!), // userId est garanti non-null ici
     ]);
     logger.info(
       `${logPrefix} Found ${predefinedPersonas.length} predefined, ${
         userPersonas.length
-      } user personas for user ${userId.substring(0, 8)}.`
+      } user personas for user ${userId!.substring(0, 8)}.`
     );
     // Types de retour : s'assurer qu'ils correspondent à ce que le client attend
     const responsePayload: {
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(responsePayload);
   } catch (error: any) {
     logger.error(
-      `${logPrefix} Error fetching personas for user ${userId.substring(
+      `${logPrefix} Error fetching personas for user ${userId!.substring(
         0,
         8
       )}:`,
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
   const cookieStore = cookies();
 
   try {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const {
       data: { user },
       error: userError,
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
     }
     userId = user.id;
     logger.info(
-      `${logPrefix} Create request received from user: ${userId.substring(
+      `${logPrefix} Create request received from user: ${userId!.substring(
         0,
         8
       )}...`
@@ -162,11 +162,11 @@ export async function POST(req: NextRequest) {
     logger.info(
       `${logPrefix} Received request to create persona "${
         personaDataToCreate.name
-      }" for user ${userId.substring(0, 8)}`
+      }" for user ${userId!.substring(0, 8)}`
     );
   } catch (e: any) {
     logger.error(
-      `${logPrefix} Invalid request body for user ${userId.substring(0, 8)}:`,
+      `${logPrefix} Invalid request body for user ${userId!.substring(0, 8)}:`,
       e.message
     );
     return NextResponse.json(
@@ -177,14 +177,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const newPersona = await supabaseAdmin.createUserPersona(
-      userId,
+      userId!,
       personaDataToCreate
     ); // userId est garanti non-null
     if (!newPersona) {
       // SupabaseDB.createUserPersona devrait lancer une erreur ou retourner null en cas d'échec DB.
       // Si elle retourne null, il faut gérer cela comme une erreur ici.
       logger.error(
-        `${logPrefix} SupabaseDB.createUserPersona returned null/undefined for user ${userId.substring(
+        `${logPrefix} SupabaseDB.createUserPersona returned null/undefined for user ${userId!.substring(
           0,
           8
         )}.`
@@ -196,12 +196,12 @@ export async function POST(req: NextRequest) {
     logger.info(
       `${logPrefix} Persona created successfully (ID: ${
         newPersona.id
-      }) for user ${userId.substring(0, 8)}.`
+      }) for user ${userId!.substring(0, 8)}.`
     );
     return NextResponse.json(newPersona as UserPersona, { status: 201 }); // Cast si nécessaire
   } catch (error: any) {
     logger.error(
-      `${logPrefix} Error creating persona for user ${userId.substring(0, 8)}:`,
+      `${logPrefix} Error creating persona for user ${userId!.substring(0, 8)}:`,
       error.message,
       error.stack
     );

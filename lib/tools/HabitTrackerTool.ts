@@ -1,7 +1,9 @@
-import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
-import { supabase } from "../supabaseClient"; // Use public client for this tool if appropriate, or admin if inserts need it
+// FILE: lib/tools/HabitTrackerTool.ts
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
+import { supabase } from "../supabaseClient";
 import { HabitTrackerStructuredOutput, UserHabitLog } from "@/lib/types/index";
 import { logger } from "../../memory-framework/config";
+import { getSupabaseAdminClient } from "../supabase/server"; // Use admin for writes
 
 interface HabitTrackerInput extends ToolInput {
   habitName?: string | null;
@@ -17,19 +19,19 @@ export class HabitTrackerTool extends BaseTool {
   argsSchema = {
     type: "object" as const,
     properties: {
-      habitName: { type: ["string", "null"], description: "The name of the habit to log or check (e.g., 'Meditate', 'Workout')." },
-      action: { type: "string" as const, enum: ["log", "check", "status"], description: "The action: 'log' completion, 'check' if logged, or get 'status'." },
-      date: { type: ["string", "null"], format: "date", description: "Optional date for logging/checking (YYYY-MM-DD). Defaults to today." },
-      period: { type: ["string", "null"], enum: ["today", "week", "month"], description: "Time period for 'status' action. Defaults to 'today'.", default: "today" },
+      habitName: { type: ["string", "null"] as const, description: "The name of the habit to log or check (e.g., 'Meditate', 'Workout'). Required for 'log' and 'check' actions. Can be null for 'status' if checking all habits." } as OpenAIToolParameterProperties,
+      action: { type: "string" as const, enum: ["log", "check", "status"], description: "The action: 'log' completion, 'check' if logged, or get 'status'." } as OpenAIToolParameterProperties,
+      date: { type: ["string", "null"] as const, description: "Optional date for logging/checking (YYYY-MM-DD format, e.g., '2024-07-29'). If null or omitted, defaults to today." } as OpenAIToolParameterProperties, // Removed format: "date"
+      period: { type: ["string", "null"] as const, enum: ["today", "week", "month", null], description: "Time period for 'status' action. If null or omitted, defaults to 'today'.", } as OpenAIToolParameterProperties, // Removed default
     },
     required: ["habitName", "action", "date", "period"],
     additionalProperties: false as false,
   };
-  cacheTTLSeconds = undefined; // No caching for actions that modify state
+  cacheTTLSeconds = undefined;
 
   private getTargetDateUTC(dateString?: string | null): string {
     try {
-      const targetDate = dateString ? new Date(dateString + "T12:00:00Z") : new Date();
+      const targetDate = dateString ? new Date(dateString + "T12:00:00Z") : new Date(); // Assume midday to avoid timezone shifts changing the date part
       if (isNaN(targetDate.getTime())) throw new Error("Invalid date string");
       return targetDate.toISOString().split("T")[0];
     } catch {
@@ -38,82 +40,69 @@ export class HabitTrackerTool extends BaseTool {
   }
 
   private getDateRange(period: "today" | "week" | "month" | null = "today"): { startDate: string; endDate: string; } {
-    const today = new Date();
-    const endDate = this.getTargetDateUTC(); // Today's date in YYYY-MM-DD UTC
-    let startDate = new Date(today); // Start with today
-    startDate.setUTCHours(0, 0, 0, 0); // Beginning of today UTC
+    const today = new Date(); // User's local 'today' based on server time. For true user TZ, context.timezone needed.
+    let startDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())); // Start of UTC today
+    let endDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 23, 59, 59, 999)); // End of UTC today
 
     if (period === "week") {
-      const dayOfWeek = today.getUTCDay(); // Sunday = 0, Monday = 1, ...
-      const diff = startDate.getUTCDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust to Monday of current week
-      startDate.setUTCDate(diff);
+      const dayOfWeek = startDate.getUTCDay(); // Sunday = 0
+      const diffToMonday = startDate.getUTCDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+      startDate.setUTCDate(diffToMonday);
     } else if (period === "month") {
-      startDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)); // First day of current month UTC
+      startDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
     }
-    // For "today", startDate remains the beginning of today UTC.
-    const startDateStr = startDate.toISOString().split('T')[0];
-    return { startDate: startDateStr, endDate };
+    return { startDate: startDate.toISOString().split('T')[0], endDate: endDate.toISOString().split('T')[0] };
   }
 
-  async execute(input: HabitTrackerInput): Promise<ToolOutput> {
-    const { userId: contextUserId, action, date: dateString, period } = input;
-    const habitName = input.habitName?.trim().substring(0, 99) || undefined; // habitName ne doit pas être null
-    const userId = input.context?.userId || contextUserId;
-    const effectivePeriod = period ?? "today";
 
+  async execute(input: HabitTrackerInput): Promise<ToolOutput> {
+    const { userId: contextUserId, action } = input;
+    // Defaulting logic
+    const habitName = (input.habitName === null || input.habitName === undefined || input.habitName.trim() === "") ? undefined : input.habitName.trim().substring(0, 99);
+    const dateString = (input.date === null || input.date === undefined) ? undefined : input.date;
+    const effectivePeriod = (input.period === null || input.period === undefined) ? "today" : input.period;
+
+    const userId = input.context?.userId || contextUserId;
     const logPrefix = `[HabitTool Action:${action}, User:${userId?.substring(0,8)}]`;
     const queryInputForStructuredData = { ...input, habitName, period: effectivePeriod };
 
-
     let outputStructuredData: HabitTrackerStructuredOutput = {
       result_type: action === "status" ? "habit_log_list" : "habit_log_confirmation",
-      action: action,
-      status: "error",
-      query: queryInputForStructuredData,
-      errorMessage: "Tool execution failed initially.",
-      source_api: "internal_db",
-      error: "Tool execution failed initially.",
-      habit: habitName,
-      date: this.getTargetDateUTC(dateString) || undefined,
-      period: action === "status" ? effectivePeriod : undefined,
+      action: action, status: "error", query: queryInputForStructuredData,
+      errorMessage: "Tool execution failed initially.", source_api: "internal_db", error: "Tool execution failed initially.",
+      habit: habitName, date: this.getTargetDateUTC(dateString), period: action === "status" ? effectivePeriod : undefined,
       startDate: action === "status" ? this.getDateRange(effectivePeriod).startDate : undefined,
       endDate: action === "status" ? this.getDateRange(effectivePeriod).endDate : undefined,
-      wasLogged: undefined,
-      loggedHabits: undefined,
-      message: undefined,
+      wasLogged: undefined, loggedHabits: undefined, message: undefined,
     };
 
-    if (!userId) { /* ... error handling ... */ return { error: "User ID missing.", result: "I need to know who you are.", structuredData: {...outputStructuredData, error: "User ID missing."} }; }
-    if ((action === "log" || action === "check") && !habitName) { /* ... error handling ... */ return { error: "Missing 'habitName'.", result: "Which habit?", structuredData: {...outputStructuredData, error: "Missing 'habitName'."} }; }
+    if (!userId) { outputStructuredData.error = "User ID missing."; outputStructuredData.errorMessage = "User ID missing."; return { error: "User ID missing.", result: "I need to know who you are.", structuredData: outputStructuredData }; }
+    if ((action === "log" || action === "check") && !habitName) { outputStructuredData.error = "Missing 'habitName'."; outputStructuredData.errorMessage = "Missing 'habitName'."; return { error: "Missing 'habitName'.", result: "Which habit?", structuredData: outputStructuredData }; }
 
-    const targetDateUTC = outputStructuredData.date!;
+    const targetDateUTC = outputStructuredData.date!; // Guaranteed to be set
     const todayDateUTC = this.getTargetDateUTC();
     const dateLabel = targetDateUTC === todayDateUTC ? "today" : `on ${targetDateUTC}`;
     this.log("info", `${logPrefix}: Habit='${habitName || "N/A"}', Date=${targetDateUTC}, Period=${effectivePeriod}`);
 
-    if (!supabase) { /* ... error handling ... */ return { error: "DB connection error.", result: "Sorry, tracker unavailable.", structuredData: {...outputStructuredData, error: "DB client unavailable."} }; }
+    const client = getSupabaseAdminClient(); // Use admin client for writes
+    if (!client) { outputStructuredData.error = "DB client unavailable."; outputStructuredData.errorMessage = "DB client unavailable."; return { error: "DB connection error.", result: "Sorry, tracker unavailable.", structuredData: outputStructuredData }; }
 
     try {
       if (action === "log") {
-        if (!habitName) { outputStructuredData.error = "Internal error: habitName missing for log."; return { error: outputStructuredData.error, result: "What habit to log?", structuredData: outputStructuredData }; }
+        if (!habitName) { outputStructuredData.error = "Internal error: habitName missing for log."; outputStructuredData.errorMessage = "Internal error: habitName missing for log."; return { error: outputStructuredData.error, result: "What habit to log?", structuredData: outputStructuredData }; }
         outputStructuredData = { ...outputStructuredData, result_type: "habit_log_confirmation", habit: habitName, date: targetDateUTC, error: undefined, errorMessage: undefined };
-        const { error: insertError } = await supabase.from("user_habit_logs").insert({ user_id: userId, habit_name: habitName, log_date: targetDateUTC });
+        const { error: insertError } = await client.from("user_habit_logs").insert({ user_id: userId, habit_name: habitName, log_date: targetDateUTC });
         if (insertError) {
-          if (insertError.code === "23505") { /* ... already logged ... */ outputStructuredData.status = "already_logged"; outputStructuredData.message = `Looks like '${habitName}' was already logged ${dateLabel} for ${input.context?.userName || "you"}. Well done!`; return { result: outputStructuredData.message, structuredData: outputStructuredData };}
+          if (insertError.code === "23505") { outputStructuredData.status = "already_logged"; outputStructuredData.message = `Looks like '${habitName}' was already logged ${dateLabel} for ${input.context?.userName || "you"}. Well done!`; return { result: outputStructuredData.message, structuredData: outputStructuredData };}
           throw new Error(`DB error logging habit: ${insertError.message}`);
         }
-        // Fetch total for today after logging
-        const { startDate: startToday, endDate: endToday } = this.getDateRange("today");
-        const { data: totalData, error: totalError } = await supabase.from("user_water_logs").select("amount_ml").eq("user_id", userId).gte("log_datetime", startToday).lte("log_datetime", endToday); // Example: if water logs were similar table for totals
-        const totalMlToday = totalData?.reduce((sum, row) => sum + (row.amount_ml || 0), 0) || 0;
-        const successMsg = `Okay, Minato logged '${habitName}' for ${dateLabel} for ${input.context?.userName || "you"}. Keep it up!`;
-        outputStructuredData.status = "logged"; outputStructuredData.message = successMsg;
-        return { result: successMsg, structuredData: outputStructuredData };
+        outputStructuredData.status = "logged"; outputStructuredData.message = `Okay, Minato logged '${habitName}' for ${dateLabel} for ${input.context?.userName || "you"}. Keep it up!`;
+        return { result: outputStructuredData.message, structuredData: outputStructuredData };
 
       } else if (action === "check") {
-        if (!habitName) { outputStructuredData.error = "Internal error: habitName missing for check."; return { error: outputStructuredData.error, result: "Which habit to check?", structuredData: outputStructuredData }; }
+        if (!habitName) { outputStructuredData.error = "Internal error: habitName missing for check."; outputStructuredData.errorMessage = "Internal error: habitName missing for check."; return { error: outputStructuredData.error, result: "Which habit to check?", structuredData: outputStructuredData }; }
         outputStructuredData = { ...outputStructuredData, result_type: "habit_log_confirmation", habit: habitName, date: targetDateUTC, error: undefined, errorMessage: undefined };
-        const { data, error: selectError } = await supabase.from("user_habit_logs").select("id").eq("user_id", userId).eq("habit_name", habitName).eq("log_date", targetDateUTC).limit(1).maybeSingle();
+        const { data, error: selectError } = await client.from("user_habit_logs").select("id").eq("user_id", userId).eq("habit_name", habitName).eq("log_date", targetDateUTC).limit(1).maybeSingle();
         if (selectError) throw new Error(`DB error checking habit: ${selectError.message}`);
         outputStructuredData.wasLogged = !!data;
         const msg = data ? `Yes, it looks like ${input.context?.userName || "you"} logged '${habitName}' ${dateLabel}.` : `It doesn't look like '${habitName}' has been logged ${dateLabel} yet for ${input.context?.userName || "you"}.`;
@@ -121,27 +110,36 @@ export class HabitTrackerTool extends BaseTool {
         return { result: msg, structuredData: outputStructuredData };
 
       } else if (action === "status") {
-        // Fetch logged habits for the period
         const { startDate: startPeriod, endDate: endPeriod } = this.getDateRange(effectivePeriod);
-        const { data: logs, error: selectError } = await supabase.from("user_habit_logs").select("habit_name, log_date").eq("user_id", userId).gte("log_date", startPeriod).lte("log_date", endPeriod);
+        outputStructuredData = { ...outputStructuredData, result_type: "habit_log_list", period: effectivePeriod, startDate: startPeriod, endDate: endPeriod, error: undefined, errorMessage: undefined };
+        const queryBuilder = client.from("user_habit_logs").select("habit_name, log_date").eq("user_id", userId).gte("log_date", startPeriod).lte("log_date", endPeriod);
+        if (habitName) queryBuilder.eq("habit_name", habitName); // Filter by specific habit if provided for status
+        const { data: logs, error: selectError } = await queryBuilder;
         if (selectError) throw new Error(`DB error fetching habits: ${selectError.message}`);
-        // Transform logs into { [habitName: string]: string[] }
         const habitStatus: { [habit: string]: string[] } = {};
         (logs || []).forEach((log: { habit_name: string; log_date: string }) => {
           if (!habitStatus[log.habit_name]) habitStatus[log.habit_name] = [];
           habitStatus[log.habit_name].push(log.log_date);
         });
-        outputStructuredData.loggedHabits = habitStatus;
-        outputStructuredData.status = "completed";
-        outputStructuredData.message = `Completed habits for ${effectivePeriod} period.`;
+        outputStructuredData.loggedHabits = habitStatus; outputStructuredData.status = "retrieved_status";
+        const numHabitsLogged = Object.keys(habitStatus).length;
+        const habitNameToLog = habitName || "any habit";
+        if (numHabitsLogged === 0) outputStructuredData.message = `No logs found for ${habitNameToLog} in ${effectivePeriod}.`;
+        else {
+            const habitSummaries = Object.entries(habitStatus).map(([hName, dates]) => `${hName} (${dates.length} time(s))`).join(', ');
+            outputStructuredData.message = `Habit status for ${input.context?.userName || "User"} in ${effectivePeriod}${habitName ? ` for '${habitName}'` : ""}: ${habitSummaries || 'None logged'}.`;
+        }
         return { result: outputStructuredData.message, structuredData: outputStructuredData };
-
       } else {
-        return { error: "Unexpected error.", result: "An unexpected error occurred.", structuredData: outputStructuredData };
+        const exhaustiveCheck: never = action;
+        outputStructuredData.error = `Invalid action: ${action}`; outputStructuredData.errorMessage = outputStructuredData.error;
+        return { error: outputStructuredData.error, result: `Invalid action for habit tracker: ${action}`, structuredData: outputStructuredData };
       }
-    } catch (error) {
-      outputStructuredData.error = error instanceof Error ? error.message : "An unexpected error occurred.";
-      return { error: outputStructuredData.error, result: "An unexpected error occurred.", structuredData: outputStructuredData };
+    } catch (error: any) {
+      const errorMsg = `Habit tracker error: ${error.message}`;
+      this.log("error", `${logPrefix}: Failed - ${error.message}`);
+      outputStructuredData.errorMessage = errorMsg; outputStructuredData.error = errorMsg; outputStructuredData.status = "error";
+      return { error: errorMsg, result: `Sorry, ${input.context?.userName || "User"}, Minato couldn't update your habit tracker.`, structuredData: outputStructuredData };
     }
   }
 }

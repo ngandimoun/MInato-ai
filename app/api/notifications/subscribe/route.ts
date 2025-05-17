@@ -11,7 +11,7 @@ import { getGlobalMemoryFramework } from "@/lib/memory-framework-global";
 // Helper function to get validated user ID
 async function getValidatedUserId(): Promise<string | null> {
   const cookieStore = cookies();
-  const supabase = createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
+  const supabase = await createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
   try {
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error) {

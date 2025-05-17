@@ -24,7 +24,7 @@ export async function DELETE(req: NextRequest) {
 
     // Authentication
     try {
-        const supabase = createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
+        const supabase = await createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) throw error;
         if (!session?.user?.id) {
@@ -64,9 +64,9 @@ export async function DELETE(req: NextRequest) {
             // Continue anyway, let the database handle validation
         }
         
-        logger.warn(`${logPrefix} Received request to DELETE memory ${memoryId} for user ${userId.substring(0, 8)}.`);
+        logger.warn(`${logPrefix} Received request to DELETE memory ${memoryId} for user ${userId && typeof userId === 'string' ? userId.substring(0, 8) : 'unknown'}.`);
     } catch (e: any) {
-        logger.error(`${logPrefix} Invalid request for user ${userId.substring(0, 8)}:`, e.message);
+        logger.error(`${logPrefix} Invalid request for user ${userId && typeof userId === 'string' ? userId.substring(0, 8) : 'unknown'}:`, e.message);
         return NextResponse.json({ error: `Invalid request: ${e.message}` }, { status: 400 });
     }
 
@@ -80,8 +80,8 @@ export async function DELETE(req: NextRequest) {
             logger.warn(`${logPrefix} Memory ${memoryId} not found.`);
             return NextResponse.json({ error: "Memory not found." }, { status: 404 });
         }
-        if (existingMemory.user_id !== userId) {
-            logger.warn(`${logPrefix} User ${userId.substring(0, 8)} attempted to delete memory ${memoryId} owned by ${existingMemory.user_id.substring(0, 8)}.`);
+        if (!existingMemory.user_id || existingMemory.user_id !== userId) {
+            logger.warn(`${logPrefix} User ${userId && typeof userId === 'string' ? userId.substring(0, 8) : 'unknown'} attempted to delete memory ${memoryId} owned by ${existingMemory.user_id && typeof existingMemory.user_id === 'string' ? existingMemory.user_id.substring(0, 8) : 'unknown'}.`);
             return NextResponse.json({ error: "Forbidden: Cannot delete this memory." }, { status: 403 });
         }
         // End Optional Ownership Check
@@ -89,16 +89,16 @@ export async function DELETE(req: NextRequest) {
         const success = await memory.delete_memory(memoryId); // delete_memory handles both DBs
 
         if (success) {
-            logger.info(`${logPrefix} Memory ${memoryId} deleted successfully for user ${userId.substring(0, 8)}.`);
+            logger.info(`${logPrefix} Memory ${memoryId} deleted successfully for user ${userId && typeof userId === 'string' ? userId.substring(0, 8) : 'unknown'}.`);
             return new NextResponse(null, { status: 204 }); // Success, No Content
         } else {
             // Delete might return false if not found after check, or if DB error occurred
-            logger.warn(`${logPrefix} Memory ${memoryId} delete operation returned false for user ${userId.substring(0, 8)}. Might have been deleted already or DB issue.`);
+            logger.warn(`${logPrefix} Memory ${memoryId} delete operation returned false for user ${userId && typeof userId === 'string' ? userId.substring(0, 8) : 'unknown'}. Might have been deleted already or DB issue.`);
             // Treat "not found" as success from client perspective if ownership check passed
             return NextResponse.json({ error: 'Memory not found or delete failed.' }, { status: 404 });
         }
     } catch (error: any) {
-        logger.error(`${logPrefix} Error deleting memory ${memoryId} for user ${userId.substring(0, 8)}:`, error);
+        logger.error(`${logPrefix} Error deleting memory ${memoryId} for user ${userId && typeof userId === 'string' ? userId.substring(0, 8) : 'unknown'}:`, error);
         return NextResponse.json({ error: `Internal Server Error: ${error.message}` }, { status: 500 });
     }
 }
@@ -106,7 +106,7 @@ export async function DELETE(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const logPrefix = "[API Memory Delete]";
   const cookieStore = cookies();
-  const supabase = createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
+  const supabase = await createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
   let userId: string;
 
   try {

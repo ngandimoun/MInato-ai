@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError) {
       logger.error(`${logPrefix} Supabase getUser() error: ${userError.message}`, userError);
@@ -69,15 +69,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     userId = user.id;
-    logger.info(`${logPrefix} Request from user: ${userId.substring(0,8)}...`);
+    logger.info(`${logPrefix} Request from user: ${userId ? userId.substring(0,8) : 'UNKNOWN'}...`);
   } catch (authError: any) {
     logger.error(`${logPrefix} Auth Exception:`, authError.message, authError.stack);
     return NextResponse.json({ error: "Authentication process error" }, { status: 500 });
   }
 
-  const { success: rateLimitSuccess } = await checkRateLimit(userId, RATE_LIMIT_ID_CHAT);
+  const { success: rateLimitSuccess } = await checkRateLimit(userId || '', RATE_LIMIT_ID_CHAT);
   if (!rateLimitSuccess) {
-    logger.warn(`${logPrefix} Rate limit exceeded for user ${userId.substring(0,8)}`);
+    logger.warn(`${logPrefix} Rate limit exceeded for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
     return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
       }
       sessionIdFromRequest = jsonData.id;
       clientDataFromRequest = jsonData.data;
-      logger.debug(`${logPrefix} Parsed JSON. History: ${history.length}. Attachments: ${attachmentsForOrchestrator.length}. SimpleText: ${isSimpleTextQuery}. User ${userId.substring(0,8)}.`);
+      logger.debug(`${logPrefix} Parsed JSON. History: ${history.length}. Attachments: ${attachmentsForOrchestrator.length}. SimpleText: ${isSimpleTextQuery}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
 
     } else if (contentType.startsWith("multipart/form-data")) {
       const formData = await req.formData();
@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
             } else { history = parsedMessages; }
           } else { history = []; }
         } catch (e: any) {
-          logger.error(`${logPrefix} Invalid 'messages' JSON in FormData for user ${userId.substring(0,8)}:`, e.message);
+          logger.error(`${logPrefix} Invalid 'messages' JSON in FormData for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}:`, e.message);
           return NextResponse.json({ error: `Invalid 'messages' format: ${e.message}` }, { status: 400 });
         }
       }
@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
             logger.warn(`${logPrefix} Rejected unsupported file: ${value.name} (${value.type})`);
             return NextResponse.json({ error: `Unsupported file type: ${value.type}. Images/videos only.` }, { status: 400 });
           }
-          logger.info(`${logPrefix} Uploading file: ${value.name} (${value.size}b, ${value.type}) for user ${userId.substring(0,8)}`);
+          logger.info(`${logPrefix} Uploading file: ${value.name} (${value.size}b, ${value.type}) for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
           const fileBuffer = Buffer.from(await value.arrayBuffer());
           const originalFileName = value.name.replace(/[^a-zA-Z0-9._-]/g, "_");
           const fileExtension = originalFileName.split(".").pop() || "bin";
@@ -197,11 +197,11 @@ export async function POST(req: NextRequest) {
           const uploadPromise = supabaseAdmin.storage.from(MEDIA_UPLOAD_BUCKET).upload(filePath, fileBuffer, { contentType: value.type, upsert: false })
             .then(({ data: uploadData, error: uploadError }) => {
               if (uploadError) {
-                logger.error(`${logPrefix} Supabase upload error for ${filePath} (User ${userId.substring(0,8)}):`, uploadError.message);
+                logger.error(`${logPrefix} Supabase upload error for ${filePath} (User ${userId ? userId.substring(0,8) : 'UNKNOWN'}):`, uploadError.message);
                 throw new Error(`Upload to ${MEDIA_UPLOAD_BUCKET}/${filePath} failed: ${uploadError.message}`);
               }
               if (uploadData) {
-                logger.debug(`${logPrefix} Upload OK to ${filePath} for user ${userId.substring(0,8)}`);
+                logger.debug(`${logPrefix} Upload OK to ${filePath} for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
                 attachmentsForOrchestrator.push({
                   id: randomUUID(), type: isImage ? "image" : "video", name: originalFileName,
                   storagePath: filePath, mimeType: value.type, size: value.size,
@@ -214,21 +214,21 @@ export async function POST(req: NextRequest) {
       await Promise.allSettled(fileProcessingPromises);
       // isSimpleTextQuery determined by presence of attachments
       isSimpleTextQuery = !userMessageText && attachmentsForOrchestrator.length === 0 || !!userMessageText && attachmentsForOrchestrator.length === 0;
-      logger.debug(`${logPrefix} Parsed FormData. Attachments: ${attachmentsForOrchestrator.length}. SimpleText: ${isSimpleTextQuery}. User ${userId.substring(0,8)}.`);
+      logger.debug(`${logPrefix} Parsed FormData. Attachments: ${attachmentsForOrchestrator.length}. SimpleText: ${isSimpleTextQuery}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
 
     } else {
-      logger.error(`${logPrefix} Unsupported Content-Type: ${contentType}. User ${userId.substring(0,8)}.`);
+      logger.error(`${logPrefix} Unsupported Content-Type: ${contentType}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
       return NextResponse.json({ error: "Unsupported Content-Type" }, { status: 415 });
     }
 
-    logger.debug(`${logPrefix} Request body log for user ${userId.substring(0,8)}:\n${JSON.stringify(requestBodyForLog, null, 2).substring(0, 500)}`);
+    logger.debug(`${logPrefix} Request body log for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}:\n${JSON.stringify(requestBodyForLog, null, 2).substring(0, 500)}`);
 
     if (!userMessageText && attachmentsForOrchestrator.length === 0) {
-      logger.warn(`${logPrefix} No text or attachments. User ${userId.substring(0,8)}.`);
+      logger.warn(`${logPrefix} No text or attachments. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
       return NextResponse.json({ error: "Message content or file is required." }, { status: 400 });
     }
 
-    const ipAddress = req.headers.get("x-forwarded-for") ?? req.ip ?? "unknown";
+    const ipAddress = req.headers.get("x-forwarded-for") ?? "unknown";
     const effectiveApiContext = {
       ipAddress,
       locale: req.headers.get("accept-language")?.split(",")[0] || appConfig.defaultLocale,
@@ -252,7 +252,7 @@ export async function POST(req: NextRequest) {
         }
       }
       orchestratorInput = contentParts;
-      logger.debug(`${logPrefix} Multimodal input for orchestrator. User ${userId.substring(0,8)}.`);
+      logger.debug(`${logPrefix} Multimodal input for orchestrator. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
     } else {
       orchestratorInput = userMessageText || "";
     }
@@ -263,23 +263,23 @@ export async function POST(req: NextRequest) {
         const sendErrorToStream = (errorMessage: string, statusCode: number = 500) => {
           try {
             controller.enqueue(encoder.encode(createSSEEvent("error", { error: errorMessage, statusCode })));
-            logger.info(`${logPrefix} Sent error to client: ${errorMessage}. User ${userId!.substring(0,8)}`);
+            logger.info(`${logPrefix} Sent error to client: ${errorMessage}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
           } catch (e: any) {
-            logger.error(`${logPrefix} Stream Error - Failed to enqueue error event: ${e.message}. User ${userId!.substring(0,8)}`);
+            logger.error(`${logPrefix} Stream Error - Failed to enqueue error event: ${e.message}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
           }
         };
 
         try {
           // No direct LLM call optimization here for simplicity with Responses API
           // The Orchestrator will handle all LLM calls.
-          logger.info(`${logPrefix} Calling orchestrator.runOrchestration... User ${userId!.substring(0,8)}`);
+          logger.info(`${logPrefix} Calling orchestrator.runOrchestration... User ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
           const orchestratorResult = await orchestrator.runOrchestration(
-            userId!,
+            userId || '',
             orchestratorInput, // This is now string | ChatMessageContentPart[]
             history,
             effectiveApiContext
           );
-          logger.debug(`${logPrefix} Orchestrator finished. Error: ${orchestratorResult.error}. Response: ${!!orchestratorResult.response}. User ${userId!.substring(0,8)}`);
+          logger.debug(`${logPrefix} Orchestrator finished. Error: ${orchestratorResult.error}. Response: ${!!orchestratorResult.response}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
 
           if (orchestratorResult.error && !orchestratorResult.clarificationQuestion) {
             sendErrorToStream(orchestratorResult.error, 500);
@@ -320,10 +320,10 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode(createSSEEvent("stream-end", { sessionId: effectiveApiContext.sessionId })));
 
         } catch (e: any) {
-          logger.error(`${logPrefix} Error in stream 'start' for user ${userId!.substring(0,8)}:`, e.message, e.stack);
+          logger.error(`${logPrefix} Error in stream 'start' for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}:`, e.message, e.stack);
           sendErrorToStream(e.message || "Internal server error during stream processing.", 500);
         } finally {
-          logger.debug(`${logPrefix} Closing SSE stream from API route. User ${userId!.substring(0,8)}.`);
+          logger.debug(`${logPrefix} Closing SSE stream from API route. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
           try { controller.close(); }
           catch (e: any) { logger.warn(`${logPrefix} Error closing stream controller (already closed?): ${e.message}`); }
         }

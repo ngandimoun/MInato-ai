@@ -14,28 +14,25 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Fonction pour créer un client Supabase dans les Route Handlers, Server Actions, ou Server Components
 // qui ont besoin d'accéder à la session utilisateur.
 // Le paramètre p0: unknown est inutile et a été retiré.
-export function createServerSupabaseClient() {
-  const cookieStore = cookies();
+export async function createServerSupabaseClient(): Promise<ReturnType<typeof _createServerClient>> {
+  const cookieStore = await cookies();
   return _createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      get(name: string) {
+      get(name: string): string | undefined {
         return cookieStore.get(name)?.value;
       },
-      set(name: string, value: string, options: CookieOptions) {
+      set(name: string, value: string, options: CookieOptions): void {
         try {
           cookieStore.set({ name, value, ...options });
         } catch (error) {
-          // The `set` method was called from a Server Component.
-          // This can be ignored if you have middleware refreshing user sessions.
-           logger.debug("[Supabase ServerClient] Ignoring cookie set error from Server Component (likely expected if middleware handles refresh).");
+          logger.debug("[Supabase ServerClient] Ignoring cookie set error from Server Component (likely expected if middleware handles refresh).");
         }
       },
-      remove(name: string, options: CookieOptions) {
+      remove(name: string, options: CookieOptions): void {
         try {
           cookieStore.set({ name, value: '', ...options });
         } catch (error) {
-          // The `delete` method was called from a Server Component.
-           logger.debug("[Supabase ServerClient] Ignoring cookie remove error from Server Component (likely expected if middleware handles refresh).");
+          logger.debug("[Supabase ServerClient] Ignoring cookie remove error from Server Component (likely expected if middleware handles refresh).");
         }
       },
     },
@@ -43,7 +40,7 @@ export function createServerSupabaseClient() {
 }
 // Renommer createSupabaseRouteHandlerClient pour plus de clarté car elle sert à plus que les Route Handlers.
 // Si vous voulez garder une fonction spécifique pour les Route Handlers, elle pourrait juste appeler createServerSupabaseClient.
-export function createSupabaseRouteHandlerClient(p0: unknown) {
+export async function createSupabaseRouteHandlerClient(p0: unknown): Promise<ReturnType<typeof _createServerClient>> {
     // Cette fonction est maintenant un alias pour la clarté dans les Route Handlers,
     // mais createServerSupabaseClient est la fonction principale.
     return createServerSupabaseClient();

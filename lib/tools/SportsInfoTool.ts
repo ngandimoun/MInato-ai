@@ -1,17 +1,17 @@
-import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
+// FILE: lib/tools/SportsInfoTool.ts
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import fetch from "node-fetch";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { SportsStructuredOutput, SportsTeamData, SportsEventData } from "@/lib/types/index";
 
 interface SportsInput extends ToolInput {
-  teamName: string;
-  queryType: "next_game" | "last_game" | "team_info";
+  teamName: string; // Required
+  queryType: "next_game" | "last_game" | "team_info"; // Required
 }
-// Internal API types (as previously defined)
 interface SportsDbTeam { idTeam: string; strTeam: string; strTeamShort?: string | null; strAlternate?: string | null; intFormedYear?: string | null; strSport: string; strLeague: string; idLeague?: string; strStadium?: string | null; strStadiumThumb?: string | null; strStadiumLocation?: string | null; intStadiumCapacity?: string | null; strWebsite?: string | null; strFacebook?: string | null; strTwitter?: string | null; strInstagram?: string | null; strDescriptionEN?: string | null; strGender?: string; strCountry?: string; strTeamBadge?: string; strTeamJersey?: string | null; strTeamLogo?: string | null; strTeamFanart1?: string | null; strTeamFanart2?: string | null; strTeamFanart3?: string | null; strTeamFanart4?: string | null; strTeamBanner?: string | null; }
 interface SportsDbEvent { idEvent: string; strEvent: string; strEventAlternate?: string; strFilename?: string; strSport: string; idLeague: string; strLeague: string; strSeason: string; strDescriptionEN?: string | null; strHomeTeam: string; strAwayTeam: string; idHomeTeam: string; idAwayTeam: string; intHomeScore: string | null; intAwayScore: string | null; intRound?: string; intSpectators?: string | null; strHomeGoalDetails?: string | null; strAwayGoalDetails?: string | null; strHomeLineupGoalkeeper?: string | null; strAwayLineupGoalkeeper?: string | null; intHomeShots?: string | null; intAwayShots?: string | null; dateEvent: string; dateEventLocal?: string | null; strTime: string; strTimeLocal?: string | null; strTVStation?: string | null; idVenue?: string; strVenue?: string; strCountry?: string; strCity?: string | null; strPoster?: string | null; strSquare?: string | null; strFanart?: string | null; strThumb?: string | null; strBanner?: string | null; strMap?: string | null; strTweet1?: string | null; strTweet2?: string | null; strTweet3?: string | null; strVideo?: string | null; strStatus?: string; strPostponed?: "yes" | "no"; strLocked?: "unlocked" | "locked"; strTimestamp?: string; }
-interface TheSportsDbResponse<T> { teams?: T[] | null; events?: T[] | null; results?: T[] | null; }
+interface TheSportsDbResponse<T> { teams?: T[] | null; events?: T[] | null; results?: T[] | null; } // results for eventslast
 
 
 export class SportsInfoTool extends BaseTool {
@@ -21,13 +21,13 @@ export class SportsInfoTool extends BaseTool {
   argsSchema = {
     type: "object" as const,
     properties: {
-      teamName: { type: "string" as const, description: "The name of the sports team (e.g., 'Manchester United', 'Los Angeles Lakers')." },
-      queryType: { type: "string" as const, enum: ["next_game", "last_game", "team_info"], description: "The type of information to retrieve: 'next_game', 'last_game', or 'team_info'." },
+      teamName: { type: "string" as const, description: "The name of the sports team (e.g., 'Manchester United', 'Los Angeles Lakers'). This is required." } as OpenAIToolParameterProperties,
+      queryType: { type: "string" as const, enum: ["next_game", "last_game", "team_info"], description: "The type of information to retrieve: 'next_game', 'last_game', or 'team_info'. This is required." } as OpenAIToolParameterProperties,
     },
     required: ["teamName", "queryType"],
     additionalProperties: false as false,
   };
-  cacheTTLSeconds = 3600 * 1;
+  cacheTTLSeconds = 3600 * 1; // Cache sports info for 1 hour
 
   private readonly API_KEY: string;
   private readonly API_BASE = "https://www.thesportsdb.com/api/v1/json/";
@@ -35,7 +35,7 @@ export class SportsInfoTool extends BaseTool {
 
   constructor() {
     super();
-    this.API_KEY = appConfig.toolApiKeys.theSportsDb || "1"; // Default to test key "1" if not set
+    this.API_KEY = appConfig.toolApiKeys.theSportsDb || "1"; // Default to test key "1"
     if (!appConfig.toolApiKeys.theSportsDb || this.API_KEY === "1") {
       this.log("warn", "TheSportsDB API key missing or using test key '1'. Functionality may be limited.");
     }
@@ -44,7 +44,7 @@ export class SportsInfoTool extends BaseTool {
     }
   }
 
-  private mapDbTeamToAppTeam(dbTeam: SportsDbTeam): SportsTeamData {
+  private mapDbTeamToAppTeam(dbTeam: SportsDbTeam): SportsTeamData { /* ... (implementation unchanged) ... */
     return {
       id: dbTeam.idTeam, name: dbTeam.strTeam, shortName: dbTeam.strTeamShort || null, sport: dbTeam.strSport,
       league: dbTeam.strLeague, leagueId: dbTeam.idLeague || null, formedYear: dbTeam.intFormedYear || null,
@@ -54,7 +54,7 @@ export class SportsInfoTool extends BaseTool {
       logoUrl: dbTeam.strTeamLogo || null, bannerUrl: dbTeam.strTeamBanner || null,
     };
   }
-  private mapDbEventToAppEvent(dbEvent: SportsDbEvent): SportsEventData {
+  private mapDbEventToAppEvent(dbEvent: SportsDbEvent): SportsEventData { /* ... (implementation unchanged) ... */
     const homeScoreStr = dbEvent.intHomeScore; const awayScoreStr = dbEvent.intAwayScore;
     const homeScore = homeScoreStr ? parseInt(homeScoreStr, 10) : null;
     const awayScore = awayScoreStr ? parseInt(awayScoreStr, 10) : null;
@@ -75,7 +75,7 @@ export class SportsInfoTool extends BaseTool {
     };
   }
 
-  private async findTeam(teamName: string, abortSignal?: AbortSignal): Promise<SportsDbTeam | null> {
+  private async findTeam(teamName: string, abortSignal?: AbortSignal): Promise<SportsDbTeam | null> { /* ... (implementation unchanged) ... */
     const url = `${this.API_BASE}${this.API_KEY}/searchteams.php?t=${encodeURIComponent(teamName)}`;
     this.log("debug", `Searching TheSportsDB team: "${teamName}" URL: ${url.replace(this.API_KEY, "***")}`);
     try {
@@ -95,7 +95,7 @@ export class SportsInfoTool extends BaseTool {
   }
 
   async execute(input: SportsInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    const { teamName, queryType } = input;
+    const { teamName, queryType } = input; // Both are required by schema
     const logPrefix = `[SportsTool Team:${teamName.substring(0,15)}..., Type:${queryType}]`;
     const queryInputForStructuredData = { ...input };
 
@@ -103,11 +103,11 @@ export class SportsInfoTool extends BaseTool {
     let outputStructuredData: SportsStructuredOutput = {
       result_type: "sports_info", source_api: "thesportsdb", query: queryInputForStructuredData, error: null,
     };
-    if (!teamName?.trim()) { outputStructuredData.error = "Team name required."; return { error: outputStructuredData.error, result: "Which team should Minato look up?", structuredData: outputStructuredData }; }
-    if (!queryType || !["next_game", "last_game", "team_info"].includes(queryType)) {
-      outputStructuredData.error = `Invalid queryType: ${queryType}. Use 'next_game', 'last_game', or 'team_info'.`;
-      return { error: outputStructuredData.error, result: "What info should Minato get (next game, last game, or team info)?", structuredData: outputStructuredData };
-    }
+    // teamName and queryType are guaranteed by 'required' in schema.
+    // If LLM could send empty strings despite 'required', add trim checks here.
+    // if (!teamName?.trim()) { /* ... */ }
+    // if (!queryType || !["next_game", "last_game", "team_info"].includes(queryType)) { /* ... */ }
+
     this.log("info", `${logPrefix} Executing...`);
 
     const team = await this.findTeam(teamName.trim(), abortSignal);
@@ -127,7 +127,7 @@ export class SportsInfoTool extends BaseTool {
         const desc = appTeamInfo.description ? ` Description: ${appTeamInfo.description.substring(0,100)}...` : "";
         resultString = `${appTeamInfo.name} plays ${appTeamInfo.sport}${appTeamInfo.league ? ` in the ${appTeamInfo.league}` : ""}. Formed: ${appTeamInfo.formedYear || "N/A"}.${desc}`;
         outputStructuredData.event = null; outputStructuredData.eventsList = null;
-      } else {
+      } else { // next_game or last_game
         const endpoint = queryType === "next_game" ? "eventsnext.php" : "eventslast.php";
         const url = `${this.API_BASE}${this.API_KEY}/${endpoint}?id=${teamId}`;
         this.log("debug", `${logPrefix} Fetching events from ${endpoint} URL: ${url.replace(this.API_KEY, "***")}`);
@@ -135,23 +135,21 @@ export class SportsInfoTool extends BaseTool {
         if (abortSignal?.aborted) { return { error: "Sports info request cancelled.", result: "Cancelled." }; }
         if (!response.ok) throw new Error(`Event fetch (${endpoint}) failed: ${response.status} ${response.statusText}`);
         const data = await response.json() as TheSportsDbResponse<SportsDbEvent>;
-        const dbEvents = data.events || data.results || null;
+        const dbEvents = data.events || data.results || null; // 'results' for eventslast.php
 
         if (!dbEvents || dbEvents.length === 0) {
           resultString = `No ${queryType === "next_game" ? "upcoming scheduled games" : "recent completed game results"} found for ${teamDisplayName} for ${input.context?.userName || "User"} at the moment.`;
           outputStructuredData.event = null; outputStructuredData.eventsList = null;
         } else {
           const appEvents = dbEvents.map(this.mapDbEventToAppEvent);
-          const event = appEvents[0];
-          outputStructuredData.event = event; outputStructuredData.eventsList = appEvents;
+          const event = appEvents[0]; // Take the first one
+          outputStructuredData.event = event; outputStructuredData.eventsList = appEvents; // Provide all fetched for potential UI
           const opponent = event.homeTeamName === teamDisplayName ? event.awayTeamName : event.homeTeamName;
           const homeAway = event.homeTeamName === teamDisplayName ? "(Home)" : "(Away)";
           const venue = event.venue ? ` at ${event.venue}` : "";
           let dateTimeString = "Date TBD";
-          if (event.dateTimeUtc) {
-            try { dateTimeString = new Date(event.dateTimeUtc).toLocaleString(input.lang || undefined, { dateStyle: "medium", timeStyle: "short" }); }
-            catch { dateTimeString = event.date; }
-          } else if (event.date) { dateTimeString = event.date; }
+          if (event.dateTimeUtc) { try { dateTimeString = new Date(event.dateTimeUtc).toLocaleString(input.lang || undefined, { dateStyle: "medium", timeStyle: "short" }); } catch { dateTimeString = event.date; }}
+          else if (event.date) { dateTimeString = event.date; }
 
           if (queryType === "next_game") {
             resultString = `${teamDisplayName}'s next game for ${input.context?.userName || "User"} is against ${opponent} ${homeAway} on ${dateTimeString}${venue}. Status: ${event.status || "Scheduled"}.`;
@@ -159,13 +157,7 @@ export class SportsInfoTool extends BaseTool {
             const scoreAvailable = event.homeScore !== null && event.awayScore !== null;
             const score = scoreAvailable ? `${event.homeScore}-${event.awayScore}` : "Score N/A";
             let outcome = "finished";
-            if(scoreAvailable) {
-                const homeWon = event.homeScore! > event.awayScore!; const awayWon = event.awayScore! > event.homeScore!;
-                const isHomeTeam = event.homeTeamName === teamDisplayName;
-                if (isHomeTeam && homeWon) outcome = "won"; else if (!isHomeTeam && awayWon) outcome = "won";
-                else if (isHomeTeam && awayWon) outcome = "lost"; else if (!isHomeTeam && homeWon) outcome = "lost";
-                else outcome = "drew";
-            }
+            if(scoreAvailable) { const homeWon = event.homeScore! > event.awayScore!; const awayWon = event.awayScore! > event.homeScore!; const isHomeTeam = event.homeTeamName === teamDisplayName; if (isHomeTeam && homeWon) outcome = "won"; else if (!isHomeTeam && awayWon) outcome = "won"; else if (isHomeTeam && awayWon) outcome = "lost"; else if (!isHomeTeam && homeWon) outcome = "lost"; else outcome = "drew"; }
             resultString = `${teamDisplayName}'s last game for ${input.context?.userName || "User"} against ${opponent} ${homeAway} on ${event.date || "recent date"} ${outcome} ${score}. Status: ${event.status || "Finished"}.`;
           }
         }
@@ -175,7 +167,7 @@ export class SportsInfoTool extends BaseTool {
     } catch (error: any) {
       const errorMsg = `Failed sports info fetch: ${error.message}`;
       outputStructuredData.error = errorMsg;
-      if (error.name === 'AbortError') { /* ... */ outputStructuredData.error = "Request timed out."; return { error: "Sports info request timed out.", result: `Sorry, ${input.context?.userName || "User"}, the sports lookup took too long.`, structuredData: outputStructuredData }; }
+      if (error.name === 'AbortError') { outputStructuredData.error = "Request timed out."; return { error: "Sports info request timed out.", result: `Sorry, ${input.context?.userName || "User"}, the sports lookup took too long.`, structuredData: outputStructuredData }; }
       this.log("error", `${logPrefix} Error:`, error.message);
       return { error: errorMsg, result: `Sorry, ${input.context?.userName || "User"}, an error occurred while getting sports info for "${teamName}".`, structuredData: outputStructuredData };
     }

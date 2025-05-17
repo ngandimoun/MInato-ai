@@ -1,3 +1,4 @@
+// FILE: lib/tools/YouTubeSearchTool.ts
 import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
 import fetch from "node-fetch";
 import { appConfig } from "../config";
@@ -6,7 +7,7 @@ import { CachedVideoList, CachedYouTubeVideo } from "@/lib/types/index";
 
 interface YouTubeSearchInput extends ToolInput {
   query: string;
-  limit?: number | null;
+  limit?: number | null; // Keep as nullable for internal logic, but schema for LLM might differ
 }
 
 // Internal API types (as previously defined)
@@ -24,8 +25,18 @@ export class YouTubeSearchTool extends BaseTool {
     type: "object" as const,
     properties: {
       query: { type: "string" as const, description: "Keywords or phrase to search YouTube videos for." },
-      limit: { type: ["number", "null"], minimum: 1, maximum: 5, description: "Maximum number of videos to return (1-5). Defaults to 3.", default: 3 },
+      // For OpenAI, 'limit' constraints (min/max) go in description. Type 'number' is sufficient.
+      // Nullable is handled by type: ["number", "null"]
+      limit: {
+        type: ["number", "null"], // Changed pour être un tableau mutable, conforme au type attendu
+        description: "Maximum number of videos to return (1-5). Defaults to 3 if null or not provided.",
+        // Removed: minimum: 1, maximum: 5, default: 3 -- this info goes into description for LLM or handled in execute
+      },
     },
+    // If 'limit' can truly be omitted and have a default, it shouldn't be in 'required'.
+    // If the LLM *must* provide it (even if null), then it stays in required.
+    // Given the error, OpenAI wants all described properties to be 'required' by its strict schema interpretation for tools.
+    // The LLM should be prompted to provide 'null' for optional fields.
     required: ["query", "limit"],
     additionalProperties: false as false,
   };
@@ -49,10 +60,14 @@ export class YouTubeSearchTool extends BaseTool {
   }
 
   async execute(input: YouTubeSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    const { query, limit } = input;
-    const effectiveLimit = limit ?? 3;
+    const { query } = input;
+    // Handle limit: if input.limit is null or undefined, use default. If number, use it (clamped).
+    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 3 : Math.max(1, Math.min(input.limit, 5));
+
     const logPrefix = `[YouTubeTool] Query:"${query.substring(0,30)}..."`;
+    // For structured data, use the actual effective limit used
     const queryInputForStructuredData = { ...input, limit: effectiveLimit };
+
 
     if (abortSignal?.aborted) { return { error: "YouTube search cancelled.", result: "Cancelled." }; }
     if (!this.API_KEY) { return { error: "YouTube Tool is not configured.", result: `Sorry, ${input.context?.userName || "User"}, Minato cannot search YouTube right now.` }; }
@@ -61,7 +76,8 @@ export class YouTubeSearchTool extends BaseTool {
     const langCode = input.context?.locale?.split("-")[0] || input.lang?.split("-")[0] || "en";
     const params = new URLSearchParams({
       key: this.API_KEY, part: "snippet", q: query.trim(), type: "video",
-      maxResults: String(Math.max(1, Math.min(effectiveLimit, 5))), relevanceLanguage: langCode,
+      maxResults: String(effectiveLimit), // Use effectiveLimit
+      relevanceLanguage: langCode,
     });
     const url = `${this.API_BASE}?${params.toString()}`;
     this.log(`info`, `${logPrefix} Searching YouTube (Lang: ${langCode}, Limit: ${params.get("maxResults")})... URL: ${url.split("&key=")[0]}...`);
@@ -72,7 +88,7 @@ export class YouTubeSearchTool extends BaseTool {
 
     try {
       const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(8000) });
-      if (abortSignal?.aborted) { /* ... */ outputData.error = "Request timed out or cancelled."; return { error: "YouTube search cancelled.", result: "Cancelled.", structuredData: outputData }; }
+      if (abortSignal?.aborted) { outputData.error = "Request timed out or cancelled."; return { error: "YouTube search cancelled.", result: "Cancelled.", structuredData: outputData }; }
       const data: YouTubeSearchResponse = await response.json() as YouTubeSearchResponse;
 
       if (!response.ok || data.error) {
@@ -99,7 +115,7 @@ export class YouTubeSearchTool extends BaseTool {
     } catch (error: any) {
       const errorMsg = `YouTube search failed: ${error.message}`;
       outputData.error = errorMsg;
-      if (error.name === 'AbortError') { /* ... */ outputData.error = "Request timed out."; return { error: "YouTube search timed out.", result: `Sorry, ${input.context?.userName || "User"}, the YouTube search took too long.`, structuredData: outputData }; }
+      if (error.name === 'AbortError') { outputData.error = "Request timed out."; return { error: "YouTube search timed out.", result: `Sorry, ${input.context?.userName || "User"}, the YouTube search took too long.`, structuredData: outputData }; }
       this.log("error", `${logPrefix} Failed:`, error.message);
       return { error: errorMsg, result: `Sorry, ${input.context?.userName || "User"}, Minato encountered an error searching YouTube.`, structuredData: outputData };
     }

@@ -10,12 +10,12 @@ import { logger } from "@/memory-framework/config";
 
 export async function GET(req: NextRequest) {
   const logPrefix = "[API GoogleConnect Initiate]";
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   let userId: string | null = null;
 
   // --- Authentification Supabase ---
   try {
-    const supabase = createServerSupabaseClient(); // Utiliser le client pour Route Handler
+    const supabase = await createServerSupabaseClient(); // Utiliser le client pour Route Handler
     const {
       data: { user },
       error: userError,
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     }
     userId = user.id;
     logger.info(
-      `${logPrefix} Initiate request from authenticated Supabase user: ${userId.substring(
+      `${logPrefix} Initiate request from authenticated Supabase user: ${(userId ?? "unknown").substring(
         0,
         8
       )}...`
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     scopes = [...calendarScopes, ...emailScopes]; // Exemple pour les deux
   else {
     logger.warn(
-      `${logPrefix} Missing or invalid scope parameter: '${scopeParam}' for user ${userId.substring(
+      `${logPrefix} Missing or invalid scope parameter: '${scopeParam}' for user ${(userId ?? "unknown").substring(
         0,
         8
       )}.`
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     !process.env.GOOGLE_REDIRECT_URI // Assurez-vous que GOOGLE_REDIRECT_URI est bien dans votre .env
   ) {
     logger.error(
-      `${logPrefix} Google OAuth client configuration is missing on the server for user ${userId.substring(
+      `${logPrefix} Google OAuth client configuration is missing on the server for user ${(userId ?? "unknown").substring(
         0,
         8
       )}.`
@@ -137,13 +137,13 @@ export async function GET(req: NextRequest) {
     logger.info(
       `${logPrefix} Generated Google Auth URL with state and scopes [${scopes.join(
         ", "
-      )}] for user ${userId.substring(0, 8)}. Redirecting user.`
+      )}] for user ${(userId ?? "unknown").substring(0, 8)}. Redirecting user.`
     );
     // Renvoyer l'URL d'autorisation au client, qui effectuera la redirection
     return NextResponse.json({ authorizeUrl });
   } catch (error: any) {
     logger.error(
-      `${logPrefix} Error generating Google auth URL for user ${userId.substring(
+      `${logPrefix} Error generating Google auth URL for user ${(userId ?? "unknown").substring(
         0,
         8
       )}:`,

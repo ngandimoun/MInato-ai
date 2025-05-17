@@ -1,4 +1,5 @@
-import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
+// FILE: lib/tools/DataParsingTool.ts
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import { ParsedDataObject, DataParsedOutput } from "@/lib/types";
 import { logger } from "@/memory-framework/config";
 import { supabaseAdmin } from "../supabaseClient";
@@ -9,7 +10,7 @@ import * as XLSX from "xlsx";
 interface DataParsingInput extends ToolInput {
   fileId: string;
   fileType: string;
-  fileName?: string | null; // Allow null
+  fileName?: string | null;
 }
 
 export class DataParsingTool extends BaseTool {
@@ -19,14 +20,14 @@ export class DataParsingTool extends BaseTool {
   argsSchema = {
     type: "object" as const,
     properties: {
-      fileId: { type: "string" as const, description: "Path identifier for the uploaded file in cloud storage." },
-      fileType: { type: "string" as const, description: "The MIME type of the file (e.g., 'text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')." },
-      fileName: { type: ["string", "null"], description: "Optional: Original name of the file for context." },
+      fileId: { type: "string" as const, description: "Path identifier for the uploaded file in cloud storage. This is required." } as OpenAIToolParameterProperties,
+      fileType: { type: "string" as const, description: "The MIME type of the file (e.g., 'text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'). This is required." } as OpenAIToolParameterProperties,
+      fileName: { type: ["string", "null"] as const, description: "Optional: Original name of the file for context. Provide as string or null." } as OpenAIToolParameterProperties,
     },
-    required: ["fileId", "fileType", "fileName"],
+    required: ["fileId", "fileType", "fileName"], // All defined properties are required for strict mode
     additionalProperties: false as false,
   };
-  cacheTTLSeconds = undefined;
+  cacheTTLSeconds = undefined; // Parsing is usually fast and data might change
 
   private async parseCsv(buffer: Buffer): Promise<ParsedDataObject> {
     return new Promise((resolve, reject) => {
@@ -102,18 +103,21 @@ export class DataParsingTool extends BaseTool {
   }
 
   async execute(input: DataParsingInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    const { userId: contextUserId, fileId, fileType, fileName } = input;
+    const { userId: contextUserId, fileId, fileType } = input;
+    // Handle defaulting for fileName if LLM sends null
+    const fileName = (input.fileName === null || input.fileName === undefined) ? undefined : input.fileName;
+
     const userId = input.context?.userId || contextUserId;
     const logPrefix = `[DataParsingTool User:${userId?.substring(0,8) || "N/A"} File:${fileId}]`;
     logger.info(`${logPrefix} Starting parsing for ${fileType} file: ${fileName || fileId}`);
 
-    const queryInputForStructuredData = { ...input };
+    const queryInputForStructuredData = { ...input, fileName };
 
-    if (!userId) return { error: "User ID is required for file operations.", result: "Minato cannot parse data without knowing who it's for.", structuredData: {result_type: "parsed_data_internal", source_api:"internal_parser", query: queryInputForStructuredData, data: null, error: "User ID required"} };
-    if (!fileId || !fileType) return { error: "Missing fileId or fileType.", result: "Minato needs file details to parse.", structuredData: {result_type: "parsed_data_internal", source_api:"internal_parser", query: queryInputForStructuredData, data: null, error: "Missing fileId or fileType"} };
+    if (!userId) return { error: "User ID is required for file operations.", result: "Minato cannot parse data without knowing who it's for.", structuredData: {result_type: "parsed_data_internal", source_api:"internal_parser", query: queryInputForStructuredData, data: null as any, error: "User ID required"} }; // Cast null as any for data
+    if (!fileId || !fileType) return { error: "Missing fileId or fileType.", result: "Minato needs file details to parse.", structuredData: {result_type: "parsed_data_internal", source_api:"internal_parser", query: queryInputForStructuredData, data: null as any, error: "Missing fileId or fileType"} };
     if (!supabaseAdmin) {
       logger.error(`${logPrefix} Supabase admin client not available.`);
-      return { error: "Storage service misconfiguration.", result: "Minato's storage connection isn't working right now.", structuredData: {result_type: "parsed_data_internal", source_api:"internal_parser", query: queryInputForStructuredData, data: null, error: "Storage service misconfiguration"} };
+      return { error: "Storage service misconfiguration.", result: "Minato's storage connection isn't working right now.", structuredData: {result_type: "parsed_data_internal", source_api:"internal_parser", query: queryInputForStructuredData, data: null as any, error: "Storage service misconfiguration"} };
     }
 
     let parsedData: ParsedDataObject;
@@ -121,7 +125,7 @@ export class DataParsingTool extends BaseTool {
     let outputStructuredData: DataParsedOutput = {
       result_type: "parsed_data_internal",
       source_api: "internal_parser",
-      data: { headers: [], rows: [], rowCount: 0, columnCount: 0, fileName: effectiveFileName, fileType },
+      data: { headers: [], rows: [], rowCount: 0, columnCount: 0, fileName: effectiveFileName, fileType }, // Ensure data object is initialized
       error: undefined,
     };
 
@@ -139,7 +143,7 @@ export class DataParsingTool extends BaseTool {
 
       if (abortSignal?.aborted) {
         logger.warn(`${logPrefix} Parsing aborted after download for '${effectiveFileName}'.`);
-        return { error: "Data parsing cancelled.", result: "Cancelled.", structuredData: {result_type: "parsed_data_internal", source_api:"internal_parser", query: queryInputForStructuredData, data: null, error: "Cancelled"} };
+        return { error: "Data parsing cancelled.", result: "Cancelled.", structuredData: {result_type: "parsed_data_internal", source_api:"internal_parser", query: queryInputForStructuredData, data: null as any, error: "Cancelled"} };
       }
 
       const mimeTypeLower = fileType.toLowerCase();
@@ -160,7 +164,7 @@ export class DataParsingTool extends BaseTool {
       parsedData.fileType = fileType;
       if (abortSignal?.aborted) {
         logger.warn(`${logPrefix} Parsing aborted after processing for '${effectiveFileName}'.`);
-        return { error: "Data parsing cancelled.", result: "Cancelled.", structuredData: {result_type: "parsed_data_internal", source_api:"internal_parser", query: queryInputForStructuredData, data: null, error: "Cancelled"} };
+        return { error: "Data parsing cancelled.", result: "Cancelled.", structuredData: {result_type: "parsed_data_internal", source_api:"internal_parser", query: queryInputForStructuredData, data: null as any, error: "Cancelled"} };
       }
 
       outputStructuredData.data = parsedData;

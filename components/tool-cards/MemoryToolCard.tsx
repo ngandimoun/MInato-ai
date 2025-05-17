@@ -17,7 +17,15 @@ export function MemoryToolCard({ data }: MemoryToolCardProps) {
             <Brain className="h-5 w-5 text-primary"/>
             Memory Retrieval
         </CardTitle>
-        <CardDescription>Searched for: "{data.query || "N/A"}"</CardDescription>
+        <CardDescription>
+          Searched for: "
+          {typeof data.query === "string"
+            ? data.query
+            : data.query
+              ? JSON.stringify(data.query)
+              : "N/A"}
+          "
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {data.found && data.memories && data.memories.length > 0 ? (
