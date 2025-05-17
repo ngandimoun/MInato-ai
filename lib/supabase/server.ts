@@ -25,14 +25,14 @@ export async function createServerSupabaseClient(): Promise<ReturnType<typeof _c
         try {
           cookieStore.set({ name, value, ...options });
         } catch (error) {
-          logger.debug("[Supabase ServerClient] Ignoring cookie set error from Server Component (likely expected if middleware handles refresh).");
+           logger.debug("[Supabase ServerClient] Ignoring cookie set error from Server Component (likely expected if middleware handles refresh).");
         }
       },
       remove(name: string, options: CookieOptions): void {
         try {
           cookieStore.set({ name, value: '', ...options });
         } catch (error) {
-          logger.debug("[Supabase ServerClient] Ignoring cookie remove error from Server Component (likely expected if middleware handles refresh).");
+           logger.debug("[Supabase ServerClient] Ignoring cookie remove error from Server Component (likely expected if middleware handles refresh).");
         }
       },
     },

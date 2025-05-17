@@ -51,11 +51,13 @@ import { safeJsonParse } from "../../memory-framework/core/utils";
 import { WorkflowEngine } from "./workflow-engine";
 import { CompletionUsage } from "openai/resources";
 
-// Remplacement des types OpenAI obsolètes
-// type SdkResponsesApiTool = OpenAI.Responses.Tool;
-type SdkResponsesApiTool = any; // À affiner selon votre usage réel
-// type SdkResponsesApiFunctionCall = Extract<OpenAI.Responses.MessageOutputItem, { type: 'function_call' }>;
+type SdkResponsesApiTool = OpenAI.Chat.Completions.ChatCompletionTool;
 type SdkResponsesApiFunctionCall = ChatCompletionMessageToolCall;
+
+type DynamicWorkflowPlanWithPartial = DynamicWorkflowPlan & {
+  is_partial_plan?: boolean;
+  continuation_summary?: string | null;
+};
 
 const TTS_INSTRUCTION_MAP: Record<string, string> = {
   neutral: "Tone: Warm, Pace: Natural, Pitch: Medium",
@@ -104,7 +106,7 @@ function getDynamicInstructions(intentType?: string | null): string {
 function summarizeChatHistory(history: ChatMessage[], maxLength: number = 1000): string {
   if (!history || history.length === 0) return "No recent conversation history.";
   return history
-    .slice(-MAX_CHAT_HISTORY * 2)
+    .slice(-MAX_CHAT_HISTORY * 2) 
     .map((msg) => {
       let contentPreview = "";
       if (typeof msg.content === "string") {
@@ -136,24 +138,66 @@ function sanitizeToolParameterSchemaForOpenAI(originalSchema: BaseTool['argsSche
         return { type: "object", properties: {} };
     }
     const sanitizedProperties: Record<string, OpenAIToolParameterProperties> = {};
-    const newRequired: string[] = Array.isArray(originalSchema.required) ? [...originalSchema.required] : [];
+    let newRequired: string[] = []; // Initialize as empty, will be populated
+
     for (const key in originalSchema.properties) {
-        const prop = originalSchema.properties[key];
-        const sanitizedProp: OpenAIToolParameterProperties = { type: prop.type };
-        if (prop.description) sanitizedProp.description = prop.description;
-        if (prop.enum) sanitizedProp.enum = prop.enum;
-        if (prop.items) sanitizedProp.items = prop.items as any;
-        if (prop.properties && typeof prop.properties === 'object') {
-            const nestedSchema = { type: "object" as "object", properties: prop.properties, required: prop.required, additionalProperties: false as false, };
-            const sanitizedNested = sanitizeToolParameterSchemaForOpenAI(nestedSchema as any) as { properties?: Record<string, OpenAIToolParameterProperties>; required?: string[] } | undefined;
-            if (sanitizedNested && sanitizedNested.properties) sanitizedProp.properties = sanitizedNested.properties;
-            if (sanitizedNested && sanitizedNested.required) sanitizedProp.required = sanitizedNested.required;
+        if (Object.prototype.hasOwnProperty.call(originalSchema.properties, key)) {
+            const prop = JSON.parse(JSON.stringify(originalSchema.properties[key])); // Deep clone
+
+            // OpenAI tool parameters generally don't support 'const', 'default'
+            delete prop.const;
+            delete prop.default;
+
+            // Ensure type is not just "null" if it's an array, it should be e.g. ["string", "null"]
+            if (Array.isArray(prop.type) && prop.type.length === 1 && prop.type[0] === "null") {
+                prop.type = ["string", "null"]; // Default to string and null if only null was provided
+            }
+            
+            // Recursively sanitize for nested objects or arrays of objects
+            if (prop.type === "object" || (Array.isArray(prop.type) && prop.type.includes("object"))) {
+                if (prop.properties) {
+                    const nestedSchemaDef = {
+                        type: "object",
+                        properties: prop.properties,
+                        required: prop.required, // Pass existing required
+                        additionalProperties: prop.additionalProperties === undefined ? false : prop.additionalProperties,
+                    };
+                    const sanitizedNested = sanitizeToolParameterSchemaForOpenAI(nestedSchemaDef as any); // Recursive call
+                    if (sanitizedNested) {
+                        prop.properties = sanitizedNested.properties || {};
+                        prop.required = sanitizedNested.required;
+                        prop.additionalProperties = sanitizedNested.additionalProperties;
+                    }
+                } else {
+                    prop.properties = {}; // Ensure properties object exists for type object
+                    delete prop.required; // No properties means no required fields
+                }
+            } else if (prop.type === "array" || (Array.isArray(prop.type) && prop.type.includes("array"))) {
+                if (prop.items && typeof prop.items === 'object') {
+                    // If items is a complex schema, sanitize it.
+                    // Assuming items schema should also be a valid tool parameter schema (though simpler usually).
+                    prop.items = sanitizeToolParameterSchemaForOpenAI(prop.items as any);
+                } else if (prop.items && typeof prop.items !== 'object') {
+                    // If items is a simple type string like { "type": "string" }, it's fine.
+                } else {
+                    // Default items to a simple string type if not specified for an array.
+                    prop.items = { type: "string" };
+                }
+            }
+            sanitizedProperties[key] = prop;
+            newRequired.push(key); // Add all defined properties to required for OpenAI strict mode
         }
-        sanitizedProperties[key] = sanitizedProp;
-        if (!newRequired.includes(key)) newRequired.push(key);
     }
+
+    // Ensure 'required' only contains keys present in 'properties'
     const finalRequired = newRequired.filter(rKey => sanitizedProperties.hasOwnProperty(rKey));
-    return { type: "object", properties: sanitizedProperties, ...(finalRequired.length > 0 && { required: finalRequired }), };
+
+    return {
+        type: "object",
+        properties: sanitizedProperties,
+        ...(finalRequired.length > 0 && { required: finalRequired }),
+        additionalProperties: !!originalSchema.additionalProperties, // Correction: cast explicite en booléen
+    };
 }
 
 export class Orchestrator {
@@ -196,9 +240,9 @@ export class Orchestrator {
           }
         } as SdkResponsesApiTool;
       });
-    const toolNamesForPlanner = this.availableToolsSchemaForPlanner.map(t => (t as any).function.name).filter(name => name);
+    const toolNamesForPlanner = this.availableToolsSchemaForPlanner.map(t => (t.type === 'function' ? t.function.name : t.type)).filter(name => name);
     logger.info(`[Orch] Registered tools for LLM Planner & Execution (${toolNamesForPlanner.length}): ${toolNamesForPlanner.join(', ')}`);
-    if (this.availableToolsSchemaForPlanner.some(t => !(t as any).function.name || typeof (t as any).function.name !== 'string' || (t as any).function.name.trim() === '')) {
+    if (this.availableToolsSchemaForPlanner.some(t => (t.type === 'function' && (!t.function.name || typeof t.function.name !== 'string' || t.function.name.trim() === '')))) {
       logger.error("[Orch] CRITICAL: Tool schema generation error: Invalid name found for Responses API tool schema.");
     }
   }
@@ -250,7 +294,7 @@ export class Orchestrator {
       const toolSchemaRequired = tool.argsSchema.required || [];
       for (const expectedArgName in toolSchemaProperties) {
         if (parsedLlmArgs.hasOwnProperty(expectedArgName)) { validatedAndFilteredArgs[expectedArgName] = parsedLlmArgs[expectedArgName]; }
-        else if (toolSchemaRequired.includes(expectedArgName)) { logger.warn(`${logPrefix} Planner missed required arg '${expectedArgName}' for tool '${toolName}'.`); }
+        else if (toolSchemaRequired.includes(expectedArgName)) { logger.warn(`${logPrefix} Planner missed required arg '${expectedArgName}' for tool '${toolName}'. Tool may fail or use default.`); }
       }
       for (const receivedArgName in parsedLlmArgs) { if (!toolSchemaProperties.hasOwnProperty(receivedArgName)) { logger.warn(`${logPrefix} Planner provided superfluous argument '${receivedArgName}' for tool '${toolName}'. Stripping it.`); } }
       const abortController = new AbortController();
@@ -330,18 +374,69 @@ export class Orchestrator {
       } else {
         logger.info(`[${turnIdentifier}] Invoking LLM Planner for new/non-resumable interaction...`);
         plannerDecision = await this.workflowEngine.selectAndPlanWorkflow(primaryQueryText, userId, history, userName, userState);
-        workflowGoal = plannerDecision.plan?.goal;
+        workflowGoal = plannerDecision.plan?.goal; // Store the goal from the initial plan
         if(plannerDecision.llmUsage) { llmUsage_total.prompt_tokens += plannerDecision.llmUsage.prompt_tokens || 0; llmUsage_total.completion_tokens += plannerDecision.llmUsage.completion_tokens || 0; llmUsage_total.total_tokens += plannerDecision.llmUsage.total_tokens || 0;}
         finalToolCallsLogged = plannerDecision.plan?.steps.filter((s): s is import("@/lib/types/index").ToolCallStep => s.type === "tool_call").map(s => ({ toolName: s.toolName, args: s.toolArgs })) || [];
-        if (plannerDecision.actionType === "error" || (plannerDecision.actionType === "generate_dynamic_workflow" && !plannerDecision.plan)) { finalFlowType = "error"; finalResponseSource = "Planner Error"; finalResponseText = `I'm having a little trouble planning that out, ${userName}. Could you try rephrasing?`; logger.error(`[${turnIdentifier}] Planner failed or returned invalid plan.`); }
-        else if (plannerDecision.actionType === "request_clarification" && plannerDecision.clarificationQuestion) { finalFlowType = "clarification"; finalResponseSource = "Planner Clarification"; clarificationQuestionForUser = injectPromptVariables(plannerDecision.clarificationQuestion, { userName }); logger.info(`[${turnIdentifier}] Planner requests clarification: ${clarificationQuestionForUser}`); }
-        else if (plannerDecision.actionType === "no_workflow_needed") { finalFlowType = "direct_llm"; finalResponseSource = "LLM (No Tools Planned)"; logger.info(`[${turnIdentifier}] Planner: No tools needed.`); }
-        else if (plannerDecision.actionType === "generate_dynamic_workflow" && plannerDecision.plan) {
-          const plan = plannerDecision.plan; finalFlowType = "workflow"; finalResponseSource = `Workflow: ${plan.goal.substring(0,30)}...`; logger.info(`[${turnIdentifier}] Planner returned dynamic plan. Goal: "${plan.goal}". Steps: ${plan.steps.length}`);
+
+        if (plannerDecision.actionType === "error" || (plannerDecision.actionType === "generate_dynamic_workflow" && !plannerDecision.plan)) {
+            finalFlowType = "error"; finalResponseSource = "Planner Error";
+            finalResponseText = `I'm having a little trouble planning that out, ${userName}. Could you try rephrasing?`;
+            logger.error(`[${turnIdentifier}] Planner failed or returned invalid plan. ActionType: ${plannerDecision.actionType}, Plan: ${!!plannerDecision.plan}`);
+        } else if (plannerDecision.actionType === "request_clarification" && plannerDecision.clarificationQuestion) {
+            finalFlowType = "clarification"; finalResponseSource = "Planner Clarification";
+            clarificationQuestionForUser = injectPromptVariables(plannerDecision.clarificationQuestion, { userName });
+            logger.info(`[${turnIdentifier}] Planner requests clarification: ${clarificationQuestionForUser}`);
+        } else if (plannerDecision.actionType === "no_workflow_needed") {
+            finalFlowType = "direct_llm"; finalResponseSource = "LLM (No Tools Planned)";
+            logger.info(`[${turnIdentifier}] Planner: No tools needed.`);
+        } else if (plannerDecision.actionType === "generate_dynamic_workflow" && plannerDecision.plan) {
+          const plan = plannerDecision.plan;
+          finalFlowType = "workflow";
+          finalResponseSource = `Workflow: ${plan.goal.substring(0,30)}...`;
+          logger.info(`[${turnIdentifier}] Planner returned dynamic plan. Goal: "${plan.goal}". Steps: ${plan.steps.length}`);
+
           if (plan.steps.length > 0) {
-            const workflowEngineInputState: WorkflowState = { sessionId: runId, currentStepIndex: 0, variables: { userInput: primaryQueryText, userId, userName, userState, originalGoal: plan.goal, latestUserInputForStep: primaryQueryText }, status: "running", dynamicPlan: plan, startTime: Date.now() };
-            batchExecutionResult = await this.workflowEngine.startOrContinueWorkflow( runId, userId, primaryQueryText, currentMessages.slice(0,-1), userState, { ...effectiveApiContext, _internal_workflow_state: workflowEngineInputState });
-          } else { logger.info(`[${turnIdentifier}] Planner: Dynamic plan with no steps. Treating as 'no_workflow_needed'.`); finalFlowType = "direct_llm"; finalResponseSource = "LLM (No Tools)"; }
+            // Construct the initial WorkflowState here when a new plan is generated
+            const workflowEngineInputState: WorkflowState = {
+              sessionId: runId,
+              currentStepIndex: 0,
+              variables: {
+                userInput: primaryQueryText,
+                userId,
+                userName,
+                userState,
+                originalGoal: plan.goal, // Goal of the current plan segment
+                latestUserInputForStep: primaryQueryText
+              },
+              status: "running",
+              dynamicPlan: plan,
+              startTime: Date.now(),
+              executedStepsHistory: [], // Initialize as empty
+              clarificationPending: null,
+              // These come from the planner's DynamicWorkflowPlanWithPartial
+              isPartialPlan: (plan as DynamicWorkflowPlanWithPartial).is_partial_plan || false,
+              continuationSummary: (plan as DynamicWorkflowPlanWithPartial).continuation_summary || null,
+              fullPlanGoal: plan.goal, // For a brand new plan, fullPlanGoal is its own goal
+              error: null,
+              activeWorkflowId: null, // If you have predefined workflows, this could be set
+            };
+            logger.debug(`[${turnIdentifier}] Calling startOrContinueWorkflow with NEWLY CONSTRUCTED initial state for runId ${runId}. Plan Goal: ${plan.goal}`);
+
+            batchExecutionResult = await this.workflowEngine.startOrContinueWorkflow(
+              runId,
+              userId,
+              primaryQueryText,
+              currentMessages.slice(0,-1),
+              userState,
+              { ...effectiveApiContext },
+              plan, // _internal_initial_plan
+              workflowEngineInputState // _internal_workflow_state
+            );
+          } else {
+            logger.info(`[${turnIdentifier}] Planner: Dynamic plan with no steps. Treating as 'no_workflow_needed'.`);
+            finalFlowType = "direct_llm";
+            finalResponseSource = "LLM (No Tools)";
+          }
         }
       }
 
@@ -350,10 +445,27 @@ export class Orchestrator {
         finalStructuredResult = batchExecutionResult.structuredData || finalStructuredResult;
         workflowFeedback = batchExecutionResult.workflowFeedback;
         currentTurnToolResultsSummary = Object.entries(batchExecutionResult.variables || {}).filter(([key, value]) => value && typeof value === 'object' && 'result' in value && !key.startsWith("_workflowFeedback")).map(([key, value]) => `${(value as ToolOutput).result || "Completed."} (From step: ${key})`).join("\n") || "Minato performed some actions based on the plan.";
-        if (batchExecutionResult.error) { finalFlowType = "error"; finalResponseSource = `Workflow Error: ${workflowFeedback?.workflowName || "Task"}`; finalResponseText = batchExecutionResult.responseText || `An error occurred during the task, ${userName}.`; logger.error(`[${turnIdentifier}] Workflow batch execution error: ${batchExecutionResult.error}`); }
-        else if (batchExecutionResult.clarificationQuestion) { finalFlowType = "clarification"; finalResponseSource = `Workflow Clarification: ${workflowFeedback?.workflowName || "Task"}`; clarificationQuestionForUser = injectPromptVariables(batchExecutionResult.clarificationQuestion, { userName }); }
-        else { isContinuationNeeded = false; continuationSummaryForUser = null; finalFlowType = "workflow"; logger.info(`[${turnIdentifier}] Batch complete. Summary: "${continuationSummaryForUser}"`); }
+
+        if (batchExecutionResult.error) {
+            finalFlowType = "error";
+            finalResponseSource = `Workflow Error: ${workflowFeedback?.workflowName || "Task"}`;
+            finalResponseText = batchExecutionResult.responseText || `An error occurred during the task, ${userName}. ${batchExecutionResult.error}`;
+            logger.error(`[${turnIdentifier}] Workflow batch execution error: ${batchExecutionResult.error}`);
+        } else if (batchExecutionResult.clarificationQuestion) {
+            finalFlowType = "clarification";
+            finalResponseSource = `Workflow Clarification: ${workflowFeedback?.workflowName || "Task"}`;
+            clarificationQuestionForUser = injectPromptVariables(batchExecutionResult.clarificationQuestion, { userName });
+        } else { 
+            isContinuationNeeded = batchExecutionResult.isPartialPlan || false;
+            continuationSummaryForUser = batchExecutionResult.continuationSummary || null;
+            finalFlowType = "workflow";
+            logger.info(`[${turnIdentifier}] Batch complete. Continuation Summary: "${continuationSummaryForUser}" Partial: ${isContinuationNeeded}`);
+            if (!isContinuationNeeded && batchExecutionResult.isComplete) {
+                 finalResponseText = batchExecutionResult.responseText || `Minato has completed the task: ${workflowGoal || currentMessages.slice(-1)[0]?.content || "your request"}.`;
+            }
+        }
       }
+
 
       let retrievedMemoryContext = "INTERNAL CONTEXT - TARGETED RELEVANT MEMORIES: None found or not applicable for this turn.";
       if (finalFlowType !== "clarification" && finalFlowType !== "error") {
@@ -367,27 +479,24 @@ export class Orchestrator {
         } else { logger.debug(`[${turnIdentifier}] Skipping targeted memory search: no strong entities.`); }
       }
 
-      if (clarificationQuestionForUser) {
-        finalResponseText = null;
-        responseIntentType = "clarification";
-        ttsInstructionsForFinalResponse = getDynamicInstructions(responseIntentType);
-        if (!workflowFeedback) {
-          const wfGoal = (finalFlowType === "workflow" ? (workflowGoal || "Task") : "Clarification");
-          workflowFeedback = { workflowName: wfGoal, currentStepDescription: "Minato needs more information.", status: "waiting_for_user" };
-        }
-      }
-      else if (finalFlowType !== "error") {
+      if (!clarificationQuestionForUser && finalFlowType !== "error" && !(batchExecutionResult?.isComplete && batchExecutionResult?.responseText)) {
         const toolResultsSummaryForPrompt = currentTurnToolResultsSummary || (finalToolCallsLogged && finalToolCallsLogged.length > 0 ? `Minato performed action(s) related to: ${finalToolCallsLogged.map(t=>t.toolName).join(', ')}.` : "No specific tools were used by Minato this turn, but I've considered your request.");
-        const continuationSummaryForPrompt = isContinuationNeeded && continuationSummaryForUser ? continuationSummaryForUser : "This task is complete.";
+        const continuationSummaryForPrompt = (isContinuationNeeded && continuationSummaryForUser) ? continuationSummaryForUser : "This task is complete.";
+
         const systemInstructionsForSynthesis = injectPromptVariables(RESPONSE_SYNTHESIS_PROMPT_TEMPLATE, { userName, personaName: personaNameForPrompt, personaInstructions: personaSpecificInstructions, language: lang, available_tools_summary: "Tools were handled by the planner.", retrieved_memory_context: retrievedMemoryContext, tool_results_summary: toolResultsSummaryForPrompt, original_query: primaryQueryText, continuation_summary_for_synthesis: continuationSummaryForPrompt });
         logger.info(`[${turnIdentifier}] Synthesizing final response (Model: ${appConfig.openai.chatModel}). Partial: ${isContinuationNeeded}`);
         const synthesisResult = await generateResponseWithIntent(systemInstructionsForSynthesis, `User ${userName} asked: "${primaryQueryText}". Actions taken. Memory context available. Continuation: "${continuationSummaryForPrompt}". Formulate Minato's response.`, currentMessages, appConfig.openai.chatModel, appConfig.openai.maxTokens, userId );
-        if ("error" in synthesisResult) { finalResponseText = `I've processed your request, ${userName}, but I'm having a bit of trouble wording my reply.`; responseIntentType = "apologetic"; logger.error(`[${turnIdentifier}] Synthesis LLM failed: ${synthesisResult.error}`); }
+        if ("error" in synthesisResult) { finalResponseText = `I've processed your request, ${userName}, but I'm having a bit of trouble wording my reply. ${synthesisResult.error.substring(0,100)}`; responseIntentType = "apologetic"; logger.error(`[${turnIdentifier}] Synthesis LLM failed: ${synthesisResult.error}`); }
         else { finalResponseText = synthesisResult.responseText; responseIntentType = synthesisResult.intentType; }
         const synthesisUsage = (synthesisResult as any).usage as OpenAI.CompletionUsage | undefined;
         if (synthesisUsage) { llmUsage_total.prompt_tokens += synthesisUsage.prompt_tokens || 0; llmUsage_total.completion_tokens += synthesisUsage.completion_tokens || 0; llmUsage_total.total_tokens += synthesisUsage.total_tokens || 0; }
         ttsInstructionsForFinalResponse = getDynamicInstructions(responseIntentType);
+      } else if (batchExecutionResult?.isComplete && batchExecutionResult?.responseText) {
+        finalResponseText = batchExecutionResult.responseText;
+        responseIntentType = batchExecutionResult.intentType || "neutral";
+        ttsInstructionsForFinalResponse = batchExecutionResult.ttsInstructions || getDynamicInstructions(responseIntentType);
       }
+
 
       const userMemoryMsgForAdd: MemoryFrameworkMessage | null = userInput ? { role: 'user', content: typeof userInput === 'string' ? userInput : JSON.stringify(userInput), name: userName } : null;
       const assistantContentForMemory = clarificationQuestionForUser || finalResponseText;
@@ -474,16 +583,39 @@ export class Orchestrator {
         const userName = await this.getUserFirstName(userId);
         const effectiveApiContext = { ...apiContext, sessionId: currentSessionId, runId: currentSessionId, locale: userState?.preferred_locale || appConfig.defaultLocale, lang, detectedLanguage: detectedLang, userName, transcription: transcribedText };
         orchResult = await this.runOrchestration(userId, transcribedText, history, effectiveApiContext);
-        if (orchResult && orchResult.error && !orchResult.clarificationQuestion) throw new Error(orchResult.error);
+
+        if (orchResult && orchResult.error && !orchResult.clarificationQuestion) {
+            logger.error(`[${turnIdentifier}] Orchestration returned error: ${orchResult.error}`);
+            throw new Error(orchResult.error);
+        }
+
         if (orchResult && orchResult.clarificationQuestion) {
             const duration = Date.now() - startTime; const debugInfoForClarification: OrchestratorResponse['debugInfo'] = { ...(orchResult.debugInfo || {}), latencyMs: duration, audioFetchMs: audioFetchDuration, sttMs: sttDuration, sttModelUsed: appConfig.openai.sttModel, flow_type: 'clarification' };
             if (logEntryId && orchResult) this.logInteraction({ user_id: userId, latency_ms: duration, flow_type: 'clarification', error_message: null, metadata: { intent: orchResult.intentType, llmUsage: orchResult.llmUsage }, final_response_source: "Workflow Clarification" }, true, logEntryId).catch(e => logger.error("Log update fail:", e));
-            return { sessionId: currentSessionId, clarificationQuestion: orchResult.clarificationQuestion, transcription: transcribedText, lang, workflowFeedback: orchResult.workflowFeedback, debugInfo: debugInfoForClarification, response: orchResult.response, intentType: orchResult.intentType, ttsInstructions: orchResult.ttsInstructions, error: null, audioUrl: null, structuredData: orchResult.structuredData, llmUsage: orchResult.llmUsage };
+            let ttsUrlForClarification: string | null = null;
+            if (orchResult.clarificationQuestion) {
+                let voiceForClarification = (userState?.chainedvoice as OpenAITtsVoice) || appConfig.openai.ttsDefaultVoice;
+                const ttsClarStart = Date.now();
+                const ttsClarResult = await this.ttsService.generateAndStoreSpeech(
+                    orchResult.clarificationQuestion, userId, voiceForClarification,
+                    getDynamicInstructions("clarification")
+                );
+                ttsDuration = (ttsDuration || 0) + (Date.now() - ttsClarStart);
+                if (ttsClarResult.url) ttsUrlForClarification = ttsClarResult.url;
+                else logger.error(`[${turnIdentifier}] TTS for clarification failed: ${ttsClarResult.error}.`);
+            }
+            return { sessionId: currentSessionId, clarificationQuestion: orchResult.clarificationQuestion, transcription: transcribedText, lang, workflowFeedback: orchResult.workflowFeedback, debugInfo: debugInfoForClarification, response: orchResult.response, intentType: orchResult.intentType, ttsInstructions: orchResult.ttsInstructions, error: null, audioUrl: ttsUrlForClarification, structuredData: orchResult.structuredData, llmUsage: orchResult.llmUsage };
         }
+
         let ttsUrl: string | null = null;
         if (orchResult?.response) {
-            let selectedVoice = appConfig.openai.ttsDefaultVoice; const persona = userState?.active_persona_id ? await this.memoryFramework.getPersonaById(userState.active_persona_id, userId) : null;
-            if (persona?.voice_id && isValidOpenAITtsVoice(persona.voice_id)) selectedVoice = persona.voice_id; else if (userState?.chainedvoice && isValidOpenAITtsVoice(userState.chainedvoice)) selectedVoice = userState.chainedvoice;
+            let selectedVoice = appConfig.openai.ttsDefaultVoice;
+            const persona = userState?.active_persona_id ? await this.memoryFramework.getPersonaById(userState.active_persona_id, userId) : null;
+            if (persona?.voice_id && isValidOpenAITtsVoice(persona.voice_id)) {
+                selectedVoice = persona.voice_id;
+            } else if (userState?.chainedvoice && isValidOpenAITtsVoice(userState.chainedvoice)) {
+                selectedVoice = userState.chainedvoice;
+            }
             const ttsStart = Date.now(); const ttsResult = await this.ttsService.generateAndStoreSpeech(orchResult.response, userId, selectedVoice as OpenAITtsVoice, orchResult.ttsInstructions); ttsDuration = Date.now() - ttsStart;
             if (ttsResult.url) ttsUrl = ttsResult.url; else logger.error(`[${turnIdentifier}] TTS failed: ${ttsResult.error}.`);
             if(orchResult) orchResult.audioUrl = ttsUrl;
@@ -496,11 +628,44 @@ export class Orchestrator {
         const finalDebugInfo: OrchestratorResponse['debugInfo'] = { ...(orchResult.debugInfo || {}), audioFetchMs: audioFetchDuration, sttMs: sttDuration, ttsMs: ttsDuration, sttModelUsed: appConfig.openai.sttModel, ttsModelUsed: ttsUrl ? appConfig.openai.ttsModel : null, latencyMs: duration, flow_type: finalFlowTypeResolved };
         return { sessionId: currentSessionId, response: orchResult.response, intentType: orchResult.intentType, ttsInstructions: orchResult.ttsInstructions, clarificationQuestion: orchResult.clarificationQuestion, error: orchResult.error, lang, transcription: transcribedText, audioUrl: orchResult.audioUrl, structuredData: orchResult.structuredData, workflowFeedback: orchResult.workflowFeedback, debugInfo: finalDebugInfo, llmUsage: orchResult.llmUsage };
     } catch (error: any) {
-        const duration = Date.now() - startTime; logger.error(`[Orch Audio] Error (${duration}ms):`, error.message, error.stack);
-        const userNameForError = apiContext?.userName || DEFAULT_USER_NAME; const errorMsgForLog = `Audio processing failed for ${userNameForError}: ${error.message}`.substring(0,350);
-        if (userId) { this.memoryFramework.add_memory([], userId, currentSessionId, errorMsgForLog).catch(memErr => logger.error(`[${turnIdentifier}] Failed logging orch error to memory:`, memErr)); if (logEntryId) this.logInteraction({ user_id: userId, latency_ms: duration, flow_type: 'error', error_message: error.message.substring(0,500) }, true, logEntryId).catch(e => logger.error("Log update error:", e)); else this.logInteraction({ user_id: userId, session_id: currentSessionId, run_id: currentSessionId, user_query: transcribedText || "[Audio Input]", flow_type: 'error', latency_ms: duration, error_message: error.message.substring(0,500) }).catch(e => logger.error("Initial error log insert fail:", e));}
-        const responseIntentTypeOnError = "apologetic"; const debugInfoOnError: OrchestratorResponse['debugInfo'] = { ...(orchResult ? orchResult.debugInfo : {}), latencyMs: duration, audioFetchMs: audioFetchDuration, sttMs: sttDuration, ttsMs: ttsDuration, sttModelUsed: appConfig.openai.sttModel, flow_type: 'error' };
-        return { sessionId: currentSessionId, error: error.message || `Failed processing audio for ${userNameForError}.`, transcription: transcribedText, lang: detectedLang || apiContext?.lang || "en", workflowFeedback: orchResult ? orchResult.workflowFeedback : null, debugInfo: debugInfoOnError, intentType: responseIntentTypeOnError, ttsInstructions: getDynamicInstructions(responseIntentTypeOnError), response: null, audioUrl: null, structuredData: null, clarificationQuestion: null, llmUsage: orchResult ? orchResult.llmUsage : null };
+        const duration = Date.now() - startTime;
+        logger.error(`[Orch Audio] Error (${duration}ms):`, error.message, error.stack);
+        const userNameForError = apiContext?.userName || DEFAULT_USER_NAME;
+        const userFacingError = error.message && error.message.startsWith("I'm having a little trouble planning")
+            ? error.message 
+            : (error.message && error.message.startsWith("Parallel tool error:")) // Pass through specific tool errors
+            ? error.message
+            : `Failed processing audio for ${userNameForError}.`;
+
+        const errorMsgForLog = `Audio processing failed for ${userNameForError}: ${error.message}`.substring(0,350);
+        if (userId) {
+            this.memoryFramework.add_memory([], userId, currentSessionId, errorMsgForLog).catch(memErr => logger.error(`[${turnIdentifier}] Failed logging orch error to memory:`, memErr));
+            if (logEntryId) this.logInteraction({ user_id: userId, latency_ms: duration, flow_type: 'error', error_message: error.message.substring(0,500) }, true, logEntryId).catch(e => logger.error("Log update error:", e));
+            else this.logInteraction({ user_id: userId, session_id: currentSessionId, run_id: currentSessionId, user_query: transcribedText || "[Audio Input]", flow_type: 'error', latency_ms: duration, error_message: error.message.substring(0,500) }).catch(e => logger.error("Initial error log insert fail:", e));
+        }
+        const responseIntentTypeOnError = "error";
+        const debugInfoOnError: OrchestratorResponse['debugInfo'] = { ...(orchResult ? orchResult.debugInfo : {}), latencyMs: duration, audioFetchMs: audioFetchDuration, sttMs: sttDuration, ttsMs: ttsDuration, sttModelUsed: appConfig.openai.sttModel, flow_type: 'error' };
+
+        let errorTtsUrl: string | null = null;
+        try {
+            const userState = await supabaseAdmin.getUserState(userId);
+            const errorTtsResult = await this.ttsService.generateAndStoreSpeech(
+                userFacingError, userId,
+                (userState?.chainedvoice as OpenAITtsVoice) || appConfig.openai.ttsDefaultVoice,
+                getDynamicInstructions(responseIntentTypeOnError)
+            );
+            if (errorTtsResult.url) errorTtsUrl = errorTtsResult.url;
+        } catch (ttsErrorException: any) { logger.error(`[${turnIdentifier}] Failed to generate TTS for error message:`, ttsErrorException.message); }
+
+        return {
+            sessionId: currentSessionId, error: userFacingError, transcription: transcribedText,
+            lang: detectedLang || apiContext?.lang || "en",
+            workflowFeedback: orchResult ? orchResult.workflowFeedback : null,
+            debugInfo: debugInfoOnError, intentType: responseIntentTypeOnError,
+            ttsInstructions: getDynamicInstructions(responseIntentTypeOnError),
+            response: null, audioUrl: errorTtsUrl, structuredData: null,
+            clarificationQuestion: null, llmUsage: orchResult ? orchResult.llmUsage : null
+        };
     }
   }
 
@@ -518,29 +683,61 @@ declare module "../../memory-framework/core/CompanionCoreMemory" {
   }
 }
 
-(global as any).sanitizeJsonSchemaForTools = (schema: Record<string, any>): Record<string, any> => {
-    if (!schema || typeof schema !== 'object' || schema.type !== 'object') { return { type: "object", properties: {}, required: [], additionalProperties: false }; }
-    const newSchema: any = { type: "object", properties: {}, required: [], additionalProperties: false };
-    if (schema.properties && typeof schema.properties === 'object') {
-        for (const propKey in schema.properties) {
-            const prop = { ...schema.properties[propKey] }; // Clone prop to avoid modifying original
-            if (Array.isArray(prop.type)) { prop.type = Array.from(prop.type); } // Ensure mutable array
-            // Remove unsupported keywords specifically for tool parameter schemas
-            delete prop.minimum; delete prop.maximum; delete prop.format; delete prop.default;
-            // Ensure 'items' and nested 'properties' are also sanitized if they are complex schemas
-            if (prop.items && typeof prop.items === 'object') prop.items = (global as any).sanitizeJsonSchemaForTools(prop.items);
-            if (prop.properties && typeof prop.properties === 'object') {
-                 const nestedObjSchema = { type: "object", properties: prop.properties, required: prop.required, additionalProperties: false };
-                 const sanitizedNested = (global as any).sanitizeJsonSchemaForTools(nestedObjSchema);
-                 prop.properties = sanitizedNested.properties;
-                 prop.required = sanitizedNested.required;
-            }
-            newSchema.properties[propKey] = prop;
-        }
-        const schemaPropKeys = Object.keys(newSchema.properties);
-        newSchema.required = Array.isArray(schema.required) ? schema.required.filter((reqKey: string) => schemaPropKeys.includes(reqKey)) : schemaPropKeys;
-        if(newSchema.required.length === 0) delete newSchema.required;
+// Helper to sanitize tool parameter schemas for OpenAI function calling
+(global as any).sanitizeToolParameterSchemaForOpenAI = (schema: Record<string, any>): Record<string, any> => {
+    if (!schema || typeof schema !== 'object' || schema.type !== 'object') {
+        return { type: "object", properties: {}, additionalProperties: false };
     }
-    newSchema.additionalProperties = false;
+
+    const newSchema: any = {
+        type: "object",
+        properties: {},
+        additionalProperties: false
+    };
+
+    if (schema.properties && typeof schema.properties === 'object') {
+        const currentRequired: string[] = []; 
+        for (const propKey in schema.properties) {
+            if (Object.prototype.hasOwnProperty.call(schema.properties, propKey)) {
+                const prop = JSON.parse(JSON.stringify(schema.properties[propKey])); 
+
+                delete prop.const; delete prop.default;
+                
+                if (Array.isArray(prop.type) && prop.type.length === 1 && prop.type[0] === "null") {
+                    prop.type = ["string", "null"]; 
+                }
+
+                if (prop.type === "object" || (Array.isArray(prop.type) && prop.type.includes("object"))) {
+                    if (prop.properties) {
+                        const nestedSchemaDef = {
+                            type: "object",
+                            properties: prop.properties,
+                            required: prop.required, 
+                            additionalProperties: prop.additionalProperties === undefined ? false : prop.additionalProperties,
+                        };
+                        const sanitizedNested = (global as any).sanitizeToolParameterSchemaForOpenAI(nestedSchemaDef as any); 
+                        prop.properties = sanitizedNested.properties || {};
+                        prop.required = sanitizedNested.required;
+                        prop.additionalProperties = sanitizedNested.additionalProperties;
+                    } else {
+                        prop.properties = {};
+                    }
+                } else if (prop.type === "array" || (Array.isArray(prop.type) && prop.type.includes("array"))) {
+                    if (prop.items && typeof prop.items === 'object') {
+                        prop.items = (global as any).sanitizeToolParameterSchemaForOpenAI(prop.items);
+                    } else if (!prop.items) {
+                        prop.items = { type: "string" };
+                    }
+                }
+                newSchema.properties[propKey] = prop;
+                currentRequired.push(propKey);
+            }
+        }
+        const existingProps = Object.keys(newSchema.properties);
+        newSchema.required = currentRequired.filter(rKey => existingProps.includes(rKey));
+        if (newSchema.required.length === 0) {
+            delete newSchema.required;
+        }
+    }
     return newSchema;
 };

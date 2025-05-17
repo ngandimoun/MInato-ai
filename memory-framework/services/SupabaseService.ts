@@ -1073,7 +1073,7 @@ export class SupabaseService {
     }
   }
 
-  async getUserPersonas(userId: string): Promise<UserPersona[]> {
+  async getUserPersonas(userId: string, personaId?: string): Promise<UserPersona[]> {
     logger.debug(
       `Fetching user-specific personas for ${userId.substring(0, 8)} from '${
         this.userPersonasTableName
@@ -1081,10 +1081,14 @@ export class SupabaseService {
     );
     if (!userId) return [];
     try {
-      const { data, error } = await this.client
+      let query = this.client
         .from(this.userPersonasTableName)
         .select("*")
         .eq("user_id", userId);
+      if (personaId) {
+        query = query.eq("id", personaId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return (data || []).filter(
         (p: any): p is UserPersona =>

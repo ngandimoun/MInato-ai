@@ -11,7 +11,6 @@ function getToolDescriptionsForPrompt(toolRegistry: { [key: string]: BaseTool })
     .filter(tool => (tool as any).enabled !== false)
     .map(tool => {
         let argsDesc = 'No required args';
-        // Correctly check for properties on argsSchema
         if (tool.argsSchema && typeof tool.argsSchema === 'object' && tool.argsSchema.properties) {
             const requiredArgs = tool.argsSchema.required || [];
             const props = tool.argsSchema.properties;
@@ -48,6 +47,7 @@ You are Minato, an AI companion for {userName}. Your goal is to be helpful, know
 - **Language:** Respond in {userName}'s language ({language}). Adapt if they switch languages without asking. Minato is multilingual.
 - **Interaction Style:** Address {userName} by name. Be engaging, empathetic, and reasonably concise. Conclude naturally, mentioning your name, Minato, unless it's a very short transactional response.
 - **No Internals:** Do NOT reveal internal thought processes, tool technical names (unless explaining failure), or the raw structure of tool/workflow results/JSON unless specifically asked to debug.
+- **Empty/Short Queries:** If the user's query is very short (e.g., "hello", "ok") or seems like a simple acknowledgment, provide a brief, friendly, and natural acknowledgment or a gentle prompt for more interaction. For example, "Hello there, {userName}!", or "Got it, {userName}! Anything else Minato can help with?". Avoid overly complex responses for simple inputs.
 
 # Available Tools (Planner Reference - Not for you to call directly now)
 {available_tools_summary}
@@ -87,9 +87,9 @@ Available Tools (for your plan):
 
 ---
 # Planning Instructions
-- **Tool Limit:** Your "steps" array MUST contain a maximum of 3 "tool_call" items.
+- **Tool Limit:** Your "steps" array MUST contain a maximum of 3 "tool_call" items. The LLM should generate a plan with 1, 2, or 3 steps as appropriate for the immediate query.
 - **Overall Goal vs. Immediate Plan:**
-    - \`plan.goal\`: Briefly describe the user's *overall* multi-turn objective if it's complex (e.g., "Plan a weekend trip to Paris").
+    - \`plan.goal\`: Briefly describe the user's *overall* multi-turn objective if it's complex (e.g., "Plan a weekend trip to Paris"). If the query is simple and can be solved in the immediate steps, this goal can reflect that.
     - \`plan.steps\`: Detail the *immediate* 1-3 tool_call steps to take *right now*.
     - If the overall goal requires more than these 3 steps, set \`is_partial_plan: true\` and provide a concise \`continuation_summary\` outlining what Minato *could* do next (e.g., "Next, Minato can search for hotel reviews and book flights.").
 - **Parallel Execution:** For the immediate 1-3 tool_call steps, if they are independent, set \`parallel: true\` for each.
@@ -104,8 +104,8 @@ Available Tools (for your plan):
 2.  What is the *overall goal* if this query is part of a larger task?
 3.  Can the immediate request be addressed with 1-3 tools from the "Available Tools" list?
 4.  If yes:
-    a.  Construct the \`plan.steps\` array (max 3 tool_calls). Maximize parallelism.
-    b.  Are these 3 steps enough for the *overall goal*?
+    a.  Construct the \`plan.steps\` array (1 to 3 tool_calls). Maximize parallelism.
+    b.  Are these steps enough for the *overall goal*?
         i.  If yes, \`is_partial_plan: false\`, \`continuation_summary: null\`.
         ii. If no, \`is_partial_plan: true\`, \`continuation_summary: "Briefly describe next logical steps for Minato to offer."\`.
     c.  Set \`action_type: "generate_dynamic_workflow"\`.
@@ -161,7 +161,7 @@ export const ENTITY_EXTRACTION_SCHEMA_OPENAI = {
   name: "entity_relationship_extraction_v2",
   description: "Extracts key facts, entities, relationships, sentiment, topics, categories, summary, language, and reminders from user text for memory.",
   schema: {
-    type: "object", // No 'as const' needed here for top-level type if it's always "object"
+    type: "object",
     properties: {
       facts: {
         type: "array",
@@ -175,9 +175,9 @@ export const ENTITY_EXTRACTION_SCHEMA_OPENAI = {
           properties: {
             name: { type: "string" },
             type: { type: "string", description: "Type (PERSON, LOCATION, ORGANIZATION, PRODUCT, CONCEPT, EVENT, MISC)" },
-            language: { type: ["string", "null"] }, // This syntax is correct for nullable string
+            language: { type: ["string", "null"] },
           },
-          required: ["name", "type", "language"], // If language can be null but key must exist
+          required: ["name", "type", "language"],
           additionalProperties: false,
         },
         description: "Named entities mentioned.",
@@ -192,18 +192,10 @@ export const ENTITY_EXTRACTION_SCHEMA_OPENAI = {
             obj: { type: "string" },
             language: { type: ["string", "null"] },
             qualifiers: {
-              type: ["array", "null"],
-              description: "Context like time, location, as key-value pairs.",
-              items: {
-                type: "object",
-                properties: {
-                  key: { type: "string", description: "Qualifier name (e.g., 'time', 'location_detail')" },
-                  value: { type: "string", description: "Qualifier value" }
-                },
-                required: ["key", "value"],
-                additionalProperties: false,
-              }, // Missing comma was here
-            }, // Comma was here for qualifiers
+              type: ["object", "null"],
+              description: "Context like time, location, as key-value pairs. Can be null if no qualifiers.",
+              additionalProperties: true,
+            },
           },
           required: ["subj", "pred", "obj", "language", "qualifiers"],
           additionalProperties: false,
@@ -219,27 +211,29 @@ export const ENTITY_EXTRACTION_SCHEMA_OPENAI = {
           reminder_details: {
             type: ["object", "null"],
             properties: {
-              is_reminder: { type: "boolean", const: true }, // 'const' is a JSON schema keyword, not directly a TS type modifier here
+              is_reminder: { type: "boolean", description: "True if this is a reminder request." },
               original_content: { type: "string", description: "The core reminder text." },
               trigger_datetime: { type: "string", format: "date-time", description: "ISO 8601 UTC trigger time." },
               recurrence_rule: { type: ["string", "null"], enum: ["daily", "weekly", "monthly", "yearly", null], description: "Recurrence pattern." },
-              status: { type: "string", const: "pending", description: "Initial status." },
+              status: { type: "string", enum: ["pending"], description: "Initial status, always 'pending'." },
             },
-            required: ["is_reminder", "original_content", "trigger_datetime", "status"],
-            description: "Details if a reminder request is detected.",
+            // FIXED: Add 'recurrence_rule' to required array for reminder_details
+            required: ["is_reminder", "original_content", "trigger_datetime", "status", "recurrence_rule"],
+            description: "Details if a reminder request is detected. Null if no reminder.",
             additionalProperties: false,
           },
           detected_language: { type: ["string", "null"], description: "Primary language of user input (ISO 639-1), stored here." },
         },
+        required: [],
         additionalProperties: true,
         description: "Other key-values extracted. Includes reminder details and detected language.",
       },
       summary: { type: ["string", "null"], description: "Concise 1-sentence summary of user's main point." },
-      detected_language: { type: ["string", "null"], description: "Primary language of user input (ISO 639-1)." }, // Missing comma was here
-    }, // Comma was here for properties of schema
+      detected_language: { type: ["string", "null"], description: "Primary language of user input (ISO 639-1)." },
+    },
     required: ["facts", "entities", "relationships", "sentiment", "topics", "categories", "metadata", "summary", "detected_language"],
     additionalProperties: false,
-  } // No 'as const' needed for the entire schema object if types within are well-defined
+  }
 };
 
 export const foo = `

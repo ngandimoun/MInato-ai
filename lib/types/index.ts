@@ -84,6 +84,11 @@ export interface WorkflowState {
   variables: Record<string, any>; 
   status: "pending" | "running" | "waiting_for_user" | "completed" | "failed";
   error?: string | null;
+  clarificationPending?: string | null;
+  isPartialPlan?: boolean;
+  continuationSummary?: string | null;
+  fullPlanGoal?: string;
+  executedStepsHistory: string[];
   startTime?: number;
   activeWorkflowId?: string | null; 
   dynamicPlan?: DynamicWorkflowPlan | null; 
