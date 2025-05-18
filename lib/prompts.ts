@@ -3,14 +3,13 @@ import { appConfig } from "./config";
 import { DEFAULT_USER_NAME } from "./constants";
 import { tools as appToolsRegistry } from "./tools/index";
 import { logger } from "@/memory-framework/config";
-import { UserPersona, PredefinedPersona, WorkflowDefinition, UserState, ExtractedRelationship } from "./types"; 
-import { BaseTool } from "./tools/base-tool"; 
+import { UserPersona, PredefinedPersona, WorkflowDefinition, UserState, ExtractedRelationship } from "./types";
+import { BaseTool, OpenAIToolParameterProperties } from "./tools/base-tool";
 
 function getToolDescriptionsForPlanner(toolRegistry: { [key: string]: BaseTool }): string {
   return Object.values(toolRegistry)
     .filter(tool => (tool as any).enabled !== false)
     .map(tool => {
-        // Simplified description for planner - just name and main description
         return `- ${tool.name}: ${tool.description.substring(0, 150)}...`;
     })
     .join("\n");
@@ -93,84 +92,91 @@ You are Minato, an AI companion for {userName}. Your goal is to be helpful, know
 \`\`\`
 `.trim();
 
-// ENTITY_EXTRACTION_SCHEMA_OPENAI remains the same as it's for a specific nano model task.
-// Ensure 'required' array in metadata properties is fixed as per previous instructions.
 export const ENTITY_EXTRACTION_SCHEMA_OPENAI = {
-  name: "entity_relationship_extraction_v3_strict_metadata", // Updated name for clarity
+  name: "entity_relationship_extraction_v3_strict_metadata",
   description: "Extracts key facts, entities, relationships, sentiment, topics, categories, summary, language, and reminders from user text for memory. Ensures metadata fields are present.",
   schema: {
-    type: "object",
+    type: "object" as const,
     properties: {
       facts: {
-        type: "array",
-        items: { type: "string" },
+        type: "array" as const,
+        items: { type: "string" as const },
         description: "Key factual statements BY or ABOUT the user. Concise, max 3-4.",
       },
       entities: {
-        type: "array",
+        type: "array" as const,
         items: {
-          type: "object",
+          type: "object" as const,
           properties: {
-            name: { type: "string" },
-            type: { type: "string", description: "Type (PERSON, LOCATION, ORGANIZATION, PRODUCT, CONCEPT, EVENT, MISC)" },
-            language: { type: ["string", "null"] },
+            name: { type: "string" as const },
+            type: { type: "string" as const, description: "Type (PERSON, LOCATION, ORGANIZATION, PRODUCT, CONCEPT, EVENT, MISC)" },
+            language: { type: ["string", "null"] as const },
           },
-          required: ["name", "type"], // Removed language from required as it can be null
-          additionalProperties: false,
+          required: ["name", "type", "language"],
+          additionalProperties: false as false,
         },
         description: "Named entities mentioned.",
       },
       relationships: {
-        type: "array",
+        type: "array" as const,
         items: {
-          type: "object",
+          type: "object" as const,
           properties: {
-            subj: { type: "string" },
-            pred: { type: "string" },
-            obj: { type: "string" },
-            language: { type: ["string", "null"] },
+            subj: { type: "string" as const },
+            pred: { type: "string" as const },
+            obj: { type: "string" as const },
+            language: { type: ["string", "null"] as const },
             qualifiers: {
-              type: ["object", "null"],
+              type: ["object", "null"] as const,
               description: "Context like time, location, as key-value pairs. Can be null if no qualifiers.",
-              additionalProperties: true,
+              properties: {
+                time: { type: ["string", "null"] as const, description: "Timestamp or time description for the relationship (e.g., 'yesterday', '2024-05-18T10:00:00Z')." },
+                location: { type: ["string", "null"] as const, description: "Location where the relationship occurs (e.g., 'Paris', 'at home')." },
+                manner: { type: ["string", "null"] as const, description: "How the relationship occurs (e.g., 'quickly', 'carefully')." },
+                instrument: { type: ["string", "null"] as const, description: "Tool or item used in the relationship (e.g., 'with a pen', 'using the app')." }
+              },
+              required: ["time", "location", "manner", "instrument"], // All these keys are expected if qualifiers is not null
+              additionalProperties: false as false, // No other keys allowed in qualifiers
             },
           },
-          required: ["subj", "pred", "obj"], // Removed language, qualifiers from required as they can be null
-          additionalProperties: false,
+          required: ["subj", "pred", "obj", "language", "qualifiers"],
+          additionalProperties: false as false,
         },
         description: "Explicit relationships stated.",
       },
-      sentiment: { type: ["string", "null"], enum: ["positive", "negative", "neutral", "mixed", null], description: "User's sentiment this turn." },
-      topics: { type: "array", items: { type: "string" }, description: "Main topics (1-3)." },
-      categories: { type: "array", items: { type: "string" }, description: "Relevant categories from predefined list." },
+      sentiment: { type: ["string", "null"] as const, enum: ["positive", "negative", "neutral", "mixed", null] as ("positive" | "negative" | "neutral" | "mixed" | null)[], description: "User's sentiment this turn." },
+      topics: { type: "array" as const, items: { type: "string" as const }, description: "Main topics (1-3)." },
+      categories: { type: "array" as const, items: { type: "string" as const }, description: "Relevant categories from predefined list." },
       metadata: {
-        type: "object",
+        type: "object" as const,
         properties: {
           reminder_details: {
-            type: ["object", "null"],
+            type: ["object", "null"] as const,
             properties: {
-              is_reminder: { type: "boolean", description: "True if this is a reminder request." },
-              original_content: { type: "string", description: "The core reminder text." },
-              trigger_datetime: { type: "string", format: "date-time", description: "ISO 8601 UTC trigger time." },
-              recurrence_rule: { type: ["string", "null"], enum: ["daily", "weekly", "monthly", "yearly", null], description: "Recurrence pattern." },
-              status: { type: "string", enum: ["pending"], description: "Initial status, always 'pending'." },
+              is_reminder: { type: "boolean" as const, description: "True if this is a reminder request." },
+              original_content: { type: "string" as const, description: "The core reminder text." },
+              trigger_datetime: {
+                type: "string" as const,
+                description: "ISO 8601 UTC trigger time (e.g., '2024-07-30T14:30:00Z')." // format keyword removed
+              },
+              recurrence_rule: { type: ["string", "null"] as const, enum: ["daily", "weekly", "monthly", "yearly", null] as ("daily" | "weekly" | "monthly" | "yearly" | null)[], description: "Recurrence pattern." },
+              status: { type: "string" as const, enum: ["pending"] as unknown as ["pending"][], description: "Initial status, always 'pending'." },
             },
-            // For reminder_details, if it's an object, all its defined fields are usually required for a valid reminder
-            required: ["is_reminder", "original_content", "trigger_datetime", "status"], // recurrence_rule can be null
+            required: ["is_reminder", "original_content", "trigger_datetime", "status", "recurrence_rule"],
             description: "Details if a reminder request is detected. Null if no reminder.",
-            additionalProperties: false,
+            additionalProperties: false as false,
           },
-          detected_language: { type: ["string", "null"], description: "Primary language of user input (ISO 639-1), stored here." },
+          detected_language: { type: ["string", "null"] as const, description: "Primary language of user input (ISO 639-1), stored here." },
         },
-        required: ["reminder_details", "detected_language"], // These MUST be present in the metadata object, even if null
-        additionalProperties: true, 
-        description: "Other key-values extracted. Includes reminder details and detected language.",
+        required: ["reminder_details", "detected_language"],
+        additionalProperties: false as false, // Corrected: metadata object itself is strict
+        description: "Specific key-values extracted. Includes reminder_details and detected_language. No other dynamic keys allowed at this top metadata level.",
       },
-      summary: { type: ["string", "null"], description: "Concise 1-sentence summary of user's main point." },
-      detected_language: { type: ["string", "null"], description: "Primary language of user input (ISO 639-1). Also in metadata." },
+      summary: { type: ["string", "null"] as const, description: "Concise 1-sentence summary of user's main point." },
+      detected_language: { type: ["string", "null"] as const, description: "Primary language of user input (ISO 639-1). Also in metadata." },
     },
     required: ["facts", "entities", "relationships", "sentiment", "topics", "categories", "metadata", "summary", "detected_language"],
-    additionalProperties: false,
+    additionalProperties: false as false,
   }
 };
 
@@ -179,4 +185,4 @@ Ceci est une string
 - **Ceci est du markdown dans la string**
 `.trim();
 
-export const DYNAMIC_WORKFLOW_GENERATION_PROMPT_TEMPLATE = ``; // TODO: Remplir le template selon les besoins du workflow engine
+export const DYNAMIC_WORKFLOW_GENERATION_PROMPT_TEMPLATE = ``;
