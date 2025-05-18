@@ -54,7 +54,7 @@ export class SupabaseService {
     this.userProfilesTableName = config.vectorStore.userProfilesTableName;
     this.userPushSubscriptionsTableName =
       config.vectorStore.userPushSubscriptionsTableName;
-    this.matchMemoryFunctionName = config.vectorStore.matchFunctionName; // ex: 'match_memories_v2'
+    this.matchMemoryFunctionName = config.vectorStore.matchFunctionName;
     this.matchCacheFunctionName = config.vectorStore.matchCacheFunctionName;
     this.embeddingDimension = config.vectorStore.embeddingDimension;
     this.ftsConfiguration = config.vectorStore.ftsConfiguration;
@@ -114,6 +114,7 @@ export class SupabaseService {
         ? unit.source_turn_ids
         : null,
       expires_at: unit.expires_at ?? null,
+      // created_at and updated_at are handled by Supabase defaults or triggers
     };
   }
 
@@ -138,15 +139,16 @@ export class SupabaseService {
     let role =
       typeof metadata?.role === "string"
         ? metadata.role
-        : typeof record.role === "string"
+        : typeof record.role === "string" // Fallback to top-level role if in metadata (shouldn't be there ideally)
         ? record.role
-        : "assistant";
+        : "assistant"; // Default role
     if (!["user", "assistant", "system", "tool"].includes(role)) {
       logger.warn(
         `Invalid role '${role}' found in DB record for memory ${memory_id}. Defaulting to 'assistant'.`
       );
       role = "assistant";
     }
+
     let embeddingValue: number[] | null = null;
     if (Array.isArray(record.embedding)) {
       embeddingValue = record.embedding.map((val: any) =>
@@ -158,11 +160,36 @@ export class SupabaseService {
         );
         embeddingValue = null;
       }
+    } else if (typeof record.embedding === 'string') { // Handle string embedding
+        try {
+            const parsed = JSON.parse(record.embedding);
+            if (Array.isArray(parsed) && parsed.every(n => typeof n === 'number')) {
+                embeddingValue = parsed;
+                if (embeddingValue.length !== this.embeddingDimension) {
+                    logger.warn(
+                        `Dimension mismatch for string-parsed embedding for memory ${memory_id}. Expected ${this.embeddingDimension}, got ${embeddingValue.length}. Setting to null.`
+                    );
+                    embeddingValue = null;
+                }
+            } else {
+                logger.warn(
+                    `Parsed string embedding for memory ${memory_id} is not a number array. Setting to null. Content: ${record.embedding.substring(0,50)}...`
+                );
+                embeddingValue = null;
+            }
+        } catch (e) {
+            logger.warn(
+                `Failed to JSON.parse string embedding for memory ${memory_id}. Setting to null. Content: ${record.embedding.substring(0,50)}... Error: ${(e as Error).message}`
+            );
+            embeddingValue = null;
+        }
     } else if (record.embedding !== null && record.embedding !== undefined) {
       logger.warn(
         `Unexpected embedding format for memory ${memory_id}, type: ${typeof record.embedding}. Setting to null.`
       );
+      embeddingValue = null;
     }
+
     return {
       memory_id,
       user_id,
@@ -219,22 +246,16 @@ export class SupabaseService {
       (!filters || Object.keys(filters).length === 0)
     ) {
       logger.warn(
-        `[Memory Search] Skipped: No query embedding, text, or filters provided.`
+        `[Memory Search] Skipped: No query embedding, text, or filters provided for User: ${logUserId}.`
       );
-      // Si la query est vide et qu'aucun filtre n'est appliqué, et qu'on veut retourner les plus récents :
-      // Ici, on pourrait appeler une fonction RPC différente ou ajouter un drapeau à la fonction existante.
-      // Pour l'instant, on retourne un résultat vide si aucun critère de recherche n'est donné.
-      // Si vous voulez que queryText vide signifie "récupérer les plus récents", la fonction RPC match_memories_v2
-      // doit être conçue pour gérer ce cas (par exemple, si p_query_text est vide, trier par date desc).
       if (
         queryText === "" &&
         (!filters || Object.keys(filters).length === 0) &&
         !queryEmbedding
       ) {
         logger.info(
-          `[Memory Search] Empty queryText with no filters/embedding. Backend RPC will determine behavior (e.g., recent items or empty).`
+          `[Memory Search] Empty queryText with no filters/embedding for User: ${logUserId}. Backend RPC will determine behavior.`
         );
-        // On continue avec la query vide, le backend décidera.
       } else {
         return defaultResult;
       }
@@ -272,6 +293,7 @@ export class SupabaseService {
       filters.language.trim()
     )
       rpcFilter.language_filter = filters.language.trim();
+
     const tryParseDate = (dateStr: any): string | null => {
       try {
         if (dateStr) return new Date(dateStr).toISOString();
@@ -286,6 +308,7 @@ export class SupabaseService {
     if (updatedAtGte) rpcFilter.updated_at_gte_filter = updatedAtGte;
     const updatedAtLte = tryParseDate(filters?.updated_at_lte);
     if (updatedAtLte) rpcFilter.updated_at_lte_filter = updatedAtLte;
+
     if (typeof filters?.vector_weight === "number")
       rpcFilter.vector_weight = Math.max(0, Math.min(filters.vector_weight, 1));
     if (typeof filters?.keyword_weight === "number")
@@ -293,20 +316,19 @@ export class SupabaseService {
         0,
         Math.min(filters.keyword_weight, 1)
       );
-    rpcFilter.exclude_expired_filter = filters?.exclude_expired !== false;
+    rpcFilter.exclude_expired_filter = filters?.exclude_expired !== false; // default to true
     rpcFilter.fts_configuration =
       typeof filters?.fts_configuration === "string" &&
       filters.fts_configuration.trim()
         ? filters.fts_configuration.trim()
         : this.ftsConfiguration;
 
-    // CORRECTION: Utiliser les noms de paramètres préfixés par 'p_'
     const rpcParams = {
-      p_query_embedding: queryEmbedding, // Changé de query_embedding
-      p_query_text: queryText?.trim() || "", // Changé de query_text, peut être ""
-      p_match_limit: Math.max(1, pagination.limit), // Changé de match_limit
-      p_match_offset: Math.max(0, pagination.offset), // Changé de match_offset
-      p_filter: rpcFilter, // Changé de filter
+      p_query_embedding: queryEmbedding,
+      p_query_text: queryText?.trim() || "",
+      p_match_limit: Math.max(1, pagination.limit),
+      p_match_offset: Math.max(0, pagination.offset),
+      p_filter: rpcFilter,
     };
 
     try {
@@ -394,8 +416,6 @@ export class SupabaseService {
     }
   }
 
-  // ... (autres méthodes de SupabaseService: insertMemoryUnits, fetchMemoryById, updateMemory, etc. restent identiques)
-  // ... (elles ne sont pas directement liées aux erreurs actuelles, mais doivent être complètes dans votre fichier réel)
   async insertMemoryUnits(memoryUnits: StoredMemoryUnit[]): Promise<boolean> {
     if (!memoryUnits || memoryUnits.length === 0) return true;
     const logUserId = memoryUnits[0]?.user_id?.substring(0, 8) || "UNKNOWN";
@@ -655,7 +675,7 @@ export class SupabaseService {
         logger.warn(
           `Supabase delete: Memory ${memoryId} not found or count unknown.`
         );
-        return false;
+        return false; 
       }
       logger.info(`Deleted memory ${memoryId}. Count: ${count}`);
       return count > 0;
@@ -755,14 +775,14 @@ export class SupabaseService {
         .select("id")
         .eq("id", memoryId)
         .maybeSingle();
-      if (checkError && checkError.code !== "PGRST116") {
+      if (checkError && checkError.code !== "PGRST116") { // PGRST116 is "No rows found"
         logger.error(
           `Error checking existence of memory ${memoryId}:`,
           JSON.stringify(checkError, null, 2)
         );
         return false;
       }
-      if (!checkData) {
+      if (!checkData && checkError?.code === "PGRST116") { // Explicitly check for not found
         logger.warn(`Set expiration failed: Memory ${memoryId} not found.`);
         return false;
       }
@@ -817,12 +837,12 @@ export class SupabaseService {
     );
     try {
       const rpcParams = {
-        p_query_embedding: queryEmbedding, // Changé de query_embedding
-        p_match_threshold: matchThreshold, // Changé de match_threshold
-        p_match_limit: matchLimit,         // Changé de match_limit
-        p_filter_result_type: resultType || null,  // Changé de filter_result_type
-        p_filter_language: language || null,       // Changé de filter_language
-        p_filter_location: location || null,       // Changé de filter_location
+        p_query_embedding: queryEmbedding,
+        p_match_threshold: matchThreshold,
+        p_match_limit: matchLimit,
+        p_filter_result_type: resultType || null,
+        p_filter_language: language || null,
+        p_filter_location: location || null,
       };
       const { data, error } = await this.client.rpc(
         this.matchCacheFunctionName,
