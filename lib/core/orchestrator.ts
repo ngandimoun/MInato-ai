@@ -16,10 +16,8 @@ UserPersona,
 OpenAITtsVoice,
 ExtractedInfo,
 ChatMessageContentPart,
-// DynamicWorkflowPlan, // Simplified plan will be used
-// WorkflowState, // Simplified state management
 ChatMessageContentPartText,
-ResponseApiInputContent,
+ResponseApiInputContent, // Keep if formatMessagesForResponsesApi uses it
 MessageAttachment,
 } from "@/lib/types/index";
 import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "../tools/base-tool";
@@ -28,6 +26,7 @@ import { MemoryTool } from "../tools/MemoryTool";
 import { InternalTaskTool } from "../tools/InternalTaskTool";
 import { TTSService } from "../providers/tts_service";
 import { STTService } from "../providers/stt_service";
+import { VideoAnalysisService } from "../services/VideoAnalysisService"; // NEW
 import { supabaseAdmin } from "../supabaseClient";
 import { getSupabaseAdminClient } from "../supabase/server";
 import { Security } from "../utils/security";
@@ -42,22 +41,18 @@ MEDIA_UPLOAD_BUCKET,
 } from "../constants";
 import { appConfig, injectPromptVariables } from "../config";
 import {
-generateAgentResponse, // Will use GPT-4o
-generateStructuredJson, // Will use GPT-4.1 for tool routing
-generateVisionCompletion, // Will use GPT-4o
-// generateEmbeddingLC, // From memory framework for embeddings
-// generateResponseWithIntent, // Replaced by direct GPT-4o call + intent classification
-} from "../providers/llm_clients"; // generateResponseWithIntent will be adapted
+generateAgentResponse,
+generateStructuredJson,
+generateVisionCompletion, // May not be directly called if VideoAnalysisService handles it
+} from "../providers/llm_clients";
 import { RESPONSE_SYNTHESIS_PROMPT_TEMPLATE, TOOL_ROUTER_PROMPT_TEMPLATE } from "../prompts";
 import { logger } from "../../memory-framework/config";
 import { safeJsonParse } from "../../memory-framework/core/utils";
-// import { WorkflowEngine, DYNAMIC_WORKFLOW_DESIGN_MODEL } from "./workflow-engine"; // WorkflowEngine might be simplified or its logic integrated
 import { CompletionUsage } from "openai/resources";
 
 type SdkResponsesApiTool = OpenAI.Chat.Completions.ChatCompletionTool;
 type SdkResponsesApiFunctionCall = ChatCompletionMessageToolCall;
 
-// Simplified Plan from Tool Router
 type ToolRouterPlanStep = {
   tool_name: string;
   arguments: Record<string, any>;
@@ -112,7 +107,7 @@ function summarizeChatHistory(history: ChatMessage[], maxLength: number = 1000):
     return history.slice(-MAX_CHAT_HISTORY * 2) 
         .map((msg) => {
             let contentPreview = "";
-            if (typeof msg.content === "string") {
+            if (typeof msg.content === 'string') {
                 contentPreview = msg.content.substring(0, 100) + (msg.content.length > 100 ? "..." : "");
             } else if (Array.isArray(msg.content)) {
                 const textPartObject = msg.content.find((p): p is ChatMessageContentPartText => p.type === "text");
@@ -137,24 +132,20 @@ function isValidOpenAITtsVoice(voice: string | null | undefined): voice is OpenA
     return (appConfig.openai.ttsVoices as ReadonlyArray<string>).includes(voice);
 }
 
-// This function can be simplified or removed if tool schemas are directly compatible.
-// For now, keeping a simplified version for potential minor adjustments.
 function sanitizeToolParameterSchemaForOpenAI(originalSchema: BaseTool['argsSchema']): OpenAI.FunctionDefinition["parameters"] {
   if (!originalSchema || originalSchema.type !== 'object' || !originalSchema.properties) {
     return { type: "object", properties: {} };
   }
-  // Basic pass-through, assuming BaseTool schemas are now more OpenAI-compliant.
-  // More complex sanitization can be added if needed.
   return {
     type: "object",
-    properties: originalSchema.properties as any, // Cast if necessary
+    properties: originalSchema.properties as any, 
     required: originalSchema.required,
     additionalProperties: originalSchema.additionalProperties,
   };
 }
 
-const CHAT_VISION_MODEL_NAME = appConfig.openai.chatModel;
 const PLANNING_MODEL_NAME = appConfig.openai.planningModel;
+const CHAT_VISION_MODEL_NAME = appConfig.openai.chatModel; // GPT-4o handles both text and vision
 
 function summarizeUserStateForWorkflow(userState: UserState | null, maxLength: number = 200): string {
   if (!userState) return "No user state.";
@@ -169,12 +160,27 @@ function summarizeUserStateForWorkflow(userState: UserState | null, maxLength: n
   return parts.join(" | ").substring(0, maxLength) || "Basic user state.";
 }
 
+// Utilitaire pour convertir ChatMessageContentPart[] en MessagePart[]
+function chatMessageContentPartsToMessageParts(parts: ChatMessageContentPart[]): import("../../memory-framework/core/types").MessagePart[] {
+  return parts.map((p) => {
+    if (p.type === "text") {
+      return { type: "text", text: p.text };
+    } else if (p.type === "input_image") {
+      return { type: "image_url", image_url: { url: p.image_url, detail: p.detail } };
+    } else {
+      // fallback: ignore unknown types
+      return { type: "text", text: "[Unsupported content]" };
+    }
+  });
+}
+
 export class Orchestrator {
   private ttsService = new TTSService();
   private sttService = new STTService();
+  private videoAnalysisService = new VideoAnalysisService(); // NEW
   private toolRegistry: { [key: string]: BaseTool };
   private memoryFramework: CompanionCoreMemory;
-  private availableToolsForRouter: SdkResponsesApiTool[] = []; // For GPT-4.1 tool router
+  private availableToolsForRouter: SdkResponsesApiTool[] = [];
 
   constructor() {
     logger.info("[Orch] Initializing Orchestrator (GPT-4.1 Tool Router, GPT-4o Main, Max 3 Tools/Turn)...");
@@ -193,7 +199,6 @@ export class Orchestrator {
       [internalTaskToolInstance.name]: internalTaskToolInstance,
     };
 
-    // Tool schemas for the GPT-4.1 tool_router
     this.availableToolsForRouter = Object.values(this.toolRegistry)
       .filter(tool => (tool as BaseTool).enabled !== false)
       .map(tool => {
@@ -203,7 +208,7 @@ export class Orchestrator {
           type: "function" as const,
           function: {
             name: baseTool.name,
-            description: baseTool.description.substring(0, 1024), // Ensure description length for OpenAI
+            description: baseTool.description.substring(0, 1024),
             parameters: sanitizedParams,
           }
         } as SdkResponsesApiTool;
@@ -217,7 +222,7 @@ export class Orchestrator {
 
   private async executeToolCalls(
     userId: string,
-    toolCallsFromRouter: ToolRouterPlan, // Simplified plan
+    toolCallsFromRouter: ToolRouterPlan, 
     apiContext: Record<string, any>,
     userState: UserState | null
   ): Promise<{ messages: ChatMessage[]; lastStructuredData: AnyToolStructuredData | null; llmUsage: null; toolResultsSummary: string }> {
@@ -226,11 +231,10 @@ export class Orchestrator {
     const structuredDataMap: Map<string, AnyToolStructuredData | null> = new Map();
     let toolResultsSummaryParts: string[] = [];
 
-    // Parallel execution for all tools selected by the router
     const executionPromises = toolCallsFromRouter.map(async (routedToolCall) => {
       const toolName = routedToolCall.tool_name;
       const tool = this.toolRegistry[toolName];
-      const callId = `toolcall_${randomUUID()}`; // Generate a local call_id for tracking
+      const callId = `toolcall_${randomUUID()}`; 
 
       if (!tool) {
         logger.error(`${logPrefix} Tool '${toolName}' (from Router) not found.`);
@@ -280,10 +284,10 @@ export class Orchestrator {
 
     for (let i = 0; i < settledResults.length; i++) {
       const result = settledResults[i];
-      const originalRoutedCall = toolCallsFromRouter[i]; // For context
+      const originalRoutedCall = toolCallsFromRouter[i]; 
       if (result.status === "fulfilled" && result.value) {
         toolResultsMessages.push(result.value as ChatMessage);
-        const callId = (result.value as ChatMessage).tool_call_id!; // Should exist
+        const callId = (result.value as ChatMessage).tool_call_id!; 
         if (!result.value.content?.startsWith("Error:") && structuredDataMap.has(callId)) {
           const data = structuredDataMap.get(callId);
           if (data) lastSuccessfulStructuredData = data;
@@ -300,10 +304,10 @@ export class Orchestrator {
 
   public async runOrchestration(
     userId: string,
-    userInput: string | ChatMessageContentPart[], // Can be multimodal
+    userInput: string | ChatMessageContentPart[],
     history: ChatMessage[] = [],
     apiContext?: Record<string, any>,
-    initialAttachments?: MessageAttachment[] // For files uploaded with the message
+    initialAttachments?: MessageAttachment[]
   ): Promise<OrchestratorResponse> {
     const overallStartTime = Date.now();
     const runId = apiContext?.sessionId || apiContext?.runId || `${SESSION_ID_PREFIX}${randomUUID()}`;
@@ -319,8 +323,9 @@ export class Orchestrator {
     let finalFlowType: DebugFlowType = "error";
     let finalResponseSource: string | null = "Error";
     let currentTurnToolResultsSummary: string | null = null;
-    let toolRouterFollowUpSuggestion: string | null = null; // For GPT-4o to potentially use
+    let toolRouterFollowUpSuggestion: string | null = null;
     let finalToolCallsLogged: any[] = [];
+    let videoSummaryForContext: string | null = null;
 
     const userName = await this.getUserFirstName(userId);
     const userState: UserState | null = await supabaseAdmin.getUserState(userId);
@@ -339,19 +344,45 @@ export class Orchestrator {
     } catch (e: any) { logger.error(`[${turnIdentifier}] Error fetching persona:`, e.message); }
 
     try {
-      // 1. Convert multimodal userInput to text for Tool Router, if necessary
       let textQueryForRouter: string;
+      let mainUserInputContent: ChatMessageContentPart[] = [];
+
       if (typeof userInput === 'string') {
         textQueryForRouter = userInput;
-      } else {
+        mainUserInputContent.push({ type: "text", text: userInput });
+      } else { // userInput is ChatMessageContentPart[]
+        mainUserInputContent = [...userInput];
         const textPart = userInput.find(p => p.type === 'text') as ChatMessageContentPartText | undefined;
-        textQueryForRouter = textPart?.text || "[User sent media content]";
-        if (userInput.some(p => (p as any).type === 'input_image')) {
-            textQueryForRouter += " (User also provided images/frames)";
+        textQueryForRouter = textPart?.text || ""; // Start with text
+        if (userInput.some(p => (p as any).type === 'input_image' || (p as any).type === 'image_url')) {
+            textQueryForRouter += (textQueryForRouter ? " " : "") + "[User sent images/frames]";
         }
       }
 
-      // 2. Call Tool Router (GPT-4.1)
+      // Handle video attachment analysis if present
+      const videoAttachment = initialAttachments?.find(att => att.type === 'video' && att.file);
+      if (videoAttachment && videoAttachment.file) {
+        logger.info(`[${turnIdentifier}] Detected video attachment: ${videoAttachment.name}. Initiating analysis.`);
+        const videoAnalysisResult = await this.videoAnalysisService.analyzeVideo(
+          Buffer.from(await videoAttachment.file.arrayBuffer()), // Convert Blob to Buffer
+          videoAttachment.name || "uploaded_video",
+          videoAttachment.mimeType || "video/mp4",
+          textQueryForRouter || "Describe this video.", // Use existing query as prompt for video
+          userId
+        );
+        if (videoAnalysisResult.summary) {
+          videoSummaryForContext = videoAnalysisResult.summary;
+          textQueryForRouter += (textQueryForRouter ? "\n" : "") + `[Video Content Summary: ${videoSummaryForContext.substring(0,200)}...]`;
+          logger.info(`[${turnIdentifier}] Video analysis successful. Summary added to router query.`);
+          // Optionally, add the summary as a "tool_result" like message for GPT-4o if needed,
+          // or just ensure it's part of the context for RESPONSE_SYNTHESIS_PROMPT_TEMPLATE.
+        } else if (videoAnalysisResult.error) {
+          logger.warn(`[${turnIdentifier}] Video analysis failed: ${videoAnalysisResult.error}. Proceeding without video summary.`);
+          textQueryForRouter += (textQueryForRouter ? "\n" : "") + "[Video analysis attempted but failed to produce summary.]";
+        }
+      }
+
+      // Tool Router (GPT-4.1)
       let routedTools: ToolRouterPlan = [];
       const toolRouterPrompt = injectPromptVariables(TOOL_ROUTER_PROMPT_TEMPLATE, {
           userName, userQuery: textQueryForRouter,
@@ -361,14 +392,14 @@ export class Orchestrator {
           language: lang, userPersona: personaNameForPrompt,
       });
       
-      logger.info(`[${turnIdentifier}] Invoking Tool Router (GPT-4.1)... Query: "${textQueryForRouter.substring(0,50)}"`);
+      logger.info(`[${turnIdentifier}] Invoking Tool Router (GPT-4.1)... Query for router: "${textQueryForRouter.substring(0,70)}"`);
       const routerResult = await generateStructuredJson<ToolRouterPlan>(
           toolRouterPrompt,
-          textQueryForRouter, // User input to the planner
-          { type: "array", items: { /* schema for ToolRouterPlanStep */ type: "object", properties: { tool_name: {type: "string"}, arguments: {type: "object", additionalProperties: true}, reason: {type: "string"}}, required: ["tool_name", "arguments"] } },
+          textQueryForRouter,
+          { type: "array", items: { type: "object", properties: { tool_name: {type: "string"}, arguments: {type: "object", additionalProperties: false /* Corrected */}, reason: {type: "string"}}, required: ["tool_name", "arguments"] } },
           "minato_tool_router_v1",
-          history.filter(m => typeof m.content === 'string'), // Text-only history for planner
-          PLANNING_MODEL_NAME, // GPT-4.1
+          history.filter(m => typeof m.content === 'string'),
+          PLANNING_MODEL_NAME,
           userId
       );
 
@@ -379,62 +410,61 @@ export class Orchestrator {
           routedTools = routerResult;
           finalToolCallsLogged = routedTools.map(rt => ({toolName: rt.tool_name, args: rt.arguments, reason: rt.reason}));
           logger.info(`[${turnIdentifier}] Tool Router selected ${routedTools.length} tools: ${routedTools.map(t=>t.tool_name).join(', ')}`);
-          if (routedTools.length > 0) finalFlowType = "workflow_routed";
-          else finalFlowType = "direct_llm_no_tools_routed";
+          finalFlowType = routedTools.length > 0 ? "workflow_routed" : "direct_llm_no_tools_routed";
       }
-      // The user's prompt for the 'tool_router' might suggest a follow-up if the current tools only address part of a larger request.
-      // This is simplified from the complex DYNAMIC_WORKFLOW_GENERATION_PROMPT.
-      // For now, we'll assume the router returns up to 3 immediate tools and GPT-4o handles natural follow-up.
-      // If a more explicit "continuation_summary" is needed from the router, its schema and prompt must be updated.
 
-      // 3. Execute Tools if selected by router
+      // Execute Tools
       let toolExecutionMessages: ChatMessage[] = [];
       if (routedTools.length > 0) {
           const executionResult = await this.executeToolCalls(userId, routedTools, effectiveApiContext, userState);
           toolExecutionMessages = executionResult.messages;
           finalStructuredResult = executionResult.lastStructuredData;
           currentTurnToolResultsSummary = executionResult.toolResultsSummary;
-          // Accumulate LLM usage if executeToolCalls starts making LLM calls (e.g. for sub-agents)
-          // if (executionResult.llmUsage) { /* ... accumulate usage ... */ }
       }
       
-      // 4. Prepare context for GPT-4o (Main Response Synthesis)
+      // Prepare context for GPT-4o (Main Response Synthesis)
       const messagesForGpt4o: ChatMessage[] = [
         ...history,
-        { role: "user", content: userInput, name: userName, timestamp: Date.now(), attachments: initialAttachments }, // Original user input
-        ...toolExecutionMessages, // Results from tools called by router
+        { role: "user", content: mainUserInputContent, name: userName, timestamp: Date.now(), attachments: initialAttachments?.filter(att => att.type !== 'video') }, // Send original multimodal input, filter out raw video if summary was used
+        ...toolExecutionMessages,
       ];
+      if (videoSummaryForContext && !initialAttachments?.find(att => att.type === 'video')) {
+          // If video summary was generated but original video wasn't part of mainUserInputContent (e.g. handled via attachment only)
+          // Add a system-like message indicating the video summary context
+          messagesForGpt4o.push({ role: "system", content: `Context from attached video: ${videoSummaryForContext}`, timestamp: Date.now() });
+      }
+
 
       let retrievedMemoryContext = "INTERNAL CONTEXT - RELEVANT MEMORIES: None found or not applicable for this turn.";
-      // Strategic Memory Retrieval (simplified for this pass)
       const entitiesForMemorySearch: string[] = [textQueryForRouter.substring(0,70)];
-      if (finalStructuredResult) { /* ... add entities from structured result if applicable ... */ }
+      if (finalStructuredResult) { /* ... */ }
       if (entitiesForMemorySearch.length > 0) {
           logger.info(`[${turnIdentifier}] Performing targeted memory search for GPT-4o...`);
           const memoryResults = await this.memoryFramework.search_memory(entitiesForMemorySearch.join(" "), userId, { limit: 3, offset: 0 }, runId, { enableHybridSearch: true, enableGraphSearch: false, enableConflictResolution: true });
           if (memoryResults.results.length > 0) { retrievedMemoryContext = `INTERNAL CONTEXT - RELEVANT MEMORIES (Use these to add helpful related context for ${userName}):\n${memoryResults.results.map(r => `- ${r.content.substring(0,150)}...`).join("\n")}`; }
       }
 
-      // 5. Call GPT-4o for Response Synthesis
+      // Call GPT-4o for Response Synthesis
       const synthesisSystemPrompt = injectPromptVariables(RESPONSE_SYNTHESIS_PROMPT_TEMPLATE, {
           userName, personaName: personaNameForPrompt, personaInstructions: personaSpecificInstructions, language: lang,
           retrieved_memory_context: retrievedMemoryContext,
           tool_results_summary: currentTurnToolResultsSummary || "No tools were executed by Minato this turn, or their results are directly integrated.",
-          original_query: textQueryForRouter,
-          tool_router_follow_up_suggestion: toolRouterFollowUpSuggestion || `Is there anything else Minato can help with, ${userName}?` // Simplified follow-up
+          original_query: textQueryForRouter, // Use router query which might include video summary context
+          tool_router_follow_up_suggestion: toolRouterFollowUpSuggestion || `Is there anything else Minato can help you with today, ${userName}?`
       });
       
       logger.info(`[${turnIdentifier}] Synthesizing final response (GPT-4o)...`);
       const synthesisResult = await generateStructuredJson<{ responseText: string; intentType: string }>(
           synthesisSystemPrompt,
-          textQueryForRouter, // The main query text for context
-          { /* Intent Schema from prompts.ts */
+          textQueryForRouter, // Main query text for context
+          { 
             type: "object",
             properties: { responseText: {type: "string"}, intentType: {type: "string", enum: Object.keys(TTS_INSTRUCTION_MAP)} },
             required: ["responseText", "intentType"],
+            additionalProperties: false, // Ensure synthesis schema is also strict
           },
           "minato_gpt4o_synthesis_v1",
-          messagesForGpt4o, // Full context including user message and tool results
+          messagesForGpt4o, // Pass the potentially multimodal history
           CHAT_VISION_MODEL_NAME, // GPT-4o
           userId
       );
@@ -443,24 +473,24 @@ export class Orchestrator {
       if (synthesisLlmUsage) { llmUsage_total.prompt_tokens += synthesisLlmUsage.prompt_tokens || 0; llmUsage_total.completion_tokens += synthesisLlmUsage.completion_tokens || 0; llmUsage_total.total_tokens += synthesisLlmUsage.total_tokens || 0; }
 
       if ("error" in synthesisResult) {
-          finalResponseText = `I've processed your request, ${userName}, but I'm having a bit of trouble wording my reply. ${synthesisResult.error?.substring(0,100) || "Could you try rephrasing?"}`;
-          responseIntentType = "apologetic";
-          if ((finalFlowType as string) !== "error") {
-            finalFlowType = "synthesis_error";
-          }
-          logger.error(`[${turnIdentifier}] GPT-4o Synthesis LLM failed: ${synthesisResult.error}`);
+        finalResponseText = `I've processed your request, ${userName}, but I'm having a bit of trouble wording my reply. ${synthesisResult.error?.substring(0,100) || "Could you try rephrasing?"}`;
+        responseIntentType = "apologetic";
+        finalFlowType = "synthesis_error";
+        logger.error(`[${turnIdentifier}] GPT-4o Synthesis LLM failed: ${synthesisResult.error}`);
       } else {
-          finalResponseText = synthesisResult.responseText;
-          responseIntentType = synthesisResult.intentType;
-          if ((finalFlowType as string) === "error") { /* Keep error flow type */ }
-          else if ((finalFlowType as string) === "direct_llm_after_router_fail") { /* Keep this */ }
-          else finalFlowType = routedTools.length > 0 ? "workflow_synthesis" : "direct_llm_synthesis";
+        finalResponseText = synthesisResult.responseText;
+        responseIntentType = synthesisResult.intentType;
+        if (typeof finalFlowType === 'string' && finalFlowType === 'direct_llm_after_router_fail') { /* Keep this */ }
+        else finalFlowType = routedTools.length > 0 ? "workflow_synthesis" : "direct_llm_synthesis";
       }
       ttsInstructionsForFinalResponse = getDynamicInstructions(responseIntentType);
       finalResponseSource = "GPT-4o Synthesis";
 
-      // 6. Add to Memory
-      const userMemoryMsgForAdd: MemoryFrameworkMessage | null = userInput ? { role: 'user', content: typeof userInput === 'string' ? userInput : JSON.stringify(userInput), name: userName } : null;
+      // Add to Memory
+      // Ensure mainUserInputContent (which is ChatMessageContentPart[]) is used for memory if input was multimodal
+      const userMemoryMsgForAdd: MemoryFrameworkMessage | null = mainUserInputContent.length > 0
+        ? { role: 'user', content: chatMessageContentPartsToMessageParts(mainUserInputContent), name: userName }
+        : null;
       const finalAssistantMemoryMsg: MemoryFrameworkMessage | null = finalResponseText ? { role: 'assistant', content: finalResponseText, name: "Minato" } : null;
       const finalTurnForMemory: MemoryFrameworkMessage[] = [userMemoryMsgForAdd, finalAssistantMemoryMsg].filter((m): m is MemoryFrameworkMessage => m !== null);
       if (finalTurnForMemory.length > 0) { this.memoryFramework.add_memory(finalTurnForMemory, userId, runId, null).then(success => logger.info(`[${turnIdentifier}] Async memory add OK: ${success}.`)).catch(e => logger.error(`[${turnIdentifier}] Async memory add FAIL:`, e.message)); }
@@ -470,11 +500,12 @@ export class Orchestrator {
       
       const debugInfoInternal: OrchestratorResponse['debugInfo'] = { 
           flow_type: finalFlowType, 
-          llmModelUsed: CHAT_VISION_MODEL_NAME, // GPT-4o
-          workflowPlannerModelUsed: PLANNING_MODEL_NAME, // GPT-4.1
+          llmModelUsed: CHAT_VISION_MODEL_NAME, 
+          workflowPlannerModelUsed: PLANNING_MODEL_NAME, 
           llmUsage: llmUsage_total, 
           latencyMs: orchestrationMs, 
-          toolCalls: finalToolCallsLogged 
+          toolCalls: finalToolCallsLogged,
+          videoSummaryUsed: videoSummaryForContext ? videoSummaryForContext.substring(0, 100) + "..." : null,
       };
       logger.info(`--- ${turnIdentifier} Orchestration complete (${orchestrationMs}ms). Flow: ${finalFlowType}. ---`);
       
@@ -484,19 +515,18 @@ export class Orchestrator {
           intentType: responseIntentType, 
           ttsInstructions: ttsInstructionsForFinalResponse, 
           clarificationQuestion: clarificationQuestionForUser, 
-          error: finalFlowType.includes("error") ? (finalResponseText || "Processing error") : null, 
+          error: (typeof finalFlowType === 'string' && finalFlowType.includes("error")) ? (finalResponseText || "Processing error") : null, 
           lang: lang, 
           structuredData: finalStructuredResult, 
           workflowFeedback: null, 
           debugInfo: debugInfoInternal, 
           audioUrl: null, 
-          transcription: typeof userInput === 'string' && apiContext?.transcription ? apiContext.transcription : null,
+          transcription: typeof userInput === 'string' && apiContext?.transcription ? apiContext.transcription : (textQueryForRouter !== userInput ? textQueryForRouter : null), // Include router query if different
           llmUsage: llmUsage_total,
-          attachments: initialAttachments,
+          attachments: [], // Assistant doesn't re-attach user's video
       };
 
     } catch (error: any) {
-      // ... (existing comprehensive error handling) ...
       const duration = Date.now() - overallStartTime;
       const errorMessageString = String(error?.message || error || "Orchestration process failed unexpectedly.");
       logger.error(`--- ${turnIdentifier} Orchestration FAILED (${duration}ms):`, errorMessageString, error.stack);
@@ -508,14 +538,13 @@ export class Orchestrator {
     }
   }
 
-  // processTextMessage and processAudioMessage will now primarily call runOrchestration
   async processTextMessage(
     userId: string,
-    text: string | null, // Can be null if only attachments are present in a theoretical scenario
+    text: string | null,
     history: ChatMessage[] = [],
     sessionId?: string,
     apiContext?: Record<string, any>,
-    attachments?: MessageAttachment[] // Added to accept attachments
+    attachments?: MessageAttachment[]
   ): Promise<OrchestratorResponse> {
     const userState = await supabaseAdmin.getUserState(userId);
     const lang = apiContext?.lang || userState?.preferred_locale?.split("-")[0] || appConfig.defaultLocale.split("-")[0] || "en";
@@ -523,16 +552,17 @@ export class Orchestrator {
     const userName = await this.getUserFirstName(userId);
     const effectiveApiContext = { ...apiContext, sessionId: effectiveSessionId, locale: userState?.preferred_locale || appConfig.defaultLocale, lang, userName };
     
-    const inputText = text ?? ""; // Ensure text is at least an empty string
+    const inputText = text ?? ""; 
     let orchestratorInput: string | ChatMessageContentPart[] = inputText;
 
-    if (attachments && attachments.length > 0) {
+    // If attachments are present (e.g., images), construct multimodal input
+    // Video attachments are handled within runOrchestration if `initialAttachments` is populated correctly
+    if (attachments && attachments.some(att => att.type === 'image')) {
         const contentParts: ChatMessageContentPart[] = [{type: "text", text: inputText}];
         for (const att of attachments) {
-            if (att.type === "image" && att.url) {
+            if (att.type === "image" && att.url) { // Assuming URL is already public or data URI
                 contentParts.push({type: "input_image", image_url: att.url});
             }
-            // Add handling for other attachment types if GPT-4o is to process them directly
         }
         orchestratorInput = contentParts;
     }
@@ -543,7 +573,7 @@ export class Orchestrator {
 
   async processAudioMessage(
     userId: string,
-    audioSignedUrl: string, // URL to the audio file in Supabase storage
+    audioSignedUrl: string,
     history: ChatMessage[] = [],
     sessionId?: string,
     apiContext?: Record<string, any>
@@ -555,11 +585,10 @@ export class Orchestrator {
     let detectedLang: string | null = null;
     let audioFetchDuration: number | undefined, sttDuration: number | undefined, ttsDuration: number | undefined;
     let orchResult: OrchestratorResponse | null = null;
-    // Initial log interaction can be simplified as detailed logging happens within runOrchestration
     
     try {
       const fetchStart = Date.now();
-      const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout for audio fetch
+      const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 15000);
       const fetchResponse = await fetch(audioSignedUrl, { signal: controller.signal }); clearTimeout(timeoutId);
       if (!fetchResponse.ok) throw new Error(`Audio fetch failed: ${fetchResponse.status} ${fetchResponse.statusText}`);
       const audioBuffer = Buffer.from(await fetchResponse.arrayBuffer()); audioFetchDuration = Date.now() - fetchStart;
@@ -579,9 +608,8 @@ export class Orchestrator {
       
       orchResult = await this.runOrchestration(userId, transcribedText, history, effectiveApiContext);
       
-      // Simplified error handling for audio specific part, main error handling is in runOrchestration
       if (orchResult && orchResult.error && !orchResult.clarificationQuestion) {
-        throw new Error(orchResult.error); // Propagate error to main catch
+        throw new Error(orchResult.error);
       }
 
       let ttsUrl: string | null = null;
@@ -597,10 +625,9 @@ export class Orchestrator {
           const ttsResult = await this.ttsService.generateAndStoreSpeech(orchResult.response, userId, selectedVoice as OpenAITtsVoice, orchResult.ttsInstructions); 
           ttsDuration = Date.now() - ttsStart;
           if (ttsResult.url) ttsUrl = ttsResult.url; else logger.error(`--- ${turnIdentifier} TTS failed: ${ttsResult.error}.`);
-          if(orchResult) orchResult.audioUrl = ttsUrl; // Update the result object
+          if(orchResult) orchResult.audioUrl = ttsUrl; 
       }
       
-      // State update and streak increment remain
       supabaseAdmin.updateState(userId, { last_interaction_at: new Date().toISOString(), preferred_locale: effectiveApiContext.locale }).catch((err: any) => logger.error(`Err state update:`, err));
       supabaseAdmin.incrementStreak(userId, "daily_voice").catch((err:any) => logger.error(`Err streak:`, err));
       
@@ -633,7 +660,7 @@ export class Orchestrator {
           attachments: orchResult?.attachments || []
       };
 
-    } catch (error: any) { // Catch errors from STT or initial audio fetch
+    } catch (error: any) { 
       const duration = Date.now() - startTime;
       const errorMessageString = String(error?.message || error || "Audio processing failed unexpectedly.");
       logger.error(`--- ${turnIdentifier} Error (${duration}ms): ${errorMessageString}`, error.stack);
@@ -664,19 +691,12 @@ export class Orchestrator {
       };
     }
   }
-
-  // getWorkflowEngine method is removed as its direct use is subsumed by new orchestrator logic
 }
 
-
-// Ensure global type augmentation for CompanionCoreMemory is still present if needed elsewhere,
-// but it's not directly used by the simplified Orchestrator.
 declare module "../../memory-framework/core/CompanionCoreMemory" {
   interface CompanionCoreMemory {
-    // add_memory_extracted(...) // Potentially not needed if add_memory handles all cases
     getPersonaById(personaId: string, userId: string): Promise<PredefinedPersona | UserPersona | null>;
     getDueReminders(dueBefore: string, userId?: string | null, limit?: number): Promise<StoredMemoryUnit[] | null>;
     updateReminderStatus(memoryId: string, status: ReminderDetails["status"], errorMessage?: string | null): Promise<boolean>;
   }
 }
-// (global as any).sanitizeToolParameterSchemaForOpenAI = ... // This was a global polyfill, might not be needed or should be handled differently

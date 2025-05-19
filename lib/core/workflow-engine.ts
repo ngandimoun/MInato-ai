@@ -27,9 +27,11 @@ import { DYNAMIC_WORKFLOW_GENERATION_PROMPT_TEMPLATE } from "@/lib/prompts";
 import OpenAI from "openai";
 import { getProperty } from "dot-prop";
 import { CompletionUsage } from "openai/resources";
+
 export const DYNAMIC_WORKFLOW_DESIGN_MODEL: OpenAIPlanningModel | OpenAILLMBalanced = appConfig.llm.chatModel || "gpt-4.1-mini-2025-04-14";
 const DEFAULT_LLM_STEP_MODEL: OpenAILLMFast = appConfig.llm.extractionModel || "gpt-4.1-nano-2025-04-14";
 const WORKFLOW_MAX_TOOLS_PER_TURN = 3;
+
 type DynamicWorkflowPlanWithPartial = DynamicWorkflowPlan & {
 is_partial_plan?: boolean;
 continuation_summary?: string | null;
@@ -38,6 +40,7 @@ type WorkflowStateWithPartial = Omit<WorkflowState, 'status' | 'dynamicPlan'> & 
 status: WorkflowState['status'] | 'paused_for_continuation';
 dynamicPlan: DynamicWorkflowPlanWithPartial | null;
 };
+
 function summarizeChatHistoryForWorkflow(history: ChatMessage[], maxLength: number = 300): string {
 if (!history || history.length === 0) return "No recent history.";
 return history.slice(-3).map(m => {
@@ -51,6 +54,7 @@ contentPreview = textPart ? textPart.substring(0, 40) + (textPart.length > 40 ? 
 return `${m.role}: ${contentPreview || "[no text content]"}`;
 }).join("\n").substring(0, maxLength);
 }
+
 function summarizeUserStateForWorkflow(userState: UserState | null, maxLength: number = 200): string {
 if (!userState) return "No user state.";
 const parts: string[] = [];
@@ -63,9 +67,11 @@ const personaTraits = (userState as any)?.active_persona_traits?.join(', ') || '
 parts.push(`Traits: ${personaTraits}`);
 return parts.join(" | ").substring(0, maxLength) || "Basic user state.";
 }
+
 const WORKFLOW_LLM_PROMPT_TEMPLATES: Record<string, string> = {
 summarizeToolResults: "Synthesize these tool outputs into a brief summary for {userName}: {toolOutputVar}",
 };
+
 function autoParallelizeWorkflowSteps(stepsInBatch: WorkflowStep[], variables: Record<string, any>): WorkflowStep[] {
 let i = 0;
 const batchSize = stepsInBatch.length;
@@ -94,16 +100,20 @@ i++;
 }
 return stepsCopy;
 }
+
 export class WorkflowEngine {
 private toolRegistry: { [key: string]: BaseTool };
 private activeWorkflows: Map<string, WorkflowStateWithPartial> = new Map();
+
 constructor(toolRegistry: { [key: string]: BaseTool }) {
 this.toolRegistry = toolRegistry;
 logger.info(`[WorkflowEngine] Initialized with ${Object.keys(this.toolRegistry).length} tools.`);
 }
+
 public async selectAndPlanWorkflow( userQuery: string, userId: string, history: ChatMessage[], userName: string, userState: UserState | null ): Promise<{ plan: DynamicWorkflowPlan | null; clarificationQuestion?: string | null; actionType: "generate_dynamic_workflow" | "request_clarification" | "no_workflow_needed" | "error"; isPartialPlan?: boolean; continuationSummary?: string | null; llmUsage?: CompletionUsage | null; error?: string | null; }> {
 const logPrefix = `[WF SelectAndPlan User:${userId.substring(0,8)}] Query:"${userQuery.substring(0,30)}..."`;
 logger.info(`${logPrefix} Using LLM for dynamic workflow planning (Model: ${DYNAMIC_WORKFLOW_DESIGN_MODEL}).`);
+
 const availableToolsForPlanning = Object.values(this.toolRegistry)
 .filter(t => (t as any).enabled !== false)
 .map(t => {
@@ -113,6 +123,7 @@ const reqArgs = argsSchemaObj.required || [];
 const argSummary = args.map(arg => `${arg}${reqArgs.includes(arg) ? '*' : ''}`).join(', ');
 return `- ${t.name}: ${t.description.substring(0,100)}... Args: ${argSummary || 'None'}`;
 }).join("\n");
+
 const language = userState?.preferred_locale?.split("-")[0] || appConfig.defaultLocale.split("-")[0] || "en";
 const personaContext: Record<string, any> = {
 userPersona: userState?.active_persona_id || 'Default Minato Persona',
@@ -122,7 +133,9 @@ avoidTools: (userState as any)?.active_persona_avoidTools?.join(', ') || 'none s
 style: (userState as any)?.active_persona_style || 'conversational',
 tone: (userState as any)?.active_persona_tone || 'neutral and helpful',
 };
+
 const injectedPrompt = injectPromptVariables(DYNAMIC_WORKFLOW_GENERATION_PROMPT_TEMPLATE, { userQuery, userName, conversationHistorySummary: summarizeChatHistoryForWorkflow(history), userStateSummary: summarizeUserStateForWorkflow(userState), available_tools_for_planning: availableToolsForPlanning, language: language, ...personaContext, });
+
 const llmPlannerSchema = {
   type: "object" as const,
   properties: {
@@ -139,7 +152,17 @@ const llmPlannerSchema = {
             properties: {
               type: { type: "string" as const, enum: ["tool_call", "llm_process", "clarification_query"], description: "Step type."},
               toolName: { type: ["string", "null"] as const, description: "Tool name if type is 'tool_call'." },
-              toolArgs: { type: ["object", "null"] as const, additionalProperties: true, description: "Args for tool_call, only include relevant ones." },
+              toolArgs: { // Corrected: toolArgs must also be strict for OpenAI
+                type: ["object", "null"] as const,
+                // If tool arguments can be truly dynamic, this schema needs careful thought.
+                // For OpenAI strict mode, it's best if known args are properties.
+                // If it must be a free-form object, then 'additionalProperties: false'
+                // means the LLM cannot invent new argument keys not defined in 'properties' here.
+                // If 'properties' is empty and 'additionalProperties: false', it means empty object.
+                properties: {}, // Define known common args if any, or leave empty for truly dynamic.
+                additionalProperties: false, // THIS IS THE KEY CHANGE
+                description: "Args for tool_call. Must be a well-defined object; no extra properties allowed."
+              },
               description: { type: "string" as const, description: "User-facing step description. Max 70 chars." },
               outputVar: { type: "string" as const, description: "Variable name for step output." },
               parallel: { type: ["boolean", "null"] as const, description: "True if step can run in parallel. Default false." },
@@ -148,17 +171,21 @@ const llmPlannerSchema = {
               promptTemplateKey: { type: ["string", "null"] as const, description: "Key for predefined prompt if 'llm_process'." },
               inputVars: { type: ["array", "null"] as const, items: { type: "string" as const }, description: "Input vars for 'llm_process'." },
               outputSchemaName: { type: ["string", "null"] as const, description: "Schema name if 'llm_process' has structured output." },
-              outputSchema: { type: ["object", "null"] as const, additionalProperties: true, description: "JSON schema if 'llm_process' has structured output." },
+              outputSchema: { type: ["object", "null"] as const, additionalProperties: true, description: "JSON schema if 'llm_process' has structured output." }, // This one might need additionalProperties: true
               questionToUser: { type: ["string", "null"] as const, description: "Question for user if 'clarification_query'." },
               expectedResponseVar: { type: ["string", "null"] as const, description: "Var for user's answer if 'clarification_query'." },
             },
+            // Keep the existing required array
+            // Remove 'toolArgs' from required if it can be truly null/empty for some tool_call steps.
+            // However, if a tool_call always has args, keep it. Forcing it to be required makes LLM generate it.
+            // The issue was `additionalProperties` on `toolArgs` itself, not its presence in required.
             required: [
                 "type", "description", "outputVar", "toolName", "toolArgs", 
                 "customPrompt", "promptTemplateKey", "inputVars", "outputSchemaName", 
                 "outputSchema", "questionToUser", "expectedResponseVar", "parallel", 
                 "depends_on_var"
             ], 
-            additionalProperties: false,
+            additionalProperties: false, // The step item object itself is strict
           },
           maxItems: WORKFLOW_MAX_TOOLS_PER_TURN,
         },
@@ -166,16 +193,17 @@ const llmPlannerSchema = {
         continuation_summary: { type: ["string", "null"] as const, description: "If partial, brief summary of next steps. Max 100 chars." }
       },
       required: ["goal", "reasoning", "steps", "is_partial_plan", "continuation_summary"],
-      additionalProperties: false,
+      additionalProperties: false, // The 'plan' object itself is strict
     },
     clarification_question: { type: ["string", "null"] as const, description: "Question for user if action_type is 'request_clarification'. Max 150 chars." },
     reasoning: { type: "string" as const, description: "Reasoning for the overall action_type decision. Max 100 chars." }
   },
   required: ["action_type", "reasoning"], 
-  additionalProperties: false,
+  additionalProperties: false, // The root response object is strict
 };
 
-const schemaNameForLLMPlanner = "minato_dynamic_workflow_planner_v16_simplified_optional_steps"; 
+
+const schemaNameForLLMPlanner = "minato_dynamic_workflow_planner_v17_strict_args"; 
 const llmChoiceResult = await generateStructuredJson<any>( injectedPrompt, "Based on the user query and context, decide the immediate action plan using the provided schemas.", llmPlannerSchema, schemaNameForLLMPlanner, [], DYNAMIC_WORKFLOW_DESIGN_MODEL as string, userId ); 
 const plannerLlmUsage = (llmChoiceResult as any).usage as CompletionUsage | undefined;
 
@@ -211,6 +239,7 @@ return {
     llmUsage: plannerLlmUsage, 
 };
 }
+
 private substituteVariables(argValue: any, variables: Record<string, any>, userQueryFromState: string): any {
 if (typeof argValue === "string") {
 let substitutedValue = argValue; const currentTurnInput = variables.latestUserInputForStep || userQueryFromState;
@@ -231,6 +260,7 @@ return substitutedValue;
 } else if (typeof argValue === "object" && argValue !== null) { const newObj: Record<string, any> = {}; for (const key in argValue) { if (Object.prototype.hasOwnProperty.call(argValue, key)) { newObj[key] = this.substituteVariables(argValue[key], variables, userQueryFromState); } } return newObj; }
 return argValue;
 }
+
 public async startOrContinueWorkflow(
 sessionId: string,
 userId: string,
@@ -257,6 +287,7 @@ variables?: Record<string, any>;
 const logPrefix = `[WF Engine Exec User:${userId.substring(0,8)} Sess:${sessionId.substring(0,6)}]`;
 let wfState: WorkflowStateWithPartial | undefined;
 let currentDynamicPlan: DynamicWorkflowPlanWithPartial | null = null;
+
 if (_internal_workflow_state) {
   wfState = _internal_workflow_state as WorkflowStateWithPartial;
   currentDynamicPlan = wfState.dynamicPlan as DynamicWorkflowPlanWithPartial | null;
@@ -414,7 +445,6 @@ for (let i = 0; i < parallelizedBatch.length; ) {
                 try { detailedErrorMessage = JSON.stringify(err); } 
                 catch { detailedErrorMessage = String(err); }
             }
-            // --- FIX: Ensure detailedErrorMessage is always a string before .substring ---
             detailedErrorMessage = String(detailedErrorMessage || "Failsafe: Unknown parallel error detail");
 
             logger.error(`${logPrefix} Error in parallel tool execution: ${detailedErrorMessage}`, err); 
@@ -479,7 +509,6 @@ for (let i = 0; i < parallelizedBatch.length; ) {
             }
         } catch (error: any) { 
             const stepDesc = step.description || step.type; 
-            // --- FIX: Ensure errorMessageString is always a string before .substring ---
             const errorMessageString = String(error?.message || error || "Unknown error in single step execution");
             logger.error(`${logPrefix} Error in step (${stepDesc || 'N/A'}): ${errorMessageString}`); 
             wfState.status = "failed"; 
@@ -521,6 +550,8 @@ if (wfState.isPartialPlan && wfState.continuationSummary) {
     return { responseText: `Minato has finished: ${wfState.fullPlanGoal || currentDynamicPlan.goal}.`, structuredData: lastToolOutputData, workflowFeedback: { workflowName: wfState.fullPlanGoal || currentDynamicPlan.goal, status: "completed", currentStepDescription: `Minato has completed all steps for: ${wfState.fullPlanGoal || currentDynamicPlan.goal}` }, isComplete: true, llmUsage: totalLlmUsage, intentType: "confirmation_positive", ttsInstructions: null, variables: wfState.variables };
 }
 }
+
 public clearWorkflowState(sessionId: string): void { this.activeWorkflows.delete(sessionId); logger.info(`[WF Engine] Cleared active workflow state for session ${sessionId}`); }
 public getActiveWorkflowState(sessionId: string): WorkflowState | undefined { return this.activeWorkflows.get(sessionId) as WorkflowState | undefined; }
+
 }
