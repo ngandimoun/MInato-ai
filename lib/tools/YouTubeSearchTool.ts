@@ -1,5 +1,5 @@
 // FILE: lib/tools/YouTubeSearchTool.ts
-import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import fetch from "node-fetch";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
@@ -7,10 +7,9 @@ import { CachedVideoList, CachedYouTubeVideo } from "@/lib/types/index";
 
 interface YouTubeSearchInput extends ToolInput {
   query: string;
-  limit?: number | null; // Keep as nullable for internal logic, but schema for LLM might differ
+  limit?: number | null;
 }
 
-// Internal API types (as previously defined)
 interface YouTubeThumbnail { url: string; width?: number; height?: number; }
 interface YouTubeThumbnails { default?: YouTubeThumbnail; medium?: YouTubeThumbnail; high?: YouTubeThumbnail; }
 interface YouTubeResourceId { kind: string; videoId?: string; channelId?: string; playlistId?: string; }
@@ -24,19 +23,12 @@ export class YouTubeSearchTool extends BaseTool {
   argsSchema = {
     type: "object" as const,
     properties: {
-      query: { type: "string" as const, description: "Keywords or phrase to search YouTube videos for." },
-      // For OpenAI, 'limit' constraints (min/max) go in description. Type 'number' is sufficient.
-      // Nullable is handled by type: ["number", "null"]
+      query: { type: "string" as const, description: "Keywords or phrase to search YouTube videos for." } as OpenAIToolParameterProperties,
       limit: {
-        type: ["number", "null"], // Changed pour être un tableau mutable, conforme au type attendu
+        type: ["number", "null"] as const,
         description: "Maximum number of videos to return (1-5). Defaults to 3 if null or not provided.",
-        // Removed: minimum: 1, maximum: 5, default: 3 -- this info goes into description for LLM or handled in execute
-      },
+      } as OpenAIToolParameterProperties,
     },
-    // If 'limit' can truly be omitted and have a default, it shouldn't be in 'required'.
-    // If the LLM *must* provide it (even if null), then it stays in required.
-    // Given the error, OpenAI wants all described properties to be 'required' by its strict schema interpretation for tools.
-    // The LLM should be prompted to provide 'null' for optional fields.
     required: ["query", "limit"],
     additionalProperties: false as false,
   };
@@ -61,22 +53,19 @@ export class YouTubeSearchTool extends BaseTool {
 
   async execute(input: YouTubeSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
     const { query } = input;
-    // Handle limit: if input.limit is null or undefined, use default. If number, use it (clamped).
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 3 : Math.max(1, Math.min(input.limit, 5));
-
+    const userNameForResponse = input.context?.userName || "friend";
     const logPrefix = `[YouTubeTool] Query:"${query.substring(0,30)}..."`;
-    // For structured data, use the actual effective limit used
     const queryInputForStructuredData = { ...input, limit: effectiveLimit };
 
-
     if (abortSignal?.aborted) { return { error: "YouTube search cancelled.", result: "Cancelled." }; }
-    if (!this.API_KEY) { return { error: "YouTube Tool is not configured.", result: `Sorry, ${input.context?.userName || "User"}, Minato cannot search YouTube right now.` }; }
-    if (!query?.trim()) { return { error: "Missing search query.", result: `What video should Minato look for on YouTube, ${input.context?.userName || "User"}?`, structuredData: { result_type: "video_list", source_api:"youtube", query: queryInputForStructuredData, videos:[], error:"Missing search query."} }; }
+    if (!this.API_KEY) { return { error: "YouTube Tool is not configured.", result: `Sorry, ${userNameForResponse}, Minato cannot search YouTube right now.` }; }
+    if (!query?.trim()) { return { error: "Missing search query.", result: `What video should Minato look for on YouTube, ${userNameForResponse}?`, structuredData: { result_type: "video_list", source_api:"youtube", query: queryInputForStructuredData, videos:[], error:"Missing search query."} }; }
 
     const langCode = input.context?.locale?.split("-")[0] || input.lang?.split("-")[0] || "en";
     const params = new URLSearchParams({
       key: this.API_KEY, part: "snippet", q: query.trim(), type: "video",
-      maxResults: String(effectiveLimit), // Use effectiveLimit
+      maxResults: String(effectiveLimit),
       relevanceLanguage: langCode,
     });
     const url = `${this.API_BASE}?${params.toString()}`;
@@ -99,7 +88,7 @@ export class YouTubeSearchTool extends BaseTool {
 
       if (videos.length === 0) {
         this.log("info", `${logPrefix} No videos found.`);
-        return { result: `Minato couldn't find any YouTube videos matching "${query}" for ${input.context?.userName || "you"}.`, structuredData: outputData };
+        return { result: `Minato couldn't find any YouTube videos matching "${query}" for ${userNameForResponse}.`, structuredData: outputData };
       }
 
       this.log("info", `${logPrefix} Found ${videos.length} videos.`);
@@ -109,15 +98,26 @@ export class YouTubeSearchTool extends BaseTool {
         thumbnailUrl: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || null,
         videoUrl: this.buildYouTubeUrl(item.id.videoId!),
       }));
-      const textResult = `Okay, ${input.context?.userName || "User"}, Minato found ${structuredResults.length} video(s) on YouTube related to "${query}".`;
+      
+      const topVideos = structuredResults.slice(0, 2); // Show first 2 in conversational summary
+      let textResult = `Okay, ${userNameForResponse}, Minato found ${structuredResults.length} video(s) on YouTube related to "${query}".`;
+      if (topVideos.length > 0) {
+          const videoSummaries = topVideos.map(v => `"${v.title}" by ${v.channelTitle || 'a creator'}`).join(topVideos.length > 1 ? ', and ' : '');
+          textResult += ` Some top ones are: ${videoSummaries}. I can show you the full list!`;
+      } else if (structuredResults.length > 0) {
+          textResult += ` I can display them for you.`;
+      } else { // Should be caught by videos.length === 0 earlier, but as a fallback
+          textResult = `Minato searched YouTube for "${query}" for ${userNameForResponse} but didn't find specific videos to highlight.`;
+      }
+      
       outputData.videos = structuredResults; outputData.error = undefined;
       return { result: textResult, structuredData: outputData };
     } catch (error: any) {
       const errorMsg = `YouTube search failed: ${error.message}`;
       outputData.error = errorMsg;
-      if (error.name === 'AbortError') { outputData.error = "Request timed out."; return { error: "YouTube search timed out.", result: `Sorry, ${input.context?.userName || "User"}, the YouTube search took too long.`, structuredData: outputData }; }
+      if (error.name === 'AbortError') { outputData.error = "Request timed out."; return { error: "YouTube search timed out.", result: `Sorry, ${userNameForResponse}, the YouTube search took too long.`, structuredData: outputData }; }
       this.log("error", `${logPrefix} Failed:`, error.message);
-      return { error: errorMsg, result: `Sorry, ${input.context?.userName || "User"}, Minato encountered an error searching YouTube.`, structuredData: outputData };
+      return { error: errorMsg, result: `Sorry, ${userNameForResponse}, Minato encountered an error searching YouTube.`, structuredData: outputData };
     }
   }
 }

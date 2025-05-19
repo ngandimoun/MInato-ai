@@ -232,6 +232,8 @@ export interface FrameworkConfig {
     realtimeVadConfig: RealtimeSessionConfig['turn_detection']; // VAD config for realtime
     realtimeTools?: OpenAI.Chat.Completions.ChatCompletionTool[] | null; // Tools available in realtime mode
     maxToolsPerTurn?: number; // Ajouté pour la configuration du nombre d'outils max par tour
+    enableTtsPostProcessing?: boolean; // Ajouté pour TTS post-processing
+    ttsTargetLoudnessDb?: number; // Ajouté pour TTS loudness
   };
   embedder: {
     provider: "openai";

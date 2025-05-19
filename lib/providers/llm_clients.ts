@@ -6,13 +6,10 @@ import type {
   ChatCompletionTool,
   ChatCompletionToolChoiceOption,
   ChatCompletionMessage,
-  ChatCompletionContentPartText,      // Type de base pour le texte
-  ChatCompletionContentPartImage,     // Type de base pour les images (ChatCompletions)
-  ChatCompletionContentPart,          // Type uni pour les parties de contenu
+  ChatCompletionContentPartText,
+  ChatCompletionContentPartImage,
+  ChatCompletionContentPart,
   ChatCompletionContentPartRefusal,
-  // Pour l'API Responses, on type explicitement les parties attendues
-  // Le SDK pourrait ne pas avoir de types distincts 'InputText', 'OutputText', 'InputImage' pour les *parties*
-  // de l'API Responses, on utilise donc les types de ChatCompletions et on adapte.
 } from "openai/resources/chat/completions";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
@@ -59,9 +56,6 @@ type SdkResponsesApiToolChoice = ChatCompletionToolChoiceOption;
 type SdkResponsesApiOutputItem = ChatCompletionMessage;
 type SdkFunctionCallOutputItem = ChatCompletionMessageToolCall;
 
-// Types pour les parties de contenu spécifiques à l'API Responses
-// (Ces types ne sont pas directement exportés par le SDK OpenAI sous ces noms pour les *parties* de l'API Responses,
-// mais représentent ce que l'API attend structurellement)
 type ResponseApiInputTextPart = { type: "input_text"; text: string; };
 type ResponseApiOutputTextPart = { type: "output_text"; text: string; };
 type ResponseApiInputImagePart = { type: "input_image"; image_url: string; /* detail n'est pas sur la partie elle-même */ };
@@ -128,13 +122,11 @@ async function formatMessagesForResponsesApi(
         } else if (openAiApiContentParts.length > 0) {
             contentForUserOrSystem = openAiApiContentParts as any;
         } else if (msg.role === "system") {
-            contentForUserOrSystem = ""; // Message système peut être vide si `instructions` est utilisé
+            contentForUserOrSystem = ""; 
         }
         
         if (contentForUserOrSystem || (msg.role === "system" && contentForUserOrSystem === "")) {
              if (msg.role === "system" && typeof contentForUserOrSystem !== 'string') {
-                // Le content d'un message système doit être une string pour OpenAI.Responses.ResponseInputItem (si on utilise le type du SDK directement)
-                // On va donc joindre les parties texte.
                 const systemText = (contentForUserOrSystem as any[]).filter(p => p.type === "input_text").map(p => p.text).join('\n');
                 apiMessages.push({ role: msg.role as any, content: systemText });
             } else {
@@ -158,7 +150,7 @@ async function formatMessagesForResponsesApi(
         
         const assistantMessagePayload: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
           role: "assistant",
-          content: assistantApiContent as any, // S'assurer du bon type
+          content: assistantApiContent as any, 
         };
         if (msg.tool_calls && msg.tool_calls.length > 0) {
           assistantMessagePayload.tool_calls = msg.tool_calls;
@@ -185,7 +177,6 @@ async function formatMessagesForResponsesApi(
   return apiMessages;
 }
 
-// --- Embedding Function ---
 export async function generateEmbeddingLC(text: string): Promise<number[] | { error: string }> {
     if (!text || String(text).trim().length === 0) return { error: "Input text cannot be empty." };
     if (!openai?.embeddings) { logger.error("[LLM Clients Embed] OpenAI client or embeddings service not available."); return { error: "OpenAI client not initialized for embeddings." }; }
@@ -220,7 +211,6 @@ export async function generateEmbeddingLC(text: string): Promise<number[] | { er
     }
 }
 
-// --- Structured JSON Output Generation (using OpenAI Responses API) ---
 export async function generateStructuredJson<T extends AnyToolStructuredData | Record<string, any> = Record<string, any>>(
   instructions: string,
   userInput: string,
@@ -254,43 +244,44 @@ export async function generateStructuredJson<T extends AnyToolStructuredData | R
         return { error: "No valid messages or instructions to send." };
     }
 
-    let finalJsonSchema = JSON.parse(JSON.stringify(jsonSchema));
+    let finalJsonSchema = JSON.parse(JSON.stringify(jsonSchema)); 
 
-    if (finalJsonSchema.type === "array" && schemaName === "minato_tool_router_v1") {
+    if (schemaName === "minato_tool_router_v1" && finalJsonSchema.type === "array") {
         let itemSchema = finalJsonSchema.items;
         if (typeof itemSchema === 'object' && itemSchema !== null && itemSchema.type === "object") {
-            itemSchema.additionalProperties = false; // Rendre l'item lui-même strict
-            // Si arguments est un objet, s'assurer qu'il permet additionalProperties: true si c'est le cas dans le schéma original
+            itemSchema.additionalProperties = false; 
+
             if (itemSchema.properties && itemSchema.properties.arguments && itemSchema.properties.arguments.type === 'object') {
-                if (jsonSchema.items.properties.arguments.additionalProperties === undefined || jsonSchema.items.properties.arguments.additionalProperties === true) {
-                    itemSchema.properties.arguments.additionalProperties = true;
-                } else {
-                     itemSchema.properties.arguments.additionalProperties = false;
-                }
+                // Explicitly set additionalProperties: false for the 'arguments' object
+                // This is the direct fix for the API error.
+                itemSchema.properties.arguments.additionalProperties = false;
+
+                // Ensure all defined properties within 'arguments' are in 'required' array if they are meant to be mandatory by the tool.
+                // If tool arguments can be truly dynamic this model of planning needs adjustment for strict schemas,
+                // or the tool's own schema must define 'additionalProperties: false' and list all required args.
+                // For now, the fix is to make the `arguments` object itself not allow additional properties.
+                // if (!itemSchema.properties.arguments.required) {
+                //   itemSchema.properties.arguments.required = Object.keys(itemSchema.properties.arguments.properties || {});
+                // }
             }
         }
-
         finalJsonSchema = {
             type: "object",
-            properties: {
-                planned_tools: {
-                    type: "array",
-                    items: itemSchema
-                }
-            },
+            properties: { planned_tools: { type: "array", items: itemSchema } },
             required: ["planned_tools"],
             additionalProperties: false
         };
-        logger.warn(`[LLM Clients JSON] Wrapped array schema '${schemaName}' in a strict object wrapper and ensured items are strict for OpenAI API.`);
+        logger.warn(`[LLM Clients JSON] Wrapped array schema '${schemaName}' and made items and their 'arguments' property strict for OpenAI API.`);
     } else if (finalJsonSchema.type === "object") {
         if (finalJsonSchema.additionalProperties !== false) {
-            logger.warn(`[LLM Clients JSON] Schema '${schemaName}' is object but root 'additionalProperties' is not false. Setting to false.`);
+            logger.warn(`[LLM Clients JSON] Schema '${schemaName}' is object but root 'additionalProperties' is not false. Setting to false for strict mode.`);
             finalJsonSchema.additionalProperties = false;
         }
     } else {
         logger.error(`[LLM Clients JSON] Schema '${schemaName}' root must be 'object' (or 'array' for tool_router). Got '${finalJsonSchema.type}'. ${logSuffix}`);
         return { error: `Schema '${schemaName}' root must be 'object' or an array that can be wrapped.` };
     }
+
 
     const requestPayload: OpenAI.Responses.ResponseCreateParams = {
       model: modelName,
@@ -307,7 +298,7 @@ export async function generateStructuredJson<T extends AnyToolStructuredData | R
 
     const start = Date.now();
     const responseRaw = await openai.responses.create(requestPayload);
-    const response = responseRaw as any;
+    const response = responseRaw as any; 
     const duration = Date.now() - start;
 
     if (response.status === "failed" || response.status === "incomplete") {
@@ -372,9 +363,16 @@ export async function generateStructuredJson<T extends AnyToolStructuredData | R
     let errorMessage = "Structured JSON generation error.";
     if (error instanceof OpenAI.APIError) errorMessage = `OpenAI API Error for JSON Gen (${error.status || "N/A"} ${error.code || "N/A"}): ${error.message}`;
     else if (error.message) errorMessage = error.message;
-    let schemaForLogError = jsonSchema;
+    let schemaForLogError = jsonSchema; 
     if (jsonSchema.type === "array" && schemaName === "minato_tool_router_v1") {
-        schemaForLogError = { type: "object", properties: { planned_tools: { ...jsonSchema, items: {...jsonSchema.items, additionalProperties: false} } }, required: ["planned_tools"], additionalProperties: false };
+        let itemSchema = jsonSchema.items;
+        if (typeof itemSchema === 'object' && itemSchema !== null && itemSchema.type === "object") {
+            itemSchema.additionalProperties = false;
+            if (itemSchema.properties && itemSchema.properties.arguments && itemSchema.properties.arguments.type === 'object') {
+                itemSchema.properties.arguments.additionalProperties = false;
+            }
+        }
+        schemaForLogError = { type: "object", properties: { planned_tools: { type: "array", items: itemSchema } }, required: ["planned_tools"], additionalProperties: false };
     } else if (jsonSchema.type === "object" && jsonSchema.additionalProperties !== false) {
         schemaForLogError = { ...jsonSchema, additionalProperties: false };
     }
@@ -383,11 +381,10 @@ export async function generateStructuredJson<T extends AnyToolStructuredData | R
   }
 }
 
-// --- Main Agent Response Generation (using OpenAI Responses API with GPT-4o) ---
 export async function generateAgentResponse(
   messages: ChatMessage[],
   responsesApiTools: OpenAI.Chat.Completions.ChatCompletionTool[] | null,
-  responsesApiToolChoice: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption | "auto" | "none" | string | null, // Élargi pour inclure string pour specific tool
+  responsesApiToolChoice: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption | "auto" | "none" | string | null, 
   modelName: string = CHAT_VISION_MODEL_NAME,
   maxTokens?: number,
   userId?: string,
@@ -423,12 +420,12 @@ export async function generateAgentResponse(
         requestPayload.tools = responsesApiTools as any;
     }
     if (responsesApiToolChoice) {
-        requestPayload.tool_choice = responsesApiToolChoice as OpenAI.Responses.ResponseCreateParams['tool_choice']; // Cast pour le type plus large
+        requestPayload.tool_choice = responsesApiToolChoice as OpenAI.Responses.ResponseCreateParams['tool_choice']; 
     }
 
     const start = Date.now();
     const responseRaw = await openai.responses.create(requestPayload);
-    const response = responseRaw as any;
+    const response = responseRaw as any; 
     const duration = Date.now() - start;
 
     if (response.status === "failed" || response.status === "incomplete") {
@@ -500,7 +497,6 @@ export async function generateAgentResponse(
   }
 }
 
-// --- Response with Intent Generation ---
 export async function generateResponseWithIntent(
   instructions: string,
   userPrompt: string | AppChatMessageContentPart[],
@@ -569,7 +565,6 @@ export async function generateResponseWithIntent(
   return result;
 }
 
-// --- Vision Completion ---
 export async function generateVisionCompletion(
   messages: ChatMessage[],
   modelName: string = CHAT_VISION_MODEL_NAME,

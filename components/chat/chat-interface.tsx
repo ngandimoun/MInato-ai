@@ -9,13 +9,14 @@ import { TypingIndicator } from "./typing-indicator";
 import type { DocumentFile } from "@/components/settings/settings-panel";
 import { logger } from "@/memory-framework/config";
 import { toast } from "@/components/ui/use-toast";
-const generateId = () => globalThis.crypto.randomUUID(); // Browser-standard UUID
+const generateId = () => globalThis.crypto.randomUUID();
 import { Loader2 } from "lucide-react";
 import type {
   ChatMessage as Message,
   MessageAttachment,
   AnyToolStructuredData,
   OrchestratorResponse,
+  ChatMessageContentPart,
 } from "@/lib/types/index";
 
 interface ChatInterfaceProps {
@@ -36,18 +37,19 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
   ]);
   const [isTyping, setIsTyping] = useState(false);
   const [inputDisabled, setInputDisabled] = useState(false);
-  const [isVideoAnalyzing, setIsVideoAnalyzing] = useState(false);
+  const [isVideoAnalyzing, setIsVideoAnalyzing] = useState(false); // Keep for UI feedback
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const inputAreaRef = useRef<InputAreaHandle>(null);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  // imagePreviews state can be removed if attachments are handled directly by InputArea for its previews
+  // and full MessageAttachment objects are passed up for sending.
 
   const playSound = (soundType: "send" | "receive" | "error") => {
     logger.debug(`[ChatInterface] Sound: ${soundType}`);
   };
 
   const addOptimisticMessage = (
-    content: string,
+    content: string | Message['content'], // Allow complex content
     attachmentsFromInputArea?: MessageAttachment[]
   ): string => {
     const optimisticId = `user-temp-${generateId()}`;
@@ -68,30 +70,41 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
     async (text: string, attachmentsFromInputArea?: MessageAttachment[]) => {
       if (inputDisabled) return;
       const currentText = text.trim();
+      // MessageAttachment now includes the File object for the backend
       const currentAttachments: MessageAttachment[] = (attachmentsFromInputArea || []).map(att => ({
-        ...att, storagePath: att.storagePath ?? undefined
+        ...att,
+        file: att.file, // Ensure File object is passed
+        storagePath: att.storagePath ?? undefined
       }));
 
       if (!currentText && currentAttachments.length === 0) {
         toast({ title: "Empty message", description: "Please type or attach something." });
         return;
       }
-
-      const videosOnly =
-        !currentText &&
-        currentAttachments.length > 0 &&
-        currentAttachments.every((att) => att.mimeType?.startsWith("video/"));
-
-      if (videosOnly) {
-        // Just show the video in the chat without calling the backend
-        addOptimisticMessage("", currentAttachments);
-        playSound("send");
-        // No assistant placeholder because summary will arrive via onAssistantReply
-        return;
-      }
-
+      
+      // REMOVED "videosOnly" early return. All messages go to /api/chat
+      
       setInputDisabled(true); setIsTyping(true); playSound("send");
-      const optimisticId = addOptimisticMessage(currentText, currentAttachments);
+
+      // Construct the user message content based on text and attachments
+      let userMessageContent: string | Message['content'];
+      const imageAttachmentsForContent = currentAttachments.filter(att => att.type === 'image' && att.url);
+      
+      if (imageAttachmentsForContent.length > 0) {
+        // userMessageContent doit être un tableau de ChatMessageContentPart
+        const contentParts: ChatMessageContentPart[] = [{ type: "text", text: currentText }];
+        imageAttachmentsForContent.forEach(imgAtt => {
+          contentParts.push({
+            type: "input_image",
+            image_url: imgAtt.url!, // url should be dataURI from preview or captured
+          });
+        });
+        userMessageContent = contentParts;
+      } else {
+        userMessageContent = currentText;
+      }
+      
+      const optimisticId = addOptimisticMessage(userMessageContent, currentAttachments);
       abortControllerRef.current = new AbortController();
       const signal = abortControllerRef.current.signal;
       let assistantMessageId = `asst-temp-${generateId()}`;
@@ -105,100 +118,54 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
 
       try {
         const historyForApi = messages.filter((m) => m.id !== optimisticId);
-        const currentUserMessageForApi: Message = {
-          id: optimisticId, role: "user", content: currentText,
-          attachments: currentAttachments, timestamp: new Date().toISOString(),
-          audioUrl: undefined, structured_data: null, debugInfo: null, workflowFeedback: null,
-          intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined,
+        // The last user message for API now includes all attachments, including File objects
+        const currentUserMessageForApi: Partial<Message> = {
+          id: optimisticId, role: "user", content: userMessageContent,
+          attachments: currentAttachments, // Pass full attachments
+          timestamp: new Date().toISOString(),
         };
 
         const requestBodyMessages = [...historyForApi.map(m => ({
             id: m.id, role: m.role, content: m.content, name: m.name, tool_calls: m.tool_calls,
             tool_call_id: m.tool_call_id, timestamp: m.timestamp,
             audioUrl: m.audioUrl,
-            attachments: m.attachments?.map(a => ({...a, file: undefined})), // Strip File object
+            // For history, strip File objects if they were ever included (they shouldn't be based on current logic)
+            attachments: m.attachments?.map(a => ({...a, file: undefined})),
           })),
-          // For currentUserMessageForApi, ensure it also doesn't send raw File objects in `attachments`
-          {
-            ...currentUserMessageForApi,
-            attachments: currentUserMessageForApi.attachments?.map(a => ({...a, file: undefined}))
-          }
+          currentUserMessageForApi // Send the current message with File objects in attachments
         ];
-
 
         const requestBody: { messages: Partial<Message>[]; id?: string; data?: any } = {
           messages: requestBodyMessages,
           id: historyForApi.length > 0 && historyForApi[0].id ? historyForApi[0].id.split("-")[0] || generateId() : generateId(),
         };
-
-        const hasFileAttachments = currentAttachments.some(att => att.file instanceof File);
-        logger.info(`[ChatInterface] Sending to /api/chat. Attachments in current msg: ${currentAttachments.length}. Multipart: ${hasFileAttachments}`);
-        if (hasFileAttachments) {
-          console.log('[DEBUG] attachmentsToSend:', currentAttachments);
-        }
-
+        
+        const hasFileObjects = currentAttachments.some(att => att.file instanceof File);
+        logger.info(`[ChatInterface] Sending to /api/chat. Attachments in current msg: ${currentAttachments.length}. Has File objects: ${hasFileObjects}`);
+        
         let response: Response;
-        if (hasFileAttachments) {
-          // Build multipart/form-data so backend can process and store the files
+        if (hasFileObjects) {
           const formData = new FormData();
-          formData.append("messages", JSON.stringify(requestBodyMessages));
-          formData.append("id", requestBody.id || generateId());
-          
-          // Log total attachments before processing
-          console.log(`[DEBUG] Preparing to attach ${currentAttachments.length} files to FormData`);
-          
-          let imageCount = 0;
-          let videoCount = 0;
-          
+          // Only messages (without File objects) go into the 'messages' JSON string part
+          const messagesForFormData = requestBodyMessages.map(m => ({
+            ...m,
+            attachments: m.attachments?.map(a => ({ ...a, file: undefined })) // Strip File here
+          }));
+          formData.append("messages", JSON.stringify(messagesForFormData));
+          if(requestBody.id) formData.append("id", requestBody.id);
+          if(requestBody.data) formData.append("data", JSON.stringify(requestBody.data));
+
           currentAttachments.forEach((att, idx) => {
             if (att.file instanceof File) {
-              // Check if it's a video file
-              const isVideo = att.file.type.startsWith("video/");
-              const isImage = att.file.type.startsWith("image/");
-              
-              console.log(`[DEBUG] Processing attachment ${idx}: ${att.name}, type: ${att.file.type}, size: ${att.file.size} bytes, isVideo: ${isVideo}, isImage: ${isImage}`);
-              
-              // Add the file to FormData with specific key naming
-              if (isVideo) {
-                const fieldName = `video${videoCount}`;
-                formData.append(fieldName, att.file, att.name || `video_${videoCount}.mp4`);
-                console.log(`[DEBUG] Added video to FormData as '${fieldName}'`);
-                videoCount++;
-              } else if (isImage) {
-                const fieldName = `image${imageCount}`;
-                formData.append(fieldName, att.file, att.name || `image_${imageCount}.jpg`);
-                console.log(`[DEBUG] Added image to FormData as '${fieldName}'`);
-                imageCount++;
-              } else {
-                const fieldName = `file${idx}`;
-                formData.append(fieldName, att.file, att.name || `file_${idx}`);
-                console.log(`[DEBUG] Added generic file to FormData as '${fieldName}'`);
-              }
-            } else {
-              console.log(`[DEBUG] Skipping attachment ${idx}: ${att.name}, file is not a File instance`);
+              formData.append(`attachment_${idx}`, att.file, att.name); // Use a consistent naming pattern
             }
           });
-          
-          console.log('[DEBUG] FormData details:');
-          for (let pair of formData.entries()) {
-            console.log('[DEBUG] FormData field:', pair[0]);
-            if (pair[1] instanceof File) {
-              console.log('[DEBUG] - File details:', {
-                name: pair[1].name,
-                size: pair[1].size,
-                type: pair[1].type,
-                lastModified: new Date(pair[1].lastModified).toISOString()
-              });
-            }
-          }
-          
-          console.log('[DEBUG] Sending request to /api/chat with FormData');
           response = await fetch("/api/chat", { method: "POST", body: formData, signal });
         } else {
           response = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify(requestBody), // All attachments are URLs or already processed
             signal,
           });
         }
@@ -235,7 +202,6 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
                 finalUiComponentData = eventData.data as AnyToolStructuredData;
                 setMessages(prev => prev.map(msg => msg.id === assistantMessageId ? { ...msg, structured_data: finalUiComponentData } : msg ));
               } else if (eventName === "annotations" && typeof eventData === 'object' && eventData !== null) {
-                // Filter out fields that are not part of the Message type or are handled separately
                 const { id, role, content, timestamp, messageId, ...validAnnotations } = eventData;
                 finalAnnotations = { ...finalAnnotations, ...validAnnotations };
               } else if (eventName === "error" && eventData.error) {
@@ -279,9 +245,10 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
       } finally {
         setIsTyping(false); setInputDisabled(false); abortControllerRef.current = null;
         inputAreaRef.current?.focusTextarea();
+        setIsVideoAnalyzing(false); // Remplace onVideoAnalysisStatusChange par setIsVideoAnalyzing
       }
     },
-    [inputDisabled, messages, onDocumentsSubmit] // Added messages to dependencies
+    [inputDisabled, messages, onDocumentsSubmit] 
   );
 
   const handleSendAudio = useCallback(
@@ -289,7 +256,7 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
       if (inputDisabled) return;
       setInputDisabled(true); setIsTyping(true); playSound("send");
       const optimisticId = `user-audio-${generateId()}`;
-      const audioUrl = URL.createObjectURL(audioBlob);
+      const audioUrl = URL.createObjectURL(audioBlob); // URL for local preview
       const audioMessage: Message = {
         id: optimisticId, role: "user", content: "[Audio Message]",
         audioUrl: audioUrl, timestamp: new Date().toISOString(),
@@ -313,6 +280,7 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
         const formData = new FormData();
         formData.append("audio", audioBlob, `voice_msg_${Date.now()}.webm`);
         const historyForApi = messages.filter(m => m.id !== optimisticId);
+        // Strip File objects from history attachments before sending
         formData.append("history", JSON.stringify(historyForApi.map(m => ({...m, attachments: m.attachments?.map(a => ({...a, file: undefined})) }) )));
         formData.append("sessionId", messages.length > 0 && messages[0].id ? messages[0].id.split('-')[0] || generateId() : generateId());
 
@@ -323,7 +291,7 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
         const result: OrchestratorResponse = await response.json();
         setMessages(prev => prev.map(msg => {
           if (msg.id === assistantMessageId) {
-            return { // Ensure all fields from Message are handled
+            return { 
               ...msg,
               content: result.response || "[Audio response processed]",
               audioUrl: result.audioUrl || undefined,
@@ -335,8 +303,7 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
               clarificationQuestion: result.clarificationQuestion || null,
               error: result.error ? true : undefined,
               timestamp: new Date().toISOString(),
-              // attachments will be empty for assistant audio response unless API sends some
-              attachments: [], // Or map from result.attachments if it exists
+              attachments: result.attachments || [], 
             };
           }
           return msg;
@@ -353,14 +320,9 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
     } finally {
       setIsTyping(false); setInputDisabled(false); abortControllerRef.current = null;
       inputAreaRef.current?.focusTextarea();
+      URL.revokeObjectURL(audioUrl); // Clean up local blob URL
     }
-  }, [inputDisabled, messages]); // Added messages as dependency
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const imageFiles = files.filter(file => file.type.startsWith("image/"));
-    setImagePreviews(imageFiles.map(file => URL.createObjectURL(file)));
-  };
+  }, [inputDisabled, messages]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isTyping]);
 
@@ -376,33 +338,11 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [inputDisabled]);
 
-  // Add a handler for assistant replies (e.g., video summary)
-  const handleAssistantReply = useCallback((content: string) => {
-    const assistantId = `asst-video-summary-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const assistantMessage: Message = {
-      id: assistantId,
-      role: "assistant",
-      content,
-      timestamp: new Date().toISOString(),
-      attachments: [],
-      audioUrl: undefined,
-      structured_data: null,
-      debugInfo: null,
-      workflowFeedback: null,
-      intentType: null,
-      ttsInstructions: null,
-      clarificationQuestion: null,
-      error: undefined,
-    };
-    setMessages((prev) => [...prev, assistantMessage]);
-    playSound("receive");
-  }, []);
-
   return (
     <div className="flex flex-col h-[calc(100vh-6.5rem)]">
       <div className="flex-1 overflow-hidden relative">
         <MessageList messages={messages} messagesEndRef={messagesEndRef} />
-        {isTyping && (
+        {isTyping && !isVideoAnalyzing && ( // Only show generic typing if not video analyzing
           <div className="px-1 py-4 sticky bottom-0">
              <motion.div
                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
@@ -413,9 +353,6 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
              </motion.div>
           </div>
         )}
-        {imagePreviews.map((src, idx) => (
-          <img key={idx} src={src} alt={`preview-${idx}`} style={{ maxWidth: 120, maxHeight: 120, margin: 4 }} />
-        ))}
       </div>
       <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1, duration: 0.3 }}
         className="mt-2 flex-shrink-0">
@@ -424,8 +361,7 @@ export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
           onSendMessage={handleSendMessage}
           onSendAudio={handleSendAudio}
           onDocumentsSubmit={onDocumentsSubmit}
-          disabled={inputDisabled}
-          onAssistantReply={handleAssistantReply}
+          disabled={inputDisabled || isVideoAnalyzing} // Disable input while video analyzing too
           onVideoAnalysisStatusChange={setIsVideoAnalyzing}
         />
       </motion.div>

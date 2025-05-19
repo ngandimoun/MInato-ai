@@ -6,7 +6,7 @@ import { logger } from "../../memory-framework/config";
 import {
   CachedAnswerBox, CachedKnowledgeGraph, CachedProduct, CachedProductList,
   CachedRecipe, CachedSingleRecipe, CachedSingleWebResult, CachedTikTokVideo,
-  CachedVideoList, CachedWebSnippet, AnyToolStructuredData,
+  CachedVideoList, CachedWebSnippet, AnyToolStructuredData, CachedYouTubeVideo, // Added CachedYouTubeVideo for typing
 } from "@/lib/types/index";
 
 interface WebSearchInput extends ToolInput {
@@ -154,11 +154,12 @@ export class WebSearchTool extends BaseTool {
     const color = (toolInput.color === null) ? undefined : toolInput.color;
     const brand = (toolInput.brand === null) ? undefined : toolInput.brand;
 
-    const safeQueryString = String(query || ""); // Ensure query is a string for substring
+    const safeQueryString = String(query || "");
     const logPrefix = `[WebSearchTool Mode:${mode}] Query:"${safeQueryString.substring(0,50)}..."`;
+    const userNameForResponse = toolInput.context?.userName || "friend";
 
     if (abortSignal?.aborted) { return { error: "Web Search cancelled.", result: "Cancelled.", structuredData: undefined }; }
-    if (!this.API_KEY) { return { error: "Web Search Tool is not configured.", result: "Sorry, I cannot perform web searches right now.", structuredData: undefined }; }
+    if (!this.API_KEY) { return { error: "Web Search Tool is not configured.", result: `Sorry, ${userNameForResponse}, I cannot perform web searches right now.`, structuredData: undefined }; }
     if (!query?.trim()) { return { error: "Missing or empty search query.", result: "What exactly should I search the web for?", structuredData: undefined }; }
     if (!["product_search", "tiktok_search", "fallback_search"].includes(mode)) { return { error: "Invalid mode specified.", result: "I need to know whether to search for products, TikToks, or general information.", structuredData: undefined };}
 
@@ -179,7 +180,7 @@ export class WebSearchTool extends BaseTool {
       requestBody.tbs = `mr:1,price:1,ppr_min:${minPrice || ""},ppr_max:${maxPrice || ""}`;
       this.log("info", `${logPrefix} Product search refined query: "${requestBody.q.substring(0,70)}..."`);
     } else if (mode === "tiktok_search") {
-      refinedQuery = `${refinedQuery} site:tiktok.com`;
+      refinedQuery = `${query.trim()} site:tiktok.com`; // Ensure query is trimmed before adding site:
       requestBody.q = refinedQuery.replace(/\s+/g, " ").trim(); requestBody.type = "videos";
       this.log("info", `${logPrefix} TikTok search query: "${requestBody.q.substring(0,70)}..."`);
     } else { this.log("info", `${logPrefix} Executing general fallback search.`); }
@@ -196,13 +197,13 @@ export class WebSearchTool extends BaseTool {
       if (!response.ok) { 
         let errorDetail = `Serper API request failed: ${response.status} ${response.statusText}.`;
         let errorBodyText = await response.text();
-        try { const errorBody = JSON.parse(errorBodyText); errorDetail += ` Message: ${String(errorBody?.message || JSON.stringify(errorBody))}`; } // Ensure message is string
+        try { const errorBody = JSON.parse(errorBodyText); errorDetail += ` Message: ${String(errorBody?.message || JSON.stringify(errorBody))}`; } 
         catch { errorDetail += ` Raw Body: ${errorBodyText.substring(0, 200)}`; }
         this.log("error", `${logPrefix} ${errorDetail}`);
-        let userResultMessage = "Sorry, the web search encountered an error.";
-        if (response.status === 401 || response.status === 403) userResultMessage = "Sorry, I cannot perform web searches due to an authorization issue.";
-        else if (response.status === 429) userResultMessage = "Sorry, the web search service is temporarily unavailable (rate limit).";
-        else if (response.status >= 500) userResultMessage = "Sorry, the web search service seems to be having internal issues.";
+        let userResultMessage = `Sorry, ${userNameForResponse}, the web search encountered an error.`;
+        if (response.status === 401 || response.status === 403) userResultMessage = `Sorry, ${userNameForResponse}, I cannot perform web searches due to an authorization issue.`;
+        else if (response.status === 429) userResultMessage = `Sorry, ${userNameForResponse}, the web search service is temporarily unavailable (rate limit).`;
+        else if (response.status >= 500) userResultMessage = `Sorry, ${userNameForResponse}, the web search service seems to be having internal issues.`;
         return { error: errorDetail, result: userResultMessage, structuredData: undefined };
       }
       const data: SerperResponse = (await response.json()) as SerperResponse;
@@ -213,26 +214,42 @@ export class WebSearchTool extends BaseTool {
         let allProductResults: SerperShoppingResult[] = products || [];
         if (allProductResults.length === 0 && organicProducts && organicProducts.length > 0) { this.log("info", `${logPrefix} No shopping results, adapting ${organicProducts.length} organic.`); allProductResults = organicProducts.map(o => ({ title: o.title, link: o.link, source: o.source || (o.link ? new URL(o.link).hostname : "Unknown"), priceString: o.attributes?.price || o.price?.toString(), imageUrl: o.imageUrl, position: o.position } as SerperShoppingResult));}
         let outputData: CachedProductList = { result_type: "product_list", source_api: "serper_shopping", query: toolInput, products: [], error: undefined };
-        if (allProductResults.length === 0) { return { result: `I couldn't find products matching "${query}" with those criteria.`, structuredData: outputData };}
+        if (allProductResults.length === 0) { return { result: `I couldn't find products matching "${query}" for ${userNameForResponse} with those criteria.`, structuredData: outputData };}
         this.log("info", `${logPrefix} Found ${allProductResults.length} potential product results.`);
         const extractedProducts: CachedProduct[] = allProductResults.map((p) => this.extractProductData(p, query)).filter((p): p is CachedProduct => !!(p.title && p.link));
-        if (extractedProducts.length === 0) { outputData.error = "Failed to process product details"; return { result: `I found matches for "${query}", but had trouble with details.`, structuredData: outputData };}
+        if (extractedProducts.length === 0) { outputData.error = "Failed to process product details"; return { result: `I found matches for "${query}" for ${userNameForResponse}, but had trouble with details.`, structuredData: outputData };}
         outputData.products = extractedProducts; outputData.error = undefined;
-        return { result: `Okay, I found ${extractedProducts.length} product(s) for "${query}".`, structuredData: outputData };
+        
+        const topProducts = extractedProducts.slice(0, 3);
+        const summary = topProducts.map(p => `${p.title} (around ${p.price ? `${p.currency || '$'}${p.price}` : 'price not listed'}) from ${p.source}`).join(", ");
+        return { result: `Okay, ${userNameForResponse}, I found ${extractedProducts.length} product(s) for "${query}". Some top ones include: ${summary}. Want to see more details or perhaps refine the search?`, structuredData: outputData };
+
       } else if (mode === "tiktok_search") { 
         const videos = data.videos?.filter((v) => v.link?.includes("tiktok.com"));
         let outputData: CachedVideoList = { result_type: "video_list", source_api: "serper_tiktok", query: toolInput, videos: [], error: undefined }; 
-        if (!videos || videos.length === 0) { return { result: `I couldn't find TikTok videos for "${query}".`, structuredData: outputData }; }
+        if (!videos || videos.length === 0) { return { result: `I couldn't find TikTok videos for "${query}" for ${userNameForResponse}.`, structuredData: outputData }; }
         this.log("info", `${logPrefix} Found ${videos.length} potential TikTok videos.`);
-        const extractedVideos: CachedTikTokVideo[] = videos.map((v) => this.extractTikTokVideoData(v, query)).filter((v): v is CachedTikTokVideo => !!v.videoId || !!v.videoUrl); 
+        const extractedVideos: (CachedTikTokVideo | CachedYouTubeVideo)[] = videos.map((v) => this.extractTikTokVideoData(v, query)).filter((v): v is CachedTikTokVideo => !!v.videoId || !!v.videoUrl); 
         outputData.videos = extractedVideos; outputData.error = undefined;
-        return { result: `Okay, I found ${extractedVideos.length} TikTok video(s) for "${query}".`, structuredData: outputData };
+        
+        const topVideos = extractedVideos.slice(0,2);
+        const summary = topVideos.map(v => {
+          if ('channel' in v && v.channel) {
+            return `"${v.title || 'a video'}" by ${v.channel}`;
+          } else if ('channelTitle' in v && v.channelTitle) {
+            return `"${v.title || 'a video'}" by ${v.channelTitle}`;
+          } else {
+            return `"${v.title || 'a video'}" by a creator`;
+          }
+        }).join(", and ");
+        return { result: `Alright ${userNameForResponse}, I found ${extractedVideos.length} TikToks about "${query}"! For example, I see ${summary}. I can show you the list.`, structuredData: outputData };
+
       } else { // fallback_search
         const { resultText, extractedData, resultType, sourceApi } = this.extractFallbackAnswer(data, query);
         if (!resultText || !extractedData || !resultType) {
           this.log("info", `${logPrefix} No direct answer or relevant snippet found.`);
           const related = data.relatedSearches?.map((r) => r.query).join(", ");
-          const fallbackMsg = `I searched for "${query}" but couldn't find a direct answer or summary.${related ? ` Related searches include: ${related}` : ""}`;
+          const fallbackMsg = `I searched for "${query}" for ${userNameForResponse} but couldn't find a direct answer or summary.${related ? ` You might want to try searching for: ${related}` : ""}`;
           return { result: fallbackMsg, structuredData: undefined };
         }
         this.log("info", `${logPrefix} Found fallback answer/snippet. Type: ${resultType}`);
@@ -240,7 +257,18 @@ export class WebSearchTool extends BaseTool {
         if (typeof finalStructuredOutput === 'object' && finalStructuredOutput !== null) {
             (finalStructuredOutput as any).query = toolInput;
         }
-        return { result: resultText, structuredData: finalStructuredOutput };
+        // Make the resultText more conversational
+        let conversationalResult = resultText;
+        if (resultType === "answerBox" && (extractedData as CachedAnswerBox).answer) {
+            conversationalResult = `I found this for "${query}", ${userNameForResponse}: ${(extractedData as CachedAnswerBox).answer}`;
+        } else if (resultType === "knowledgeGraph" && (extractedData as CachedKnowledgeGraph).description) {
+            conversationalResult = `Here's some info on "${(extractedData as CachedKnowledgeGraph).title || query}" for you, ${userNameForResponse}: ${(extractedData as CachedKnowledgeGraph).description}`;
+        } else if (resultType === "web_snippet" && (extractedData as CachedWebSnippet).snippet) {
+            conversationalResult = `I found a snippet from the web about "${query}", ${userNameForResponse}: "${(extractedData as CachedWebSnippet).snippet}"`;
+        } else if (resultType === "recipe" && (extractedData as CachedRecipe).title) {
+            conversationalResult = `Looks like I found a recipe for "${(extractedData as CachedRecipe).title || query}" for you, ${userNameForResponse}!`;
+        }
+        return { result: conversationalResult, structuredData: finalStructuredOutput };
       }
     } catch (error: any) {
       const originalErrorMessage = String(error?.message || (typeof error === 'string' ? error : "Unknown web search error"));
@@ -256,9 +284,9 @@ export class WebSearchTool extends BaseTool {
       if (error.name === "AbortError" || error.name === 'TimeoutError') {
         this.log("warn", `${logPrefix} Request timed out.`);
         if (responseStructuredData) (responseStructuredData as any).error = "Request timed out.";
-        return { error: "Web search timed out.", result: "Sorry, the web search took too long to respond.", structuredData: responseStructuredData };
+        return { error: "Web search timed out.", result: `Sorry, ${userNameForResponse}, the web search took too long to respond.`, structuredData: responseStructuredData };
       }
-      return { error: errorMessage, result: "Sorry, I encountered an unexpected problem while searching the web.", structuredData: responseStructuredData };
+      return { error: errorMessage, result: `Sorry, ${userNameForResponse}, I encountered an unexpected problem while searching the web.`, structuredData: responseStructuredData };
     }
   }
 }
