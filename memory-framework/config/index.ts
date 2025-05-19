@@ -10,12 +10,9 @@ import {
   OpenAIVisionModel,
   OpenAITtsModel,
   OpenAISttModel,
-  // OpenAIRealtimeModel, // REMOVED
-  // OpenAIRealtimeVoice, // REMOVED
   OpenAITtsVoice,
   OpenAIDeveloperModel,
   OpenAILLMComplex,
-  // RealtimeSessionConfig, // REMOVED
 } from "../../lib/types/index";
 import {
   MEMORY_SEARCH_LIMIT_DEFAULT,
@@ -30,21 +27,21 @@ import {
 
 const ENV_KEYS = {
   OPENAI_API_KEY: "OPENAI_API_KEY",
-  LLM_PLANNING_MODEL: "LLM_PLANNING_MODEL", // Will be GPT-4.1 for tool routing
-  LLM_CHAT_MODEL: "LLM_CHAT_MODEL", // Will be GPT-4o for main responses
-  LLM_COMPLEX_MODEL: "LLM_COMPLEX_MODEL", // Could be GPT-4o or specific GPT-4.1
-  LLM_EXTRACTION_MODEL: "LLM_EXTRACTION_MODEL", // Nano
-  LLM_DEVELOPER_MODEL: "LLM_DEVELOPER_MODEL", // o3-mini
-  LLM_TTS_MODEL: "LLM_TTS_MODEL", // gpt-4o-mini-tts
-  LLM_STT_MODEL: "LLM_STT_MODEL", // gpt-4o-mini-transcribe
-  // LLM_REALTIME_MODEL: "LLM_REALTIME_MODEL", // REMOVED
-  // LLM_REALTIME_STT_MODEL: "LLM_REALTIME_STT_MODEL", // REMOVED
+  LLM_PLANNING_MODEL: "LLM_PLANNING_MODEL", 
+  LLM_CHAT_MODEL: "LLM_CHAT_MODEL", 
+  LLM_COMPLEX_MODEL: "LLM_COMPLEX_MODEL", 
+  LLM_EXTRACTION_MODEL: "LLM_EXTRACTION_MODEL", 
+  LLM_DEVELOPER_MODEL: "LLM_DEVELOPER_MODEL", 
+  LLM_TTS_MODEL: "LLM_TTS_MODEL", 
+  LLM_STT_MODEL: "LLM_STT_MODEL", 
   LLM_EMBEDDER_MODEL: "LLM_EMBEDDER_MODEL",
   LLM_EMBEDDER_DIMENSIONS: "LLM_EMBEDDER_DIMENSIONS",
-  LLM_TEMPERATURE: "LLM_TEMPERATURE", // Added for general temperature
+  LLM_TEMPERATURE: "LLM_TEMPERATURE",
   VISION_DETAIL: "VISION_DETAIL",
   MAX_VISION_TOKENS: "MAX_VISION_TOKENS",
   GENERATION_MAX_TOKENS: "GENERATION_MAX_TOKENS",
+  ENABLE_TTS_POST_PROCESSING: "ENABLE_TTS_POST_PROCESSING", // NEW
+  TTS_TARGET_LOUDNESS_DB: "TTS_TARGET_LOUDNESS_DB", // NEW (Example, not fully used by current ffmpeg simple command)
 
   NEXT_PUBLIC_SUPABASE_URL: "NEXT_PUBLIC_SUPABASE_URL",
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "NEXT_PUBLIC_SUPABASE_ANON_KEY",
@@ -105,34 +102,29 @@ const ALL_TTS_VOICES: ReadonlyArray<OpenAITtsVoice> = [
   "alloy", "ash", "ballad", "coral", "echo", "fable",
   "nova", "onyx", "sage", "shimmer", "verse",
 ] as const;
-// REMOVED ALL_REALTIME_VOICES
 
 const DEFAULT_TTS_VOICE_CONST: OpenAITtsVoice = ALL_TTS_VOICES.includes("nova")
   ? "nova"
   : ALL_TTS_VOICES[0];
-// REMOVED DEFAULT_REALTIME_VOICE_CONST
 
 const DEFAULTS_UNIFIED = {
-  LLM_PLANNING_MODEL: "gpt-4.1-2025-04-14" as OpenAIPlanningModel, // For tool routing
-  LLM_CHAT_MODEL: "gpt-4o-2024-08-06" as OpenAILLMBalanced, // For main responses and vision
-  LLM_COMPLEX_MODEL: "gpt-4o-2024-08-06" as OpenAILLMComplex, // Can be same as chat or a larger GPT-4.1
-  LLM_EXTRACTION_MODEL: "gpt-4.1-nano-2025-04-14" as OpenAILLMFast, // For memory facts
-  LLM_DEVELOPER_MODEL: "o3-mini-2025-01-31" as OpenAIDeveloperModel, // For specific dev tasks
-  LLM_VISION_MODEL: "gpt-4o-2024-08-06" as OpenAIVisionModel, // GPT-4o handles vision
+  LLM_PLANNING_MODEL: "gpt-4.1-2025-04-14" as OpenAIPlanningModel,
+  LLM_CHAT_MODEL: "gpt-4o-2024-08-06" as OpenAILLMBalanced,
+  LLM_COMPLEX_MODEL: "gpt-4o-2024-08-06" as OpenAILLMComplex,
+  LLM_EXTRACTION_MODEL: "gpt-4.1-nano-2025-04-14" as OpenAILLMFast,
+  LLM_DEVELOPER_MODEL: "o3-mini-2025-01-31" as OpenAIDeveloperModel,
+  LLM_VISION_MODEL: "gpt-4o-2024-08-06" as OpenAIVisionModel,
   LLM_TTS_MODEL: "gpt-4o-mini-tts" as OpenAITtsModel,
   LLM_STT_MODEL: "gpt-4o-mini-transcribe" as OpenAISttModel,
-  // LLM_REALTIME_MODEL: "..." // REMOVED
-  // LLM_REALTIME_STT_MODEL: "..." // REMOVED (STT_MODEL is used for chained)
   LLM_EMBEDDER_MODEL: "text-embedding-3-small" as OpenAIEmbeddingModel,
   LLM_EMBEDDER_DIMENSIONS: OPENAI_EMBEDDING_DIMENSION,
-  LLM_TEMPERATURE: 0.7, // Default temperature
+  LLM_TEMPERATURE: 0.7,
   VISION_DETAIL: "auto" as "low" | "high" | "auto",
   MAX_VISION_TOKENS: 2048,
-  GENERATION_MAX_TOKENS: 1536, // General max output
+  GENERATION_MAX_TOKENS: 1536,
   TTS_DEFAULT_VOICE: DEFAULT_TTS_VOICE_CONST,
-  // REALTIME_DEFAULT_VOICE: "..." // REMOVED
-  // REALTIME_VAD_CONFIG: { ... } // REMOVED
-  // REALTIME_BASE_INSTRUCTIONS: "..." // REMOVED
+  ENABLE_TTS_POST_PROCESSING_DEFAULT: false, // NEW DEFAULT
+  TTS_TARGET_LOUDNESS_DB_DEFAULT: -16, // NEW DEFAULT (example for LUFS, not directly used by simple ffmpeg volume)
 
   SUPABASE_TABLE_NAME: "memories",
   SUPABASE_MATCH_FUNCTION: "match_memories_v2",
@@ -209,7 +201,7 @@ function getEnvVar(
   key: keyof typeof ENV_KEYS,
   required: boolean = true,
   defaultValue?: string | number | boolean,
-  type?: 'string' | 'number' | 'boolean' // Added type parameter
+  type?: 'string' | 'number' | 'boolean'
 ): string | number | boolean | undefined {
   const envVarName = ENV_KEYS[key];
   const value =
@@ -296,21 +288,28 @@ function loadConfig(): FrameworkConfig {
       complexModel: getEnvVar( "LLM_COMPLEX_MODEL", false, DEFAULTS_UNIFIED.LLM_COMPLEX_MODEL, 'string' ) as OpenAILLMComplex,
       extractionModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL, 'string' ) as OpenAILLMFast,
       developerModel: getEnvVar( "LLM_DEVELOPER_MODEL", false, DEFAULTS_UNIFIED.LLM_DEVELOPER_MODEL, 'string' ) as OpenAIDeveloperModel,
-      fastModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL, 'string' ) as OpenAILLMFast, // fastModel often alias for extraction
-      visionModel: getEnvVar( "LLM_CHAT_MODEL", false, DEFAULTS_UNIFIED.LLM_CHAT_MODEL, 'string' ) as OpenAIVisionModel, // GPT-4o handles vision
+      fastModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL, 'string' ) as OpenAILLMFast, 
+      visionModel: getEnvVar( "LLM_CHAT_MODEL", false, DEFAULTS_UNIFIED.LLM_CHAT_MODEL, 'string' ) as OpenAIVisionModel, 
       ttsModel: getEnvVar( "LLM_TTS_MODEL", false, DEFAULTS_UNIFIED.LLM_TTS_MODEL, 'string' ) as OpenAITtsModel,
       sttModel: getEnvVar( "LLM_STT_MODEL", false, DEFAULTS_UNIFIED.LLM_STT_MODEL, 'string' ) as OpenAISttModel,
-      // REMOVED realtimeModel and realtimeSttModel
       enableVision: getEnvVar( "ENABLE_VISION_ENV", false, DEFAULTS_UNIFIED.ENABLE_VISION_APP, 'boolean' ) as boolean,
       temperature: getEnvVar( "LLM_TEMPERATURE", false, DEFAULTS_UNIFIED.LLM_TEMPERATURE, 'number' ) as number,
       maxTokens: getEnvVar( "GENERATION_MAX_TOKENS", false, DEFAULTS_UNIFIED.GENERATION_MAX_TOKENS, 'number' ) as number,
       topP: 1.0,
       ttsDefaultVoice: DEFAULTS_UNIFIED.TTS_DEFAULT_VOICE,
       ttsVoices: ALL_TTS_VOICES,
-      // REMOVED realtimeDefaultVoice, realtimeVoices, realtimeVadConfig, realtimeBaseInstructions
       visionDetail: getEnvVar( "VISION_DETAIL", false, DEFAULTS_UNIFIED.VISION_DETAIL, 'string' ) as "low" | "high" | "auto",
       maxVisionTokens: getEnvVar( "MAX_VISION_TOKENS", false, DEFAULTS_UNIFIED.MAX_VISION_TOKENS, 'number' ) as number,
-      realtimeTools: null, // Keep as null since S2S realtime is removed
+      realtimeTools: null, 
+      // NEW TTS Post-processing config
+      enableTtsPostProcessing: getEnvVar("ENABLE_TTS_POST_PROCESSING", false, DEFAULTS_UNIFIED.ENABLE_TTS_POST_PROCESSING_DEFAULT, 'boolean') as boolean,
+      ttsTargetLoudnessDb: getEnvVar("TTS_TARGET_LOUDNESS_DB", false, DEFAULTS_UNIFIED.TTS_TARGET_LOUDNESS_DB_DEFAULT, 'number') as number,
+      // Fields for gpt-4o-mini-realtime removed, ensure they are also removed from type definition if not used:
+      realtimeModel: "gpt-4o-mini-realtime-preview-2024-12-17" as any, // Keep type for now, but not used
+      realtimeSttModel: "gpt-4o-mini-transcribe" as any, // Keep type for now
+      realtimeDefaultVoice: "nova" as any, // Keep type for now
+      realtimeVoices: ["nova"] as any, // Keep type for now
+      realtimeVadConfig: {} as any, // Keep type for now
     },
     embedder: {
       provider: "openai",
@@ -424,8 +423,8 @@ function loadConfig(): FrameworkConfig {
     embeddingDimension: getEnvVar( "LLM_EMBEDDER_DIMENSIONS", false, DEFAULTS_UNIFIED.LLM_EMBEDDER_DIMENSIONS, 'number' ) as number,
     mediaUploadBucket: getEnvVar("MEDIA_UPLOAD_BUCKET", false, "images", 'string') as string,
     maxToolsPerTurn: 3,
-    maxVideoFrames: 10,
-    maxVideoSizeBytes: 100 * 1024 * 1024,
+    maxVideoFrames: 10, // From Orchestrator (should be here)
+    maxVideoSizeBytes: 100 * 1024 * 1024, // From Orchestrator (should be here)
   };
 
   const finalConfig = loadedConfig as unknown as FrameworkConfig;
@@ -486,6 +485,7 @@ if (typeof window === "undefined") {
   logger.info(`  Main Chat/Vision Model: ${config.llm.chatModel}`);
   logger.info(`  Planning/Tool Routing Model: ${config.llm.planningModel}`);
   logger.info(`  Extraction Model: ${config.llm.extractionModel}`);
+  logger.info(`  TTS Post-Processing Enabled: ${config.llm.enableTtsPostProcessing}`); // Log new setting
   if (config.allowDevUnauth && config.app.nodeEnv === "production") {
     logger.error("CRITICAL SECURITY: ALLOW_DEV_UNAUTH IS TRUE IN PRODUCTION!");
   }
@@ -499,16 +499,14 @@ if (typeof window === "undefined") {
   }
 }
 
-// appConfig alias for easier import in other parts of the app, ensuring it points to the single source of truth
 export const appConfig = {
   ...config,
   openai: {
     ...(config.llm), 
-    embedderModel: config.embedder.model, // Keep separate for clarity if needed
-    embeddingDims: config.embedder.dimensions, // Keep separate for clarity if needed
-    // Add other openai specific settings from config.llm that might not be directly in frameworkConfig.llm if necessary
-    text: config.llm.chatModel, // alias for chatModel
-    vision: config.llm.chatModel, // alias for chatModel (as it handles vision)
+    embedderModel: config.embedder.model,
+    embeddingDims: config.embedder.dimensions,
+    text: config.llm.chatModel, 
+    vision: config.llm.chatModel, 
     planning: config.llm.planningModel,
     extraction: config.llm.extractionModel,
     tts: config.llm.ttsModel,
@@ -517,5 +515,8 @@ export const appConfig = {
     maxToolsPerTurn: 3,
     maxVideoFrames: 10,
     maxVideoSizeBytes: 100 * 1024 * 1024,
+    // NEW: Expose TTS post-processing setting through appConfig.openai
+    enableTtsPostProcessing: config.llm.enableTtsPostProcessing,
+    ttsTargetLoudnessDb: config.llm.ttsTargetLoudnessDb,
   },
 };

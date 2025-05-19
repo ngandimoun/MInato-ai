@@ -9,6 +9,7 @@ import { RATE_LIMIT_ID_CHAT, MEDIA_UPLOAD_BUCKET } from "@/lib/constants";
 import {
   ChatMessage,
   ChatMessageContentPart,
+  ChatMessageContentPartText,
   MessageAttachment,
   OrchestratorResponse,
 } from "@/lib/types/index";
@@ -37,7 +38,6 @@ function createSSEEvent(eventName: string, data: Record<string, any> | string): 
   return `event: ${eventName}\ndata: ${typeof data === "string" ? data : JSON.stringify(data)}\n\n`;
 }
 
-// Vision detail from the *newly structured* appConfig.openai
 const visionDetailConfig = appConfig.openai.visionDetail;
 
 export async function POST(req: NextRequest) {
@@ -84,176 +84,129 @@ export async function POST(req: NextRequest) {
 
   const contentType = req.headers.get("content-type") || "";
   let history: ChatMessage[] = [];
-  let userMessageText: string | null = null;
+  let userMessageText: string | null = null; // Text part of the user's message
+  let orchestratorInputContentParts: ChatMessageContentPart[] = []; // For multimodal or complex text
+  let initialAttachments: MessageAttachment[] = []; // For files/videos for the orchestrator
+
   let sessionIdFromRequest: string | undefined;
-  let attachmentsForOrchestrator: MessageAttachment[] = [];
-  let inputContentPartsForOrchestrator: ChatMessageContentPart[] = [];
   let clientDataFromRequest: any = null;
-  let requestBodyForLog: any = null;
 
   try {
     if (contentType.startsWith("application/json")) {
       const jsonData = await req.json();
-      requestBodyForLog = jsonData;
       const allMessages: ChatMessage[] = jsonData.messages || [];
       
       if (allMessages.length > 0) {
         const lastMessage = allMessages[allMessages.length - 1];
         if (lastMessage?.role === "user") {
-          history = allMessages.slice(0, -1);
+          history = allMessages.slice(0, -1); // History is everything BEFORE the last user message
+          // Process last user message for content parts
           if (typeof lastMessage.content === "string") {
             userMessageText = lastMessage.content;
-            inputContentPartsForOrchestrator.push({ type: "text", text: userMessageText });
+            orchestratorInputContentParts.push({ type: "text", text: userMessageText });
           } else if (Array.isArray(lastMessage.content)) {
-            // Correctly process ChatMessageContentPart[]
             lastMessage.content.forEach(part => {
               if (part.type === "text" && typeof part.text === 'string') {
-                userMessageText = (userMessageText || "") + part.text; // Concatenate text parts
-                inputContentPartsForOrchestrator.push({ type: "text", text: part.text });
-              } else if ((part as any).type === 'input_image' && (part as any).image_url) {
-                inputContentPartsForOrchestrator.push({
-                  type: "input_image", // Use the correct type for GPT-4o
-                  image_url: (part as any).image_url, // This should be an object { url: string, detail?: string }
-                  detail: (part as any).detail || visionDetailConfig
-                });
+                userMessageText = (userMessageText || "") + part.text;
+                orchestratorInputContentParts.push({ type: "text", text: part.text });
+              } else if ((part as any).type === 'input_image' && typeof (part as any).image_url === 'string') { // from client sending string URL
+                 orchestratorInputContentParts.push({ type: "input_image", image_url: (part as any).image_url, detail: (part as any).detail || visionDetailConfig });
               } else if ((part as any).type === 'image_url' && typeof (part as any).image_url?.url === 'string') { // Already in OpenAI format
-                  inputContentPartsForOrchestrator.push({
-                      type: "input_image",
-                      image_url: (part as any).image_url,
-                      detail: (part as any).detail || visionDetailConfig
-                  });
+                 orchestratorInputContentParts.push({ type: "input_image", image_url: (part as any).image_url.url, detail: (part as any).image_url.detail || visionDetailConfig });
               }
             });
           }
+          // Process experimental_attachments from the last user message
+          if (Array.isArray((lastMessage as any).experimental_attachments)) {
+            initialAttachments = ((lastMessage as any).experimental_attachments as any[]).map(att => ({
+              id: att.id || randomUUID(),
+              type: att.contentType?.startsWith("image/") ? "image" : (att.contentType?.startsWith("video/") ? "video" : "document"),
+              name: att.name || `attachment_${Date.now()}`,
+              url: att.url, // Assumes URL is present, could be data URI from client
+              mimeType: att.contentType,
+              size: att.size,
+              file: undefined, // Will be handled by server if it was FormData
+              storagePath: undefined
+            }));
+          }
         } else {
-          history = allMessages;
+          history = allMessages; // All messages are history if last is not user
         }
       }
       sessionIdFromRequest = jsonData.id;
       clientDataFromRequest = jsonData.data;
-
-      // Process sdkAttachments for JSON if any (less common, usually for FormData)
-      const sdkAttachments = (jsonData.messages?.[jsonData.messages.length - 1] as any)?.experimental_attachments || [];
-      if (Array.isArray(sdkAttachments)) {
-        for (const att of sdkAttachments) {
-          if (att.url && att.contentType) {
-            const attachmentToAdd: MessageAttachment = {
-              id: randomUUID(), type: att.contentType.startsWith("image/") ? "image" : "document", // Adjust as needed
-              name: att.name || `attachment_${Date.now()}`, url: att.url, mimeType: att.contentType,
-              size: att.size, storagePath: undefined // Not uploaded via this path, URL is direct
-            };
-            attachmentsForOrchestrator.push(attachmentToAdd);
-            if (attachmentToAdd.type === "image" && attachmentToAdd.url) {
-                inputContentPartsForOrchestrator.push({
-                    type: "input_image", image_url: attachmentToAdd.url
-                });
-            }
-          }
-        }
-      }
-      logger.debug(`${logPrefix} Parsed JSON. History: ${history.length}. Orchestrator Input Parts: ${inputContentPartsForOrchestrator.length}. Attachments (from sdk): ${attachmentsForOrchestrator.length}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
+      logger.debug(`${logPrefix} Parsed JSON. History: ${history.length}. UserText: ${userMessageText ? "Yes" : "No"}. InputParts: ${orchestratorInputContentParts.length}. InitialAttachments: ${initialAttachments.length}`);
 
     } else if (contentType.startsWith("multipart/form-data")) {
       const formData = await req.formData();
-      requestBodyForLog = "FormData (details in logs)";
       const messagesString = formData.get("messages") as string | null;
       if (messagesString) {
         try {
           const parsedMessages: ChatMessage[] = JSON.parse(messagesString);
           if (!Array.isArray(parsedMessages)) throw new Error("'messages' not array");
+          // Same logic as JSON to extract history and last user message parts
           if (parsedMessages.length > 0) {
             const lastMessage = parsedMessages[parsedMessages.length - 1];
             if (lastMessage?.role === "user") {
               history = parsedMessages.slice(0, -1);
               if (typeof lastMessage.content === "string") {
                  userMessageText = lastMessage.content;
-                 inputContentPartsForOrchestrator.push({ type: "text", text: userMessageText });
-              }
-              // Note: ChatMessageContentPart[] in FormData 'messages' field is less common.
-              // If it occurs, it would need specific handling here.
+                 orchestratorInputContentParts.push({ type: "text", text: userMessageText });
+              } else if (Array.isArray(lastMessage.content)) { /* Handle parts if sent this way */ }
             } else { history = parsedMessages; }
-          } else { history = []; }
+          }
         } catch (e: any) {
-          logger.error(`${logPrefix} Invalid 'messages' JSON in FormData for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}:`, e.message);
+          logger.error(`${logPrefix} Invalid 'messages' JSON in FormData:`, e.message);
           return NextResponse.json({ error: `Invalid 'messages' format: ${e.message}` }, { status: 400 });
         }
       }
-      if (!userMessageText && formData.has("prompt")) { // Fallback for simple text prompt in FormData
+      // Fallback for simple text prompt
+      if (!userMessageText && formData.has("prompt")) {
          userMessageText = formData.get("prompt") as string;
-         if (userMessageText) inputContentPartsForOrchestrator.push({ type: "text", text: userMessageText });
+         if (userMessageText) orchestratorInputContentParts.push({ type: "text", text: userMessageText });
       }
 
-      const sessionIdParam = formData.get("id") as string | null;
+      sessionIdFromRequest = formData.get("id") as string | null || undefined;
       const dataString = formData.get("data") as string | null;
-      if (sessionIdParam) sessionIdFromRequest = sessionIdParam;
-      if (dataString) try { clientDataFromRequest = JSON.parse(dataString); } catch (e: any) { logger.warn(`${logPrefix} No parse 'data' FormData: ${e.message}`); }
+      if (dataString) try { clientDataFromRequest = JSON.parse(dataString); } catch {}
 
-      const supabaseAdmin = getSupabaseAdminClient();
-      if (!supabaseAdmin) { logger.error(`${logPrefix} Supabase admin client unavailable for file upload.`); throw new Error("Storage service misconfiguration."); }
-      
-      const fileProcessingPromises: Promise<void>[] = [];
+      // Process files from FormData for initialAttachments
       for (const [key, value] of formData.entries()) {
         if (value instanceof File) {
           if (value.size === 0) { logger.warn(`${logPrefix} Skipping empty file: ${value.name}`); continue; }
-          const isImage = value.type.startsWith("image/");
-          const isVideo = value.type.startsWith("video/"); // For video frames, not direct video processing by GPT-4o here
-          
-          if (!isImage && !isVideo) { // Only allow images and videos for direct GPT-4o input, docs handled separately by settings panel
-            logger.warn(`${logPrefix} Rejected unsupported file type for direct chat input: ${value.name} (${value.type})`);
-            continue; // Skip non-image/video files for direct GPT-4o content parts
-          }
-
-          logger.info(`${logPrefix} Uploading file (for GPT-4o input): ${value.name} (${value.size}b, ${value.type}) for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
-          const fileBuffer = Buffer.from(await value.arrayBuffer());
-          const originalFileName = value.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-          const fileExtension = originalFileName.split(".").pop() || "bin";
-          const uniqueFileName = `${randomUUID()}.${fileExtension}`;
-          const fileFolder = isImage ? "images" : (isVideo ? "video_frames_temp" : "other_uploads"); // Temp folder for video frames if needed
-          const filePath = `${fileFolder}/${userId}/${uniqueFileName}`;
-          
-          const uploadPromise = supabaseAdmin.storage.from(MEDIA_UPLOAD_BUCKET).upload(filePath, fileBuffer, { contentType: value.type, upsert: false })
-            .then(async ({ data: uploadData, error: uploadError }) => {
-              if (uploadError) {
-                logger.error(`${logPrefix} Supabase upload error for ${filePath} (User ${userId ? userId.substring(0,8) : 'UNKNOWN'}):`, uploadError.message);
-                throw new Error(`Upload to ${MEDIA_UPLOAD_BUCKET}/${filePath} failed: ${uploadError.message}`);
-              }
-              if (uploadData) {
-                logger.debug(`${logPrefix} Upload OK to ${filePath} for user ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
-                const { data: publicUrlData } = supabaseAdmin.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(filePath);
-                if (publicUrlData?.publicUrl) {
-                  if (isImage) {
-                    inputContentPartsForOrchestrator.push({
-                      type: "input_image",
-                      image_url: publicUrlData.publicUrl
-                    });
-                  } else if (isVideo) {
-                    // Video analysis is now separate, handle by sending to /api/video/analyze in frontend or specialized orchestrator path
-                    // For now, just log it was received. If frames were extracted client-side and sent, they'd be handled as images.
-                    logger.info(`${logPrefix} Video file ${originalFileName} uploaded, analysis via /api/video/analyze expected if needed.`);
-                     attachmentsForOrchestrator.push({
-                        id: randomUUID(), type: "video", name: originalFileName, url: publicUrlData.publicUrl,
-                        mimeType: value.type, size: value.size, storagePath: filePath,
-                    });
-                  }
-                } else {
-                   logger.warn(`${logPrefix} Could not get public URL for uploaded file ${filePath}. Will not be sent to GPT-4o.`);
-                }
-              }
-            });
-          fileProcessingPromises.push(uploadPromise);
+          const fileType = value.type.startsWith("image/") ? "image" : (value.type.startsWith("video/") ? "video" : "document");
+          initialAttachments.push({
+            id: randomUUID(),
+            type: fileType,
+            name: value.name,
+            mimeType: value.type,
+            size: value.size,
+            file: value, // Keep the File object for orchestrator to process
+            url: "", // Will be set if/when uploaded by orchestrator or service
+            storagePath: undefined,
+          });
+          logger.info(`${logPrefix} Added attachment from FormData: ${value.name} (${fileType})`);
         }
       }
-      await Promise.allSettled(fileProcessingPromises);
-      logger.debug(`${logPrefix} Parsed FormData. Orchestrator Input Parts: ${inputContentPartsForOrchestrator.length}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
-
+      logger.debug(`${logPrefix} Parsed FormData. History: ${history.length}. UserText: ${userMessageText ? "Yes" : "No"}. InitialAttachments: ${initialAttachments.length}`);
     } else {
-      logger.error(`${logPrefix} Unsupported Content-Type: ${contentType}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
+      logger.error(`${logPrefix} Unsupported Content-Type: ${contentType}.`);
       return NextResponse.json({ error: "Unsupported Content-Type" }, { status: 415 });
     }
 
-    if (inputContentPartsForOrchestrator.length === 0 && attachmentsForOrchestrator.length === 0) {
-      logger.warn(`${logPrefix} No text or processable attachments/content parts. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}.`);
-      return NextResponse.json({ error: "Message content or file is required." }, { status: 400 });
+    // If orchestratorInputContentParts is still empty but userMessageText exists, populate it
+    if (orchestratorInputContentParts.length === 0 && userMessageText) {
+        orchestratorInputContentParts.push({ type: "text", text: userMessageText });
+    }
+    // If no text and no image/video attachments directly for input_image, but other attachments exist
+    if (orchestratorInputContentParts.filter(p => p.type === 'text' || p.type === 'input_image').length === 0 && initialAttachments.length > 0 && !userMessageText) {
+       // Create a placeholder text part if only non-image/video attachments are present without text
+       orchestratorInputContentParts.push({ type: "text", text: `[Processing ${initialAttachments.length} attachment(s)]` });
+    }
+
+    if (orchestratorInputContentParts.length === 0) {
+      logger.warn(`${logPrefix} No text or processable content parts derived from user input.`);
+      return NextResponse.json({ error: "Message content is required." }, { status: 400 });
     }
 
     const ipAddress = req.headers.get("x-forwarded-for") ?? "unknown";
@@ -266,13 +219,12 @@ export async function POST(req: NextRequest) {
       ...(clientDataFromRequest && { clientData: clientDataFromRequest }),
     };
 
-    // Use inputContentPartsForOrchestrator directly if it's populated (multimodal)
-    // Otherwise, fallback to userMessageText for text-only input.
-    const orchestratorFinalInput: string | ChatMessageContentPart[] =
-        inputContentPartsForOrchestrator.length > 0
-            ? inputContentPartsForOrchestrator
-            : (userMessageText || "");
-
+    // orchestratorInputContentParts now correctly holds ChatMessageContentPart[]
+    // initialAttachments holds files that need backend processing (like video for analysis)
+    const finalOrchestratorInput: string | ChatMessageContentPart[] = 
+        orchestratorInputContentParts.length === 1 && orchestratorInputContentParts[0].type === 'text'
+        ? (orchestratorInputContentParts[0] as ChatMessageContentPartText).text
+        : orchestratorInputContentParts;
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -280,22 +232,22 @@ export async function POST(req: NextRequest) {
         const sendErrorToStream = (errorMessage: string, statusCode: number = 500) => {
           try {
             controller.enqueue(encoder.encode(createSSEEvent("error", { error: errorMessage, statusCode })));
-            logger.info(`${logPrefix} Sent error to client: ${errorMessage}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
+            logger.info(`${logPrefix} Sent error to client: ${errorMessage}.`);
           } catch (e: any) {
-            logger.error(`${logPrefix} Stream Error - Failed to enqueue error event: ${e.message}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
+            logger.error(`${logPrefix} Stream Error - Failed to enqueue error event: ${e.message}.`);
           }
         };
 
         try {
           logger.info(`${logPrefix} Calling orchestrator.runOrchestration... User ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
           const orchestratorResult = await orchestrator.runOrchestration(
-            userId || '', // userId is guaranteed to be non-null here
-            orchestratorFinalInput,
+            userId || '', 
+            finalOrchestratorInput,
             history,
             effectiveApiContext,
-            attachmentsForOrchestrator // Pass along any attachments that weren't image/video for GPT-4o
+            initialAttachments 
           );
-          logger.debug(`${logPrefix} Orchestrator finished. Error: ${orchestratorResult.error}. Response: ${!!orchestratorResult.response}. User ${userId ? userId.substring(0,8) : 'UNKNOWN'}`);
+          logger.debug(`${logPrefix} Orchestrator finished. Error: ${orchestratorResult.error}. Response: ${!!orchestratorResult.response}.`);
 
           if (orchestratorResult.error && !orchestratorResult.clarificationQuestion) {
             sendErrorToStream(orchestratorResult.error, 500);
@@ -327,10 +279,10 @@ export async function POST(req: NextRequest) {
           if (orchestratorResult.debugInfo) annotations.debugInfo = orchestratorResult.debugInfo;
           if (orchestratorResult.workflowFeedback) annotations.workflowFeedback = orchestratorResult.workflowFeedback;
           if (orchestratorResult.clarificationQuestion) annotations.clarificationQuestion = orchestratorResult.clarificationQuestion;
+          // Send back processed attachments if orchestrator modified/added any (e.g., storage URLs)
           if (orchestratorResult.attachments && orchestratorResult.attachments.length > 0) {
             annotations.attachments = orchestratorResult.attachments;
           }
-
 
           if (Object.keys(annotations).length > 0) {
             controller.enqueue(encoder.encode(createSSEEvent("annotations", annotations)));

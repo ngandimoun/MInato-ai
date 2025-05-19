@@ -70,6 +70,10 @@ You are Minato, an AI companion for {userName}. Your goal is to be helpful, know
 - **Interaction Style:** Address {userName} by name. Be engaging, empathetic, and reasonably concise. Conclude naturally. Mention your name, Minato, occasionally.
 - **Open-ended Follow-up:** Unless providing a very short, direct answer or an error, end your response with a gentle, open-ended follow-up question to encourage further interaction, like "What else can Minato help you with today, {userName}?" or "Is there anything else on your mind, {userName}?".
 - **No Internals:** Do NOT reveal internal thought processes, tool technical names (unless explaining failure), or the raw structure of tool/workflow results/JSON unless specifically asked to debug.
+- **TTS Enhancement (Pseudo-SSML):** To improve voice delivery, subtly incorporate SSML-like tags where appropriate for natural pacing and emphasis.
+    - Use "<break time='200ms'/>" for short pauses, "<break time='500ms'/>" for slightly longer ones, or "<break time='800ms'/>" for significant pauses between ideas. Use these sparingly.
+    - Use "<emphasis level='moderate'>word</emphasis>" or "<emphasis level='strong'>word</emphasis>" to add natural stress to important words or phrases. Avoid overusing emphasis.
+    - Example: "That's a <emphasis level='moderate'>great</emphasis> question, {userName}.<break time='300ms'/> Let me think..."
 
 # INTERNAL CONTEXT - RELEVANT MEMORIES (Use these to add helpful related context for {userName}):
 {retrieved_memory_context}
@@ -86,7 +90,7 @@ You are Minato, an AI companion for {userName}. Your goal is to be helpful, know
 **Output ONLY a single JSON object** with the following exact structure:
 \`\`\`json
 {
-  "responseText": "The natural language response for {userName}, from Minato. If a tool_router_follow_up_suggestion was provided, this responseText MUST include a question to {userName} about proceeding with it.",
+  "responseText": "The natural language response for {userName}, from Minato, potentially including SSML-like tags like <break time='value'/> or <emphasis level='value'>text</emphasis> for improved TTS. If a tool_router_follow_up_suggestion was provided, this responseText MUST include a question to {userName} about proceeding with it.",
   "intentType": "The single best intent classification from the list: [neutral, informative, questioning, assertive, formal, celebratory, happy, encouraging, apologetic, empathetic, concerned, disappointed, urgent, calm, gentle, whispering, sarcastic, humorous, roasting, flirtatious, intimate, thinking, greeting, farewell, confirmation_positive, confirmation_negative, clarification, apology, empathy, instructional, warning, error, workflow_update]"
 }
 \`\`\`
@@ -135,8 +139,8 @@ export const ENTITY_EXTRACTION_SCHEMA_OPENAI = {
                 manner: { type: ["string", "null"] as const, description: "How the relationship occurs (e.g., 'quickly', 'carefully')." },
                 instrument: { type: ["string", "null"] as const, description: "Tool or item used in the relationship (e.g., 'with a pen', 'using the app')." }
               },
-              required: ["time", "location", "manner", "instrument"], // All these keys are expected if qualifiers is not null
-              additionalProperties: false as false, // No other keys allowed in qualifiers
+              required: ["time", "location", "manner", "instrument"], 
+              additionalProperties: false as false, 
             },
           },
           required: ["subj", "pred", "obj", "language", "qualifiers"],
@@ -157,7 +161,7 @@ export const ENTITY_EXTRACTION_SCHEMA_OPENAI = {
               original_content: { type: "string" as const, description: "The core reminder text." },
               trigger_datetime: {
                 type: "string" as const,
-                description: "ISO 8601 UTC trigger time (e.g., '2024-07-30T14:30:00Z')." // format keyword removed
+                description: "ISO 8601 UTC trigger time (e.g., '2024-07-30T14:30:00Z')." 
               },
               recurrence_rule: { type: ["string", "null"] as const, enum: ["daily", "weekly", "monthly", "yearly", null] as ("daily" | "weekly" | "monthly" | "yearly" | null)[], description: "Recurrence pattern." },
               status: { type: "string" as const, enum: ["pending"] as unknown as ["pending"][], description: "Initial status, always 'pending'." },
@@ -169,7 +173,7 @@ export const ENTITY_EXTRACTION_SCHEMA_OPENAI = {
           detected_language: { type: ["string", "null"] as const, description: "Primary language of user input (ISO 639-1), stored here." },
         },
         required: ["reminder_details", "detected_language"],
-        additionalProperties: false as false, // Corrected: metadata object itself is strict
+        additionalProperties: false as false, 
         description: "Specific key-values extracted. Includes reminder_details and detected_language. No other dynamic keys allowed at this top metadata level.",
       },
       summary: { type: ["string", "null"] as const, description: "Concise 1-sentence summary of user's main point." },
