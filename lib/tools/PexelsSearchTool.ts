@@ -4,28 +4,39 @@ import { createClient, PhotosWithTotalResults, ErrorResponse as PexelsErrorRespo
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { CachedImage, CachedImageList } from "@/lib/types/index";
-import nodeFetch from "node-fetch";
+import nodeFetch from "node-fetch"; // Ensure node-fetch is correctly imported
 
 interface PexelsSearchInput extends ToolInput {
   query: string;
   limit?: number | null;
+  orientation?: "landscape" | "portrait" | "square" | null; // Added orientation
+  size?: "large" | "medium" | "small" | null; // Added size preference
 }
 type PexelsClient = ReturnType<typeof createClient>;
 
 export class PexelsSearchTool extends BaseTool {
   name = "PexelsSearchTool";
-  description = "Searches Pexels for high-quality, royalty-free photos based on keywords or a description.";
+  description = "Searches Pexels for high-quality, royalty-free photos based on keywords, description, orientation, or size.";
   argsSchema = {
     type: "object" as const,
     properties: {
-      query: { type: "string" as const, description: "Keywords or description of the photo to search for." } as OpenAIToolParameterProperties,
+      query: { type: "string" as const, description: "Keywords or description of the photo to search for. This is required." } as OpenAIToolParameterProperties,
       limit: {
         type: ["number", "null"] as const,
-        description: "Maximum number of results to return (must be between 1 and 5). If null or not provided, defaults to 3.",
-        // Removed: minimum, maximum, default
+        description: "Maximum number of results to return (1-5). If null or not provided, defaults to 3.",
+      } as OpenAIToolParameterProperties,
+      orientation: {
+        type: ["string", "null"] as const,
+        enum: ["landscape", "portrait", "square", null],
+        description: "Optional: Desired photo orientation (landscape, portrait, square). Can be null for any."
+      } as OpenAIToolParameterProperties,
+      size: {
+        type: ["string", "null"] as const,
+        enum: ["large", "medium", "small", null],
+        description: "Optional: Preferred photo size. 'large' (24MP), 'medium' (12MP), 'small' (4MP). Can be null for any."
       } as OpenAIToolParameterProperties,
     },
-    required: ["query", "limit"], // All defined properties are required for strict mode
+    required: ["query", "limit", "orientation", "size"],
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 3600 * 24;
@@ -52,25 +63,34 @@ export class PexelsSearchTool extends BaseTool {
 
   async execute(input: PexelsSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
     const { query } = input;
-    // Handle limit defaulting logic
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 3 : Math.max(1, Math.min(input.limit, 5));
+    const orientation = (input.orientation === null) ? undefined : input.orientation;
+    const size = (input.size === null) ? undefined : input.size;
+    const userNameForResponse = input.context?.userName || "friend";
 
     const logPrefix = `[PexelsTool Type:photos] Query:"${query.substring(0,30)}..."`;
-    const queryInputForStructuredData = { ...input, limit: effectiveLimit };
+    const queryInputForStructuredData = { ...input, limit: effectiveLimit, orientation, size };
 
 
     if (abortSignal?.aborted) { return { error: "Pexels search cancelled.", result: "Cancelled." }; }
-    if (!this.pexelsClient) { return { error: "Pexels Tool is not configured.", result: `Sorry, ${input.context?.userName || "User"}, I cannot search Pexels right now.` }; }
-    if (!query?.trim()) { return { error: "Missing search query.", result: `What photos should Minato look for on Pexels, ${input.context?.userName || "User"}?` }; }
+    if (!this.pexelsClient) { return { error: "Pexels Tool is not configured.", result: `Sorry, ${userNameForResponse}, I cannot search Pexels right now.` }; }
+    if (!query?.trim()) { return { error: "Missing search query.", result: `What photos should Minato look for on Pexels, ${userNameForResponse}?` }; }
 
-    this.log("info", `${logPrefix} Searching Pexels (Limit: ${effectiveLimit})...`);
+    this.log("info", `${logPrefix} Searching Pexels (Limit: ${effectiveLimit}, Orient: ${orientation || 'any'}, Size: ${size || 'any'})...`);
     let outputData: CachedImageList = {
       result_type: "image_list", source_api: "pexels_photo", query: queryInputForStructuredData, images: [], error: undefined,
     };
 
     try {
-      const params = { query: query.trim(), per_page: effectiveLimit, page: 1 };
-      const response = await this.pexelsClient.photos.search(params); // AbortSignal not directly supported by pexels client
+      const params: { query: string; per_page: number; page: number; orientation?: typeof orientation; size?: typeof size } = { 
+        query: query.trim(), 
+        per_page: effectiveLimit, 
+        page: 1 
+      };
+      if (orientation) params.orientation = orientation;
+      if (size) params.size = size;
+      
+      const response = await this.pexelsClient.photos.search(params); 
 
       if (abortSignal?.aborted && !(response && 'photos' in response)) {
         logger.warn(`${logPrefix} Execution aborted after Pexels API call or during.`);
@@ -91,16 +111,26 @@ export class PexelsSearchTool extends BaseTool {
 
       if (photos.length === 0) {
         this.log("info", `${logPrefix} No photos found.`);
-        return { result: `Minato couldn't find any Pexels photos matching "${query}" for ${input.context?.userName || "you"}.`, structuredData: outputData };
+        return { result: `Minato couldn't find any Pexels photos matching "${query}" for ${userNameForResponse}. Maybe try different keywords?`, structuredData: outputData };
       }
       this.log("info", `${logPrefix} Found ${photos.length} photos.`);
       const structuredResults: CachedImage[] = photos.map(img => ({
-        id: String(img.id), title: img.alt || `Pexels Photo ${img.id}`, description: img.alt || null,
-        imageUrlSmall: img.src.medium, imageUrlRegular: img.src.large, imageUrlFull: img.src.original,
-        photographerName: img.photographer || null, photographerUrl: img.photographer_url || null,
-        sourceUrl: img.url, sourcePlatform: "pexels",
+        id: String(img.id), 
+        title: img.alt || `Pexels Photo by ${img.photographer || 'Unknown'} - ${img.id}`, // More descriptive title
+        description: img.alt || null,
+        imageUrlSmall: img.src.medium, // Pexels 'medium' is good for previews
+        imageUrlRegular: img.src.large, 
+        imageUrlFull: img.src.original,
+        photographerName: img.photographer || null, 
+        photographerUrl: img.photographer_url || null,
+        sourceUrl: img.url, 
+        sourcePlatform: "pexels",
+        width: img.width, // Add width
+        height: img.height, // Add height
+        avgColor: img.avg_color || undefined // Add average color if available
       }));
-      const textResult = `Okay, ${input.context?.userName || "User"}, Minato found ${structuredResults.length} photo(s) on Pexels related to "${query}".`;
+      
+      const textResult = `Okay, ${userNameForResponse}, Minato found ${structuredResults.length} cool photo(s) on Pexels related to "${query}". Check them out!`;
       outputData.images = structuredResults; outputData.error = undefined;
       return { result: textResult, structuredData: outputData };
 
@@ -110,10 +140,10 @@ export class PexelsSearchTool extends BaseTool {
       if (error.name === 'AbortError' || abortSignal?.aborted) {
         this.log("error", `${logPrefix} Request timed out or was aborted.`);
         outputData.error = "Request timed out or cancelled.";
-        return { error: "Pexels search timed out or cancelled.", result: `Sorry, ${input.context?.userName || "User"}, the Pexels search took too long.`, structuredData: outputData };
+        return { error: "Pexels search timed out or cancelled.", result: `Sorry, ${userNameForResponse}, the Pexels search took too long.`, structuredData: outputData };
       }
       this.log("error", `${logPrefix} Failed:`, error.message);
-      return { error: errorMessage, result: `Sorry, ${input.context?.userName || "User"}, Minato encountered an error searching Pexels.`, structuredData: outputData };
+      return { error: errorMessage, result: `Sorry, ${userNameForResponse}, Minato encountered an error searching Pexels. Please try again.`, structuredData: outputData };
     }
   }
 }

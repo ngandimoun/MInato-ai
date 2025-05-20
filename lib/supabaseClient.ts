@@ -901,3 +901,5 @@ export class supabaseAdmin {
     return client.storage;
   }
 }
+
+export { getSupabaseAdminClient } from "./supabase/server";
