@@ -5,12 +5,23 @@ import { logger } from "../../memory-framework/config";
 import { CalendarEvent, CalendarEventList, UserState } from "@/lib/types";
 import { google, calendar_v3 } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
-import { supabaseAdmin } from "../supabaseClient";
-import { getSupabaseAdminClient } from "../supabaseClient";
+import { getSupabaseAdminClient } from "../supabaseClient"; // Adjusted import
 import { decryptData } from "../utils/encryption";
 import { randomUUID } from "crypto";
-import { format, parseISO, isToday, formatRelative } from 'date-fns'; // Added isToday, formatRelative
-// Helper function implementations (getGoogleRefreshToken, getGoogleAuthClient, handleGoogleAuthFailure)
+import { format, parseISO, isToday } from 'date-fns';
+// Import specific locales as needed
+import { enUS, fr as frLocale, es as esLocale, de as deLocale, ja as jaLocale } from 'date-fns/locale'; // Renamed to avoid conflict with 'fr' variable
+import type { Locale as DateFnsLocaleType } from 'date-fns';
+
+// Map of supported locales for date-fns
+const dateFnsLocalesMap: { [key: string]: DateFnsLocaleType } = {
+  'en': enUS, 'en-us': enUS, 'en-gb': enUS,
+  'fr': frLocale, 'fr-fr': frLocale,
+  'es': esLocale, 'es-es': esLocale,
+  'de': deLocale, 'de-de': deLocale,
+  'ja': jaLocale, 'ja-jp': jaLocale
+};
+
 async function getGoogleRefreshToken(userId: string): Promise<string | null> {
 const logPrefix = `[getGoogleRefreshToken User:${userId?.substring(0, 8)}]`;
 const supabaseClient = getSupabaseAdminClient();
@@ -75,7 +86,7 @@ description: "Optional Calendar ID (e.g., user's email, 'primary'). If null or o
 required: ["action", "maxResults", "calendarId"],
 additionalProperties: false as false,
 };
-cacheTTLSeconds = 60 * 5; // Cache calendar for 5 minutes
+cacheTTLSeconds = 60 * 5; 
 async execute(input: CalendarInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
 const effectiveAction = (input.action === null || input.action === undefined) ? "get_today_events" : input.action;
 const effectiveMaxResults = (input.maxResults === null || input.maxResults === undefined) ? 5 : Math.max(1, Math.min(input.maxResults, 10));
@@ -120,11 +131,10 @@ let outputStructuredData: CalendarEventList = {
 try {
   const calendar = google.calendar({ version: "v3", auth });
   const now = new Date();
-  const userTimezone = input.context?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone; // Fallback to system TZ
+  const userTimezone = input.context?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone; 
   let timeMinISO: string, timeMaxISO: string;
 
   try {
-    // Ensure dates are for "today" in the user's timezone, then convert to UTC for API
     const todayAtStartOfDayInUserTZ = new Date(now.toLocaleString('en-US', { timeZone: userTimezone }));
     todayAtStartOfDayInUserTZ.setHours(0, 0, 0, 0);
     
@@ -146,7 +156,7 @@ try {
   const response = await calendar.events.list({
     calendarId: effectiveCalendarId, timeMin: timeMinISO, timeMax: timeMaxISO,
     maxResults: Math.max(1, Math.min(effectiveMaxResults, 15)), 
-    singleEvents: true, orderBy: 'startTime', timeZone: userTimezone, // Pass user's TZ to API
+    singleEvents: true, orderBy: 'startTime', timeZone: userTimezone,
   });
 
   if (abortSignal?.aborted) { return { error: "Calendar check cancelled.", result: "Cancelled." }; }
@@ -156,7 +166,9 @@ try {
     return { result: `Looks like your calendar ('${effectiveCalendarId}') is clear for today, ${userNameForResponse}! Enjoy your day!`, structuredData: outputStructuredData };
   }
 
-  const userLocale = input.context?.locale || 'en-US';
+  const userLocaleKey = (input.context?.locale || 'en-US').split('-')[0].toLowerCase();
+  const dateFnsLocale = dateFnsLocalesMap[userLocaleKey] || enUS;
+
   const formattedEvents: CalendarEvent[] = events.filter(event => event?.status !== 'cancelled').map((event: calendar_v3.Schema$Event): CalendarEvent | null => {
     if (!event) return null;
     const startTimeStr = event.start?.dateTime || event.start?.date || null;
@@ -168,11 +180,10 @@ try {
     else if (startTimeStr) {
       try {
         const startDate = parseISO(startTimeStr);
-        // Use user's actual timezone for display formatting
-        timeString = format(startDate, "p", { locale: userLocale ? require(`date-fns/locale/${userLocale.split('-')[0]}`) : undefined });
+        timeString = format(startDate, "p", { locale: dateFnsLocale });
         if (endTimeStr) {
             const endDate = parseISO(endTimeStr);
-            timeString += ` - ${format(endDate, "p", { locale: userLocale ? require(`date-fns/locale/${userLocale.split('-')[0]}`) : undefined })}`;
+            timeString += ` - ${format(endDate, "p", { locale: dateFnsLocale })}`;
         }
       } catch (e: any) {
         logger.warn(`${logPrefix} Error formatting event time '${startTimeStr}' TZ '${event.start?.timeZone || userTimezone}': ${e.message}`);

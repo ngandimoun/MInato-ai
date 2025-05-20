@@ -1,6 +1,6 @@
 //app/api/chat/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient, getSupabaseAdminClient as getSupabaseAdmin } from "@/lib/supabase/server"; // Import admin client
+import { createServerSupabaseClient, getSupabaseAdminClient as getSupabaseAdmin } from "@/lib/supabase/server"; 
 import { cookies } from "next/headers";
 import { Orchestrator } from "@/lib/core/orchestrator";
 import { checkRateLimit } from "@/lib/rate-limiter";
@@ -18,7 +18,6 @@ import { appConfig } from "@/lib/config";
 import { randomUUID } from "crypto";
 import { getGlobalMemoryFramework } from "@/lib/memory-framework-global";
 
-// Define the tool call interfaces
 interface ToolCallInput {
   toolName: string;
   toolArgs: Record<string, any>;
@@ -35,7 +34,7 @@ interface ToolCallOutput {
 }
 
 interface MessageAttachmentDB extends Omit<MessageAttachment, 'file'> {
-  file?: File;
+  file?: File; // This will effectively be undefined when retrieved from DB
 }
 
 interface ChatMessageDB extends Omit<ChatMessage, 'attachments' | 'tool_calls' | 'audioUrl' | 'intentType' | 'ttsInstructions'> {
@@ -54,7 +53,7 @@ function getOrchestrator(): Orchestrator {
 if (!orchestratorInstance) {
 logger.info("[API Chat] Initializing Orchestrator instance...");
 try {
-getGlobalMemoryFramework();
+getGlobalMemoryFramework(); // Ensure memory framework is up
 orchestratorInstance = new Orchestrator();
 } catch (e: any) {
 logger.error("[API Chat] FATAL: Failed to initialize Orchestrator:", e.message, e.stack);
@@ -63,11 +62,13 @@ throw new Error(`Orchestrator initialization failed: ${e.message}`);
 }
 return orchestratorInstance;
 }
+
 function createSSEEvent(eventName: string, data: Record<string, any> | string): string {
 return `event: ${eventName}\ndata: ${typeof data === "string" ? data : JSON.stringify(data)}\n\n`;
 }
+
 const visionDetailConfig = appConfig.openai.visionDetail;
-// Helper to get or create a conversation ID for the user
+
 async function getOrCreateConversationId(userId: string, supabaseAdminClient: ReturnType<typeof getSupabaseAdmin>): Promise<string> {
 const logPrefix = `[ChatAPI GetCreateConvo User:${userId.substring(0,8)}]`;
 if (!supabaseAdminClient) {
@@ -78,8 +79,11 @@ const { data: existingConvo, error: fetchError } = await supabaseAdminClient
 .from("conversations")
 .select("id")
 .eq("user_id", userId)
+.order('created_at', { ascending: false }) // Get the latest conversation
+.limit(1)
 .single();
-if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 means no rows found
+
+if (fetchError && fetchError.code !== 'PGRST116') {
     logger.error(`${logPrefix} Error fetching conversation:`, fetchError);
     throw fetchError;
 }
@@ -89,9 +93,10 @@ if (existingConvo) {
 }
 
 logger.info(`${logPrefix} No existing conversation found, creating new one.`);
+const newConversationId = randomUUID(); // Generate UUID here
 const { data: newConvo, error: createError } = await supabaseAdminClient
     .from("conversations")
-    .insert({ user_id: userId, title: `Conversation started ${new Date().toISOString().substring(0,10)}` }) // Optional: Add a default title
+    .insert({ id: newConversationId, user_id: userId, title: `Conversation started ${new Date().toISOString().substring(0,10)}` })
     .select("id")
     .single();
 
@@ -102,7 +107,7 @@ if (createError || !newConvo) {
 logger.info(`${logPrefix} Created new conversation ID: ${newConvo.id}`);
 return newConvo.id;
 }
-// Helper to save a message to the database
+
 async function saveChatMessageToDb(
   message: ChatMessage,
   userId: string,
@@ -117,9 +122,27 @@ async function saveChatMessageToDb(
   }
 
   try {
-    const messageId = message.id || randomUUID();
+    // Ensure message.id is a valid UUID. If it's a temporary client-side ID, generate a new one.
+    // Assistant messages get their ID in the SSE stream-end or from orchestrator response.
+    // User messages might have a temporary ID. For DB, ensure it's a UUID.
+    let finalMessageId = message.id;
+    if (!finalMessageId || (!finalMessageId.startsWith('user-') && !finalMessageId.startsWith('asst-') && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalMessageId))) {
+        logger.warn(`${logPrefix} Message ID "${finalMessageId}" is not a UUID or expected temp format. Generating new UUID.`);
+        finalMessageId = randomUUID();
+    } else if (finalMessageId.startsWith('user-temp-') || finalMessageId.startsWith('asst-temp-')) {
+        // This is for optimistic UI updates; for DB, we should use a real UUID
+        // However, for the 'asst-temp' case, the *real* ID comes from the `stream-end` event later
+        // For user messages, it's okay to generate one here if it's temporary
+        if (finalMessageId.startsWith('user-temp-')) {
+            finalMessageId = randomUUID();
+        }
+        // For 'asst-temp-', we ideally wait for the final ID. If forced to save early, log it.
+        // For this function, we assume `message.id` is intended for the DB.
+    }
+
+
     const messageToSave: ChatMessageDB = {
-      id: messageId,
+      id: finalMessageId, // Use the validated/generated UUID
       conversation_id: conversationId,
       user_id: userId,
       role: message.role,
@@ -128,7 +151,7 @@ async function saveChatMessageToDb(
       attachments: message.attachments?.map(att => ({...att, file: undefined})) || null,
       tool_calls: Array.isArray(message.tool_calls) 
         ? (message.tool_calls as unknown as ToolCallInput[]).map(call => ({
-            id: call.toolCallId || randomUUID(),
+            id: call.toolCallId || randomUUID(), // Ensure tool_call also gets a UUID if not present
             type: "function" as const,
             function: {
               name: call.toolName,
@@ -143,24 +166,25 @@ async function saveChatMessageToDb(
       error: message.error || false,
     };
 
-    logger.debug(`${logPrefix} Saving message (ID: ${messageId.substring(0,8)}, Role: ${message.role}) to DB...`);
+    logger.debug(`${logPrefix} Saving message (ID: ${finalMessageId.substring(0,8)}, Role: ${message.role}) to DB...`);
     const { error } = await supabaseAdminClient.from("chat_messages").insert(messageToSave);
     
     if (error) {
-      logger.error(`${logPrefix} Error saving message to DB (ID: ${messageId.substring(0,8)}):`, error);
+      logger.error(`${logPrefix} Error saving message to DB (ID: ${finalMessageId.substring(0,8)}):`, error);
     } else {
-      logger.info(`${logPrefix} Message saved successfully to DB (ID: ${messageId.substring(0,8)}).`);
+      logger.info(`${logPrefix} Message saved successfully to DB (ID: ${finalMessageId.substring(0,8)}).`);
     }
   } catch (e: any) {
     logger.error(`${logPrefix} Exception saving message to DB:`, e.message, e.stack);
   }
 }
+
 export async function POST(req: NextRequest) {
 const logPrefix = "[API Chat]";
 const cookieStore = cookies();
-let userId: string; // Will be set after auth
+let userId: string; 
 let orchestrator: Orchestrator;
-const supabaseAdminClient = getSupabaseAdmin(); // Get admin client instance
+const supabaseAdminClient = getSupabaseAdmin();
 if (!supabaseAdminClient) {
 logger.error(`${logPrefix} Supabase admin client is not available.`);
 return NextResponse.json({ error: "Server configuration error." }, { status: 503 });
@@ -199,20 +223,17 @@ let history: ChatMessage[] = [];
 let userMessageText: string | null = null;
 let orchestratorInputContentParts: ChatMessageContentPart[] = [];
 let initialAttachmentsForOrchestrator: MessageAttachment[] = [];
-let sessionIdFromRequest: string | undefined = conversationId; // Use fetched/created conversation ID
+// let sessionIdFromRequest: string | undefined = conversationId; // Use conversationId as sessionId
 let clientDataFromRequest: any = null;
 let allMessagesFromClient: ChatMessage[] = [];
-let currentUserMessageForApi: ChatMessage | null = null; // To store the fully constructed current user message
+let currentUserMessageForApi: ChatMessage | null = null;
 try {
 if (contentType.startsWith("application/json")) {
 const jsonData = await req.json();
 allMessagesFromClient = (jsonData.messages || []) as ChatMessage[];
-// sessionIdFromRequest = jsonData.id; // We use conversationId now
 clientDataFromRequest = jsonData.data;
 logger.debug(`${logPrefix} Parsed JSON. Total messages from client: ${allMessagesFromClient.length}.`);
 } else if (contentType.startsWith("multipart/form-data")) {
-  // ... (FormData parsing logic from your previous version, ensure it populates `allMessagesFromClient` correctly)
-  // ... and `initialAttachmentsForOrchestrator` with File objects for the *current* message turn.
   const formData = await req.formData();
   const messagesString = formData.get("messages") as string | null;
   
@@ -236,8 +257,8 @@ logger.debug(`${logPrefix} Parsed JSON. Total messages from client: ${allMessage
         name: value.name,
         mimeType: value.type,
         size: value.size,
-        file: value,
-        url: "", 
+        file: value, // Keep File object for orchestrator
+        url: "", // Placeholder, will be data URL if image, or handled by backend
       });
     }
   }
@@ -245,10 +266,10 @@ logger.debug(`${logPrefix} Parsed JSON. Total messages from client: ${allMessage
   if (parsedMessagesJson.length > 0) {
       const lastMessageJson = parsedMessagesJson[parsedMessagesJson.length - 1];
       if (lastMessageJson.role === 'user') {
-          const enrichedAttachments = lastMessageJson.attachments?.map((attMeta: MessageAttachment) => {
+          const enrichedAttachments = (lastMessageJson.attachments || []).map((attMeta: MessageAttachment) => {
               const foundFile = filesFromFormData.find(f => f.name === attMeta.name && f.size === attMeta.size );
               return foundFile ? { ...attMeta, file: foundFile.file, mimeType: foundFile.mimeType, size: foundFile.size, id: foundFile.id } : attMeta;
-          }) || [];
+          });
           
           filesFromFormData.forEach(ffdata => {
               if (!enrichedAttachments.some((ea: MessageAttachment) => ea.id === ffdata.id)) {
@@ -274,7 +295,6 @@ logger.debug(`${logPrefix} Parsed JSON. Total messages from client: ${allMessage
         });
      }
   }
-  // sessionIdFromRequest = formData.get("id") as string | null || undefined; // using conversationId
   const dataString = formData.get("data") as string | null;
   if (dataString) try { clientDataFromRequest = JSON.parse(dataString); } catch {}
   logger.debug(`${logPrefix} Parsed FormData. Total messages from client: ${allMessagesFromClient.length}. Files found in form: ${filesFromFormData.length}`);
@@ -287,7 +307,7 @@ if (allMessagesFromClient.length > 0) {
     const lastMessage = allMessagesFromClient[allMessagesFromClient.length - 1];
     if (lastMessage?.role === "user") {
         history = allMessagesFromClient.slice(0, -1);
-        currentUserMessageForApi = { ...lastMessage, id: lastMessage.id || `user-${randomUUID()}` }; // Ensure ID
+        currentUserMessageForApi = { ...lastMessage, id: lastMessage.id || randomUUID() };
 
         if (typeof lastMessage.content === "string") {
             userMessageText = lastMessage.content;
@@ -320,18 +340,17 @@ if (orchestratorInputContentParts.length === 0) {
   logger.warn(`${logPrefix} No text or processable content parts derived from user input.`);
   return NextResponse.json({ error: "Message content is required." }, { status: 400 });
 }
-// Save the current user message to DB
+
 if (currentUserMessageForApi) {
     await saveChatMessageToDb(currentUserMessageForApi, userId, conversationId, supabaseAdminClient);
 }
-
 
 const ipAddress = req.headers.get("x-forwarded-for") ?? "unknown";
 const effectiveApiContext = {
   ipAddress,
   locale: req.headers.get("accept-language")?.split(",")[0] || appConfig.defaultLocale,
   origin: req.headers.get("origin"),
-  sessionId: conversationId, // Use the determined conversationId
+  sessionId: conversationId,
   runId: conversationId, 
   ...(clientDataFromRequest && { clientData: clientDataFromRequest }),
 };
@@ -353,20 +372,22 @@ const stream = new ReadableStream({
       }
     };
 
+    let assistantMessageToSave: ChatMessage | null = null; // Define outside try block
+
     try {
       logger.info(`${logPrefix} Calling orchestrator.runOrchestration... User ${userId.substring(0,8)}`);
       const orchestratorResult = await orchestrator.runOrchestration(
         userId, 
         finalOrchestratorInput,
-        history, // History already filtered above
+        history,
         effectiveApiContext,
         initialAttachmentsForOrchestrator
       );
       logger.debug(`${logPrefix} Orchestrator finished. Error: ${orchestratorResult.error}. Response: ${!!orchestratorResult.response}.`);
 
       // Construct assistant message for DB saving
-      const assistantMessageToSave: ChatMessage = {
-          id: `asst-${randomUUID()}`,
+      assistantMessageToSave = { // Assign to the outer scope variable
+          id: randomUUID(), // Generate UUID for DB, will be overridden by stream-end if present
           role: "assistant",
           content: orchestratorResult.response || (orchestratorResult.structuredData ? "[Structured Data Response]" : "[No text response]"),
           timestamp: new Date().toISOString(),
@@ -380,6 +401,7 @@ const stream = new ReadableStream({
           debugInfo: orchestratorResult.debugInfo || null,
           workflowFeedback: orchestratorResult.workflowFeedback || null,
       };
+      // Save immediately, but use the ID from stream-end if available
       await saveChatMessageToDb(assistantMessageToSave, userId, conversationId, supabaseAdminClient);
 
 
@@ -403,7 +425,7 @@ const stream = new ReadableStream({
         controller.enqueue(encoder.encode(createSSEEvent("ui-component", { data: orchestratorResult.structuredData })));
       }
 
-      const annotations: Record<string, any> = { messageId: assistantMessageToSave.id }; // Send back the actual ID of the saved assistant message
+      const annotations: Record<string, any> = { messageId: assistantMessageToSave.id };
       if (orchestratorResult.intentType) annotations.intentType = orchestratorResult.intentType;
       if (orchestratorResult.ttsInstructions) annotations.ttsInstructions = orchestratorResult.ttsInstructions;
       if (orchestratorResult.audioUrl) { 
@@ -416,10 +438,11 @@ const stream = new ReadableStream({
         annotations.attachments = orchestratorResult.attachments.map(att => ({...att, file: undefined}));
       }
 
-      if (Object.keys(annotations).length > 1) { // messageId is always there
+      if (Object.keys(annotations).length > 1) {
         controller.enqueue(encoder.encode(createSSEEvent("annotations", annotations)));
       }
 
+      // The stream-end event should carry the *final* DB message ID for the assistant.
       controller.enqueue(encoder.encode(createSSEEvent("stream-end", { sessionId: effectiveApiContext.sessionId, assistantMessageId: assistantMessageToSave.id })));
 
     } catch (e: any) {
