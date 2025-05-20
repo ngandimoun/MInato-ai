@@ -1,6 +1,6 @@
 // FILE: lib/tools/RecipeSearchTool.ts
 import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
-import fetch from "node-fetch";
+import fetch from "node-fetch"; // Ensure node-fetch is imported
 import { logger } from "../../memory-framework/config";
 import { CachedRecipe, CachedSingleRecipe } from "@/lib/types/index";
 import { appConfig } from "../config";
@@ -30,7 +30,7 @@ interface MealDbSearchResponse { meals: MealDbMeal[] | null; }
 
 export class RecipeSearchTool extends BaseTool {
   name = "RecipeSearchTool";
-  description = "Searches for recipes by dish name or main ingredient using TheMealDB (a free recipe database).";
+  description = "Searches for recipes by dish name or main ingredient using TheMealDB (a free recipe database). Provides details like ingredients, instructions, and image.";
   argsSchema = {
     type: "object" as const,
     properties: {
@@ -55,23 +55,36 @@ export class RecipeSearchTool extends BaseTool {
   private extractIngredients(meal: MealDbMeal): string[] {
     const ingredients: string[] = [];
     for (let i = 1; i <= 20; i++) {
-      const ingredient = meal[`strIngredient${i}`]; // No need for explicit keyof cast if MealDbMeal is well-defined
-      const measure = meal[`strMeasure${i}`];
-      if (ingredient && ingredient.trim()) {
-        ingredients.push(`${measure ? measure.trim() : ""} ${ingredient.trim()}`.trim());
-      } else { break; } // Stop if no more ingredients
+      const ingredientKey = `strIngredient${i}` as keyof MealDbMeal;
+      const measureKey = `strMeasure${i}` as keyof MealDbMeal;
+      const ingredient = meal[ingredientKey];
+      const measure = meal[measureKey];
+      if (ingredient && String(ingredient).trim()) { // Ensure ingredient is treated as string
+        ingredients.push(`${measure ? String(measure).trim() : ""} ${String(ingredient).trim()}`.trim());
+      } else { break; } 
     }
     return ingredients;
   }
 
   private mapMealToAppRecipeContent(meal: MealDbMeal): Omit<CachedRecipe, "result_type" | "source_api" | "query" | "error"> {
     const ingredients = this.extractIngredients(meal);
-    const instructions = meal.strInstructions?.split(/[\n\r]+/).map(s => s.trim()).filter(s => s.length > 0) || [];
+    // Keep instructions as an array of strings for easier UI rendering and to preserve steps
+    const instructionsArray = meal.strInstructions?.split(/(\r\n|\n|\r)/) // Split by any newline sequence
+        .map(s => s.trim())
+        .filter(s => s.length > 0 && !/^\d+\.$/.test(s) && !/^STEP \d+$/i.test(s)) // Filter out empty lines and "STEP X" type lines
+        .map(s => s.startsWith(".") ? s.substring(1).trim() : s) // Remove leading dots if any
+        .filter(s => s.length > 5) // Filter out very short/noise lines
+        || [];
+
     return {
-      title: meal.strMeal, sourceName: meal.strSource || "TheMealDB.com",
+      title: meal.strMeal, 
+      sourceName: meal.strSource || "TheMealDB.com",
       sourceUrl: meal.strSource || `https://www.themealdb.com/meal/${meal.idMeal}`,
-      imageUrl: meal.strMealThumb || null, ingredients: ingredients, instructions: instructions,
-      readyInMinutes: null, servings: null, // These are not provided by TheMealDB basic search
+      imageUrl: meal.strMealThumb || null, 
+      ingredients: ingredients, 
+      instructions: instructionsArray, // Store as array of strings
+      readyInMinutes: null, 
+      servings: null, 
       category: meal.strCategory || undefined,
       area: meal.strArea || undefined,
       tags: meal.strTags?.split(",").map(t => t.trim()).filter(t => t) || [],
@@ -80,12 +93,13 @@ export class RecipeSearchTool extends BaseTool {
   }
 
   async execute(input: RecipeSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    const { query } = input; // query is required
+    const { query } = input; 
+    const userNameForResponse = input.context?.userName || "friend";
     const logPrefix = `[RecipeTool] Query:"${query.substring(0, 30)}..."`;
     const queryInputForStructuredData = { ...input };
 
     if (abortSignal?.aborted) { return { error: "Recipe search cancelled.", result: "Cancelled." }; }
-    if (!query?.trim()) { return { error: "Missing search query.", result: `What recipe should Minato look for, ${input.context?.userName || "User"}?`, structuredData: { result_type: "recipe", source_api: "themealdb", query: queryInputForStructuredData, recipe: null, error: "Missing search query." } }; }
+    if (!query?.trim()) { return { error: "Missing search query.", result: `What recipe should Minato look for, ${userNameForResponse}?`, structuredData: { result_type: "recipe", source_api: "themealdb", query: queryInputForStructuredData, recipe: null, error: "Missing search query." } }; }
 
     const url = `${this.API_BASE}/search.php?s=${encodeURIComponent(query.trim())}`;
     this.log("info", `${logPrefix} Searching TheMealDB: ${url}...`);
@@ -101,32 +115,35 @@ export class RecipeSearchTool extends BaseTool {
       const mealsApi = data.meals;
 
       if (!mealsApi || !Array.isArray(mealsApi) || mealsApi.length === 0) {
-        const resultText = `Minato couldn't find any recipes matching "${query}" on TheMealDB for ${input.context?.userName || "you"}.`;
+        const resultText = `Minato couldn't find any recipes matching "${query}" on TheMealDB for ${userNameForResponse}. Perhaps try a different ingredient or dish name?`;
         return { result: resultText, structuredData: outputStructuredData };
       }
-      const firstMeal = mealsApi[0]; // Take the first result
+      const firstMeal = mealsApi[0]; 
       this.log("info", `${logPrefix} Found ${mealsApi.length} recipes. Selecting first: "${firstMeal.strMeal}" (ID: ${firstMeal.idMeal})`);
       const recipeContent = this.mapMealToAppRecipeContent(firstMeal);
 
-      // Create the CachedRecipe structure for structuredData
       const structuredRecipeForUi: CachedRecipe = {
         ...recipeContent,
-        result_type: "recipe_detail", // Using a more specific type if it's for UI card
+        result_type: "recipe_detail", 
         source_api: "themealdb_detail",
-        query: queryInputForStructuredData, // Keep original query context
+        query: queryInputForStructuredData, 
         error: undefined,
       };
       outputStructuredData.recipe = structuredRecipeForUi;
       outputStructuredData.error = undefined;
 
-      const resultString = `Minato found a recipe for "${structuredRecipeForUi.title}" for ${input.context?.userName || "User"}${structuredRecipeForUi.category ? ` (${structuredRecipeForUi.category})` : ""}${structuredRecipeForUi.area ? `, a ${structuredRecipeForUi.area} dish` : ""}. I can show you the ingredients and link.`;
+      let resultString = `Okay ${userNameForResponse}, Minato found a recipe for "${structuredRecipeForUi.title}"!`;
+      if (structuredRecipeForUi.category) resultString += ` It's a type of ${structuredRecipeForUi.category} dish`;
+      if (structuredRecipeForUi.area) resultString += `, popular in ${structuredRecipeForUi.area} cuisine`;
+      resultString += ". It looks delicious! I can show you the details.";
+      
       return { result: resultString, structuredData: outputStructuredData };
     } catch (error: any) {
       const errorMsg = `Recipe search failed: ${error.message}`;
       outputStructuredData.error = errorMsg;
-      if (error.name === 'AbortError') { outputStructuredData.error = "Request timed out."; return { error: "Recipe search timed out.", result: `Sorry, ${input.context?.userName || "User"}, the recipe search took too long.`, structuredData: outputStructuredData }; }
+      if (error.name === 'AbortError') { outputStructuredData.error = "Request timed out."; return { error: "Recipe search timed out.", result: `Sorry, ${userNameForResponse}, the recipe search took too long.`, structuredData: outputStructuredData }; }
       this.log("error", `${logPrefix} Failed:`, error.message);
-      return { error: errorMsg, result: `Sorry, ${input.context?.userName || "User"}, Minato encountered an error searching for recipes.`, structuredData: outputStructuredData };
+      return { error: errorMsg, result: `Sorry, ${userNameForResponse}, Minato encountered an error searching for recipes. Please try again.`, structuredData: outputStructuredData };
     }
   }
 }

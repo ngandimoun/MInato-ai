@@ -1,33 +1,43 @@
 // components/chat/structured-data-renderer.tsx
 "use client";
+
 import { motion } from "framer-motion";
 import { logger } from "@/memory-framework/config";
-import { AnyToolStructuredData, isStructuredData, CachedWeather, CachedSingleWeather, DataProfileOutput, DataParsedOutput, AnalysisTableResult, AnalysisChartResult, AnalysisSummaryResult, DateTimeStructuredOutput, EventFinderStructuredOutput, GeolocationStructuredOutput, MoodJournalStructuredOutput, NewsArticleList, CachedImageList, CachedSinglePlace, PublicHolidayStructuredOutput, CachedSingleRecipe, RedditStructuredOutput, SportsStructuredOutput, SunriseSunsetStructuredOutput, WaterIntakeStructuredOutput, CachedVideoList, MemoryToolResult, InternalTaskResult, ReminderResult } from "@/lib/types";
+import type { 
+  AnyToolStructuredData, 
+  DateTimeStructuredOutput, 
+  EventFinderStructuredOutput, 
+  CachedImageList, 
+  CachedSingleRecipe, 
+  RedditStructuredOutput, 
+  SportsStructuredOutput, 
+  CachedVideoList, 
+  MemoryToolResult, 
+  ReminderResult, 
+  NewsArticleList
+} from "@/lib/types";
+import { isStructuredData } from "@/lib/types";
 
 // Import your new tool cards
-import { WeatherCard } from "../tool-cards/WeatherCard";
-import { GenericToolCard } from "../tool-cards/GenericToolCard";
-import { DataAnalysisCard } from "../tool-cards/DataAnalysisCard";
-import { DataParsingCard } from "../tool-cards/DataParsingCard";
-import { DataProfilingCard } from "../tool-cards/DataProfilingCard";
+
 import { DateTimeCard } from "../tool-cards/DateTimeCard";
 import { EventFinderCard } from "../tool-cards/EventFinderCard";
-import { GeolocationCard } from "../tool-cards/GeolocationCard";
-import { MoodJournalCard } from "../tool-cards/MoodJournalCard";
-import { NewsAggregatorCard } from "../tool-cards/NewsAggregatorCard";
-import { PexelsCard } from "../tool-cards/PexelsCard"; // Assuming Pexels images use 'image_list'
-import { PlaceSearchCard } from "../tool-cards/PlaceSearchCard";
-import { PublicHolidayCard } from "../tool-cards/PublicHolidayCard";
-import { RecipeCard } from "../tool-cards/RecipeCard";
+import { PexelsCard } from "../tool-cards/PexelsCard";
 import { RedditCard } from "../tool-cards/RedditCard";
 import { SportsInfoCard } from "../tool-cards/SportsInfoCard";
-import { SunriseSunsetCard } from "../tool-cards/SunriseSunsetCard";
-import { WaterIntakeCard } from "../tool-cards/WaterIntakeCard";
 import { YouTubeSearchCard } from "../tool-cards/YouTubeSearchCard";
 import { MemoryToolCard } from "../tool-cards/MemoryToolCard";
-import { InternalTaskCard } from "../tool-cards/InternalTaskCard";
 import { ReminderReaderCard } from "../tool-cards/ReminderReaderCard";
-// Note: WolframAlphaCard is intentionally omitted as per your request.
+
+
+import { WebSearchCard } from "../tool-cards/WebSearchCard"; // ADD THIS IMPORT
+import { RecipeCard } from "../tool-cards/RecipeCard";
+import { GenericToolCard } from "../tool-cards/GenericToolCard";
+
+import { NewsAggregatorCard } from "../tool-cards/NewsAggregatorCard"; 
+
+
+
 
 interface StructuredDataRendererProps {
   data: string | AnyToolStructuredData | null | undefined;
@@ -61,44 +71,17 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
 
   let contentToRender;
   switch (parsedData.result_type) {
-    case "weather":
-      // Ensure the 'weather' property exists and is of type CachedWeather
-      const weatherData = (parsedData as CachedSingleWeather).weather;
-      if (weatherData) {
-        contentToRender = <WeatherCard data={weatherData} />;
-      } else {
-        contentToRender = <GenericToolCard data={parsedData} />; // Fallback if weather data is missing
-      }
-      break;
-    case "analysis_table":
-    case "analysis_chart":
-    case "analysis_summary":
-      if (parsedData.analysis) { // Assuming 'analysis' holds the core AnalysisResultData
-        contentToRender = <DataAnalysisCard data={parsedData as any} analysisResult={parsedData.analysis as any} />;
-      } else {
-        contentToRender = <GenericToolCard data={parsedData} />;
-      }
-      break;
-    case "parsed_data_internal":
-      contentToRender = <DataParsingCard data={parsedData as DataParsedOutput} />;
-      break;
-    case "data_profile_internal":
-      contentToRender = <DataProfilingCard data={parsedData as DataProfileOutput} />;
+    case "product_list":
+    case "web_snippet":
+    case "answerBox":
+    case "knowledgeGraph":
+      contentToRender = <WebSearchCard data={parsedData as any} />;
       break;
     case "datetime_info":
       contentToRender = <DateTimeCard data={parsedData as DateTimeStructuredOutput} />;
       break;
     case "event_list":
       contentToRender = <EventFinderCard data={parsedData as EventFinderStructuredOutput} />;
-      break;
-    case "geolocation":
-      contentToRender = <GeolocationCard data={parsedData as GeolocationStructuredOutput} />;
-      break;
-    case "mood_journal_log":
-      contentToRender = <MoodJournalCard data={parsedData as MoodJournalStructuredOutput} />;
-      break;
-    case "news_articles":
-      contentToRender = <NewsAggregatorCard data={parsedData as NewsArticleList} />;
       break;
     case "image_list":
       if (parsedData.source_api === "pexels_photo") {
@@ -107,12 +90,6 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
         // Could add more specific image list cards here for other sources like Unsplash if re-enabled
         contentToRender = <GenericToolCard data={parsedData} />;
       }
-      break;
-    case "place":
-      contentToRender = <PlaceSearchCard data={parsedData as CachedSinglePlace} />;
-      break;
-    case "holiday":
-      contentToRender = <PublicHolidayCard data={parsedData as PublicHolidayStructuredOutput} />;
       break;
     case "recipe":
       contentToRender = <RecipeCard data={parsedData as CachedSingleRecipe} />;
@@ -123,34 +100,25 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
     case "sports_info":
       contentToRender = <SportsInfoCard data={parsedData as SportsStructuredOutput} />;
       break;
-    case "sun_times":
-      contentToRender = <SunriseSunsetCard data={parsedData as SunriseSunsetStructuredOutput} />;
-      break;
-    case "water_intake_result":
-      contentToRender = <WaterIntakeCard data={parsedData as WaterIntakeStructuredOutput} />;
-      break;
-    case "video_list": // Generic video list, source_api can differentiate
+    case "video_list":
       if (parsedData.source_api === "youtube") {
         contentToRender = <YouTubeSearchCard data={parsedData as CachedVideoList} />;
       } else {
-        contentToRender = <GenericToolCard data={parsedData} />; // Fallback for other video list types
+        contentToRender = <GenericToolCard data={parsedData} />;
       }
       break;
-    case "tiktok_video": // Specific handling if needed, or reuse YouTubeSearchCard if similar enough
-      contentToRender = <YouTubeSearchCard data={parsedData as CachedVideoList} />; // Re-using for now
+    case "tiktok_video":
+      contentToRender = <YouTubeSearchCard data={parsedData as CachedVideoList} />;
       break;
     case "internal_memory_result":
       contentToRender = <MemoryToolCard data={parsedData as MemoryToolResult} />;
       break;
-    case "internal_tasks":
-      contentToRender = <InternalTaskCard data={parsedData as InternalTaskResult} />;
-      break;
     case "reminders":
       contentToRender = <ReminderReaderCard data={parsedData as ReminderResult} />;
       break;
-    // case "calculation_or_fact": // WolframAlpha - Skipped as per user request
-    //   contentToRender = <WolframAlphaCard data={parsedData as CachedSingleFact} />;
-    //   break;
+      case "reminders":
+      contentToRender = <NewsAggregatorCard data={parsedData as NewsArticleList} />;
+      break;
     case "permission_denied":
       contentToRender = (
         <div className="p-3 border rounded-md bg-destructive/10 text-destructive-foreground text-sm">
