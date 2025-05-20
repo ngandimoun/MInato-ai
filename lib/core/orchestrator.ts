@@ -23,7 +23,6 @@ MessageAttachment,
 import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "../tools/base-tool";
 import { tools as appToolsRegistry } from "../tools/index";
 import { MemoryTool } from "../tools/MemoryTool";
-import { InternalTaskTool } from "../tools/InternalTaskTool";
 import { TTSService } from "../providers/tts_service";
 import { STTService } from "../providers/stt_service";
 import { VideoAnalysisService } from "../services/VideoAnalysisService"; // NEW
@@ -192,11 +191,9 @@ export class Orchestrator {
       throw new Error(`Memory init failed: ${memError.message}`);
     }
     const memoryToolInstance = new MemoryTool(this.memoryFramework);
-    const internalTaskToolInstance = new InternalTaskTool(this.memoryFramework);
     this.toolRegistry = {
       ...appToolsRegistry,
       [memoryToolInstance.name]: memoryToolInstance,
-      [internalTaskToolInstance.name]: internalTaskToolInstance,
     };
 
     this.availableToolsForRouter = Object.values(this.toolRegistry)

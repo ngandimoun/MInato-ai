@@ -1,15 +1,16 @@
 // FILE: lib/tools/HackerNewsTool.ts
 import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
-import fetch from "node-fetch";
+import fetch from "node-fetch"; // Ensure node-fetch is imported
 import { HackerNewsStructuredOutput, HackerNewsStory } from "@/lib/types/index";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
+import { formatDistanceToNowStrict, parseISO, fromUnixTime, format } from 'date-fns'; // Added more date-fns functions
 
 interface HNInput extends ToolInput {
   query?: string;
   filter?: "top" | "new" | "best" | "ask" | "show" | "job";
   time?: "hour" | "day" | "week" | "month" | "year" | "all";
-  limit?: number | null;
+  limit?: number;
 }
 
 interface HNStoryApiData {
@@ -21,20 +22,20 @@ interface HNStoryApiData {
   points?: number;
   author?: string;
   num_comments?: number;
-  created_at_i?: number;
-  time?: number;
-  type?: string;
-  text?: string;
-  story_text?: string;
-  by?: string;
-  descendants?: number;
-  score?: number;
-  kids?: number[];
-  _tags?: string[];
-  permalink?: string;
+  created_at_i?: number; // Algolia uses this (seconds)
+  time?: number; // Firebase uses this (seconds)
+  type?: string; // e.g., "story", "job", "ask_hn"
+  text?: string; // For Ask HN, Show HN
+  story_text?: string; // Algolia often uses this for self-posts
+  by?: string; // Firebase author
+  descendants?: number; // Firebase num_comments
+  score?: number; // Firebase points
+  kids?: number[]; // Firebase comment IDs
+  _tags?: string[]; // Algolia tags like "story", "ask_hn"
+  permalink?: string; // Not directly from API, usually constructed
 }
 interface AlgoliaResponse { hits?: HNStoryApiData[]; nbHits?: number; }
-type FirebaseListResponse = number[];
+type FirebaseListResponse = number[]; // Array of item IDs
 
 export class HackerNewsTool extends BaseTool {
   name = "HackerNewsTool";
@@ -56,14 +57,13 @@ export class HackerNewsTool extends BaseTool {
       } as OpenAIToolParameterProperties,
       limit: {
         type: ["number", "null"] as const,
-        description: "Maximum number of stories to return (must be between 1 and 10). If null or omitted, defaults to 5.",
-        // Removed: minimum, maximum, default
+        description: "Maximum number of stories to return (1-10). If null or omitted, defaults to 5.",
       } as OpenAIToolParameterProperties,
     },
     required: ["query", "filter", "time", "limit"],
     additionalProperties: false as false,
   };
-  cacheTTLSeconds = 60 * 10;
+  cacheTTLSeconds = 60 * 10; // Cache HN for 10 minutes
 
   private readonly FIREBASE_API_BASE = "https://hacker-news.firebaseio.com/v0";
   private readonly ALGOLIA_API_BASE = "https://hn.algolia.com/api/v1";
@@ -81,18 +81,30 @@ export class HackerNewsTool extends BaseTool {
     if (!story || (!story.id && !story.objectID) || !story.title) { logger.warn("[HNTool Map] Skipping story due to missing id or title.", story); return null; }
     const id = story.id || parseInt(story.objectID || "0", 10);
     if (!id) { logger.warn("[HNTool Map] Skipping story due to invalid id.", story); return null; }
+    
     let type = story.type;
-    if (!type && story._tags) { if (story._tags.includes("ask_hn")) type = "ask"; else if (story._tags.includes("show_hn")) type = "show"; else if (story._tags.includes("job")) type = "job"; else if (story._tags.includes("story")) type = "story"; else if (story._tags.includes("poll")) type = "poll"; }
-    type = type || "story";
-    const createdAtTimestamp = story.created_at_i || story.time;
+    if (!type && story._tags) { 
+      if (story._tags.includes("ask_hn")) type = "ask"; 
+      else if (story._tags.includes("show_hn")) type = "show"; 
+      else if (story._tags.includes("job")) type = "job"; 
+      else if (story._tags.includes("story")) type = "story"; 
+      else if (story._tags.includes("poll")) type = "poll"; 
+    }
+    type = type || "story"; // Default to 'story'
+
+    const createdAtTimestampSeconds = story.created_at_i || story.time;
+    const createdAtDate = createdAtTimestampSeconds ? fromUnixTime(createdAtTimestampSeconds) : null;
+    
     return {
       id: id, objectID: story.objectID || String(id), title: story.title,
-      url: story.url || null, points: story.points ?? story.score ?? null,
+      url: story.url || null, 
+      points: story.points ?? story.score ?? null,
       author: story.author ?? story.by ?? null,
       numComments: story.num_comments ?? story.descendants ?? null,
-      createdAt: createdAtTimestamp ? new Date(createdAtTimestamp * 1000).toISOString() : null,
-      type: type, text: story.text || story.story_text || null,
-      hnLink: `${this.HN_ITEM_URL_BASE}${id}`,
+      createdAt: createdAtDate ? createdAtDate.toISOString() : null,
+      type: type, 
+      text: story.text || story.story_text || null,
+      hnLink: story.permalink ? `${this.FIREBASE_API_BASE}${story.permalink}` : `${this.HN_ITEM_URL_BASE}${id}`, // Use permalink if available
     };
   }
 
@@ -103,8 +115,12 @@ export class HackerNewsTool extends BaseTool {
       const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(4000) });
       if (!response.ok) { this.log("warn", `Failed HN item fetch ${itemId}, status: ${response.status}`); return null; }
       const item = await response.json() as HNStoryApiData | null;
-      if (!item || typeof item !== 'object' || item.type === "comment" || item.type === "pollopt" || item.deleted) { this.log("warn", `Received invalid/comment/deleted data for HN item ${itemId}. Type: ${item?.type}, Deleted: ${item?.deleted}`); return null; }
-      item.id = itemId; return item;
+      // Filter out comments or deleted items more reliably
+      if (!item || typeof item !== 'object' || item.type === "comment" || item.type === "pollopt" || item.deleted === true) { 
+        this.log("warn", `Received invalid/comment/deleted data for HN item ${itemId}. Type: ${item?.type}, Deleted: ${item?.deleted}`); return null; 
+      }
+      item.id = itemId; // Ensure ID is set from input if not in response (should be)
+      return item;
     } catch (error: any) {
       if (error.name !== 'AbortError') { this.log("error", `Error fetching HN item details for ${itemId}:`, error.message); }
       else { this.log("warn", `Fetching HN item ${itemId} aborted.`); }
@@ -113,17 +129,17 @@ export class HackerNewsTool extends BaseTool {
   }
 
   async execute(input: HNInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    // Defaulting logic
-    const effectiveQuery = (typeof input.query === "string" && input.query.trim() !== "") ? input.query : undefined;
-    const effectiveFilter = effectiveQuery ? undefined : (typeof input.filter === "string" ? input.filter : "top");
+    const effectiveQuery = (typeof input.query === "string" && input.query.trim() !== "") ? input.query.trim() : undefined;
+    const effectiveFilter = effectiveQuery ? undefined : (typeof input.filter === "string" && input.filter.trim() !== "" ? input.filter : "top");
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));
-    const effectiveTime = (typeof input.time === "string") ? input.time : (effectiveFilter === "top" ? "day" : undefined);
+    const effectiveTime = (typeof input.time === "string" && input.time.trim() !== "") ? input.time : (effectiveFilter === "top" ? "day" : undefined);
+    const userNameForResponse = input.context?.userName || "friend";
 
     const logPrefix = `[HNTool ${effectiveQuery ? `Query:'${effectiveQuery.substring(0,20)}'` : `Filter:${effectiveFilter}`}]`;
     const queryInputForStructuredData = { ...input, query: effectiveQuery, filter: effectiveFilter, limit: effectiveLimit, time: effectiveTime };
 
     if (!effectiveQuery && !effectiveFilter) {
-      return { error: "Must provide query or filter.", result: "What to fetch from Hacker News?", structuredData: {result_type: "hn_stories", source_api: "hackernews", query: queryInputForStructuredData, sourceDescription: "Error", count: 0, stories: [], error: "Must provide query or filter." }} as ToolOutput;
+      return { error: "Must provide query or filter.", result: `What would you like to see from Hacker News, ${userNameForResponse}? (e.g., top stories, or search for a topic)`, structuredData: {result_type: "hn_stories", source_api: "hackernews", query: queryInputForStructuredData, sourceDescription: "Error", count: 0, stories: [], error: "Must provide query or filter." }} as ToolOutput;
     }
 
     let sourceDescription = "";
@@ -136,7 +152,7 @@ export class HackerNewsTool extends BaseTool {
       let rawStories: HNStoryApiData[] = [];
       if (effectiveQuery) {
         sourceDescription = `search results for "${effectiveQuery}"`;
-        const searchTags = "(story,ask_hn,show_hn,job)"; // Prioritize actual posts
+        const searchTags = "(story,ask_hn,show_hn,job)"; 
         let algoliaUrl = `${this.ALGOLIA_API_BASE}/search?query=${encodeURIComponent(effectiveQuery)}&hitsPerPage=${effectiveLimit}&tags=${searchTags}`;
         if (effectiveTime && ["hour", "day", "week", "month", "year", "all"].includes(effectiveTime)) {
           const nowSeconds = Math.floor(Date.now() / 1000);
@@ -144,13 +160,12 @@ export class HackerNewsTool extends BaseTool {
           if (effectiveTime === "hour") startTimeSeconds = nowSeconds - 3600;
           else if (effectiveTime === "day") startTimeSeconds = nowSeconds - 86400;
           else if (effectiveTime === "week") startTimeSeconds = nowSeconds - 7 * 86400;
-          else if (effectiveTime === "month") startTimeSeconds = nowSeconds - 30 * 86400; // Approx
-          else if (effectiveTime === "year") startTimeSeconds = nowSeconds - 365 * 86400; // Approx
-          // 'all' means no time filter needed for Algolia numericFilters
+          else if (effectiveTime === "month") startTimeSeconds = nowSeconds - 30 * 86400; 
+          else if (effectiveTime === "year") startTimeSeconds = nowSeconds - 365 * 86400; 
           if (startTimeSeconds > 0 && effectiveTime !== "all") {
             algoliaUrl += `&numericFilters=created_at_i>${startTimeSeconds}`;
           }
-          sourceDescription += ` (last ${effectiveTime})`;
+          sourceDescription += ` (from the last ${effectiveTime})`;
         }
         this.log("info", `${logPrefix} Searching Algolia HN: ${algoliaUrl.split("?query=")[0]}...query=${effectiveQuery.substring(0,30)}...`);
         const response = await fetch(algoliaUrl, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(6000) });
@@ -159,10 +174,9 @@ export class HackerNewsTool extends BaseTool {
         const data: AlgoliaResponse = await response.json() as AlgoliaResponse;
         rawStories = (data?.hits || []).filter(h => h.objectID && h.title && !h._tags?.includes("comment") && !h._tags?.includes("pollopt"));
       } else if (effectiveFilter) {
-        sourceDescription = `${effectiveFilter} stories`;
-        if (effectiveFilter === "top" && effectiveTime) sourceDescription += ` (last ${effectiveTime})`;
+        sourceDescription = `Hacker News ${effectiveFilter} stories`;
+        if (effectiveFilter === "top" && effectiveTime) sourceDescription += ` (from the last ${effectiveTime})`;
 
-        // For 'top' with time, Algolia is better. For others, Firebase lists are simpler.
         if (effectiveFilter === 'top' && effectiveTime && effectiveTime !== 'all') {
             const nowSeconds = Math.floor(Date.now() / 1000);
             let startTimeSeconds = 0;
@@ -171,15 +185,15 @@ export class HackerNewsTool extends BaseTool {
             else if (effectiveTime === "week") startTimeSeconds = nowSeconds - 7 * 86400;
             else if (effectiveTime === "month") startTimeSeconds = nowSeconds - 30 * 86400;
             else if (effectiveTime === "year") startTimeSeconds = nowSeconds - 365 * 86400;
-            const algoliaUrl = `${this.ALGOLIA_API_BASE}/search_by_date?tags=story&hitsPerPage=${effectiveLimit}${startTimeSeconds > 0 ? `&numericFilters=created_at_i>${startTimeSeconds}` : ''}`;
-            this.log("info", `${logPrefix} Searching Algolia HN for top stories: ${algoliaUrl}`);
+            const algoliaUrl = `${this.ALGOLIA_API_BASE}/search_by_date?tags=(story,ask_hn,show_hn,job)&hitsPerPage=${effectiveLimit}${startTimeSeconds > 0 ? `&numericFilters=created_at_i>${startTimeSeconds}` : ''}`;
+            this.log("info", `${logPrefix} Searching Algolia HN for ${effectiveFilter} stories: ${algoliaUrl.split('?')[0]}...`);
             const response = await fetch(algoliaUrl, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(6000) });
             if (abortSignal?.aborted) throw new Error("Request aborted during Algolia 'top' fetch.");
-            if (!response.ok) throw new Error(`HN 'top' (Algolia) failed: ${response.status} ${response.statusText}`);
+            if (!response.ok) throw new Error(`HN '${effectiveFilter}' (Algolia) failed: ${response.status} ${response.statusText}`);
             const data: AlgoliaResponse = await response.json() as AlgoliaResponse;
             rawStories = (data?.hits || []).filter(h => h.objectID && h.title && !h._tags?.includes("comment") && !h._tags?.includes("pollopt"));
         } else {
-            const listType = `${effectiveFilter}stories`; // e.g., 'topstories', 'newstories'
+            const listType = `${effectiveFilter}stories`; 
             const listUrl = `${this.FIREBASE_API_BASE}/${listType}.json`;
             this.log("info", `${logPrefix} Fetching ${effectiveFilter} IDs from Firebase: ${listUrl}`);
             const listResponse = await fetch(listUrl, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(6000) });
@@ -189,7 +203,7 @@ export class HackerNewsTool extends BaseTool {
 
             if (!itemIds?.length) { rawStories = []; this.log("info", `${logPrefix} Firebase returned empty list for ${effectiveFilter}.`); }
             else {
-              const idsToFetch = itemIds.slice(0, effectiveLimit * 2); // Fetch more to account for comments/nulls
+              const idsToFetch = itemIds.slice(0, effectiveLimit * 2); 
               const itemPromises = idsToFetch.map(id => this.fetchItemDetails(id, abortSignal));
               const fetchedItems = await Promise.all(itemPromises);
               if (abortSignal?.aborted) throw new Error("Request aborted during item detail fetch.");
@@ -203,19 +217,22 @@ export class HackerNewsTool extends BaseTool {
       outputStructuredData.count = outputStructuredData.stories.length;
 
       if (outputStructuredData.count === 0) {
-        const msg = `Minato couldn't find any relevant HN ${sourceDescription} for ${input.context?.userName || "you"} right now.`;
+        const msg = `Minato couldn't find any relevant ${sourceDescription} for ${userNameForResponse} right now. Perhaps try a broader search?`;
         this.log("info", `${logPrefix} ${msg}`);
         return { result: msg, structuredData: outputStructuredData } as ToolOutput;
       }
 
       this.log("info", `${logPrefix} Fetched ${outputStructuredData.count} valid stories.`);
-      const resultString = `Here are the top ${outputStructuredData.count} HN ${sourceDescription} for ${input.context?.userName || "you"}:\n` +
-        outputStructuredData.stories.map((s: HackerNewsStory, i: number) => {
-          const points = s.points !== null ? ` (${s.points} pts)` : "";
-          const comments = s.numComments !== null ? ` | ${s.numComments} comments` : "";
-          const title = s.title.substring(0, 70) + (s.title.length > 70 ? "..." : "");
-          return `${i + 1}. ${title}${points}${comments} [Discussion: ${s.hnLink}]`;
-        }).join("\n");
+      const firstStory = outputStructuredData.stories[0];
+      let resultString = `Okay ${userNameForResponse}, I found some ${sourceDescription} on Hacker News for you! `;
+      if (firstStory) {
+          resultString += `For example, there's "${firstStory.title.substring(0, 70)}..." posted by ${firstStory.author || 'someone'} ${firstStory.createdAt || ''}.`;
+      }
+      if (outputStructuredData.count > 1) {
+          resultString += ` There are ${outputStructuredData.count -1} more. I can show you the full list!`;
+      } else if (firstStory) {
+          resultString += ` What do you think about this one?`;
+      }
       outputStructuredData.error = null;
       return { result: resultString, structuredData: outputStructuredData } as ToolOutput;
     } catch (error: any) {
@@ -224,10 +241,10 @@ export class HackerNewsTool extends BaseTool {
       if (error.name === 'AbortError' || abortSignal?.aborted) {
         this.log("warn", `${logPrefix} Request timed out or was aborted by signal.`);
         outputStructuredData.error = "Request timed out or cancelled.";
-        return { error: outputStructuredData.error, result: `Sorry, ${input.context?.userName || "User"}, the Hacker News request took too long.`, structuredData: outputStructuredData } as ToolOutput;
+        return { error: outputStructuredData.error, result: `Sorry, ${userNameForResponse}, the Hacker News request took too long.`, structuredData: outputStructuredData } as ToolOutput;
       }
       this.log("error", `${logPrefix} Error:`, error);
-      return { error: errorMsg, result: `Sorry, ${input.context?.userName || "User"}, an error occurred while getting Hacker News data.`, structuredData: outputStructuredData } as ToolOutput;
+      return { error: errorMsg, result: `Sorry, ${userNameForResponse}, an error occurred while getting Hacker News data. Please try again.`, structuredData: outputStructuredData } as ToolOutput;
     }
   }
 }

@@ -1,26 +1,26 @@
-// FILE: lib/tools/TicketmasterEventFinderTool.ts
-//EventFinderTool.ts
-// (Content from finalcodebase.txt - verified)
-import { BaseTool, ToolInput, ToolOutput } from "./base-tool";
+// FILE: lib/tools/EventFinderTool.ts
+// (or TicketmasterEventFinderTool.ts)
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import fetch from "node-fetch";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import {
   EventFinderStructuredOutput,
-  TicketmasterEvent, // Assuming this type is well-defined in lib/types
+  TicketmasterEvent,
 } from "@/lib/types/index";
+import { format, parseISO } from "date-fns"; // For better date formatting
 
 interface EventFinderInput extends ToolInput {
   keyword?: string | null;
-  location?: string | null; // Can be city, postal code, or "lat,lon" string
+  location?: string | null;
   radius?: number | null;
   radiusUnit?: "miles" | "km" | null;
   startDate?: string | null; // ISO 8601 YYYY-MM-DDTHH:mm:ssZ
   endDate?: string | null;   // ISO 8601 YYYY-MM-DDTHH:mm:ssZ
-  classificationName?: string | null; // e.g., Music, Sports, Arts & Theatre
+  classificationName?: string | null;
   limit?: number | null;
-  countryCode?: string | null; // For country-specific searches if location is broad
-  source?: string | null; // e.g., ticketmaster, songkick (for future expansion, LLM might provide)
+  countryCode?: string | null;
+  source?: string | null;
 }
 
 // Internal types for Ticketmaster response structure (kept for mapping)
@@ -36,20 +36,20 @@ interface TicketmasterDiscoveryResponse { _embedded?: { events: TicketmasterEven
 export class EventFinderTool extends BaseTool {
   name = "EventFinderTool";
   description =
-    "Finds upcoming events (concerts, sports, theater, etc.) near a location or globally based on keywords, dates, or classifications. Primarily uses Ticketmaster but is designed to be adaptable.";
+    "Finds upcoming events (concerts, sports, theater, etc.) near a location or globally based on keywords, dates, or classifications. Primarily uses Ticketmaster.";
   argsSchema = {
     type: "object" as const,
     properties: {
-      keyword: { type: ["string", "null"], description: "Keywords to search events for (e.g., 'rock concert', 'Taylor Swift', 'baseball game')." },
-      location: { type: ["string", "null"], description: "City, state, postal code, or 'latitude,longitude' string to search near (e.g., 'London, UK', 'New York, NY', '90210', '40.7128,-74.0060'). Uses user's context location if omitted and available." },
-      radius: { type: ["number", "null"], description: "Search radius around the location. Defaults to 25.", default: 25 },
-      radiusUnit: { type: ["string", "null"], enum: ["miles", "km"], description: "Unit for the radius ('miles' or 'km'). Defaults to miles.", default: "miles" },
-      startDate: { type: ["string", "null"], format: "date-time", description: "Optional start date/time for event search (ISO 8601 format, e.g., '2024-09-21T00:00:00Z'). Defaults to now." },
-      endDate: { type: ["string", "null"], format: "date-time", description: "Optional end date/time for event search (ISO 8601 format)." },
-      classificationName: { type: ["string", "null"], description: "Filter by broad classification (e.g., 'Music', 'Sports', 'Arts & Theatre', 'Family'). Specific genre/subgenre can be part of keyword." },
-      limit: { type: ["number", "null"], minimum: 1, maximum: 10, description: "Maximum number of events to return. Defaults to 5.", default: 5 },
-      countryCode: { type: ["string", "null"], description: "Optional ISO 3166-1 alpha-2 country code (e.g., 'US', 'GB') to focus search. Useful if 'location' is broad or omitted." },
-      source: { type: ["string", "null"], enum: ["ticketmaster", "songkick"], description: "Preferred event source if known (for future expansion). Defaults to Ticketmaster if null.", default: "ticketmaster" },
+      keyword: { type: ["string", "null"] as const, description: "Keywords to search events for (e.g., 'rock concert', 'Taylor Swift', 'baseball game'). Can be null if using other filters." } as OpenAIToolParameterProperties,
+      location: { type: ["string", "null"] as const, description: "City, state, postal code, or 'latitude,longitude' string to search near (e.g., 'London, UK', 'New York, NY', '90210', '40.7128,-74.0060'). Uses user's context location if null or omitted." } as OpenAIToolParameterProperties,
+      radius: { type: ["number", "null"] as const, description: "Search radius around the location (e.g., 25). If null or omitted, defaults to 25." } as OpenAIToolParameterProperties, // Default handled in code
+      radiusUnit: { type: ["string", "null"] as const, enum: ["miles", "km", null], description: "Unit for the radius ('miles' or 'km'). If null or omitted, defaults to 'miles'." } as OpenAIToolParameterProperties, // Default handled in code
+      startDate: { type: ["string", "null"] as const, description: "Optional start date/time for event search (ISO 8601 format, e.g., '2024-09-21T00:00:00Z'). If null or omitted, defaults to now." } as OpenAIToolParameterProperties,
+      endDate: { type: ["string", "null"] as const, description: "Optional end date/time for event search (ISO 8601 format, e.g., '2024-09-28T23:59:59Z'). Can be null." } as OpenAIToolParameterProperties,
+      classificationName: { type: ["string", "null"] as const, description: "Filter by broad classification (e.g., 'Music', 'Sports', 'Arts & Theatre', 'Family'). Specific genre/subgenre can be part of keyword. Can be null." } as OpenAIToolParameterProperties,
+      limit: { type: ["number", "null"] as const, description: "Maximum number of events to return (1-10). If null or omitted, defaults to 5." } as OpenAIToolParameterProperties, // Default handled in code
+      countryCode: { type: ["string", "null"] as const, description: "Optional ISO 3166-1 alpha-2 country code (e.g., 'US', 'GB') to focus search. Can be null." } as OpenAIToolParameterProperties,
+      source: { type: ["string", "null"] as const, enum: ["ticketmaster", "songkick", null], description: "Preferred event source. If null or omitted, defaults to Ticketmaster." } as OpenAIToolParameterProperties, // Default handled in code
     },
     required: ["keyword", "location", "radius", "radiusUnit", "startDate", "endDate", "classificationName", "limit", "countryCode", "source"],
     additionalProperties: false as false,
@@ -74,7 +74,7 @@ export class EventFinderTool extends BaseTool {
     try {
       const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
       if (isNaN(d.getTime())) { this.log("warn", `Invalid date input for formatting: ${dateInput}`); return undefined; }
-      return d.toISOString().substring(0, 19) + "Z"; // Ensures format like YYYY-MM-DDTHH:mm:ssZ
+      return d.toISOString().substring(0, 19) + "Z"; 
     } catch (e: any) { this.log("error", `Error parsing date for formatting: ${dateInput}`, e.message); return undefined; }
   }
 
@@ -88,44 +88,56 @@ export class EventFinderTool extends BaseTool {
   }
 
   async execute(input: EventFinderInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    if (!this.API_KEY && input.source !== "songkick") { // Assuming songkick won't need this key
+    const effectiveSource = (input.source === null || input.source === undefined) ? "ticketmaster" : input.source;
+    if (effectiveSource === "ticketmaster" && !this.API_KEY) {
         return { error: "Event Finder Tool (Ticketmaster) not configured.", result: "Event search via Ticketmaster is unavailable." };
     }
-    const queryInputForStructuredData = { ...input };
-    const effectiveLimit = input.limit ?? 5;
+
+    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));
+    const effectiveRadius = (input.radius === null || input.radius === undefined) ? 25 : input.radius;
+    const effectiveRadiusUnit = (input.radiusUnit === null || input.radiusUnit === undefined) ? "miles" : input.radiusUnit;
+    const effectiveStartDate = input.startDate === null ? undefined : input.startDate;
+    const effectiveEndDate = input.endDate === null ? undefined : input.endDate;
+    const effectiveKeyword = input.keyword === null ? undefined : input.keyword;
+    const effectiveClassificationName = input.classificationName === null ? undefined : input.classificationName;
+    const effectiveLocation = input.location === null ? undefined : input.location;
+    const effectiveCountryCode = input.countryCode === null ? undefined : input.countryCode;
+    const userNameForResponse = input.context?.userName || "friend";
+
     const logPrefix = `[EventFinderTool User:${input.context?.userId?.substring(0,8)}]`;
+    const queryInputForStructuredData = { ...input, limit: effectiveLimit, radius: effectiveRadius, radiusUnit: effectiveRadiusUnit, source: effectiveSource };
 
     const params = new URLSearchParams({ apikey: this.API_KEY, size: String(effectiveLimit), sort: "date,asc", includeTBA: "no", includeTBD: "no" });
     let locationDescription = "your current area";
 
-    if (input.keyword) params.set("keyword", input.keyword);
-    if (input.classificationName) params.set("classificationName", input.classificationName);
-    if (input.countryCode) params.set("countryCode", input.countryCode);
+    if (effectiveKeyword) params.set("keyword", effectiveKeyword);
+    if (effectiveClassificationName) params.set("classificationName", effectiveClassificationName);
+    if (effectiveCountryCode) params.set("countryCode", effectiveCountryCode);
 
-    if (input.location) {
-        if (input.location.match(/^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/)) { // Lat,Lon string
-            params.set("latlong", input.location);
-            locationDescription = `near coordinates ${input.location}`;
-        } else { // Assume city, postal code etc.
-            params.set("keyword", `${params.get("keyword") || ""} ${input.location}`.trim()); // Add location to keyword for TM
-            locationDescription = `near ${input.location}`;
+    if (effectiveLocation) {
+        if (effectiveLocation.match(/^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/)) {
+            params.set("latlong", effectiveLocation);
+            locationDescription = `near coordinates ${effectiveLocation}`;
+        } else {
+            params.set("keyword", `${params.get("keyword") || ""} ${effectiveLocation}`.trim());
+            locationDescription = `near ${effectiveLocation}`;
         }
-        params.set("radius", String(input.radius ?? 25));
-        params.set("unit", input.radiusUnit ?? "miles");
+        params.set("radius", String(effectiveRadius));
+        params.set("unit", effectiveRadiusUnit);
     } else if (typeof input.context?.latitude === 'number' && typeof input.context?.longitude === 'number') {
         const geoPoint = `${input.context.latitude},${input.context.longitude}`;
         params.set("latlong", geoPoint);
         locationDescription = "near your current location";
-        params.set("radius", String(input.radius ?? 25));
-        params.set("unit", input.radiusUnit ?? "miles");
+        params.set("radius", String(effectiveRadius));
+        params.set("unit", effectiveRadiusUnit);
     } else {
         locationDescription = "globally";
         this.log("warn", `${logPrefix} No location. Searching globally.`);
     }
 
-    const startDateTime = this.formatIsoDateTime(input.startDate ?? new Date());
+    const startDateTime = this.formatIsoDateTime(effectiveStartDate ?? new Date());
     if (startDateTime) params.set("startDateTime", startDateTime);
-    const endDateTime = this.formatIsoDateTime(input.endDate);
+    const endDateTime = this.formatIsoDateTime(effectiveEndDate);
     if (endDateTime) params.set("endDateTime", endDateTime);
 
     const url = `${this.API_BASE}?${params.toString()}`;
@@ -155,8 +167,8 @@ export class EventFinderTool extends BaseTool {
       const rawEvents = data?._embedded?.events;
 
       if (!rawEvents || rawEvents.length === 0) {
-        const criteria = [input.keyword ? `"${input.keyword}"` : "", `loc:${locationDescription}`, input.classificationName ? `cat:"${input.classificationName}"` : "", startDateTime ? `after ${startDateTime.substring(0,10)}` : ""].filter(Boolean).join(", ");
-        const msg = `Minato couldn't find any upcoming events for ${input.context?.userName || "you"} matching criteria (${criteria}).`;
+        const criteria = [effectiveKeyword ? `"${effectiveKeyword}"` : "", `loc:${locationDescription}`, effectiveClassificationName ? `cat:"${effectiveClassificationName}"` : "", startDateTime ? `after ${format(parseISO(startDateTime), "MMM d")}` : ""].filter(Boolean).join(", ");
+        const msg = `Minato couldn't find any upcoming events for ${userNameForResponse} matching criteria (${criteria}).`;
         this.log("info", `${logPrefix} ${msg}`);
         outputStructuredData.totalFound = data.page?.totalElements || 0;
         return { result: msg, structuredData: outputStructuredData };
@@ -164,15 +176,23 @@ export class EventFinderTool extends BaseTool {
 
       this.log("info", `${logPrefix} Found ${rawEvents.length} events via Ticketmaster.`);
       const mappedEvents = rawEvents.map(this.mapRawEventToAppEvent);
-      const resultString = `Minato found these events ${locationDescription} for ${input.context?.userName || "you"}${input.keyword ? ` related to "${input.keyword}"` : ""}:\n` +
-        mappedEvents.map((e, i) => {
-          const name = e.name;
-          const venue = e._embedded?.venues?.[0]?.name || "TBD";
-          const city = e._embedded?.venues?.[0]?.city?.name || "";
-          const date = e.dates?.start?.localDate || "TBD";
-          const time = e.dates?.start?.localTime?.substring(0,5);
-          return `${i + 1}. ${name} at ${venue}${city ? ", "+city : ""} on ${date}${time ? ` at ${time}` : ""}`;
-        }).join("\n");
+      
+      let resultString = "";
+      if (mappedEvents.length > 0) {
+          const firstEvent = mappedEvents[0];
+          const eventName = firstEvent.name;
+          const venueName = firstEvent._embedded?.venues?.[0]?.name || "an unconfirmed venue";
+          const eventDate = firstEvent.dates?.start?.localDate ? format(parseISO(firstEvent.dates.start.localDate), "MMMM do") : "an upcoming date";
+          
+          resultString = `Hey ${userNameForResponse}, I found some events ${locationDescription}${effectiveKeyword ? ` related to "${effectiveKeyword}"` : ""}! For example, there's "${eventName}" at ${venueName} on ${eventDate}.`;
+          if (mappedEvents.length > 1) {
+            resultString += ` There are ${mappedEvents.length -1} more too. I can show you the list if you'd like!`;
+          } else {
+            resultString += ` Would you like more details or to see if there are other options?`;
+          }
+      } else {
+          resultString = `Minato searched for events ${locationDescription} for ${userNameForResponse}${effectiveKeyword ? ` related to "${effectiveKeyword}"` : ""} but didn't find any matching your criteria right now.`;
+      }
 
       outputStructuredData.count = mappedEvents.length;
       outputStructuredData.totalFound = data.page?.totalElements;
@@ -185,10 +205,10 @@ export class EventFinderTool extends BaseTool {
       if (error.name === 'AbortError') {
         this.log("error", `${logPrefix} Ticketmaster request timed out or was aborted.`);
         outputStructuredData.error = "Request timed out or cancelled.";
-        return { error: "Event search timed out.", result: `Sorry, ${input.context?.userName || "User"}, the event search took too long.`, structuredData: outputStructuredData };
+        return { error: "Event search timed out.", result: `Sorry, ${userNameForResponse}, the event search took too long.`, structuredData: outputStructuredData };
       }
       this.log("error", `${logPrefix} Error fetching events:`, error.message);
-      return { error: errorMessage, result: `Sorry, ${input.context?.userName || "User"}, an error occurred while finding events.`, structuredData: outputStructuredData };
+      return { error: errorMessage, result: `Sorry, ${userNameForResponse}, an error occurred while finding events.`, structuredData: outputStructuredData };
     }
   }
 }

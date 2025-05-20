@@ -1,16 +1,17 @@
 // FILE: lib/tools/NewsAggregatorTool.ts
 import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
-import fetch from "node-fetch";
+import fetch from "node-fetch"; // Ensure node-fetch is imported
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { NewsArticle, NewsArticleList } from "@/lib/types";
+import { formatDistanceToNowStrict, parseISO } from 'date-fns'; // For date formatting
 
 interface NewsInput extends ToolInput {
   query?: string;
   sources?: string;
   category?: "business" | "entertainment" | "general" | "health" | "science" | "sports" | "technology";
   country?: string;
-  limit?: number | null;
+  limit?: number;
 }
 
 export class NewsAggregatorTool extends BaseTool {
@@ -33,7 +34,7 @@ export class NewsAggregatorTool extends BaseTool {
     required: ["query", "sources", "category", "country", "limit"],
     additionalProperties: false as false,
   };
-  cacheTTLSeconds = 60 * 15;
+  cacheTTLSeconds = 60 * 15; // 15 minutes
 
   private readonly GNEWS_API_KEY: string | undefined;
   private readonly NEWSAPI_ORG_KEY: string | undefined;
@@ -54,13 +55,21 @@ export class NewsAggregatorTool extends BaseTool {
         this.log("warn", "Update NewsAggregatorTool USER_AGENT contact info with actual details.");
     }
   }
+  
+  private getFaviconUrl(sourceUrl: string): string {
+    try {
+      const url = new URL(sourceUrl);
+      return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`; // Google's favicon service
+    } catch {
+      return ""; // Return empty string if URL is invalid
+    }
+  }
 
   private async fetchFromGNews(input: NewsInput, abortSignal?: AbortSignal): Promise<NewsArticle[]> {
     if (!this.GNEWS_API_KEY) return [];
-    const { query, category } = input; // Sources not used by GNews search directly
-    // Defaulting for GNews
-    const effectiveCategory = (category === null || category === undefined) ? "general" : category;
-    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10)); // GNews max is 10 for free, 100 paid
+    const { query } = input;
+    const effectiveCategory = (input.category === null || input.category === undefined) ? "general" : input.category;
+    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));
     const country = input.country || input.context?.countryCode?.toLowerCase() || appConfig.defaultLocale.split("-")[1]?.toLowerCase() || "us";
     const langCode = (input.lang?.split("-")[0] || input.context?.locale?.split("-")[0] || appConfig.defaultLocale.split("-")[0] || "en").toLowerCase();
 
@@ -70,8 +79,8 @@ export class NewsAggregatorTool extends BaseTool {
     if (query) {
         url = `${this.GNEWS_API_BASE}/search`;
         params.set("q", query);
-        if (effectiveCategory !== "general") params.set("topic", effectiveCategory); // GNews uses 'topic' for category in search
-    } else { // No query, use top-headlines
+        if (effectiveCategory !== "general") params.set("topic", effectiveCategory); 
+    } else { 
         url = `${this.GNEWS_API_BASE}/top-headlines`;
         params.set("topic", effectiveCategory);
     }
@@ -81,7 +90,7 @@ export class NewsAggregatorTool extends BaseTool {
     try {
         const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(7000) });
         if (!response.ok) { this.log("warn", `[NewsAggregatorTool GNews] API error: ${response.status}`); return []; }
-        const data = await response.json() as any; // Type for GNews response if available
+        const data = await response.json() as any; 
         return (data.articles || []).map((article: any): NewsArticle => ({
             title: article.title,
             description: article.description ?? null,
@@ -89,6 +98,7 @@ export class NewsAggregatorTool extends BaseTool {
             sourceName: article.source?.name || "GNews.io",
             publishedAt: article.publishedAt ?? null,
             imageUrl: article.image ?? null,
+            sourceFavicon: this.getFaviconUrl(article.source?.url || article.url),
         }));
     } catch (e:any) {
         if (e.name !== 'AbortError') this.log("error", "[NewsAggregatorTool GNews] Fetch exception:", e.message);
@@ -98,32 +108,31 @@ export class NewsAggregatorTool extends BaseTool {
 
   private async fetchFromNewsAPI(input: NewsInput, abortSignal?: AbortSignal): Promise<NewsArticle[]> {
     if (!this.NEWSAPI_ORG_KEY) return [];
-    const { query, sources, category } = input;
-    const effectiveCategory = (category === null || category === undefined) ? "general" : category;
-    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10)); // NewsAPI limit usually around 100, but keep small for Minato
+    const { query, sources } = input;
+    const effectiveCategory = (input.category === null || input.category === undefined) ? "general" : input.category;
+    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));
     const country = input.country || input.context?.countryCode?.toLowerCase() || appConfig.defaultLocale.split("-")[1]?.toLowerCase() || "us";
     const langCode = (input.lang?.split("-")[0] || input.context?.locale?.split("-")[0] || appConfig.defaultLocale.split("-")[0] || "en").toLowerCase();
 
     const params = new URLSearchParams({ apiKey: this.NEWSAPI_ORG_KEY, pageSize: String(effectiveLimit) });
     let url = "";
 
-    if (query) { // q parameter for /everything or /top-headlines
+    if (query) { 
         params.set("q", query);
-        if (sources) { // /everything endpoint if sources are specified
+        if (sources) { 
             url = `${this.NEWSAPI_ORG_BASE}/everything`;
             params.set("sources", sources);
-            // language param is not compatible with sources for /everything
             if (params.has("language")) params.delete("language");
-        } else { // No sources, use /top-headlines if no query, or /everything if query exists
+        } else { 
             url = `${this.NEWSAPI_ORG_BASE}/${query ? 'everything' : 'top-headlines'}`;
             if (!query && effectiveCategory !== "general") params.set("category", effectiveCategory);
-            if (!query) params.set("country", country); // country only for top-headlines without query
+            if (!query) params.set("country", country); 
             params.set("language", langCode);
         }
-    } else if (sources) { // Top headlines from specific sources
+    } else if (sources) { 
         url = `${this.NEWSAPI_ORG_BASE}/top-headlines`;
         params.set("sources", sources);
-    } else { // Top headlines for country/category
+    } else { 
         url = `${this.NEWSAPI_ORG_BASE}/top-headlines`;
         params.set("country", country);
         if (effectiveCategory !== "general") params.set("category", effectiveCategory);
@@ -134,7 +143,7 @@ export class NewsAggregatorTool extends BaseTool {
     try {
         const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(7000) });
         if (!response.ok) { this.log("warn", `[NewsAggregatorTool NewsAPI] API error: ${response.status}`); return []; }
-        const data = await response.json() as any; // Type for NewsAPI response
+        const data = await response.json() as any; 
         return (data.articles || []).map((article: any): NewsArticle => ({
             title: article.title,
             description: article.description ?? null,
@@ -142,6 +151,7 @@ export class NewsAggregatorTool extends BaseTool {
             sourceName: article.source?.name || "NewsAPI.org",
             publishedAt: article.publishedAt ?? null,
             imageUrl: article.urlToImage ?? null,
+            sourceFavicon: this.getFaviconUrl(article.url), // Derive from article URL
         }));
     } catch (e:any) {
         if (e.name !== 'AbortError') this.log("error", "[NewsAggregatorTool NewsAPI] Fetch exception:", e.message);
@@ -156,10 +166,11 @@ export class NewsAggregatorTool extends BaseTool {
     let sourceUsed: string = "N/A";
     let primaryError: string | null = null;
     let fallbackError: string | null = null;
+    const userNameForResponse = input.context?.userName || "friend";
 
     const effectiveQuery = (typeof input.query === "string" && input.query.trim() !== "") ? input.query : undefined;
     const effectiveSources = (typeof input.sources === "string" && input.sources.trim() !== "") ? input.sources : undefined;
-    const effectiveCategory = (typeof input.category === "string" && input.category.trim() !== "") ? input.category : "general";
+    const effectiveCategory = (typeof input.category === "string" && input.category.trim() !== "" && input.category !== null) ? input.category : "general";
     const effectiveCountry = (typeof input.country === "string" && input.country.trim() !== "") ? input.country : (input.context?.countryCode?.toLowerCase() || appConfig.defaultLocale.split("-")[1]?.toLowerCase() || "us");
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));
 
@@ -178,8 +189,8 @@ export class NewsAggregatorTool extends BaseTool {
       logger.debug(`${logPrefix} Attempting GNews...`);
       const gnewsResult = await this.fetchFromGNews(defaultedInput, abortSignal);
       if (abortSignal?.aborted) return { error: "News check cancelled.", result: "Cancelled." } as ToolOutput;
-      if ("error" in gnewsResult) primaryError = `GNews Error: ${gnewsResult.error}`; // Should not happen based on fetchFromGNews returning NewsArticle[]
-      else if (gnewsResult.length > 0) { articles = gnewsResult; sourceUsed = "GNews.io"; }
+      // gnewsResult should be NewsArticle[]
+      if (gnewsResult.length > 0) { articles = gnewsResult; sourceUsed = "GNews.io"; }
       else primaryError = "GNews returned no results";
     } else {
       logger.debug(`${logPrefix} Skipping GNews (no API key).`); primaryError = "GNews API Key missing";
@@ -189,8 +200,8 @@ export class NewsAggregatorTool extends BaseTool {
       logger.warn(`${logPrefix} ${primaryError || "Primary provider (GNews) returned no results"}. Falling back to NewsAPI.org...`);
       const newsapiResult = await this.fetchFromNewsAPI(defaultedInput, abortSignal);
       if (abortSignal?.aborted) return { error: "News check cancelled.", result: "Cancelled." } as ToolOutput;
-      if ("error" in newsapiResult) fallbackError = `NewsAPI.org Error: ${newsapiResult.error}`; // Should not happen
-      else if (newsapiResult.length > 0) { articles = newsapiResult; sourceUsed = "NewsAPI.org"; primaryError = null; }
+      // newsapiResult should be NewsArticle[]
+      if (newsapiResult.length > 0) { articles = newsapiResult; sourceUsed = "NewsAPI.org"; primaryError = null; }
       else fallbackError = "NewsAPI.org returned no results";
     } else if (articles.length === 0 && !this.NEWSAPI_ORG_KEY) {
       logger.warn(`${logPrefix} ${primaryError || "Primary provider returned no results"}. Cannot fallback (NewsAPI.org key missing).`);
@@ -206,12 +217,25 @@ export class NewsAggregatorTool extends BaseTool {
       logger.warn(`${logPrefix} No articles found. ${errorMsg}`);
       outputStructuredData.error = errorMsg || "No results from any news provider.";
       outputStructuredData.source_api = "none";
-      return { result: `Sorry, ${input.context?.userName || "User"}, Minato couldn't find any relevant news headlines right now.`, structuredData: outputStructuredData, error: outputStructuredData.error } as ToolOutput;
+      return { result: `Sorry, ${userNameForResponse}, Minato couldn't find any relevant news headlines for you right now.`, structuredData: outputStructuredData, error: outputStructuredData.error } as ToolOutput;
     }
 
     logger.info(`${logPrefix} Found ${articles.length} articles via ${sourceUsed}.`);
-    const headlineSummaries = articles.slice(0, effectiveLimit).map((a, i) => `${i + 1}. ${a.title} (${a.sourceName})`);
-    const resultString = `Top news headlines for ${input.context?.userName || "User"} from ${sourceUsed}:\n${headlineSummaries.join("\n")}`;
+    const topArticlesForSummary = articles.slice(0, Math.min(3, effectiveLimit)); // Summarize first 3 or less
+    let resultString = `Okay ${userNameForResponse}, I found some news from ${sourceUsed} for you. `;
+    if (topArticlesForSummary.length > 0) {
+      resultString += `Here are the top headlines:\n`;
+      resultString += topArticlesForSummary.map((a, i) => {
+        const publishedAgo = a.publishedAt ? `(${formatDistanceToNowStrict(parseISO(a.publishedAt), { addSuffix: true })})` : "";
+        return `${i + 1}. "${a.title}" from ${a.sourceName} ${publishedAgo}`;
+      }).join("\n");
+      if (articles.length > topArticlesForSummary.length) {
+        resultString += `\n...and ${articles.length - topArticlesForSummary.length} more. I can show you the full list.`;
+      }
+    } else { // Should not happen if articles.length > 0, but defensive
+        resultString = `Minato found ${articles.length} articles from ${sourceUsed}, ${userNameForResponse}. You can see them in the card.`;
+    }
+    
     outputStructuredData = {
       result_type: "news_articles", source_api: sourceUsed.toLowerCase().replace(/[^a-z0-9]/g, ""),
       query: queryInputForStructuredData, articles: articles.slice(0, effectiveLimit), error: undefined,
