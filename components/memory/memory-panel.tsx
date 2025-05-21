@@ -32,7 +32,7 @@ const fetchMemories = useCallback(
 async (query: string, isInitialFetch = false) => {
 setIsLoading(true);
 setError(null);
-const fetchQuery = query.trim();
+const fetchQuery = query.trim(); // Send empty string if query is empty for initial fetch
 logger.info(
 `[MemoryPanel] Fetching memories. Query: "${fetchQuery.substring(0, 30)}...", Initial: ${isInitialFetch}`
 );
@@ -41,15 +41,15 @@ try {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        query: fetchQuery,
+        query: fetchQuery, // Backend now handles empty string for "fetch recent"
         limit: limit,
         offset: 0,
-        searchOptions: {
+        searchOptions: { // Sensible defaults for general browsing vs specific search
           enableHybridSearch: true,
           enableGraphSearch: true,
-          vectorWeight: fetchQuery ? 0.7 : 0.2,
-          keywordWeight: fetchQuery ? 0.3 : 0.1,
-          graphWeight: fetchQuery ? 0.6 : 0.0,
+          vectorWeight: fetchQuery ? 0.7 : 0.2, // Less vector weight for general fetch
+          keywordWeight: fetchQuery ? 0.3 : 0.1, // Less keyword weight for general
+          graphWeight: fetchQuery ? 0.6 : 0.0,   // No graph weight for general initially
         }
       }),
     });
@@ -81,17 +81,17 @@ try {
 );
 
 useEffect(() => {
-fetchMemories("", true);
+fetchMemories("", true); // Initial fetch with empty query
 }, [fetchMemories]);
 
 const handleSearch = (e?: React.FormEvent) => {
 e?.preventDefault();
-fetchMemories(searchQuery);
+fetchMemories(searchQuery); // Search with the current query
 };
 
 const handleResetSearch = () => {
 setSearchQuery("");
-fetchMemories("", true);
+fetchMemories("", true); // Reset to initial "fetch recent"
 };
 
 const handleDeleteMemory = useCallback(
@@ -113,6 +113,8 @@ toast({
 title: "Memory Deleted",
 description: "The memory item has been removed.",
 });
+// Optionally, re-fetch memories to update the list after deletion
+fetchMemories(searchQuery, !searchQuery); // Re-fetch based on current search or initial if empty
 } catch (err: any) {
 logger.error(`[MemoryPanel] Error deleting memory ${id}:`, err);
 toast({
@@ -123,7 +125,7 @@ variant: "destructive",
 setMemories(originalMemories);
 }
 },
-[memories]
+[memories, searchQuery, fetchMemories] // Added fetchMemories dependency
 );
 
 const renderContent = () => {

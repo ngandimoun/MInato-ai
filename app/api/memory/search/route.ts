@@ -1,6 +1,6 @@
 // FILE: app/api/memory/search/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server"; // Utilise le client serveur de @supabase/ssr via notre wrapper
+import { createServerSupabaseClient } from "@/lib/supabase/server"; 
 import { cookies } from "next/headers";
 import { CompanionCoreMemory } from "@/memory-framework/core/CompanionCoreMemory";
 import {
@@ -8,7 +8,7 @@ import {
   SearchOptions,
   SearchResult as MemoryFrameworkSearchResult,
   PaginatedResults,
-} from "@/memory-framework/core/types"; // Ajout de SearchResult pour le type de retour
+} from "@/memory-framework/core/types"; 
 import { logger } from "@/memory-framework/config";
 import { MEMORY_SEARCH_LIMIT_DEFAULT } from "@/lib/constants";
 import { getGlobalMemoryFramework } from "@/lib/memory-framework-global";
@@ -31,9 +31,8 @@ export async function POST(req: NextRequest) {
   const cookieStore = cookies();
   let userId: string | null = null;
 
-  // --- Authentication ---
   try {
-    const supabase = await createServerSupabaseClient(); // Correction: attendre la Promise
+    const supabase = await createServerSupabaseClient();
     const {
       data: { user },
       error: userError,
@@ -56,7 +55,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     userId = user.id;
-    // Vérification stricte de userId juste avant usage
     if (!userId) {
       logger.error(`${logPrefix} User ID missing after authentication step.`);
       return NextResponse.json(
@@ -81,12 +79,10 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-  // --- Fin Authentication ---
 
-  // Input Validation
   let query: string = "";
   let pagination: PaginationParams = { limit: 10, offset: 0 };
-  let searchOptions: SearchOptions | null = null; // searchOptions peut être null
+  let searchOptions: SearchOptions | null = null;
 
   try {
     let body: any;
@@ -96,13 +92,12 @@ export async function POST(req: NextRequest) {
       throw new Error(`Invalid JSON in request body: ${parseError.message}`);
     }
 
-    // Validate query
-    if (!body.query || typeof body.query !== "string" || body.query.trim().length === 0) {
-      throw new Error("Missing or empty 'query' field. Must be a non-empty string.");
+    // Allow empty query for fetching recent memories
+    if (body.query !== undefined && typeof body.query !== "string") {
+        throw new Error("'query' field must be a string if provided.");
     }
-    query = body.query.trim();
+    query = (body.query || "").trim(); // Default to empty string if not provided or null
 
-    // Validate pagination
     const limit = body.limit ?? MEMORY_SEARCH_LIMIT_DEFAULT;
     const offset = body.offset ?? 0;
 
@@ -123,26 +118,24 @@ export async function POST(req: NextRequest) {
       throw new Error("'offset' must be a non-negative integer");
     }
 
-    // Validate and clean pagination
     pagination = {
-      limit: Math.min(limitNum, 50), // Cap at 50 max
+      limit: Math.min(limitNum, 50), 
       offset: offsetNum,
     };
 
-    // Validate searchOptions
     if (body.searchOptions !== undefined) {
       if (body.searchOptions === null) {
         searchOptions = null;
       } else if (typeof body.searchOptions !== "object" || Array.isArray(body.searchOptions)) {
         throw new Error("'searchOptions' must be an object or null if provided");
       } else {
-        // Create a safe search options object
         const safeOptions: SearchOptions = {};
         if (typeof body.searchOptions.enableHybridSearch === 'boolean') {
           safeOptions.enableHybridSearch = body.searchOptions.enableHybridSearch;
         } else if (body.searchOptions.enableHybridSearch !== undefined) {
           throw new Error("'searchOptions.enableHybridSearch' must be a boolean if provided");
         }
+        // ... (rest of searchOptions validation remains the same) ...
         if (typeof body.searchOptions.enableGraphSearch === 'boolean') {
           safeOptions.enableGraphSearch = body.searchOptions.enableGraphSearch;
         } else if (body.searchOptions.enableGraphSearch !== undefined) {
@@ -158,7 +151,6 @@ export async function POST(req: NextRequest) {
         } else if (body.searchOptions.rerank !== undefined) {
           throw new Error("'searchOptions.rerank' must be a boolean if provided");
         }
-        // Handle numeric properties - be explicit about property names to avoid indexing errors
         const numericProps = ['vectorWeight', 'keywordWeight', 'graphWeight'] as const;
         numericProps.forEach(prop => {
           if (body.searchOptions[prop] !== undefined) {
@@ -171,7 +163,6 @@ export async function POST(req: NextRequest) {
             if (prop === 'graphWeight') safeOptions.graphWeight = val;
           }
         });
-        // Handle filters object
         if (body.searchOptions.filters !== undefined) {
           if (body.searchOptions.filters === null) {
             safeOptions.filters = null;
@@ -198,18 +189,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Search Execution
   try {
-    const memory = getMemoryFramework(); // Peut lancer une erreur si l'initialisation a échoué
+    const memory = getMemoryFramework();
     logger.info(
       `${logPrefix} Searching memory for user ${userId.substring(0, 8)} with query "${query.substring(0, 50)}...", Limit: ${pagination.limit}, Offset: ${pagination.offset}`
     );
+    // Pass the (potentially empty) query string to the memory framework.
+    // The memory framework's search_memory function will handle an empty query appropriately
+    // (e.g., by fetching recent memories or applying default search behavior).
     const results: PaginatedResults<MemoryFrameworkSearchResult> =
       await memory.search_memory(
-        query,
-        userId!, // On a vérifié userId plus haut
+        query, 
+        userId!, 
         pagination,
-        null, // runId - passer null si non pertinent pour cette recherche spécifique
+        null, 
         searchOptions
       );
     logger.info(

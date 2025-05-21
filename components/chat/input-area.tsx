@@ -8,14 +8,14 @@ import { Mic, SendHorizonal, Plus, X, ImageIcon, Video, Camera, FileText, Trash,
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent } from "@/components/ui/dialog"; // Removed unused Dialog parts
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from "@/components/ui/dialog"; 
 import { Slider } from "@/components/ui/slider";
 import { toast } from "@/components/ui/use-toast";
 import { useUploadStatus } from "@/context/upload-status-context";
 import type { DocumentFile } from "@/components/settings/settings-panel";
 import type { MessageAttachment } from "@/lib/types/index";
 import { logger } from "@/memory-framework/config";
-// Removed: getBrowserSupabaseClient as it's not directly used here for uploads anymore
+
 const generateId = () => globalThis.crypto.randomUUID();
 
 type LocalAttachmentType = "image" | "video" | "document";
@@ -23,10 +23,9 @@ interface LocalAttachment { id: string; type: LocalAttachmentType; name: string;
 export interface InputAreaProps {
   onSendMessage: (content: string, attachments?: MessageAttachment[]) => void;
   onSendAudio?: (audioBlob: Blob) => void;
-  onDocumentsSubmit: (documents: DocumentFile[]) => void; // Keep for non-chat documents
+  onDocumentsSubmit: (documents: DocumentFile[]) => void; 
   disabled?: boolean;
-  // onAssistantReply is REMOVED - backend handles unified response
-  onVideoAnalysisStatusChange?: (isAnalyzing: boolean) => void; // Keep if backend provides such events
+  onVideoAnalysisStatusChange?: (isAnalyzing: boolean) => void; 
 }
 export interface InputAreaHandle { focusTextarea: () => void; }
 
@@ -45,7 +44,6 @@ const ACCEPTED_VID_TYPES = "video/mp4,video/webm,video/quicktime,video/x-msvideo
 const ACCEPTED_DOC_TYPES = ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,text/plain,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv";
 const MAX_AUDIO_RECORDING_MS = 60 * 1000;
 
-// --- Sub-Components (AttachmentPreview, RecordingInProgressUI, RecordingPreviewUI) remain the same ---
 function AttachmentPreview({ attachment, onRemove }: { attachment: LocalAttachment; onRemove: (id: string) => void; }) {
     const [isPlaying, setIsPlaying] = useState(false);
     const videoPreviewRef = useRef<HTMLVideoElement>(null);
@@ -103,43 +101,28 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
     const handleSend = useCallback(() => {
       if (disabled) return;
       const textToSend = message.trim();
-      // Map LocalAttachment to MessageAttachment for sending
       const attachmentsToSend: MessageAttachment[] = attachments.map(att => ({
-        id: att.id,
-        type: att.type,
-        name: att.name,
-        url: att.url || "", // If URL was created (e.g., for image preview from camera)
-        file: att.file, // The actual File object
-        size: att.file.size,
-        mimeType: att.file.type,
-        storagePath: undefined, // Will be set by backend if uploaded
+        id: att.id, type: att.type, name: att.name, url: att.url || "", 
+        file: att.file, size: att.file.size, mimeType: att.file.type,
+        storagePath: undefined,
       }));
 
       if (!textToSend && attachmentsToSend.length === 0) {
         toast({ title: "Empty message", description: "Please type something or add an attachment." });
         return;
       }
-
       onSendMessage(textToSend, attachmentsToSend);
-      
-      // Separate handling for non-chat "documents" if that flow remains
       const documentAttachmentsForSubmit = attachments
         .filter(att => att.type === "document")
         .map(docAtt => ({
-          id: docAtt.id,
-          name: docAtt.name,
-          file: docAtt.file,
+          id: docAtt.id, name: docAtt.name, file: docAtt.file,
           type: docAtt.file.type || "application/octet-stream",
-          size: docAtt.file.size,
-          uploadedAt: new Date(),
+          size: docAtt.file.size, uploadedAt: new Date(),
         }));
       if (documentAttachmentsForSubmit.length > 0) {
         onDocumentsSubmit(documentAttachmentsForSubmit);
       }
-
-      setMessage("");
-      setAttachments([]); // Clear local previews
-      playSound("send");
+      setMessage(""); setAttachments([]); playSound("send");
     }, [message, attachments, onSendMessage, onDocumentsSubmit, disabled]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Enter" && !e.shiftKey && !disabled) { e.preventDefault(); handleSend(); } }, [handleSend, disabled]);
@@ -179,10 +162,8 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
         };
 
         mediaRecorder.start();
-        setIsRecording(true);
-        setRecordingPreview(null);
-        startDurationTimer(setRecordingDuration, audioRecordingTimerRef);
-        playSound("recordStart");
+        setIsRecording(true); setRecordingPreview(null);
+        startDurationTimer(setRecordingDuration, audioRecordingTimerRef); playSound("recordStart");
 
         if (audioRecordingTimeoutIdRef.current) clearTimeout(audioRecordingTimeoutIdRef.current);
         audioRecordingTimeoutIdRef.current = setTimeout(() => {
@@ -201,15 +182,15 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
       }
     };
 
-    const cancelRecording = useCallback(() => { /* ... (same as before) ... */ if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop(); if (audioRecordingTimeoutIdRef.current) clearTimeout(audioRecordingTimeoutIdRef.current); setIsRecording(false); stopDurationTimer(audioRecordingTimerRef); setRecordingPreview(null); mediaRecorderRef.current?.stream?.getTracks().forEach(track => track.stop()); playSound("recordCancel"); }, [audioRecordingTimerRef]);
+    const cancelRecording = useCallback(() => { if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop(); if (audioRecordingTimeoutIdRef.current) clearTimeout(audioRecordingTimeoutIdRef.current); setIsRecording(false); stopDurationTimer(audioRecordingTimerRef); setRecordingPreview(null); mediaRecorderRef.current?.stream?.getTracks().forEach(track => track.stop()); playSound("recordCancel"); }, [audioRecordingTimerRef]);
     const sendRecording = useCallback(() => { if (recordingPreview?.blob && onSendAudio) { onSendAudio(recordingPreview.blob); setRecordingPreview(null); playSound("send"); } }, [recordingPreview, onSendAudio]);
     const deleteRecording = useCallback(() => { setRecordingPreview(null); playSound("recordDelete"); }, []);
-    const handleFileSelectType = (type: LocalAttachmentType) => { /* ... (same as before) ... */ setAttachmentMenuOpen(false); if (disabled) return; if (type === "image" && imageInputRef.current) imageInputRef.current.click(); else if (type === "video" && videoInputRef.current) videoInputRef.current.click(); else if (type === "document" && docInputRef.current) docInputRef.current.click(); };
-    const initializeCamera = useCallback(async () => { /* ... (same as before) ... */ try { if (localCameraStreamRef.current) { localCameraStreamRef.current.getTracks().forEach(track => track.stop()); } const constraints: MediaStreamConstraints = { video: { facingMode: isCameraFront ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 } } }; const stream = await navigator.mediaDevices.getUserMedia(constraints); localCameraStreamRef.current = stream; if (videoElementRef.current) videoElementRef.current.srcObject = stream; setCapturedImage(null); setCapturedVideo(null); setIsCapturing(false); setIsRecordingVideo(false); setVideoRecordingDuration(0); } catch (error: any) { console.error("Error accessing camera:", error); toast({ title: "Camera Access Error", description: error.message || "Please check permissions.", variant: "destructive" }); setCameraOpen(false); } }, [isCameraFront]);
+    const handleFileSelectType = (type: LocalAttachmentType) => { setAttachmentMenuOpen(false); if (disabled) return; if (type === "image" && imageInputRef.current) imageInputRef.current.click(); else if (type === "video" && videoInputRef.current) videoInputRef.current.click(); else if (type === "document" && docInputRef.current) docInputRef.current.click(); };
+    const initializeCamera = useCallback(async () => { try { if (localCameraStreamRef.current) { localCameraStreamRef.current.getTracks().forEach(track => track.stop()); } const constraints: MediaStreamConstraints = { video: { facingMode: isCameraFront ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 } } }; const stream = await navigator.mediaDevices.getUserMedia(constraints); localCameraStreamRef.current = stream; if (videoElementRef.current) videoElementRef.current.srcObject = stream; setCapturedImage(null); setCapturedVideo(null); setIsCapturing(false); setIsRecordingVideo(false); setVideoRecordingDuration(0); } catch (error: any) { console.error("Error accessing camera:", error); toast({ title: "Camera Access Error", description: error.message || "Please check permissions.", variant: "destructive" }); setCameraOpen(false); } }, [isCameraFront]);
     const handleCameraOpen = () => { if (disabled) return; setCameraOpen(true); setCameraMode("photo"); setAttachmentMenuOpen(false); };
     const switchCamera = () => { setIsCameraFront(prev => !prev); };
-    const capturePhoto = () => { /* ... (same as before) ... */ if (!videoElementRef.current || !localCameraStreamRef.current || isCapturing) return; setIsCapturing(true); const canvas = document.createElement("canvas"); const video = videoElementRef.current; if (video.videoWidth === 0 || video.videoHeight === 0) { logger.warn("[InputArea Camera] Video dimensions zero."); setIsCapturing(false); toast({ title: "Capture Error", description: "Camera not ready.", variant: "destructive" }); return; } canvas.width = video.videoWidth; canvas.height = video.videoHeight; const ctx = canvas.getContext("2d"); if (!ctx) { setIsCapturing(false); return; } ctx.drawImage(video, 0, 0, canvas.width, canvas.height); const dataUrl = canvas.toDataURL("image/jpeg", 0.9); setCapturedImage(dataUrl); setIsCapturing(false); playSound("attachmentAdd"); };
-    const startVideoRecording = () => { /* ... (same as before) ... */ if (!localCameraStreamRef.current || isRecordingVideo) return; videoChunksForRecordingRef.current = []; try { const options = { mimeType: "video/webm;codecs=vp8,opus" }; let recorder; if (MediaRecorder.isTypeSupported(options.mimeType)) { recorder = new MediaRecorder(localCameraStreamRef.current, options); } else { recorder = new MediaRecorder(localCameraStreamRef.current); } videoMediaRecorderRef.current = recorder; recorder.ondataavailable = event => { if (event.data.size > 0) videoChunksForRecordingRef.current.push(event.data); }; recorder.onstop = () => { stopDurationTimer(videoRecordingTimerRef); const videoBlob = new Blob(videoChunksForRecordingRef.current, { type: recorder.mimeType || "video/webm" }); const videoUrl = URL.createObjectURL(videoBlob); setCapturedVideo({ blob: videoBlob, url: videoUrl }); setIsRecordingVideo(false); playSound("recordStop"); }; recorder.start(); setIsRecordingVideo(true); startDurationTimer(setVideoRecordingDuration, videoRecordingTimerRef); playSound("recordStart"); setTimeout(() => { if (videoMediaRecorderRef.current?.state === "recording") videoMediaRecorderRef.current.stop(); }, 300000); } catch (error: any) { logger.error("[InputArea Camera] Error starting video rec:", error); toast({ title: "Recording Error", description: error.message || "Could not start video rec.", variant: "destructive" }); setIsRecordingVideo(false); } };
+    const capturePhoto = () => { if (!videoElementRef.current || !localCameraStreamRef.current || isCapturing) return; setIsCapturing(true); const canvas = document.createElement("canvas"); const video = videoElementRef.current; if (video.videoWidth === 0 || video.videoHeight === 0) { logger.warn("[InputArea Camera] Video dimensions zero."); setIsCapturing(false); toast({ title: "Capture Error", description: "Camera not ready.", variant: "destructive" }); return; } canvas.width = video.videoWidth; canvas.height = video.videoHeight; const ctx = canvas.getContext("2d"); if (!ctx) { setIsCapturing(false); return; } ctx.drawImage(video, 0, 0, canvas.width, canvas.height); const dataUrl = canvas.toDataURL("image/jpeg", 0.9); setCapturedImage(dataUrl); setIsCapturing(false); playSound("attachmentAdd"); };
+    const startVideoRecording = () => { if (!localCameraStreamRef.current || isRecordingVideo) return; videoChunksForRecordingRef.current = []; try { const options = { mimeType: "video/webm;codecs=vp8,opus" }; let recorder; if (MediaRecorder.isTypeSupported(options.mimeType)) { recorder = new MediaRecorder(localCameraStreamRef.current, options); } else { recorder = new MediaRecorder(localCameraStreamRef.current); } videoMediaRecorderRef.current = recorder; recorder.ondataavailable = event => { if (event.data.size > 0) videoChunksForRecordingRef.current.push(event.data); }; recorder.onstop = () => { stopDurationTimer(videoRecordingTimerRef); const videoBlob = new Blob(videoChunksForRecordingRef.current, { type: recorder.mimeType || "video/webm" }); const videoUrl = URL.createObjectURL(videoBlob); setCapturedVideo({ blob: videoBlob, url: videoUrl }); setIsRecordingVideo(false); playSound("recordStop"); }; recorder.start(); setIsRecordingVideo(true); startDurationTimer(setVideoRecordingDuration, videoRecordingTimerRef); playSound("recordStart"); setTimeout(() => { if (videoMediaRecorderRef.current?.state === "recording") videoMediaRecorderRef.current.stop(); }, 300000); } catch (error: any) { logger.error("[InputArea Camera] Error starting video rec:", error); toast({ title: "Recording Error", description: error.message || "Could not start video rec.", variant: "destructive" }); setIsRecordingVideo(false); } };
     const stopVideoRecording = () => { if (videoMediaRecorderRef.current?.state === "recording") videoMediaRecorderRef.current.stop(); };
     const retakeMedia = () => { setCapturedImage(null); setCapturedVideo(null); if (cameraOpen) initializeCamera(); };
     
@@ -227,7 +208,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
         triggerUploadIndicator(); 
         playSound("attachmentAdd");
         
-        if (e.target) e.target.value = ""; // Reset input
+        if (e.target) e.target.value = ""; 
     }, [triggerUploadIndicator]);
 
     const useMedia = useCallback(() => {
@@ -252,7 +233,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
         }
      }, [capturedImage, capturedVideo, triggerUploadIndicator]);
 
-    const removeAttachment = useCallback((idToRemove: string) => { /* ... (same as before) ... */ setAttachments(prev => prev.filter(att => { if (att.id === idToRemove && att.url) URL.revokeObjectURL(att.url); return att.id !== idToRemove; })); playSound("attachmentRemove"); }, []);
+    const removeAttachment = useCallback((idToRemove: string) => { setAttachments(prev => prev.filter(att => { if (att.id === idToRemove && att.url) URL.revokeObjectURL(att.url); return att.id !== idToRemove; })); playSound("attachmentRemove"); }, []);
     useEffect(() => { return () => { stopDurationTimer(audioRecordingTimerRef); stopDurationTimer(videoRecordingTimerRef); if (audioRecordingTimeoutIdRef.current) clearTimeout(audioRecordingTimeoutIdRef.current); }; }, []);
     useEffect(() => { if (!isRecording && !recordingPreview && !disabled) textareaAutosizeRef.current?.focus(); }, [isRecording, recordingPreview, disabled]);
     useEffect(() => { return () => { attachments.forEach(att => { if (att.url) URL.revokeObjectURL(att.url); }); if (localCameraStreamRef.current) { localCameraStreamRef.current.getTracks().forEach(track => track.stop()); localCameraStreamRef.current = null; } if (capturedVideo?.url) URL.revokeObjectURL(capturedVideo.url); }; }, [attachments, capturedVideo?.url]);
@@ -304,7 +285,10 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
         
         <Dialog open={cameraOpen} onOpenChange={openState => { if (!openState && localCameraStreamRef.current) { localCameraStreamRef.current.getTracks().forEach(track => track.stop()); localCameraStreamRef.current = null; } setCameraOpen(openState); }}>
           <DialogContent className="sm:max-w-lg p-0 overflow-hidden aspect-video">
-            {/* Camera Dialog Content as before... */}
+            <DialogHeader className="hidden"> {/* Added for accessibility, visually hidden */}
+                <DialogTitle>Camera</DialogTitle>
+                <DialogDescription>Use your camera to capture a photo or video.</DialogDescription>
+            </DialogHeader>
             <div className="relative bg-black w-full h-full">
               {!capturedImage && !capturedVideo && (<video ref={videoElementRef} autoPlay playsInline muted className={`w-full h-full object-contain ${cameraMode === "photo" && isCameraFront ? "transform scale-x-[-1]" : ""}`} />)}
               {capturedImage && (<img src={capturedImage} alt="Captured" className="w-full h-full object-contain" />)}

@@ -4,7 +4,21 @@ import fetch from "node-fetch"; // Ensure node-fetch is imported
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { NewsArticle, NewsArticleList } from "@/lib/types";
-import { formatDistanceToNowStrict, parseISO } from 'date-fns'; // For date formatting
+import { formatDistanceToNowStrict, parseISO, format } from 'date-fns';
+// Import specific locales as needed
+import { enUS, fr as frLocale, es as esLocale, de as deLocale, ja as jaLocale } from 'date-fns/locale'; // Renamed to avoid conflict
+import type { Locale as DateFnsLocaleType } from 'date-fns';
+
+// Map of supported locales for date-fns
+const dateFnsLocalesMap: { [key: string]: DateFnsLocaleType } = {
+  'en': enUS, 'en-us': enUS, 'en-gb': enUS,
+  'fr': frLocale, 'fr-fr': frLocale,
+  'es': esLocale, 'es-es': esLocale,
+  'de': deLocale, 'de-de': deLocale,
+  'ja': jaLocale, 'ja-jp': jaLocale
+  // Add more mappings as needed
+};
+
 
 interface NewsInput extends ToolInput {
   query?: string;
@@ -59,9 +73,9 @@ export class NewsAggregatorTool extends BaseTool {
   private getFaviconUrl(sourceUrl: string): string {
     try {
       const url = new URL(sourceUrl);
-      return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`; // Google's favicon service
+      return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`; 
     } catch {
-      return ""; // Return empty string if URL is invalid
+      return ""; 
     }
   }
 
@@ -122,9 +136,9 @@ export class NewsAggregatorTool extends BaseTool {
         if (sources) { 
             url = `${this.NEWSAPI_ORG_BASE}/everything`;
             params.set("sources", sources);
-            if (params.has("language")) params.delete("language");
+            if (params.has("language")) params.delete("language"); // Sources param overrides language/country/category for NewsAPI
         } else { 
-            url = `${this.NEWSAPI_ORG_BASE}/${query ? 'everything' : 'top-headlines'}`;
+            url = `${this.NEWSAPI_ORG_BASE}/${query ? 'everything' : 'top-headlines'}`; // Use 'everything' if query, 'top-headlines' otherwise
             if (!query && effectiveCategory !== "general") params.set("category", effectiveCategory);
             if (!query) params.set("country", country); 
             params.set("language", langCode);
@@ -173,6 +187,9 @@ export class NewsAggregatorTool extends BaseTool {
     const effectiveCategory = (typeof input.category === "string" && input.category.trim() !== "" && input.category !== null) ? input.category : "general";
     const effectiveCountry = (typeof input.country === "string" && input.country.trim() !== "") ? input.country : (input.context?.countryCode?.toLowerCase() || appConfig.defaultLocale.split("-")[1]?.toLowerCase() || "us");
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));
+    const userLocaleKey = (input.context?.locale || 'en-US').split('-')[0].toLowerCase();
+    const dateFnsLocale = dateFnsLocalesMap[userLocaleKey] || enUS;
+
 
     const defaultedInput: NewsInput = {
         ...input,
@@ -189,7 +206,6 @@ export class NewsAggregatorTool extends BaseTool {
       logger.debug(`${logPrefix} Attempting GNews...`);
       const gnewsResult = await this.fetchFromGNews(defaultedInput, abortSignal);
       if (abortSignal?.aborted) return { error: "News check cancelled.", result: "Cancelled." } as ToolOutput;
-      // gnewsResult should be NewsArticle[]
       if (gnewsResult.length > 0) { articles = gnewsResult; sourceUsed = "GNews.io"; }
       else primaryError = "GNews returned no results";
     } else {
@@ -200,7 +216,6 @@ export class NewsAggregatorTool extends BaseTool {
       logger.warn(`${logPrefix} ${primaryError || "Primary provider (GNews) returned no results"}. Falling back to NewsAPI.org...`);
       const newsapiResult = await this.fetchFromNewsAPI(defaultedInput, abortSignal);
       if (abortSignal?.aborted) return { error: "News check cancelled.", result: "Cancelled." } as ToolOutput;
-      // newsapiResult should be NewsArticle[]
       if (newsapiResult.length > 0) { articles = newsapiResult; sourceUsed = "NewsAPI.org"; primaryError = null; }
       else fallbackError = "NewsAPI.org returned no results";
     } else if (articles.length === 0 && !this.NEWSAPI_ORG_KEY) {
@@ -221,18 +236,18 @@ export class NewsAggregatorTool extends BaseTool {
     }
 
     logger.info(`${logPrefix} Found ${articles.length} articles via ${sourceUsed}.`);
-    const topArticlesForSummary = articles.slice(0, Math.min(3, effectiveLimit)); // Summarize first 3 or less
+    const topArticlesForSummary = articles.slice(0, Math.min(3, effectiveLimit));
     let resultString = `Okay ${userNameForResponse}, I found some news from ${sourceUsed} for you. `;
     if (topArticlesForSummary.length > 0) {
       resultString += `Here are the top headlines:\n`;
       resultString += topArticlesForSummary.map((a, i) => {
-        const publishedAgo = a.publishedAt ? `(${formatDistanceToNowStrict(parseISO(a.publishedAt), { addSuffix: true })})` : "";
+        const publishedAgo = a.publishedAt ? `(${formatDistanceToNowStrict(parseISO(a.publishedAt), { addSuffix: true, locale:dateFnsLocale })})` : "";
         return `${i + 1}. "${a.title}" from ${a.sourceName} ${publishedAgo}`;
       }).join("\n");
       if (articles.length > topArticlesForSummary.length) {
         resultString += `\n...and ${articles.length - topArticlesForSummary.length} more. I can show you the full list.`;
       }
-    } else { // Should not happen if articles.length > 0, but defensive
+    } else { 
         resultString = `Minato found ${articles.length} articles from ${sourceUsed}, ${userNameForResponse}. You can see them in the card.`;
     }
     
