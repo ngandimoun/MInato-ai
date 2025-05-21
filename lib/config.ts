@@ -5,6 +5,9 @@ import {
   logger as frameworkLoggerUnified,
   injectPromptVariables as frameworkInjectPromptVariablesUnified
 } from "@/memory-framework/config/index"; // Ensure this path is correct
+import { DEFAULT_TOOL_TIMEOUT_MS } from "./constants";
+
+declare const process: any;
 
 // Helper to log missing envs
 function getEnvVar(name: string, fallback: string | number | boolean | undefined, type?: 'string' | 'number' | 'boolean') {
@@ -26,8 +29,54 @@ function getEnvVar(name: string, fallback: string | number | boolean | undefined
   return value;
 }
 
-export const appConfig = {
-  ...frameworkConfigUnified, // Merge in memory-framework config
+export interface AppConfig {
+  supabase: {
+    storageUrl: string;
+    // Add other Supabase config properties if needed
+  };
+  openai: {
+    apiKey: string;
+    chatModel: string;
+    planningModel: string;
+    extractionModel: string;
+    developerModel: string;
+    sttModel: string;
+    ttsModel: string;
+    embedderModel: string;
+    embeddingDims: number;
+    ttsDefaultVoice: string;
+    ttsVoices: readonly string[];
+    enableVision: boolean;
+    visionDetail: "auto" | "low" | "high";
+    temperature: number;
+    maxTokens: number;
+    maxVisionTokens: number;
+    text: string;
+    vision: string;
+    planning: string;
+    extraction: string;
+    tts: string;
+    stt: string;
+    complexModel: string;
+    balancedModel: string;
+    fastModel: string;
+    mediaUploadBucket: string;
+    maxToolsPerTurn: number;
+  };
+  defaultLocale: string;
+  toolTimeoutMs?: number;
+  // ... rest of your config interface
+}
+
+export const appConfig: AppConfig = {
+  ...frameworkConfigUnified,
+  
+  supabase: {
+    // @ts-ignore: process.env is available in Node.js environments
+    storageUrl: process.env.SUPABASE_STORAGE_URL || "https://auzkjkliwlycclkpjlbl.supabase.co/storage/v1",
+  },
+  defaultLocale: process.env.DEFAULT_LOCALE || "en-US",
+  
   openai: {
     apiKey: getEnvVar("OPENAI_API_KEY", "") as string,
     // Main models based on new strategy
@@ -77,8 +126,10 @@ export const appConfig = {
     fastModel: getEnvVar("LLM_FAST_MODEL", "gpt-4.1-nano-2025-04-14") as string, // Typically for extraction
 
     mediaUploadBucket: getEnvVar("MEDIA_UPLOAD_BUCKET", "images") as string,
-    maxToolsPerTurn: frameworkConfigUnified.llm.maxToolsPerTurn,
+    maxToolsPerTurn: frameworkConfigUnified.llm.maxToolsPerTurn ?? 3,
   },
+  
+  toolTimeoutMs: getEnvVar("TOOL_TIMEOUT_MS", DEFAULT_TOOL_TIMEOUT_MS, 'number') as number,
 };
 export const logger = frameworkLoggerUnified;
 export const injectPromptVariables = frameworkInjectPromptVariablesUnified;

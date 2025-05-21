@@ -65,3 +65,20 @@ if (typeof window === "undefined") {
     "[Tools Registry] Note: MemoryTool & InternalTaskTool added dynamically by Orchestrator."
   );
 }
+
+// Example for WebSearchTool
+// export class WebSearchTool extends BaseTool {
+//   name = "WebSearchTool";
+//   description = "Effectue une recherche web";
+//   argsSchema = {
+//     type: "object" as const,
+//     properties: {
+//       query: { type: "string" as const },
+//       max_results: { type: "number" as const, minimum: 1, maximum: 10 }
+//     },
+//     required: ["query"],
+//     additionalProperties: false
+//   };
+// }
+
+// Add similar schema definitions to all tools
