@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
 X, User, Shield, Moon, Palette, Volume2, Calendar, Mail, Laptop, Sun, FileArchive,
-FileText, Trash2, ExternalLink, Zap, Check, Info, Loader2, 
+FileText, Trash2, ExternalLink, Zap, Check, Info, Loader2, // Added Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,7 +32,7 @@ Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFoote
 import { useAuth } from "@/context/auth-provider";
 import { logger } from "@/memory-framework/config";
 import { UserPersona as PersonaTypeFromLib, OpenAITtsVoice } from "@/lib/types";
-import { appConfig } from "@/lib/config"; 
+import { appConfig } from "@/lib/config"; // For default voice
 import { DEFAULT_USER_NAME, DEFAULT_PERSONA_ID } from "@/lib/constants";
 
 export interface DocumentFile {
@@ -83,6 +83,7 @@ const ALL_TTS_VOICES_WITH_DESC: { id: OpenAITtsVoice; name: string; description:
   { id: "onyx", name: "Onyx", description: "Deep, resonant, and authoritative." },
   { id: "nova", name: "Nova", description: "Bright, friendly, and energetic (Default)." },
   { id: "shimmer", name: "Shimmer", description: "Gentle, soothing, and slightly airy." },
+  // Additional voices from OpenAITtsVoice type if they have distinct characteristics
   { id: "ash", name: "Ash", description: "Calm and composed." },
   { id: "ballad", name: "Ballad", description: "Smooth and melodic." },
   { id: "coral", name: "Coral", description: "Friendly and approachable." },
@@ -115,11 +116,11 @@ export function SettingsPanel({
   const [isSavingPersona, setIsSavingPersona] = useState(false);
   const [isSavingVoice, setIsSavingVoice] = useState(false);
   const [isConnectingGoogle, setIsConnectingGoogle] = useState<GoogleConnectionScope>(null);
-  const [isFetchingSettings, setIsFetchingSettings] = useState(true); // Start true
+  const [isFetchingSettings, setIsFetchingSettings] = useState(true);
   const [personas, setPersonas] = useState<UIPersona[]>([]);
 
   const fetchPersonasFromBackend = useCallback(async () => {
-    if (!user) return;
+    if (!user) return; // Don't fetch if no user
     try {
       const res = await fetch("/api/personas");
       if (!res.ok) {
@@ -145,35 +146,22 @@ export function SettingsPanel({
 
   const fetchAllBackendData = useCallback(async () => {
     if (!user) {
-      setIsFetchingSettings(false); // Ensure loading stops if no user
+      setIsFetchingSettings(false);
       return;
     }
     setIsFetchingSettings(true);
-    try {
-      await fetchUserProfileAndState(true); // Force refresh profile/state
-      await fetchPersonasFromBackend();
-    } catch (error) {
-      logger.error("[SettingsPanel] Error in fetchAllBackendData:", error);
-      toast({title: "Error Loading Settings", description: "Could not load all settings.", variant: "destructive"});
-    } finally {
-      setIsFetchingSettings(false); // Stop loading regardless of outcome
-    }
+    await fetchUserProfileAndState(true);
+    await fetchPersonasFromBackend();
+    setIsFetchingSettings(false);
   }, [user, fetchUserProfileAndState, fetchPersonasFromBackend]);
 
   useEffect(() => {
-    // Only run if not already fetching and user is available (or auth has finished loading)
-    if (!isAuthLoading && user && isFetchingSettings) { 
-      fetchAllBackendData();
-    } else if (!isAuthLoading && !user) {
-        // If auth is done and no user, stop fetching settings
-        setIsFetchingSettings(false);
-    }
-  }, [user, isAuthLoading, fetchAllBackendData, isFetchingSettings]); // Added isFetchingSettings to dependencies
+    fetchAllBackendData();
+  }, [user, fetchAllBackendData]); // Re-fetch if user changes (e.g. logout/login)
 
   useEffect(() => {
     if (profile) setUsername(profile.full_name || user?.user_metadata?.full_name || DEFAULT_USER_NAME);
     else if (user) setUsername(user.user_metadata?.full_name || DEFAULT_USER_NAME);
-    
     if (state) {
       setLanguage(state.preferred_locale || appConfig.defaultLocale || "en-US");
       setSelectedPersonaId(state.active_persona_id || DEFAULT_PERSONA_ID);
@@ -181,11 +169,10 @@ export function SettingsPanel({
       setGoogleCalendarConnected(!!state.googlecalendarenabled);
       setGoogleGmailConnected(!!state.googleemailenabled);
     } else {
-      // Defaults if state is not yet available or null
       setLanguage(appConfig.defaultLocale || "en-US");
       setSelectedPersonaId(DEFAULT_PERSONA_ID);
       setSelectedMinatoVoice(defaultMinatoVoice);
-      setGoogleCalendarConnected(false);
+      setGoogleCalendarConnected(false); // Default for integrations if no state
       setGoogleGmailConnected(false);
     }
   }, [profile, state, user, defaultMinatoVoice]);
@@ -266,9 +253,9 @@ export function SettingsPanel({
         newOrUpdatedPersona = await res.json();
         toast({ title: "Persona created!" });
       }
-      await fetchPersonasFromBackend(); // Refresh the list
-      setSelectedPersonaId(newOrUpdatedPersona.id); // Set the new/updated persona as active
-      await updateProfileState({ active_persona_id: newOrUpdatedPersona.id }); // Save to backend
+      await fetchPersonasFromBackend();
+      setSelectedPersonaId(newOrUpdatedPersona.id);
+      await updateProfileState({ active_persona_id: newOrUpdatedPersona.id });
     } catch (e: any) {
       toast({
         title: `Failed to ${editingPersona ? "update" : "create"} persona`,
@@ -292,7 +279,7 @@ export function SettingsPanel({
       if (!res.ok && res.status !== 204) { const err = await res.json().catch(()=>null); throw new Error(err?.error || "Failed to delete persona"); }
       toast({ title: "Custom persona deleted!" });
       await fetchPersonasFromBackend();
-      if (selectedPersonaId === id) { // If active persona was deleted, reset to default
+      if (selectedPersonaId === id) {
         setSelectedPersonaId(DEFAULT_PERSONA_ID);
         await updateProfileState({ active_persona_id: DEFAULT_PERSONA_ID });
       }
@@ -312,7 +299,7 @@ export function SettingsPanel({
       }
       const { authorizeUrl } = await res.json();
       if (authorizeUrl) {
-        window.location.href = authorizeUrl; // Redirect to Google
+        window.location.href = authorizeUrl;
       } else {
         throw new Error("Could not get Google authorization URL.");
       }
@@ -332,7 +319,7 @@ export function SettingsPanel({
         throw new Error(errorData.error || `Failed to disconnect Google services (${res.status})`);
       }
       toast({ title: "Google Services Disconnected", description: "Calendar and Email access has been revoked." });
-      await fetchUserProfileAndState(true); // Force refresh to update connection status
+      await fetchUserProfileAndState(true);
     } catch (error: any) {
       toast({ title: "Disconnection Error", description: error.message, variant: "destructive" });
     } finally {
@@ -342,17 +329,12 @@ export function SettingsPanel({
 
   const onGoogleToggle = (service: 'calendar' | 'email', checked: boolean) => {
     if (checked) {
-      // If enabling a service and the other isn't connected yet OR this one isn't connected
-      if (service === "calendar" && !googleCalendarConnected) {
-        handleGoogleConnect("calendar"); // Can also be "both" if you want to connect all at once
-      } else if (service === "email" && !googleGmailConnected) {
-        handleGoogleConnect("email"); // Can also be "both"
+      if ((service === "calendar" && !googleCalendarConnected) || (service === "email" && !googleGmailConnected)) {
+        if (!googleCalendarConnected || !googleGmailConnected) {
+          handleGoogleConnect("both");
+        }
       }
-      // If one is already connected and we are enabling the other, also use "both" or individual
-      // This logic might need to be smarter if individual enabling of scopes is desired after initial "both"
     } else {
-      // Always disconnect all services if unchecking one, for simplicity.
-      // If granular disconnect is needed, the backend API for disconnect needs `scope` param.
       handleGoogleDisconnect();
     }
   };
@@ -376,10 +358,7 @@ export function SettingsPanel({
     }
   };
 
-  const handleLinkClick = (url: string | null) => {
-    // This function seems unused, but keeping it in case it's for a future feature.
-    // If it's intended to open the URL, use window.open(url, '_blank');
-  };
+  const handleLinkClick = (url: string | null) => {};
 
   const colorPalettes: ColorPaletteOption[] = [
     { name: "Arctic Dawn", value: "arctic-dawn", primary: "bg-blue-600", secondary: "bg-blue-200", description: "Cool blues and greys" },
@@ -408,7 +387,7 @@ export function SettingsPanel({
     { name: "Coral Reef", value: "coral-reef", primary: "bg-rose-500", secondary: "bg-orange-200", description: "Vibrant coral colors" },
   ];
 
-  if (isAuthLoading || isFetchingSettings) { // Show loader if either auth state is loading OR settings data is being fetched
+  if (isAuthLoading || isFetchingSettings) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-6.5rem)]">
         <Loader2 className="h-10 w-10 animate-spin text-primary"/>
@@ -480,7 +459,6 @@ export function SettingsPanel({
             <ScrollArea className="h-full">
               <div className="p-4 md:p-6">
                 <TabsContent value="general" className="mt-0 space-y-6">
-                  {/* General Settings Content - Name, Language, Persona */}
                   <div className="space-y-2">
                     <Label htmlFor="username">Your Name</Label>
                     <div className="flex gap-2">
@@ -502,6 +480,7 @@ export function SettingsPanel({
                           <SelectItem value="es-ES">Spanish (Spain)</SelectItem> 
                           <SelectItem value="de-DE">German (Germany)</SelectItem> 
                           <SelectItem value="ja-JP">Japanese</SelectItem> 
+                          {/* Add more languages as needed */}
                       </SelectContent>
                     </Select>
                     <Button onClick={handleSaveLanguage} disabled={isSavingLanguage} className="mt-2 w-full bg-primary/10 hover:bg-primary/20 border-primary/20 text-primary hover:text-primary"> {isSavingLanguage ? <Loader2 className="h-4 w-4 animate-spin"/> : "Save Language"} </Button>
@@ -542,13 +521,11 @@ export function SettingsPanel({
                 </TabsContent>
 
                 <TabsContent value="appearance" className="mt-0 space-y-6">
-                   {/* Appearance Settings Content - Theme, Color Palette */}
                    <div className="space-y-2"> <h3 className="text-sm font-medium">Theme</h3> <RadioGroup value={theme} onValueChange={(value) => setTheme(value as "light" | "dark" | "system")} className="grid grid-cols-3 gap-2"> <Label htmlFor="theme-light" className={`flex flex-col items-center justify-between rounded-md border-2 ${ theme === "light" ? "border-primary" : "border-muted" } bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer`} > <RadioGroupItem value="light" id="theme-light" className="sr-only" /> <Sun className="h-6 w-6 mb-3" /> <span>Light</span> </Label> <Label htmlFor="theme-dark" className={`flex flex-col items-center justify-between rounded-md border-2 ${ theme === "dark" ? "border-primary" : "border-muted" } bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer`} > <RadioGroupItem value="dark" id="theme-dark" className="sr-only" /> <Moon className="h-6 w-6 mb-3" /> <span>Dark</span> </Label> <Label htmlFor="theme-system" className={`flex flex-col items-center justify-between rounded-md border-2 ${ theme === "system" ? "border-primary" : "border-muted" } bg-popover p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer`} > <RadioGroupItem value="system" id="theme-system" className="sr-only" /> <Laptop className="h-6 w-6 mb-3" /> <span>System</span> </Label> </RadioGroup> </div>
                   <div className="space-y-2"> <h3 className="text-sm font-medium">Color Palettes</h3> <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2"> {colorPalettes.map((palette) => ( <Card key={palette.name} className={`cursor-pointer hover:border-primary transition-colors ${ colorPalette === palette.value ? "border-primary border-2" : "border" }`} onClick={() => setColorPalette(palette.value as any)} > <CardContent className="p-3"> <div className="flex flex-col items-center gap-2"> <div className="flex gap-1 mt-2"> <div className={`w-6 h-6 rounded-full ${palette.primary}`} ></div> <div className={`w-6 h-6 rounded-full ${palette.secondary}`} ></div> </div> <span className="text-xs font-medium mt-1"> {palette.name} </span> <span className="text-[10px] text-muted-foreground text-center leading-tight"> {palette.description} </span> </div> </CardContent> </Card> ))} </div> </div>
                 </TabsContent>
 
                 <TabsContent value="audio" className="mt-0 space-y-6">
-                  {/* Audio Settings Content - Minato's Voice */}
                   <div className="space-y-2">
                     <Label htmlFor="minato-voice-select">Minato's Voice</Label>
                     <p className="text-xs text-muted-foreground">
@@ -576,12 +553,10 @@ export function SettingsPanel({
                 </TabsContent>
 
                 <TabsContent value="documents" className="mt-0 space-y-4">
-                  {/* Documents Settings Content */}
                   <Card> <CardHeader className="pb-4"> <CardTitle className="text-lg flex items-center gap-2"> <FileArchive className="h-5 w-5 text-primary" /> Archived Documents </CardTitle> <CardDescription className="text-sm"> Documents you've shared with Minato. These are currently stored locally in your browser for this session. </CardDescription> </CardHeader> <CardContent> {uploadedDocuments.length === 0 ? ( <div className="text-center text-muted-foreground py-8 border border-dashed rounded-lg"> <Info className="mx-auto h-10 w-10 text-gray-400" /> <p className="mt-3 text-sm font-medium"> No documents in current session. </p> <p className="mt-1 text-xs"> Attach documents in the chat to see them here. </p> </div> ) : ( <ScrollArea className="max-h-[calc(100vh-22rem)] border rounded-lg"> <ul className="divide-y divide-border"> {uploadedDocuments.map((doc) => { const docUrl = getDocumentUrl(doc.file); return ( <li key={doc.id} className={cn( "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3 hover:bg-muted/50" )} > <div className="flex items-center gap-3 min-w-0 flex-1"> <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" /> <div className="min-w-0"> <p className="text-sm font-medium truncate text-foreground" title={doc.name} > {doc.name} </p> <p className="text-xs text-muted-foreground"> {formatFileSize(doc.size)} - {format(doc.uploadedAt, "PPp")} </p> </div> </div> <div className="flex items-center gap-1 flex-shrink-0"> {docUrl ? ( <TooltipProvider delayDuration={100}> <Tooltip> <TooltipTrigger asChild> <a href={docUrl} download={doc.name} target="_blank" rel="noopener noreferrer" onClick={() => handleLinkClick(docUrl)} className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-7 w-7 text-muted-foreground" > <ExternalLink className="h-3.5 w-3.5" /> <span className="sr-only"> View/Download {doc.name} </span> </a> </TooltipTrigger> <TooltipContent> <p>View / Download</p> </TooltipContent> </Tooltip> </TooltipProvider> ) : ( <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" disabled > <ExternalLink className="h-3.5 w-3.5" /> </Button> )} <TooltipProvider delayDuration={100}> <Tooltip> <TooltipTrigger asChild> <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => onDeleteDocument(doc.id)} > <Trash2 className="h-3.5 w-3.5" /> <span className="sr-only"> Delete {doc.name} </span> </Button> </TooltipTrigger> <TooltipContent> <p>Remove from session</p> </TooltipContent> </Tooltip> </TooltipProvider> </div> </li> ); })} </ul> </ScrollArea> )} </CardContent> </Card>
                 </TabsContent>
 
                 <TabsContent value="privacy" className="mt-0 space-y-6">
-                  {/* Privacy & Integrations Content */}
                   <div className="rounded-lg border border-border p-4 bg-muted/30"> <p className="text-sm text-foreground/90"> Minato is committed to protecting your privacy. Your data is encrypted and securely stored. We only use your information to provide and improve our services. </p> </div>
                   <div className="space-y-4"> <h3 className="text-sm font-medium">Integrations</h3> <div className="rounded-lg border border-border p-4 space-y-4">
                     <div className="flex items-center justify-between"> <div className="flex items-center gap-2"> <Calendar className="h-5 w-5 text-primary" /> <div> <h4 className="font-medium text-sm"> Google Calendar </h4> <p className="text-xs text-muted-foreground"> Allow Minato to access your calendar events </p> </div> </div> <div className="flex items-center gap-2"> <Switch checked={googleCalendarConnected} onCheckedChange={(checked) => onGoogleToggle("calendar", checked)} id="gcal-switch" disabled={isConnectingGoogle === 'calendar' || isConnectingGoogle === 'both' || isConnectingGoogle === 'disconnect_all' || isConnectingGoogle?.startsWith('disconnect')} /> <Label htmlFor="gcal-switch" className="sr-only"> Toggle Google Calendar </Label> </div> </div>
@@ -609,9 +584,9 @@ export function SettingsPanel({
           name: editingPersona.name,
           description: editingPersona.description || "",
           systemPrompt: editingPersona.system_prompt,
-          isCustom: editingPersona.isCustom,
-          // voice_id is part of UIPersona, so it's passed. Ensure Persona type matches
-        } as any : undefined} 
+          isCustom: editingPersona.isCustom
+        } : undefined}
+        // Ensure onSave expects the correct type if UIPersona diverges significantly from PersonaTypeFromLib
         onSave={handleSavePersonaDialog as any}
       />
       <UpgradeDialog
