@@ -25,6 +25,7 @@ import { safeJsonParse } from "@/memory-framework/core/utils";
 import type { CompletionUsage } from "openai/resources";
 import { MEDIA_UPLOAD_BUCKET } from "../constants";
 import { supabase } from "../supabaseClient";
+import Ajv from "ajv";
 
 
 // --- Initialize Raw OpenAI Client ---
@@ -379,11 +380,41 @@ export async function generateStructuredJson<T extends AnyToolStructuredData | R
 
     const result = safeJsonParse<any>(responseText);
     if (schemaName === "minato_tool_router_v1") {
-      if (result?.planned_tools && Array.isArray(result.planned_tools)) {
+      const toolRouterSchema = {
+        type: "object",
+        properties: {
+          planned_tools: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                tool_name: { type: "string" },
+                arguments: { 
+                  type: "object",
+                  additionalProperties: true,
+                  properties: {}
+                },
+                reason: { type: "string" }
+              },
+              required: ["tool_name", "arguments", "reason"],
+              additionalProperties: false
+            }
+          }
+        },
+        required: ["planned_tools"],
+        additionalProperties: false
+      };
+
+      // Validate with AJV
+      const ajv = new Ajv();
+      const validate = ajv.compile(toolRouterSchema);
+      if (!validate(result)) {
+        logger.error(`[LLM Clients JSON] Tool router schema validation failed:`, validate.errors);
+        return { error: "Invalid tool router response structure" };
+      }
+
+      if (result.planned_tools && Array.isArray(result.planned_tools)) {
         return result.planned_tools as T;
-      } else {
-        logger.warn(`[LLM Clients JSON] Tool router expected array in 'planned_tools', got ${typeof result?.planned_tools}. Raw: ${responseText.substring(0, 300)}. ${logSuffix}`);
-        return { error: `Tool router output was not an array as expected inside 'planned_tools'.` };
       }
     }
 
