@@ -77,6 +77,7 @@ export const appConfig = {
     fastModel: getEnvVar("LLM_FAST_MODEL", "gpt-4.1-nano-2025-04-14") as string, // Typically for extraction
 
     mediaUploadBucket: getEnvVar("MEDIA_UPLOAD_BUCKET", "images") as string,
+    maxToolsPerTurn: frameworkConfigUnified.llm.maxToolsPerTurn,
   },
 };
 export const logger = frameworkLoggerUnified;

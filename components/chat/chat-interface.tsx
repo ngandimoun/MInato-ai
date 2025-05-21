@@ -4,7 +4,6 @@ import React, { useRef, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageList } from "./message-list";
 import { InputArea, InputAreaHandle } from "./input-area";
-import { TypingIndicator } from "./typing-indicator";
 import type { DocumentFile } from "@/components/settings/settings-panel";
 import { logger } from "@/memory-framework/config";
 import { toast } from "@/components/ui/use-toast";
@@ -23,7 +22,6 @@ ChatMessageContentPartInputImage,
 interface ChatInterfaceProps {
 onDocumentsSubmit: (documents: DocumentFile[]) => void;
 }
-// const CHAT_HISTORY_LOCAL_CACHE_KEY = "minatoSingleChatHistoryCache_v2"; // Use a new key if changing format significantly
 const MESSAGES_PER_PAGE_HISTORY = 30;
 export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
 const [messages, setMessages] = useState<Message[]>([]);
@@ -36,8 +34,7 @@ const [isVideoAnalyzing, setIsVideoAnalyzing] = useState(false);
 const messagesEndRef = useRef<HTMLDivElement>(null);
 const abortControllerRef = useRef<AbortController | null>(null);
 const inputAreaRef = useRef<InputAreaHandle>(null);
-const isFetchingMoreHistoryRef = useRef(false); // To prevent multiple parallel fetches
-// Use a ref to messages for functions that need the latest state but are memoized
+const isFetchingMoreHistoryRef = useRef(false);
 const messagesRef = useRef(messages);
 useEffect(() => {
 messagesRef.current = messages;
@@ -46,72 +43,71 @@ const fetchChatHistory = useCallback(async (page: number, initialLoad = false) =
 if (isFetchingMoreHistoryRef.current && !initialLoad) return;
 if (initialLoad) setIsLoadingHistory(true);
 else isFetchingMoreHistoryRef.current = true;
-
 logger.info(`[ChatInterface] Fetching chat history page ${page}...`);
 try {
-  const response = await fetch(`/api/chat/history?page=${page}&limit=${MESSAGES_PER_PAGE_HISTORY}`);
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Failed to fetch history: ${response.status}`);
-  }
-  const fetchedMessages = (await response.json()) as Message[];
-  
-  setMessages(prevMessages => {
-    const existingMessageIds = new Set(prevMessages.map(m => m.id));
-    const newMessages = fetchedMessages.filter(m => m.id && !existingMessageIds.has(m.id)); // Ensure ID exists
-    return [...newMessages, ...prevMessages].sort((a, b) => (new Date(a.timestamp || 0)).getTime() - (new Date(b.timestamp || 0)).getTime()); // Ensure sorted by timestamp
-  });
-
-  setHasMoreHistory(fetchedMessages.length === MESSAGES_PER_PAGE_HISTORY);
-  if (fetchedMessages.length === MESSAGES_PER_PAGE_HISTORY) {
-    setHistoryPage(prevPage => prevPage + 1); // Increment page for next fetch
-  }
-
-  if (initialLoad && fetchedMessages.length === 0 && messagesRef.current.length === 0) {
-    setMessages([{
-      id: `minato-initial-${generateId()}`,
-      role: "assistant",
-      content: "Hello! I'm Minato, your AI companion. How can I assist you today?",
-      timestamp: new Date().toISOString(),
-      attachments: [],
-      audioUrl: undefined,
-      structured_data: null,
-      debugInfo: null,
-      workflowFeedback: null,
-      intentType: null,
-      ttsInstructions: null,
-      clarificationQuestion: null,
-      error: undefined
-    }]);
-  }
-} catch (error: any) {
-  logger.error("[ChatInterface] Error fetching chat history:", error.message);
-  toast({ title: "Could not load chat history", description: error.message, variant: "destructive" });
-  if (initialLoad && messagesRef.current.length === 0) {
-    setMessages([{
-      id: `minato-initial-${generateId()}`,
-      role: "assistant",
-      content: "Hello! I'm Minato, your AI companion. How can I assist you today?",
-      timestamp: new Date().toISOString(),
-      attachments: [],
-      audioUrl: undefined,
-      structured_data: null,
-      debugInfo: null,
-      workflowFeedback: null,
-      intentType: null,
-      ttsInstructions: null,
-      clarificationQuestion: null,
-      error: undefined
-    }]);
-  }
-} finally {
-  if (initialLoad) setIsLoadingHistory(false);
-  isFetchingMoreHistoryRef.current = false;
+const response = await fetch(`/api/chat/history?page=${page}&limit=${MESSAGES_PER_PAGE_HISTORY}`);
+if (!response.ok) {
+const errorData = await response.json().catch(() => ({}));
+throw new Error(errorData.error || `Failed to fetch history: ${response.status}`);
 }
-
-}, []); // Removed messages.length dependency
+const fetchedMessages = (await response.json()) as Message[];
+setMessages(prevMessages => {
+const existingMessageIds = new Set(prevMessages.map(m => m.id));
+const newMessages = fetchedMessages.filter(m => m.id && !existingMessageIds.has(m.id));
+const combined = [...newMessages, ...prevMessages];
+const uniqueMessages = Array.from(new Map(combined.map(m => [m.id, m])).values());
+return uniqueMessages.sort((a, b) => (new Date(a.timestamp || 0)).getTime() - (new Date(b.timestamp || 0)).getTime());
+});
+setHasMoreHistory(fetchedMessages.length === MESSAGES_PER_PAGE_HISTORY);
+if (fetchedMessages.length === MESSAGES_PER_PAGE_HISTORY && initialLoad) {
+setHistoryPage(prevPage => prevPage + 1);
+} else if (fetchedMessages.length < MESSAGES_PER_PAGE_HISTORY) {
+setHasMoreHistory(false);
+}
+if (initialLoad && fetchedMessages.length === 0 && messagesRef.current.length === 0) {
+setMessages([{
+id: `minato-initial-${generateId()}`,
+role: "assistant",
+content: "Hello! I'm Minato, your AI companion. How can I assist you today?",
+timestamp: new Date().toISOString(),
+attachments: [],
+audioUrl: undefined,
+structured_data: null,
+debugInfo: null,
+workflowFeedback: null,
+intentType: null,
+ttsInstructions: null,
+clarificationQuestion: null,
+error: undefined
+}]);
+}
+} catch (error: any) {
+logger.error(`[ChatInterface] Error fetching chat history:`, error.message);
+toast({ title: "Could not load chat history", description: error.message, variant: "destructive" });
+if (initialLoad && messagesRef.current.length === 0) {
+setMessages([{
+id: `minato-initial-${generateId()}`,
+role: "assistant",
+content: "Hello! I'm Minato, your AI companion. How can I assist you today?",
+timestamp: new Date().toISOString(),
+attachments: [],
+audioUrl: undefined,
+structured_data: null,
+debugInfo: null,
+workflowFeedback: null,
+intentType: null,
+ttsInstructions: null,
+clarificationQuestion: null,
+error: undefined
+}]);
+}
+} finally {
+if (initialLoad) setIsLoadingHistory(false);
+isFetchingMoreHistoryRef.current = false;
+}
+}, []);
 useEffect(() => {
-fetchChatHistory(1, true); // Fetch page 1 on initial load
+fetchChatHistory(1, true);
 }, [fetchChatHistory]);
 const playSound = (soundType: "send" | "receive" | "error") => {
 logger.debug(`[ChatInterface] Sound: ${soundType}`);
@@ -141,333 +137,330 @@ file: att.file,
 storagePath: att.storagePath ?? undefined
 }));
 if (!currentText && currentAttachments.length === 0) {
-    toast({ title: "Empty message", description: "Please type something or add an attachment." });
-    return;
-  }
-  
-  setInputDisabled(true); setIsTyping(true); playSound("send");
+toast({ title: "Empty message", description: "Please type something or add an attachment." });
+return;
+}
+setInputDisabled(true); setIsTyping(true); playSound("send");
+let userMessageContentForState: string | ChatMessageContentPart[];
+const imageContentPartsForState: ChatMessageContentPartInputImage[] = [];
+const nonImageAttachmentsForMessageState: MessageAttachment[] = [];
+currentAttachments.forEach(att => {
+if (att.type === 'image' && att.url && (att.url.startsWith('data:') || att.url.startsWith('blob:'))) {
+imageContentPartsForState.push({ type: "input_image", image_url: att.url });
+} else {
+nonImageAttachmentsForMessageState.push(att);
+}
+});
+if (imageContentPartsForState.length > 0) {
+userMessageContentForState = [{ type: "text", text: currentText }, ...imageContentPartsForState];
+} else {
+userMessageContentForState = currentText;
+}
+const optimisticId = addOptimisticMessage(userMessageContentForState, nonImageAttachmentsForMessageState);
+abortControllerRef.current = new AbortController();
+const signal = abortControllerRef.current.signal;
+let assistantMessageId = `asst-temp-${generateId()}`;
+let currentAssistantPlaceholder: Message = {
+id: assistantMessageId, role: "assistant", content: "",
+timestamp: new Date().toISOString(), attachments: [], audioUrl: undefined,
+structured_data: null, debugInfo: null, workflowFeedback: null,
+intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined,
+};
+setMessages((prev) => [...prev, currentAssistantPlaceholder]);
+let streamProcessingError: Error | null = null;
+try {
+const historyForApi = messagesRef.current.filter((m) => m.id !== optimisticId && m.id !== assistantMessageId);
+const apiUserMessageContentParts: ChatMessageContentPart[] = [];
+if (currentText) {
+    apiUserMessageContentParts.push({ type: "text", text: currentText });
+}
+const apiAttachments: MessageAttachment[] = [];
 
-  let userMessageContentForState: string | ChatMessageContentPart[];
-  const imageContentPartsForState: ChatMessageContentPartInputImage[] = [];
-  const nonImageAttachmentsForMessageState: MessageAttachment[] = [];
-
-  currentAttachments.forEach(att => {
+currentAttachments.forEach(att => {
     if (att.type === 'image' && att.url && (att.url.startsWith('data:') || att.url.startsWith('blob:'))) {
-      imageContentPartsForState.push({ type: "input_image", image_url: att.url });
+        apiUserMessageContentParts.push({ type: 'input_image', image_url: att.url });
     } else {
-      nonImageAttachmentsForMessageState.push(att);
+        apiAttachments.push(att);
     }
+});
+
+const currentUserMessageForApi: Message = { 
+  id: optimisticId, role: "user", 
+  content: apiUserMessageContentParts.length > 0 ? apiUserMessageContentParts : (currentText || null), 
+  attachments: apiAttachments, 
+  timestamp: new Date().toISOString(),
+};
+
+const requestBodyMessages: Partial<Message>[] = [
+  ...historyForApi.map(m => ({ 
+    id: m.id, role: m.role, content: m.content, name: m.name, tool_calls: m.tool_calls,
+    tool_call_id: m.tool_call_id, timestamp: m.timestamp, audioUrl: m.audioUrl,
+    attachments: m.attachments?.map(a => ({ ...a, file: undefined })), 
+  })),
+  currentUserMessageForApi 
+];
+
+const requestBody: { messages: Partial<Message>[]; id?: string; data?: any } = {
+  messages: requestBodyMessages,
+};
+
+const hasFileObjects = apiAttachments.some(att => att.file instanceof File || att.file instanceof Blob);
+logger.info(`[ChatInterface] Sending to /api/chat. Attachments needing upload by API: ${apiAttachments.filter(a=>a.file).length}. Has File objects for API: ${hasFileObjects}`);
+
+let response: Response;
+if (hasFileObjects) { 
+  const formData = new FormData();
+  const messagesForFormData = requestBodyMessages.map(m => {
+    if (m.id === optimisticId && m.attachments) { // Ensure attachments exists before filtering
+        return { ...m, attachments: m.attachments.filter(att => !(att.file instanceof File || att.file instanceof Blob)).map(att => ({...att, file: undefined})) };
+    }
+    return {...m, attachments: m.attachments?.map(a => ({...a, file: undefined}))}; // Ensure file is undefined for all other messages too
   });
-  
-  if (imageContentPartsForState.length > 0) {
-    userMessageContentForState = [{ type: "text", text: currentText }, ...imageContentPartsForState];
-  } else {
-    userMessageContentForState = currentText;
-  }
-  
-  const optimisticId = addOptimisticMessage(userMessageContentForState, nonImageAttachmentsForMessageState);
-  abortControllerRef.current = new AbortController();
-  const signal = abortControllerRef.current.signal;
-  let assistantMessageId = `asst-temp-${generateId()}`; // Temporary ID for placeholder
-  let currentAssistantPlaceholder: Message = {
-    id: assistantMessageId, role: "assistant", content: "",
-    timestamp: new Date().toISOString(), attachments: [], audioUrl: undefined,
-    structured_data: null, debugInfo: null, workflowFeedback: null,
-    intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined,
-  };
-  setMessages((prev) => [...prev, currentAssistantPlaceholder]);
+  formData.append("messages", JSON.stringify(messagesForFormData));
+  if(requestBody.id) formData.append("id", requestBody.id);
+  if(requestBody.data) formData.append("data", JSON.stringify(requestBody.data));
+  apiAttachments.forEach((att, idx) => { if (att.file instanceof File || att.file instanceof Blob) { formData.append(`attachment_${idx}`, att.file, att.name); }});
+  response = await fetch("/api/chat", { method: "POST", body: formData, signal });
+} else {
+  response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), signal });
+}
 
-  try {
-    // Use messagesRef.current for history to avoid stale closure
-    const historyForApi = messagesRef.current.filter((m) => m.id !== optimisticId); 
-    
-    const apiUserMessageContentParts: ChatMessageContentPart[] = [];
-    if (currentText) {
-        apiUserMessageContentParts.push({ type: "text", text: currentText });
-    }
-    const apiAttachments: MessageAttachment[] = [];
+if (signal.aborted) { 
+    logger.info("[ChatInterface] Send fetch aborted by client."); 
+    setMessages(prev => prev.filter(m => m.id !== assistantMessageId)); 
+    setIsTyping(false); 
+    setInputDisabled(false); 
+    abortControllerRef.current = null;
+    if (inputAreaRef.current) inputAreaRef.current.focusTextarea();
+    return; 
+}
+if (!response.ok) { 
+    const errData = await response.json().catch(()=>({error: `HTTP ${response.status}`})); 
+    throw new Error(errData.error || `API request failed with status ${response.status}`); 
+}
+if (!response.body) { throw new Error("Response body is null."); }
 
-    currentAttachments.forEach(att => {
-        if (att.type === 'image' && att.url && (att.url.startsWith('data:') || att.url.startsWith('blob:'))) {
-            apiUserMessageContentParts.push({ type: 'input_image', image_url: att.url });
-        } else {
-            apiAttachments.push(att);
-        }
-    });
-    
-    const currentUserMessageForApi: Message = { 
-      id: optimisticId, role: "user", 
-      content: apiUserMessageContentParts.length > 0 ? apiUserMessageContentParts : (currentText || null), 
-      attachments: apiAttachments, 
-      timestamp: new Date().toISOString(),
-    };
-    
-    const requestBodyMessages: Partial<Message>[] = [
-      ...historyForApi.map(m => ({ 
-        id: m.id, role: m.role, content: m.content, name: m.name, tool_calls: m.tool_calls,
-        tool_call_id: m.tool_call_id, timestamp: m.timestamp, audioUrl: m.audioUrl,
-        attachments: m.attachments?.map(a => ({ ...a, file: undefined })),
-      })),
-      currentUserMessageForApi 
-    ];
+const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+let accumulatedText = "";
+let finalAnnotations: Partial<Omit<Message, "id"| "role" | "content" | "timestamp">> = {};
+let finalUiComponentData: AnyToolStructuredData | null = null;
+let finalAttachmentsFromAssistant: MessageAttachment[] = [];
+let finalAssistantMessageIdFromServer: string | null = null;
+let loopError: Error | null = null;
 
-    const requestBody: { messages: Partial<Message>[]; id?: string; data?: any } = {
-      messages: requestBodyMessages,
-      // The session ID / conversation ID is handled by the backend now using getOrCreateConversationId
-      // id: historyForApi.length > 0 && historyForApi[0].id ? historyForApi[0].id.split("-")[0] || generateId() : generateId(),
-    };
-    
-    const hasFileObjects = apiAttachments.some(att => att.file instanceof File || att.file instanceof Blob);
-    logger.info(`[ChatInterface] Sending to /api/chat. Attachments needing upload by API: ${apiAttachments.filter(a=>a.file).length}. Has File objects for API: ${hasFileObjects}`);
-    
-    let response: Response;
-    if (hasFileObjects) { /* ... FormData logic as before ... */ 
-      const formData = new FormData();
-      const messagesForFormData = requestBodyMessages.map(m => {
-        if (m.id === optimisticId) { 
-            return { ...m, attachments: m.attachments?.filter(att => !(att.file instanceof File || att.file instanceof Blob)).map(att => ({...att, file: undefined})) };
-        }
-        return m; 
-      });
-      formData.append("messages", JSON.stringify(messagesForFormData));
-      if(requestBody.id) formData.append("id", requestBody.id);
-      if(requestBody.data) formData.append("data", JSON.stringify(requestBody.data));
-      apiAttachments.forEach((att, idx) => { if (att.file instanceof File || att.file instanceof Blob) { formData.append(`attachment_${idx}`, att.file, att.name); }});
-      response = await fetch("/api/chat", { method: "POST", body: formData, signal });
-    } else {
-      response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), signal });
-    }
-    
-    if (signal.aborted) { logger.info("[ChatInterface] Send fetch aborted."); setMessages(prev => prev.filter(m => m.id !== assistantMessageId)); return; }
-    if (!response.ok) { const errData = await response.json().catch(()=>({error: `HTTP ${response.status}`})); throw new Error(errData.error || `API fail ${response.status}`); }
-    if (!response.body) throw new Error("Response body null.");
-
-    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-    let accumulatedText = "";
-    let finalAnnotations: Partial<Omit<Message, "id"| "role" | "content" | "timestamp">> = {};
-    let finalUiComponentData: AnyToolStructuredData | null = null;
-    let finalAttachmentsFromAssistant: MessageAttachment[] = [];
-    let finalAssistantMessageIdFromServer: string | null = null; // To get the real ID
-
+try {
     while (true) {
-      if (signal.aborted) { logger.info("[ChatInterface] SSE aborted."); reader.cancel("Aborted").catch(e=>logger.warn("Err cancel:",e)); break; }
-      const { value, done } = await reader.read();
-      if (done) { logger.debug("[ChatInterface] SSE Stream done."); break; }
+        if (signal.aborted) { logger.info("[ChatInterface] SSE processing aborted by client."); break; }
+        const { value, done } = await reader.read();
+        if (done) { logger.debug("[ChatInterface] SSE Stream done."); break; }
 
-      const rawEvents = value.split("\n\n");
-      for (const rawEvent of rawEvents) {
-        if (!rawEvent.trim()) continue;
-        let eventName = "message"; let eventDataJson = rawEvent.substring("data: ".length);
-        if (rawEvent.startsWith("event: ")) {
-          const lines = rawEvent.split("\n");
-          eventName = lines[0].substring("event: ".length).trim();
-          eventDataJson = lines.find(line => line.startsWith("data: "))?.substring("data: ".length) || "{}";
-        }
-        try {
-          const eventData = JSON.parse(eventDataJson);
-          if (eventName === "text-chunk" && typeof eventData.text === 'string') {
-            accumulatedText += eventData.text;
-            setMessages(prev => prev.map(msg => msg.id === assistantMessageId ? { ...msg, content: accumulatedText } : msg ));
-          } else if (eventName === "ui-component" && eventData.data) {
-            finalUiComponentData = eventData.data as AnyToolStructuredData;
-            setMessages(prev => prev.map(msg => msg.id === assistantMessageId ? { ...msg, structured_data: finalUiComponentData } : msg ));
-          } else if (eventName === "annotations" && typeof eventData === 'object' && eventData !== null) {
-            const { id, role, content, timestamp, messageId, attachments, ...validAnnotations } = eventData;
-            finalAnnotations = { ...finalAnnotations, ...validAnnotations };
-            if (messageId) finalAssistantMessageIdFromServer = messageId; // Capture the real ID
-            if (Array.isArray(attachments)) {
-                finalAttachmentsFromAssistant = attachments;
+        const rawEvents = value.split("\n\n");
+        for (const rawEvent of rawEvents) {
+            if (!rawEvent.trim()) continue;
+            let eventName = "message"; let eventDataJson = rawEvent.substring("data: ".length);
+            if (rawEvent.startsWith("event: ")) {
+            const lines = rawEvent.split("\n");
+            eventName = lines[0].substring("event: ".length).trim();
+            eventDataJson = lines.find(line => line.startsWith("data: "))?.substring("data: ".length) || "{}";
             }
-          } else if (eventName === "error" && eventData.error) { /* ... error handling ... */ }
-          else if (eventName === "stream-end") { 
-              logger.debug("[ChatInterface] Stream-end server event.", eventData);
-              if (eventData.assistantMessageId) finalAssistantMessageIdFromServer = eventData.assistantMessageId;
-          }
-        } catch (parseError: any) { /* ... error handling ... */ }
-      }
-    }
-    setMessages(prev => prev.map(msg => {
-        if (msg.id === assistantMessageId) { // Update placeholder with final data
-            return {
-                ...msg,
-                id: finalAssistantMessageIdFromServer || assistantMessageId, // Use real ID if available
-                content: accumulatedText || (finalUiComponentData ? msg.content || "[Structured Data]" : (finalAttachmentsFromAssistant.length > 0 ? msg.content || "[Attachment(s) Received]" : "[Response processed]")),
-                structured_data: finalUiComponentData || msg.structured_data,
-                attachments: finalAttachmentsFromAssistant.length > 0 ? finalAttachmentsFromAssistant : msg.attachments,
-                ...finalAnnotations,
-                timestamp: new Date().toISOString(),
-            };
+            try {
+                const eventData = JSON.parse(eventDataJson);
+                if (eventName === "text-chunk" && typeof eventData.text === 'string') {
+                    accumulatedText += eventData.text;
+                    setMessages(prev => prev.map(msg => msg.id === assistantMessageId ? { ...msg, content: accumulatedText } : msg ));
+                } else if (eventName === "ui-component" && eventData.data) {
+                    finalUiComponentData = eventData.data as AnyToolStructuredData;
+                    setMessages(prev => prev.map(msg => msg.id === assistantMessageId ? { ...msg, structured_data: finalUiComponentData } : msg ));
+                } else if (eventName === "annotations" && typeof eventData === 'object' && eventData !== null) {
+                    const { id, role, content, timestamp, messageId, attachments, ...validAnnotations } = eventData;
+                    finalAnnotations = { ...finalAnnotations, ...validAnnotations };
+                    if (messageId) finalAssistantMessageIdFromServer = messageId;
+                    if (Array.isArray(attachments)) {
+                        finalAttachmentsFromAssistant = attachments;
+                    }
+                } else if (eventName === "error" && eventData.error) { 
+                    logger.error(`[ChatInterface SSE Error Event]: ${eventData.error} (Status: ${eventData.statusCode})`);
+                    toast({title: "Assistant Error", description: eventData.error, variant: "destructive"});
+                    setMessages(prev => prev.map(msg => msg.id === assistantMessageId ? { ...msg, content: `Error: ${eventData.error}`, error: true } : msg));
+                } else if (eventName === "stream-end") { 
+                    logger.debug("[ChatInterface] Stream-end server event.", eventData);
+                    if (eventData.assistantMessageId) finalAssistantMessageIdFromServer = eventData.assistantMessageId;
+                }
+            } catch (parseError: any) { 
+                logger.error("[ChatInterface] Error parsing SSE event data:", parseError.message, "Raw event:", rawEvent);
+            }
         }
-        return msg;
-    }));
-    playSound("receive");
-  } catch (error: any) { /* ... error handling as before ... */ }
-  finally { /* ... finally block as before ... */ }
-},
-[inputDisabled, onDocumentsSubmit, messagesRef] // Use messagesRef
+    }
+} catch (readError: any) {
+    logger.error("[ChatInterface] Error reading from SSE stream:", readError.message);
+    streamProcessingError = readError;
+    setMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: `Stream error: ${readError.message}`, error: true } : m));
+} finally {
+    try { if (!signal.aborted) await reader.cancel("Stream processing finished or errored"); } 
+    catch (cancelError: any) { logger.warn("[ChatInterface] Error cancelling reader (already closed?):", cancelError.message); }
+}
 
+if (streamProcessingError) throw streamProcessingError;
+
+setMessages(prev => prev.map(msg => {
+    if (msg.id === assistantMessageId) {
+        return {
+            ...msg,
+            id: finalAssistantMessageIdFromServer || assistantMessageId,
+            content: accumulatedText || (finalUiComponentData ? msg.content || "[Structured Data]" : (finalAttachmentsFromAssistant.length > 0 ? msg.content || "[Attachment(s) Received]" : "[Response processed]")),
+            structured_data: finalUiComponentData || msg.structured_data,
+            attachments: finalAttachmentsFromAssistant.length > 0 ? finalAttachmentsFromAssistant : msg.attachments,
+            ...finalAnnotations,
+            timestamp: new Date().toISOString(),
+            error: msg.error || false 
+        };
+    }
+    return msg;
+}));
+playSound("receive");
+
+} catch (error: any) {
+logger.error("[ChatInterface handleSendMessage] Outer error:", error.message, error.stack);
+toast({ title: "Error Sending Message", description: error.message, variant: "destructive" });
+setMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: `Error: ${error.message}`, error: true } : m));
+}
+finally {
+setIsTyping(false);
+setInputDisabled(false);
+if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
+abortControllerRef.current.abort("Process completed or errored out in outer finally");
+}
+abortControllerRef.current = null;
+if (inputAreaRef.current) inputAreaRef.current.focusTextarea();
+}
+},
+[inputDisabled, onDocumentsSubmit, messagesRef]
 );
 const handleSendAudio = useCallback(
 async (audioBlob: Blob) => {
-  if (inputDisabled) return;
-  setInputDisabled(true);
-  setIsTyping(true);
-  playSound("send");
-  
-  const optimisticId = `user-audio-${generateId()}`;
-  const audioUrl = URL.createObjectURL(audioBlob);
-  
-  const audioAttachment: MessageAttachment = {
-    id: `audio-att-${generateId()}`,
-    type: 'audio',
-    name: `voice_message_${Date.now()}.${audioBlob.type.split('/')[1] || 'webm'}`,
-    url: audioUrl,
-    file: audioBlob,
-    size: audioBlob.size,
-    mimeType: audioBlob.type
-  };
+if (inputDisabled) return;
+setInputDisabled(true);
+setIsTyping(true);
+playSound("send");
+const optimisticId = `user-audio-${generateId()}`;
+const audioUrl = URL.createObjectURL(audioBlob);
+const audioAttachment: MessageAttachment = {
+id: `audio-att-${generateId()}`,
+type: 'audio',
+name: `voice_message_${Date.now()}.${audioBlob.type.split('/')[1] || 'webm'}`,
+url: audioUrl,
+file: audioBlob,
+size: audioBlob.size,
+mimeType: audioBlob.type
+};
+const audioMessage: Message = {
+id: optimisticId,
+role: "user",
+content: "[Audio Message]",
+audioUrl: audioUrl,
+attachments: [audioAttachment],
+timestamp: new Date().toISOString(),
+structured_data: null, debugInfo: null, workflowFeedback: null,
+intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined
+};
+setMessages(prev => [...prev, audioMessage]);
+let assistantMessageId = `asst-temp-${generateId()}`;
+let currentAssistantPlaceholder: Message = {
+id: assistantMessageId, role: "assistant", content: "",
+timestamp: new Date().toISOString(), attachments: [], audioUrl: undefined,
+structured_data: null, debugInfo: null, workflowFeedback: null,
+intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined
+};
+setMessages(prev => [...prev, currentAssistantPlaceholder]);
+abortControllerRef.current = new AbortController();
+const signal = abortControllerRef.current.signal;
+let finalAssistantMessageIdFromServer: string | null = null;
+try {
+const formData = new FormData();
+formData.append("audio", audioBlob, audioAttachment.name);
+const historyForApi = messagesRef.current.filter(m => m.id !== optimisticId && m.id !== assistantMessageId);
+const messagesForFormData = historyForApi.map(m => ({ 
+  id: m.id, role: m.role, content: m.content, timestamp: m.timestamp,
+  attachments: m.attachments?.map(a => ({...a, file: undefined})) 
+}));
 
-  const audioMessage: Message = {
-    id: optimisticId,
-    role: "user",
-    content: "[Audio Message]",
-    audioUrl: audioUrl,
-    attachments: [audioAttachment],
-    timestamp: new Date().toISOString(),
-    structured_data: null,
-    debugInfo: null,
-    workflowFeedback: null,
-    intentType: null,
-    ttsInstructions: null,
-    clarificationQuestion: null,
-    error: undefined
-  };
+messagesForFormData.push({
+  id: optimisticId, role: "user",
+  content: "[User sent an audio message]",
+  timestamp: audioMessage.timestamp,
+  attachments: [] 
+});
 
-  setMessages(prev => [...prev, audioMessage]);
-  
-  let assistantMessageId = `asst-temp-${generateId()}`;
-  let currentAssistantPlaceholder: Message = {
-    id: assistantMessageId,
-    role: "assistant",
-    content: "",
-    timestamp: new Date().toISOString(),
-    attachments: [],
-    audioUrl: undefined,
-    structured_data: null,
-    debugInfo: null,
-    workflowFeedback: null,
-    intentType: null,
-    ttsInstructions: null,
-    clarificationQuestion: null,
-    error: undefined
-  };
+formData.append("messages", JSON.stringify(messagesForFormData));
 
-  setMessages(prev => [...prev, currentAssistantPlaceholder]);
-  abortControllerRef.current = new AbortController();
-  const signal = abortControllerRef.current.signal;
-  let finalAssistantMessageIdFromServer: string | null = null;
+const response = await fetch("/api/audio", { method: "POST", body: formData, signal });
 
-  try {
-    const formData = new FormData();
-    formData.append("audio", audioBlob, audioAttachment.name);
-    
-    const historyForApi = messagesRef.current.filter(m => m.id !== optimisticId);
-    const messagesForFormData = historyForApi.map(m => ({ 
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      timestamp: m.timestamp,
-      attachments: m.attachments?.map(a => ({...a, file: undefined}))
-    }));
-    
-    messagesForFormData.push({
-      id: optimisticId,
-      role: "user",
-      content: "[User sent an audio message]",
-      timestamp: audioMessage.timestamp,
-      attachments: []
-    });
-    
-    formData.append("messages", JSON.stringify(messagesForFormData));
-
-    const response = await fetch("/api/audio", { method: "POST", body: formData, signal });
-    
-    if (signal.aborted) { return; }
-    if (!response.ok) { throw new Error(`API error: ${response.status}`); }
-    if (!response.body) throw new Error("Response body null.");
-
-    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-    let accumulatedText = "";
-    let finalAnnotations: Partial<Omit<Message, "id"| "role" | "content" | "timestamp">> = {};
-    let finalUiComponentData: AnyToolStructuredData | null = null;
-    let finalAttachmentsFromAssistant: MessageAttachment[] = [];
-
-    while (true) {
-      if (signal.aborted) { break; }
-      const { value, done } = await reader.read();
-      if (done) break;
-      
-      const rawEvents = value.split("\n\n");
-      for (const rawEvent of rawEvents) {
-        if (!rawEvent.trim()) continue;
-        
-        let currentEventName = "message";
-        let eventDataJson = rawEvent.substring("data: ".length);
-        
-        if (rawEvent.startsWith("event: ")) {
-          const lines = rawEvent.split("\n");
-          currentEventName = lines[0].substring("event: ".length).trim();
-          eventDataJson = lines.find(line => line.startsWith("data: "))?.substring("data: ".length) || "{}";
-        }
-        
-        try {
-          const parsedEventData = JSON.parse(eventDataJson);
-          if (currentEventName === "stream-end" && parsedEventData?.assistantMessageId) {
-            finalAssistantMessageIdFromServer = parsedEventData.assistantMessageId;
-          }
-        } catch (error) {
-          console.error("Error parsing event data:", error);
-        }
-      }
-    }
-
-    setMessages(prev => prev.map(msg => {
-      if (msg.id === assistantMessageId) {
-        return { 
-          ...msg,
-          id: finalAssistantMessageIdFromServer || assistantMessageId,
-          content: accumulatedText || "[Audio processed]",
-          structured_data: finalUiComponentData,
-          attachments: finalAttachmentsFromAssistant.length > 0 ? finalAttachmentsFromAssistant : msg.attachments,
-          ...finalAnnotations,
-          timestamp: new Date().toISOString()
-        };
-      }
-      return msg;
-    }));
-    
-    playSound("receive");
-  } catch (error: any) {
-    console.error("Error processing audio:", error);
-    toast({ 
-      title: "Error processing audio",
-      description: error.message,
-      variant: "destructive"
-    });
-  } finally {
-    setInputDisabled(false);
-    setIsTyping(false);
+if (signal.aborted) { 
+    logger.info("[ChatInterface] Audio send fetch aborted by client."); 
+    setMessages(prev => prev.filter(m => m.id !== assistantMessageId)); 
+    setIsTyping(false); 
+    setInputDisabled(false); 
+    abortControllerRef.current = null;
     if (audioUrl) URL.revokeObjectURL(audioUrl);
-  }
+    if (inputAreaRef.current) inputAreaRef.current.focusTextarea();
+    return; 
+}
+if (!response.ok) { const errData = await response.json().catch(()=>({error: `HTTP ${response.status}`})); throw new Error(errData.error || `API error: ${response.status}`); }
+
+const orchestratorResponse: OrchestratorResponse = await response.json();
+
+if (orchestratorResponse.error && !orchestratorResponse.clarificationQuestion) {
+  logger.error("[ChatInterface handleSendAudio] Orchestrator Error:", orchestratorResponse.error);
+  setMessages(prev => prev.map(msg => msg.id === assistantMessageId ? { ...msg, content: `Error: ${orchestratorResponse.error}`, error: true } : msg));
+  toast({ title: "Audio Processing Error", description: orchestratorResponse.error, variant: "destructive" });
+} else {
+  finalAssistantMessageIdFromServer = (orchestratorResponse.debugInfo as any)?.assistantMessageId || `asst-${generateId()}`; // Extract if present
+  setMessages(prev => prev.map(msg => {
+    if (msg.id === assistantMessageId) {
+      return {
+        ...msg,
+        id: finalAssistantMessageIdFromServer!,
+        content: orchestratorResponse.response || (orchestratorResponse.structuredData ? "[Structured Data]" : "[Audio processed]"),
+        structured_data: orchestratorResponse.structuredData || null,
+        attachments: orchestratorResponse.attachments || [],
+        audioUrl: orchestratorResponse.audioUrl || undefined,
+        intentType: orchestratorResponse.intentType || null,
+        ttsInstructions: orchestratorResponse.ttsInstructions || null,
+        clarificationQuestion: orchestratorResponse.clarificationQuestion || null,
+        debugInfo: orchestratorResponse.debugInfo || null,
+        workflowFeedback: orchestratorResponse.workflowFeedback || null,
+        timestamp: new Date().toISOString(),
+        error: !!orchestratorResponse.error,
+      };
+    }
+    return msg;
+  }));
+  playSound("receive");
+}
+
+} catch (error: any) {
+logger.error("[ChatInterface handleSendAudio] Error:", error.message, error.stack);
+toast({ title: "Error Processing Audio", description: error.message, variant: "destructive" });
+setMessages(prev => prev.map(m => m.id === assistantMessageId ? { ...m, content: `Error: ${error.message}`, error: true } : m));
+} finally {
+setIsTyping(false);
+setInputDisabled(false);
+if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
+abortControllerRef.current.abort("Process completed or errored out in audio finally");
+}
+abortControllerRef.current = null;
+if (audioUrl) URL.revokeObjectURL(audioUrl);
+if (inputAreaRef.current) inputAreaRef.current.focusTextarea();
+}
 }, [inputDisabled, messagesRef]);
 useEffect(() => {
-if (!isLoadingHistory && messagesEndRef.current) { // Only scroll after initial history load
+if (!isLoadingHistory && messagesEndRef.current) {
 messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
 }
-}, [messages, isTyping, isLoadingHistory]); // Add isLoadingHistory
+}, [messages, isTyping, isLoadingHistory]);
 useEffect(() => {
 const handleKeyDown = (event: KeyboardEvent) => {
-if (event.key === "Escape" && inputDisabled && abortControllerRef.current) {
+if (event.key === "Escape" && inputDisabled && abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
 logger.info("[ChatInterface] ESC pressed. Aborting AI response.");
 abortControllerRef.current.abort("User aborted with ESC key");
 toast({ title: "Response Cancelled", description: "Minato's response generation stopped."});
@@ -478,7 +471,8 @@ return () => window.removeEventListener("keydown", handleKeyDown);
 }, [inputDisabled]);
 const handleLoadMoreHistory = () => {
 if (hasMoreHistory && !isFetchingMoreHistoryRef.current) {
-fetchChatHistory(historyPage); // historyPage is already incremented
+const nextPageToFetch = Math.floor(messages.length / MESSAGES_PER_PAGE_HISTORY) + 1;
+fetchChatHistory(nextPageToFetch);
 }
 }
 return (
