@@ -30,6 +30,13 @@ function getEnvVar(name: string, fallback: string | number | boolean | undefined
 }
 
 export interface AppConfig {
+  apiKey: any;
+  neo4jUri: any;
+  openaiApiKey: any;
+  encryptionKey: any;
+  upstashRedisUrl: any;
+  upstashRedisToken: any;
+  vectorStore: any;
   llm: any;
   nodeEnv: string;
   emailFromAddress: string;

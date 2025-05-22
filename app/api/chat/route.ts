@@ -12,11 +12,13 @@ ChatMessageContentPartText,
 MessageAttachment,
 OrchestratorResponse,
 AnyToolStructuredData,
+ChatMessageContentPartInputImage, // Added
 } from "@/lib/types/index";
 import { logger } from "../../../memory-framework/config";
 import { appConfig } from "@/lib/config";
 import { randomUUID } from "crypto";
 import { getGlobalMemoryFramework } from "@/lib/memory-framework-global";
+import OpenAI from "openai";
 
 interface ToolCallInput {
   toolName: string;
@@ -37,16 +39,24 @@ interface MessageAttachmentDB extends Omit<MessageAttachment, 'file'> {
   file?: File; // This will effectively be undefined when retrieved from DB
 }
 
-interface ChatMessageDB extends Omit<ChatMessage, 'attachments' | 'tool_calls' | 'audioUrl' | 'intentType' | 'ttsInstructions'> {
+// ChatMessageDB needs to align with the refined ChatMessage from lib/types/index.ts
+interface ChatMessageDB {
   id: string;
   conversation_id: string;
   user_id: string;
+  role: ChatMessage['role']; // Use refined role type
+  content: string | ChatMessageContentPart[] | null; // Use refined content type
+  timestamp: string;
   attachments?: MessageAttachmentDB[] | null;
-  tool_calls?: ToolCallOutput[] | null;
-  audio_url: string | null;
-  intent_type: string | null;
-  tts_instructions: string | null;
+  tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] | null; // Align with OpenAI type
+  tool_call_id?: string; // This is for role='tool' only
+  structured_data?: AnyToolStructuredData | null;
+  audio_url?: string | null;
+  intent_type?: string | null;
+  tts_instructions?: string | null;
+  error?: boolean | null;
 }
+
 
 let orchestratorInstance: Orchestrator | null = null;
 function getOrchestrator(): Orchestrator {
@@ -79,7 +89,7 @@ const { data: existingConvo, error: fetchError } = await supabaseAdminClient
 .from("conversations")
 .select("id")
 .eq("user_id", userId)
-.order('created_at', { ascending: false }) // Get the latest conversation
+.order('created_at', { ascending: false }) 
 .limit(1)
 .single();
 
@@ -93,7 +103,7 @@ if (existingConvo) {
 }
 
 logger.info(`${logPrefix} No existing conversation found, creating new one.`);
-const newConversationId = randomUUID(); // Generate UUID here
+const newConversationId = randomUUID(); 
 const { data: newConvo, error: createError } = await supabaseAdminClient
     .from("conversations")
     .insert({ id: newConversationId, user_id: userId, title: `Conversation started ${new Date().toISOString().substring(0,10)}` })
@@ -123,9 +133,6 @@ async function saveChatMessageToDb(
 
   try {
     let finalMessageId = message.id;
-    // For user messages with temp IDs, always generate a new UUID for the DB.
-    // For assistant messages, the ID might be a temp one if saved before stream-end, 
-    // or a proper one if saved after stream-end provides it.
     if (!finalMessageId || 
         finalMessageId.startsWith('user-temp-') || 
         (!finalMessageId.startsWith('asst-') && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalMessageId)))
@@ -134,36 +141,24 @@ async function saveChatMessageToDb(
             logger.warn(`${logPrefix} User message ID "${finalMessageId}" is temporary. Generating new UUID for DB.`);
         } else if (!finalMessageId) {
             logger.warn(`${logPrefix} Message ID is missing. Generating new UUID for DB.`);
-        } else if (!finalMessageId.startsWith('asst-')) { // If not asst- and not UUID already
+        } else if (!finalMessageId.startsWith('asst-')) { 
             logger.warn(`${logPrefix} Message ID "${finalMessageId}" is not a UUID or expected assistant temp format. Generating new UUID for DB.`);
         }
-        // Only generate new ID if it's not an assistant's temporary ID (asst-temp-...) which might be updated later.
-        // Or if it's not a valid UUID already and not an asst-temp ID.
         if (!finalMessageId?.startsWith('asst-temp-')) {
              finalMessageId = randomUUID();
         }
     } 
-    // If it's 'asst-temp-...', we save it as is, assuming it might be updated by a later process or is a placeholder.
-    // If it's a valid UUID already, or a final 'asst-...', it's used as is.
 
     const messageToSave: ChatMessageDB = {
-      id: finalMessageId, // Use the validated/generated UUID
+      id: finalMessageId, 
       conversation_id: conversationId,
       user_id: userId,
       role: message.role,
       content: message.content,
       timestamp: message.timestamp ? new Date(message.timestamp).toISOString() : new Date().toISOString(),
-      attachments: message.attachments?.map(att => ({...att, file: undefined})) || null,
-      tool_calls: Array.isArray(message.tool_calls) 
-        ? (message.tool_calls as unknown as ToolCallInput[]).map(call => ({
-            id: call.toolCallId || randomUUID(), // Ensure tool_call also gets a UUID if not present
-            type: "function" as const,
-            function: {
-              name: call.toolName,
-              arguments: JSON.stringify(call.toolArgs)
-            }
-          }))
-        : null,
+      attachments: message.attachments?.map(att => ({...att, file: undefined})) || null, // Remove File object before DB save
+      tool_calls: message.role === "assistant" ? message.tool_calls || null : null, // Only for assistant
+      tool_call_id: message.role === "tool" ? message.tool_call_id : undefined, // Only for tool
       structured_data: message.structured_data || null,
       audio_url: message.audioUrl || null,
       intent_type: message.intentType || null,
@@ -228,7 +223,6 @@ let history: ChatMessage[] = [];
 let userMessageText: string | null = null;
 let orchestratorInputContentParts: ChatMessageContentPart[] = [];
 let initialAttachmentsForOrchestrator: MessageAttachment[] = [];
-// let sessionIdFromRequest: string | undefined = conversationId; // Use conversationId as sessionId
 let clientDataFromRequest: any = null;
 let allMessagesFromClient: ChatMessage[] = [];
 let currentUserMessageForApi: ChatMessage | null = null;
@@ -256,14 +250,15 @@ logger.debug(`${logPrefix} Parsed JSON. Total messages from client: ${allMessage
   const filesFromFormData: MessageAttachment[] = [];
   for (const [key, value] of formData.entries()) {
     if (value instanceof File && key.startsWith("attachment_")) {
+      const fileId = value.name + "_" + value.size + "_" + randomUUID().substring(0,8); // More robust ID
       filesFromFormData.push({
-        id: value.name + "_" + value.size + "_" + randomUUID().substring(0,8),
+        id: fileId, // Assign ID here
         type: value.type.startsWith("image/") ? "image" : (value.type.startsWith("video/") ? "video" : (value.type.startsWith("audio/") ? "audio" : "document")),
         name: value.name,
         mimeType: value.type,
         size: value.size,
-        file: value, // Keep File object for orchestrator
-        url: "", // Reverted to empty string, Orchestrator will handle it if File is present
+        file: value, 
+        url: URL.createObjectURL(value), // Create blob URL for local preview in InputArea or if orchestrator needs it
       });
     }
   }
@@ -271,11 +266,14 @@ logger.debug(`${logPrefix} Parsed JSON. Total messages from client: ${allMessage
   if (parsedMessagesJson.length > 0) {
       const lastMessageJson = parsedMessagesJson[parsedMessagesJson.length - 1];
       if (lastMessageJson.role === 'user') {
+          // Merge existing attachments metadata with new file objects
           const enrichedAttachments = (lastMessageJson.attachments || []).map((attMeta: MessageAttachment) => {
+              // Match by name and size if ID is not present or different
               const foundFile = filesFromFormData.find(f => f.name === attMeta.name && f.size === attMeta.size );
-              return foundFile ? { ...attMeta, file: foundFile.file, mimeType: foundFile.mimeType, size: foundFile.size, id: foundFile.id } : attMeta;
+              return foundFile ? { ...attMeta, id: foundFile.id, file: foundFile.file, mimeType: foundFile.mimeType, size: foundFile.size, url: foundFile.url } : attMeta;
           });
           
+          // Add any files from FormData that weren't in the JSON metadata
           filesFromFormData.forEach(ffdata => {
               if (!enrichedAttachments.some((ea: MessageAttachment) => ea.id === ffdata.id)) {
                   enrichedAttachments.push(ffdata);
@@ -285,6 +283,7 @@ logger.debug(`${logPrefix} Parsed JSON. Total messages from client: ${allMessage
       }
       allMessagesFromClient = parsedMessagesJson as ChatMessage[];
   } else if (filesFromFormData.length > 0) {
+      // If no 'messages' JSON, but files are present, create a new user message for these files
       const promptText = formData.get("prompt") as string || `[User sent ${filesFromFormData.length} file(s)]`;
        allMessagesFromClient.push({
             role: "user", content: promptText, attachments: filesFromFormData,
@@ -323,12 +322,14 @@ if (allMessagesFromClient.length > 0) {
                     userMessageText = (userMessageText || "") + part.text; 
                     orchestratorInputContentParts.push({ type: "text", text: part.text });
                 } else if (part.type === 'input_image' && typeof part.image_url === 'string') {
+                    // The URL here might be a blob URL or a placeholder_id_
+                    // The orchestrator will handle uploading/replacing this if a File object is in initialAttachments
                     orchestratorInputContentParts.push({ type: "input_image", image_url: part.image_url, detail: part.detail || visionDetailConfig });
                 }
             });
         }
         if (Array.isArray(lastMessage.attachments)) {
-            initialAttachmentsForOrchestrator = lastMessage.attachments;
+            initialAttachmentsForOrchestrator = lastMessage.attachments; // These attachments might have File objects
         }
     } else {
         history = allMessagesFromClient; 
@@ -377,16 +378,16 @@ const stream = new ReadableStream({
       }
     };
 
-    let assistantMessageToSave: ChatMessage | null = null; // Define outside try block
+    let assistantMessageToSave: ChatMessage | null = null; 
 
     try {
-      logger.info(`${logPrefix} About to call orchestrator.runOrchestration. Inspecting initialAttachmentsForOrchestrator (count: ${initialAttachmentsForOrchestrator?.length || 0}):`);
+      logger.info(`[${logPrefix}] runOrchestration: About to call orchestrator.runOrchestration. Inspecting initialAttachmentsForOrchestrator (count: ${initialAttachmentsForOrchestrator?.length || 0}):`);
       if (initialAttachmentsForOrchestrator && initialAttachmentsForOrchestrator.length > 0) {
         initialAttachmentsForOrchestrator.forEach((att, index) => {
-          logger.info(`[API Chat AttInspect][${index}]: id=${att.id}, type=${att.type}, name=${att.name}, url=${att.url}, hasFile=${!!att.file}, mimeType=${att.mimeType}, size=${att.size}, storagePath=${att.storagePath}`);
+          logger.info(`[${logPrefix}] runOrchestration: initialAttachment[${index}]: id=${att.id}, type=${att.type}, name=${att.name}, url=${att.url?.substring(0,30)}..., hasFile=${!!att.file}, storagePath=${att.storagePath}`);
         });
       } else {
-        logger.info(`${logPrefix} initialAttachmentsForOrchestrator is null, undefined, or empty.`);
+        logger.info(`[${logPrefix}] runOrchestration: initialAttachmentsForOrchestrator is null, undefined, or empty.`);
       }
 
       logger.info(`${logPrefix} Calling orchestrator.runOrchestration... User ${userId.substring(0,8)}`);
@@ -395,13 +396,12 @@ const stream = new ReadableStream({
         finalOrchestratorInput,
         history,
         effectiveApiContext,
-        initialAttachmentsForOrchestrator
+        initialAttachmentsForOrchestrator // Pass attachments with File objects here
       );
       logger.debug(`${logPrefix} Orchestrator finished. Error: ${orchestratorResult.error}. Response: ${!!orchestratorResult.response}.`);
 
-      // Construct assistant message for DB saving
-      assistantMessageToSave = { // Assign to the outer scope variable
-          id: randomUUID(), // Generate UUID for DB, will be overridden by stream-end if present
+      assistantMessageToSave = { 
+          id: randomUUID(), 
           role: "assistant",
           content: orchestratorResult.response || (orchestratorResult.structuredData ? "[Structured Data Response]" : "[No text response]"),
           timestamp: new Date().toISOString(),
@@ -415,9 +415,7 @@ const stream = new ReadableStream({
           debugInfo: orchestratorResult.debugInfo || null,
           workflowFeedback: orchestratorResult.workflowFeedback || null,
       };
-      // Save immediately, but use the ID from stream-end if available
       await saveChatMessageToDb(assistantMessageToSave, userId, conversationId, supabaseAdminClient);
-
 
       if (orchestratorResult.error && !orchestratorResult.clarificationQuestion) {
         sendErrorToStream(orchestratorResult.error, 500);
@@ -456,7 +454,6 @@ const stream = new ReadableStream({
         controller.enqueue(encoder.encode(createSSEEvent("annotations", annotations)));
       }
 
-      // The stream-end event should carry the *final* DB message ID for the assistant.
       controller.enqueue(encoder.encode(createSSEEvent("stream-end", { sessionId: effectiveApiContext.sessionId, assistantMessageId: assistantMessageToSave.id })));
 
     } catch (e: any) {
