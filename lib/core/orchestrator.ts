@@ -191,18 +191,20 @@ this.toolRegistry = {
 };
 this.availableToolsForRouter = Object.values(this.toolRegistry)
 .filter(tool => (tool as BaseTool).enabled !== false)
-.map(tool => {
-const baseTool = tool as BaseTool;
-const sanitizedParams = sanitizeToolParameterSchemaForOpenAI(baseTool.argsSchema);
-return {
-type: "function" as const,
+.map(tool => ({
+type: "function",
 function: {
-name: baseTool.name,
-description: baseTool.description.substring(0, 1024),
-parameters: sanitizedParams,
+name: tool.name,
+description: tool.description,
+parameters: sanitizeToolParameterSchemaForOpenAI(tool.argsSchema)
 }
-} as SdkResponsesApiTool;
-});
+}));
+// Add video-specific tool descriptions
+const videoToolDescriptions = [
+"VideoAnalysisTool: Analyzes video content including objects, actions, and visual themes",
+"MakeupAssistantTool: Provides makeup tips and product recommendations based on visual analysis"
+];
+logger.info(`[Orch] Video tools registered: ${videoToolDescriptions.join(', ')}`);
 const toolNamesForRouter = this.availableToolsForRouter.map(t => (t.type === 'function' ? t.function.name : t.type)).filter(name => name);
 logger.info(`[Orch] Registered tools for Router (${toolNamesForRouter.length}): ${toolNamesForRouter.join(', ')}`);
 }
@@ -257,7 +259,6 @@ const logPrefix = `ToolExecutor User:${userId.substring(0, 8)} Sess:${apiContext
 const toolResultsMessages: ChatMessage[] = [];
 const structuredDataMap: Map<string, AnyToolStructuredData | null> = new Map();
 let toolResultsSummaryParts: string[] = [];
-const workflowStateVars: Record<string, any> = {};
 const executionPromises = toolCallsFromRouter
 .filter(routedToolCall => this.validateToolStep(routedToolCall))
 .map(async (routedToolCall) => {
@@ -274,18 +275,19 @@ if (!tool) {
     let actualToolArgs = JSON.parse(JSON.stringify(routedToolCall.arguments || {})); 
 
 const searchToolsRequiringQuery = ["YouTubeSearchTool", "NewsAggregatorTool", "HackerNewsTool", "WebSearchTool", "MemoryTool", "PexelsSearchTool", "RecipeSearchTool"];
-if ( searchToolsRequiringQuery.includes(toolName) &&
-     tool.argsSchema.required?.includes("query") && 
-     (!actualToolArgs.query || typeof actualToolArgs.query !== 'string' || actualToolArgs.query.trim() === "") && 
-     (typeof workflowStateVars !== 'undefined' && workflowStateVars.userInput && typeof workflowStateVars.userInput === 'string' && workflowStateVars.userInput.trim())
+if (
+  searchToolsRequiringQuery.includes(toolName) &&
+  tool.argsSchema.required?.includes("query") && 
+  (!actualToolArgs.query || typeof actualToolArgs.query !== 'string' || actualToolArgs.query.trim() === "") && 
+  (apiContext?.userInput && typeof apiContext.userInput === 'string' && apiContext.userInput.trim())
 ) {
-  logger.warn(`${logPrefix} Tool '${toolName}' called by Router without 'query'. Using main user input as query: "${String(typeof workflowStateVars !== 'undefined' ? workflowStateVars.userInput : '').substring(0,50)}..."`);
-  actualToolArgs.query = String(typeof workflowStateVars !== 'undefined' ? workflowStateVars.userInput : '');
+  logger.warn(`${logPrefix} Tool '${toolName}' called by Router without 'query'. Using main user input as query: "${String(apiContext.userInput).substring(0,50)}..."`);
+  actualToolArgs.query = String(apiContext.userInput);
 }
 
 if (toolName === "SportsInfoTool" && tool.argsSchema.required?.includes("teamName") && (!actualToolArgs.teamName || typeof actualToolArgs.teamName !== 'string' || actualToolArgs.teamName.trim() === "")) {
-    if (typeof workflowStateVars !== 'undefined' && workflowStateVars.userInput && typeof workflowStateVars.userInput === 'string' && workflowStateVars.userInput.trim()) {
-         logger.warn(`${logPrefix} SportsInfoTool called by Router without 'teamName'. Tool may fail or use a default if implemented by the tool itself based on user query: "${String(workflowStateVars.userInput).substring(0,50)}..."`);
+    if (apiContext?.userInput && typeof apiContext.userInput === 'string' && apiContext.userInput.trim()) {
+         logger.warn(`${logPrefix} SportsInfoTool called by Router without 'teamName'. Tool may fail or use a default if implemented by the tool itself based on user query: "${String(apiContext.userInput).substring(0,50)}..."`);
     } else {
          logger.error(`${logPrefix} SportsInfoTool requires 'teamName', but Router didn't provide it. Skipping.`);
          toolResultsSummaryParts.push(`Error: Tool '${toolName}' skipped (missing teamName).`);
@@ -293,8 +295,8 @@ if (toolName === "SportsInfoTool" && tool.argsSchema.required?.includes("teamNam
     }
 }
 if (toolName === "RedditTool" && tool.argsSchema.required?.includes("subreddit") && (!actualToolArgs.subreddit || typeof actualToolArgs.subreddit !== 'string' || actualToolArgs.subreddit.trim() === "")) {
-    if (typeof workflowStateVars !== 'undefined' && workflowStateVars.userInput && typeof workflowStateVars.userInput === 'string' && workflowStateVars.userInput.trim()) {
-        logger.warn(`${logPrefix} RedditTool called by Router without 'subreddit'. Tool might use a default or fail based on query: "${String(workflowStateVars.userInput).substring(0,50)}..."`);
+    if (apiContext?.userInput && typeof apiContext.userInput === 'string' && apiContext.userInput.trim()) {
+        logger.warn(`${logPrefix} RedditTool called by Router without 'subreddit'. Tool might use a default or fail based on query: "${String(apiContext.userInput).substring(0,50)}..."`);
     } else {
          logger.error(`${logPrefix} RedditTool requires 'subreddit', but Router didn't provide it. Skipping.`);
          toolResultsSummaryParts.push(`Error: Tool '${toolName}' skipped (missing subreddit).`);
@@ -305,9 +307,9 @@ if (toolName === "RedditTool" && tool.argsSchema.required?.includes("subreddit")
     (!actualToolArgs.keyword || typeof actualToolArgs.keyword !== 'string' || actualToolArgs.keyword.trim() === "") &&
     (!actualToolArgs.classificationName && !actualToolArgs.location) 
   ) {
-    if (typeof workflowStateVars !== 'undefined' && workflowStateVars.userInput && typeof workflowStateVars.userInput === 'string' && workflowStateVars.userInput.trim()) {
-        logger.warn(`${logPrefix} EventFinderTool called by Router without 'keyword' and other primary filters. Using main user input as keyword: "${String(workflowStateVars.userInput).substring(0,50)}..."`);
-        actualToolArgs.keyword = String(workflowStateVars.userInput);
+    if (apiContext?.userInput && typeof apiContext.userInput === 'string' && apiContext.userInput.trim()) {
+        logger.warn(`${logPrefix} EventFinderTool called by Router without 'keyword' and other primary filters. Using main user input as keyword: "${String(apiContext.userInput).substring(0,50)}..."`);
+        actualToolArgs.keyword = String(apiContext.userInput);
     } else {
          logger.warn(`${logPrefix} EventFinderTool requires 'keyword' or other filters, but Router provided none and no fallback. Tool may return broad or no results.`);
     }
@@ -334,7 +336,7 @@ try {
     userId,
     lang: apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0],
     sessionId: apiContext?.sessionId,
-    context: { ...(apiContext || {}), userState, sessionId: apiContext?.sessionId, runId: apiContext?.runId, userName: await this.getUserFirstName(userId), abortSignal: abortController.signal, workflowVariables: typeof workflowStateVars !== 'undefined' ? { ...workflowStateVars } : {} },
+    context: { ...(apiContext || {}), userState, sessionId: apiContext?.sessionId, runId: apiContext?.runId, userName: await this.getUserFirstName(userId), abortSignal: abortController.signal, workflowVariables: {} },
   };
   const output: ToolOutput = await tool.execute(toolInput, abortController.signal);
   clearTimeout(timeoutId);
@@ -664,7 +666,24 @@ try { // Bloc try principal
     if (videoAnalysisResult.summary) {
       videoSummaryForContext = videoAnalysisResult.summary;
       textQueryForRouter += (textQueryForRouter ? "\n" : "") + `[Video Content Summary: ${videoSummaryForContext.substring(0, 200)}...]`;
-      logger.info(`[${turnIdentifier}] Video analysis successful. Summary added to router query.`);
+      
+      // Add visual QA validation (new code)
+      try {
+        const visualQAResult = await this.videoAnalysisService.generateQA(
+          videoBuffer,
+          "What are 3 key visual elements? What's the main action? What colors dominate?",
+          userId
+        );
+        
+        if (visualQAResult?.answers?.length > 0) {
+          const qaText = `[Visual QA: ${visualQAResult.answers.join("; ").substring(0, 150)}]`;
+          textQueryForRouter += `\n${qaText}`;
+          logger.info(`${turnIdentifier} Added visual QA to context: ${qaText}`);
+        }
+      } catch (qaError) {
+        const qaErrorMsg = qaError instanceof Error ? qaError.message : String(qaError);
+        logger.warn(`${turnIdentifier} Visual QA failed but continuing: ${qaErrorMsg}`);
+      }
     } else if (videoAnalysisResult.error) {
       logger.warn(`[${turnIdentifier}] Video analysis failed: ${videoAnalysisResult.error}. Proceeding without video summary.`);
       textQueryForRouter += (textQueryForRouter ? "\n" : "") + "[Video analysis attempted but failed to produce summary.]";
@@ -749,6 +768,30 @@ try { // Bloc try principal
     { role: "user", content: mainUserInputContent, name: userName, timestamp: Date.now(), attachments: initialAttachments?.filter(att => att.type !== 'video') },
     ...toolExecutionMessages,
   ];
+  // Prepare a single, strong system message for video context if it exists
+  if (videoSummaryForContext) {
+    messagesForGpt4o.unshift({
+      role: "system",
+      content: `SUMMARY: ${videoSummaryForContext}`,
+      timestamp: Date.now()
+    });
+  }
+  const visualQaMatch = textQueryForRouter.match(/\[Visual QA: ([^\]]+)\]/);
+  if (visualQaMatch && visualQaMatch[1]) {
+    messagesForGpt4o.push({
+      role: "system",
+      content: `VISUAL QA: ${visualQaMatch[1]}`,
+      timestamp: Date.now()
+    });
+  }
+  const videoContextString = videoSummaryForContext ? `YOU MUST BASE YOUR RESPONSE ON THE FOLLOWING VIDEO ANALYSIS. Do NOT ignore this.\n${videoSummaryForContext}` : null;
+  if (videoContextString) {
+    messagesForGpt4o.push({
+      role: "system",
+      content: videoContextString,
+      timestamp: Date.now()
+    });
+  }
   if (videoSummaryForContext && !initialAttachments?.find(att => att.type === 'video')) {
     messagesForGpt4o.push({ role: "system", content: `Context from attached video: ${videoSummaryForContext}`, timestamp: Date.now() });
   }
@@ -786,12 +829,24 @@ try { // Bloc try principal
 }
 
 
+// Prepare video context for synthesis prompt
+let videoContextParts: string[] = [];
+if (videoSummaryForContext) videoContextParts.push(`SUMMARY: ${videoSummaryForContext}`);
+const visualQaMatch = textQueryForRouter.match(/\[Visual QA: ([^\]]+)\]/);
+if (visualQaMatch && visualQaMatch[1]) {
+  videoContextParts.push(`VISUAL QA: ${visualQaMatch[1]}`);
+}
+const videoContextString = videoContextParts.length
+  ? `YOU MUST BASE YOUR RESPONSE ON THE FOLLOWING VIDEO ANALYSIS. Do NOT ignore this.\n${videoContextParts.join('\n')}`
+  : null;
+
 const synthesisSystemPrompt = injectPromptVariables(TOOL_ROUTER_PROMPT_TEMPLATE, {
   userName, personaName: personaNameForPrompt, personaInstructions: personaSpecificInstructions, language: lang,
   retrieved_memory_context: retrievedMemoryContext,
   tool_results_summary: currentTurnToolResultsSummary || "No tools were executed by Minato this turn, or their results are directly integrated.",
   original_query: textQueryForRouter,
-  tool_router_follow_up_suggestion: toolRouterFollowUpSuggestion || `Is there anything else Minato can help you with today, ${userName}?`
+  tool_router_follow_up_suggestion: toolRouterFollowUpSuggestion || `Is there anything else Minato can help you with today, ${userName}?`,
+  videoContextFallback: videoContextString
 });
 
 
@@ -1021,9 +1076,13 @@ const audioBuffer = await this.fetchAudioBuffer(audioSignedUrl);
     orchResult = await this.runOrchestration(userId, transcribedText, history, effectiveApiContext);
 
 
-    if (orchResult && orchResult.error && !orchResult.clarificationQuestion) {
-      logger.warn(`--- ${turnIdentifier} Orchestration returned an error: ${orchResult.error}`);
-      // Potentially do not proceed to TTS if orchestration itself signals a critical error that shouldn't be spoken
+    // Compare orchestrator response with what would be sent in a text flow
+    if (orchResult && orchResult.response) {
+      // In the text flow, the same orchestrator.runOrchestration would be called with the user's text input
+      // Here, we use the transcribedText as input, so if the transcription is off, the response may differ
+      logger.debug(`[Audio/Text Sync Check] Orchestrator response for audio (transcribed): "${orchResult.response.substring(0, 200)}"`);
+      // Optionally, you could log the transcribedText and the original audio URL for further debugging
+      logger.debug(`[Audio/Text Sync Check] Transcribed text: "${transcribedText}" (audio URL: ${audioSignedUrl})`);
     }
 
 

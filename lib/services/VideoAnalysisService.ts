@@ -127,4 +127,85 @@ export class VideoAnalysisService {
       }
     }
   }
+
+  async generateQA(
+    videoBuffer: Buffer,
+    question: string,
+    userId: string
+  ): Promise<{ answers: string[]; error?: string }> {
+    const logPrefix = `[VideoAnalysisService-QA User:${userId.substring(0, 8)}]`;
+    const tempDir = join(os.tmpdir(), `video-qa-${uuidv4()}`);
+    try {
+      await fs.mkdir(tempDir, { recursive: true });
+      const videoPath = join(tempDir, `input-${Date.now()}.mp4`);
+      await fs.writeFile(videoPath, videoBuffer);
+      const framesDir = join(tempDir, "frames");
+      await fs.mkdir(framesDir, { recursive: true });
+      const fps = 1;
+      logger.info(`${logPrefix} Extracting frames for QA...`);
+      try {
+        await execPromise(
+          `ffmpeg -i ${videoPath} -vf fps=${fps} -frames:v ${this.maxFrames} ${join(framesDir, "frame-%03d.jpg")}`
+        );
+      } catch (ffmpegError: any) {
+        logger.error(`${logPrefix} ffmpeg error:`, ffmpegError);
+        return { answers: [], error: "Failed to extract frames from video for QA." };
+      }
+      const frameFiles = (await fs.readdir(framesDir)).filter(file => file.startsWith("frame-") && file.endsWith(".jpg")).sort();
+      const selectedFramesPaths = frameFiles.slice(0, this.maxFrames).map(f => join(framesDir, f));
+      if (selectedFramesPaths.length === 0) {
+        logger.error(`${logPrefix} No frames for QA.`);
+        return { answers: [], error: "No frames were extracted from the video for QA." };
+      }
+      const imageContentParts: ChatCompletionContentPartImage[] = [];
+      for (const framePath of selectedFramesPaths) {
+        const frameData = await fs.readFile(framePath);
+        const base64Frame = Buffer.from(frameData).toString("base64");
+        imageContentParts.push({
+          type: "image_url",
+          image_url: {
+            url: `data:image/jpeg;base64,${base64Frame}`,
+            detail: this.visionDetail,
+          },
+        });
+      }
+      const visionMessages: ChatMessage[] = [{
+        role: "user",
+        content: [
+          { type: "text", text: question },
+          ...imageContentParts.map(img => ({ type: "input_image" as const, image_url: img.image_url.url, detail: img.image_url.detail }))
+        ],
+      }];
+      logger.info(`${logPrefix} Sending frames to vision model for QA...`);
+      const visionResult = await generateVisionCompletion(
+        visionMessages,
+        this.visionModel,
+        this.maxVisionTokens,
+        userId
+      );
+      if (visionResult.error || !visionResult.text) {
+        logger.error(`${logPrefix} Vision QA failed: ${visionResult.error}`);
+        return { answers: [], error: visionResult.error || "Vision QA returned no text." };
+      }
+      // Split answers by common delimiters (numbered list, semicolon, or newlines)
+      const answers = visionResult.text
+        .split(/\n|\d+\.|;|\r/)
+        .map(a => a.trim())
+        .filter(a => a.length > 0);
+      logger.info(`${logPrefix} Vision QA successful. Answers: ${answers.join(" | ")}`);
+      return { answers };
+    } catch (error: any) {
+      logger.error(`${logPrefix} Error during video QA:`, error.message, error.stack);
+      return { answers: [], error: error?.message || "Error processing video QA" };
+    } finally {
+      try {
+        if (await fs.stat(tempDir).catch(() => false)) {
+          await fs.rm(tempDir, { recursive: true, force: true });
+          logger.debug(`${logPrefix} Cleaned up temp directory: ${tempDir}`);
+        }
+      } catch (cleanupError) {
+        logger.error(`${logPrefix} Error cleaning up temp files:`, cleanupError);
+      }
+    }
+  }
 }

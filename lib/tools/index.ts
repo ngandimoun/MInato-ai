@@ -21,10 +21,12 @@ import { ReminderReaderTool } from "./ReminderReaderTool";
 // La clé DOIT correspondre à la propriété 'name' de l'outil.
 export const tools: { [key: string]: BaseTool } = {
   WebSearchTool: new WebSearchTool(),
+  search: new WebSearchTool(),
   YouTubeSearchTool: new YouTubeSearchTool(),
   PexelsSearchTool: new PexelsSearchTool(),
   RecipeSearchTool: new RecipeSearchTool(),
   NewsAggregatorTool: new NewsAggregatorTool(),
+  news: new NewsAggregatorTool(),
   DateTimeTool: new DateTimeTool(),
   HackerNewsTool: new HackerNewsTool(),
   RedditTool: new RedditTool(),
