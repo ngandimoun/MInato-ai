@@ -9,6 +9,7 @@ import {
   CachedVideoList, CachedWebSnippet, AnyToolStructuredData, CachedYouTubeVideo,
 } from "@/lib/types/index";
 import Ajv, { ValidateFunction } from "ajv";
+import { SchemaService } from "../services/schemaService";
 
 interface WebSearchInput extends ToolInput {
   query: string;
@@ -69,35 +70,6 @@ const SCHEMA_VERSIONS: Record<string, SchemaDefinition> = {
   }
 };
 
-export class SchemaService {
-  static validate(schemaName: string, data: any): boolean {
-    const schemaDef = SCHEMA_VERSIONS[schemaName];
-    if (!schemaDef) {
-      logger.error(`[SchemaService] Unknown schema: ${schemaName}`);
-      return false;
-    }
-
-    const ajv = new Ajv();
-    // Typage explicite pour la fonction de validation
-    const validate: ValidateFunction = ajv.compile(schemaDef.schema);
-    const valid = validate(data) as boolean; // Ajv retourne toujours un booléen en mode synchrone
-
-    if (!valid) {
-      logger.error(`[SchemaService] Validation failed for ${schemaName}:`, validate.errors);
-    }
-
-    return valid;
-  }
-
-  static getLatestVersion(schemaType: string): SchemaDefinition | null {
-    const versions = Object.values(SCHEMA_VERSIONS)
-      .filter(s => s.name === schemaType)
-      .sort((a, b) => b.version.localeCompare(a.version));
-    
-    return versions.length > 0 ? versions[0] : null;
-  }
-}
-
 export class WebSearchTool extends BaseTool {
   name = "WebSearchTool";
   description =
@@ -121,12 +93,12 @@ export class WebSearchTool extends BaseTool {
 
   private readonly API_KEY: string;
   private readonly SERPER_API_URL = "https://google.serper.dev/search";
-  private readonly USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app.url}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
+  private readonly USER_AGENT = `MinatoAICompanion/1.0 (${(appConfig as any).app?.url}; mailto:${(appConfig as any).emailFromAddress || "support@example.com"})`;
 
 
   constructor() {
     super();
-    this.API_KEY = appConfig.toolApiKeys?.serper || "";
+    this.API_KEY = (appConfig as any).toolApiKeys?.serper || "";
     if (!this.API_KEY) { logger.error("[WebSearchTool] Serper API Key missing. Tool will not function."); }
     if (this.USER_AGENT.includes("support@example.com")) {
       this.log("warn", "Update WebSearchTool USER_AGENT contact info with actual details for API compliance.");
@@ -288,7 +260,7 @@ export class WebSearchTool extends BaseTool {
 
     try {
       this.log("debug", `${logPrefix} Sending request to Serper API: ${this.SERPER_API_URL} with body: ${JSON.stringify(requestBody).substring(0, 100)}`);
-      const timeoutMs = appConfig.toolTimeoutMs || (appConfig.toolApiKeys as any).serperSearchTimeoutMs || 10000;
+      const timeoutMs = (appConfig as any).toolTimeoutMs || ((appConfig as any).toolApiKeys?.serperSearchTimeoutMs) || 10000;
       const response = await fetch(this.SERPER_API_URL, {
         method: "POST", headers: { "X-API-KEY": this.API_KEY, "Content-Type": "application/json", "User-Agent": this.USER_AGENT },
         body: JSON.stringify(requestBody), signal: abortSignal ?? AbortSignal.timeout(timeoutMs),

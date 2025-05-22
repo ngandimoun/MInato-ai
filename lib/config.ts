@@ -30,6 +30,11 @@ function getEnvVar(name: string, fallback: string | number | boolean | undefined
 }
 
 export interface AppConfig {
+  llm: any;
+  nodeEnv: string;
+  emailFromAddress: string;
+  app: any;
+  toolApiKeys: any;
   supabase: {
     storageUrl: string;
     // Add other Supabase config properties if needed

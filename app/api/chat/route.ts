@@ -122,24 +122,29 @@ async function saveChatMessageToDb(
   }
 
   try {
-    // Ensure message.id is a valid UUID. If it's a temporary client-side ID, generate a new one.
-    // Assistant messages get their ID in the SSE stream-end or from orchestrator response.
-    // User messages might have a temporary ID. For DB, ensure it's a UUID.
     let finalMessageId = message.id;
-    if (!finalMessageId || (!finalMessageId.startsWith('user-') && !finalMessageId.startsWith('asst-') && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalMessageId))) {
-        logger.warn(`${logPrefix} Message ID "${finalMessageId}" is not a UUID or expected temp format. Generating new UUID.`);
-        finalMessageId = randomUUID();
-    } else if (finalMessageId.startsWith('user-temp-') || finalMessageId.startsWith('asst-temp-')) {
-        // This is for optimistic UI updates; for DB, we should use a real UUID
-        // However, for the 'asst-temp' case, the *real* ID comes from the `stream-end` event later
-        // For user messages, it's okay to generate one here if it's temporary
-        if (finalMessageId.startsWith('user-temp-')) {
-            finalMessageId = randomUUID();
+    // For user messages with temp IDs, always generate a new UUID for the DB.
+    // For assistant messages, the ID might be a temp one if saved before stream-end, 
+    // or a proper one if saved after stream-end provides it.
+    if (!finalMessageId || 
+        finalMessageId.startsWith('user-temp-') || 
+        (!finalMessageId.startsWith('asst-') && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalMessageId)))
+    {
+        if (finalMessageId && finalMessageId.startsWith('user-temp-')){
+            logger.warn(`${logPrefix} User message ID "${finalMessageId}" is temporary. Generating new UUID for DB.`);
+        } else if (!finalMessageId) {
+            logger.warn(`${logPrefix} Message ID is missing. Generating new UUID for DB.`);
+        } else if (!finalMessageId.startsWith('asst-')) { // If not asst- and not UUID already
+            logger.warn(`${logPrefix} Message ID "${finalMessageId}" is not a UUID or expected assistant temp format. Generating new UUID for DB.`);
         }
-        // For 'asst-temp-', we ideally wait for the final ID. If forced to save early, log it.
-        // For this function, we assume `message.id` is intended for the DB.
-    }
-
+        // Only generate new ID if it's not an assistant's temporary ID (asst-temp-...) which might be updated later.
+        // Or if it's not a valid UUID already and not an asst-temp ID.
+        if (!finalMessageId?.startsWith('asst-temp-')) {
+             finalMessageId = randomUUID();
+        }
+    } 
+    // If it's 'asst-temp-...', we save it as is, assuming it might be updated by a later process or is a placeholder.
+    // If it's a valid UUID already, or a final 'asst-...', it's used as is.
 
     const messageToSave: ChatMessageDB = {
       id: finalMessageId, // Use the validated/generated UUID
@@ -258,7 +263,7 @@ logger.debug(`${logPrefix} Parsed JSON. Total messages from client: ${allMessage
         mimeType: value.type,
         size: value.size,
         file: value, // Keep File object for orchestrator
-        url: "", // Placeholder, will be data URL if image, or handled by backend
+        url: "", // Reverted to empty string, Orchestrator will handle it if File is present
       });
     }
   }
@@ -375,6 +380,15 @@ const stream = new ReadableStream({
     let assistantMessageToSave: ChatMessage | null = null; // Define outside try block
 
     try {
+      logger.info(`${logPrefix} About to call orchestrator.runOrchestration. Inspecting initialAttachmentsForOrchestrator (count: ${initialAttachmentsForOrchestrator?.length || 0}):`);
+      if (initialAttachmentsForOrchestrator && initialAttachmentsForOrchestrator.length > 0) {
+        initialAttachmentsForOrchestrator.forEach((att, index) => {
+          logger.info(`[API Chat AttInspect][${index}]: id=${att.id}, type=${att.type}, name=${att.name}, url=${att.url}, hasFile=${!!att.file}, mimeType=${att.mimeType}, size=${att.size}, storagePath=${att.storagePath}`);
+        });
+      } else {
+        logger.info(`${logPrefix} initialAttachmentsForOrchestrator is null, undefined, or empty.`);
+      }
+
       logger.info(`${logPrefix} Calling orchestrator.runOrchestration... User ${userId.substring(0,8)}`);
       const orchestratorResult = await orchestrator.runOrchestration(
         userId, 
