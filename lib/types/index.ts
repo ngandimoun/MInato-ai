@@ -181,6 +181,8 @@ classifications?: Array<{
 segment?: { name: string };
 genre?: { name: string };
 subGenre?: { name: string };
+type?: { id: string; name: string };
+subType?: { id: string; name: string };
 }>;
 promoter?: { name: string };
 priceRanges?: Array<{
@@ -376,7 +378,7 @@ error?: string | null;
 export type ChatMessageContentPartText = { type: "text"; text: string };
 export type ChatMessageContentPartInputImage = {
 type: "input_image";
-image_url: string;
+image_url: string; // Can be data URI, http(s) URL, or supabase_storage:path
 detail?: "auto" | "low" | "high";
 };
 export type ChatMessageContentPart =
@@ -384,33 +386,40 @@ export type ChatMessageContentPart =
 | ChatMessageContentPartInputImage;
 export type MessageAttachment = {
 id?: string;
-type: 'image' | 'video' | 'audio' | 'document' | 'data_file' | string; // Added audio, data_file
-url: string; // Can be data URI initially, or public URL after upload
+type: 'image' | 'video' | 'audio' | 'document' | 'data_file' | string; 
+url: string; 
 name?: string;
 size?: number;
 mimeType?: string;
-file?: File | Blob; // Allow Blob for more general use, File for uploads
-storagePath?: string; // Path in Supabase Storage if uploaded by backend
+file?: File | Blob; 
+storagePath?: string; 
 };
+
+// Refined ChatMessage type
 export type ChatMessage = {
-id?: string;
-role: "user" | "assistant" | "system" | "tool";
-content: string | ChatMessageContentPart[] | null;
-name?: string;
-tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] | null;
-tool_call_id?: string;
-timestamp?: string | number;
-structured_data?: AnyToolStructuredData | null;
-attachments?: MessageAttachment[];
-audioUrl?: string;
-debugInfo?: OrchestratorResponse['debugInfo'] | null;
-workflowFeedback?: OrchestratorResponse['workflowFeedback'] | null;
-intentType?: string | null;
-ttsInstructions?: string | null;
-annotations?: any[] | null;
-clarificationQuestion?: string | null;
-error?: boolean;
-};
+  id?: string;
+  role: "user" | "assistant" | "system" | "tool";
+  content: string | ChatMessageContentPart[] | null;
+  name?: string; // Optional name (e.g., tool name for role 'tool', user name for role 'user')
+  timestamp?: string | number;
+  structured_data?: AnyToolStructuredData | null;
+  attachments?: MessageAttachment[];
+  audioUrl?: string;
+  debugInfo?: OrchestratorResponse['debugInfo'] | null;
+  workflowFeedback?: OrchestratorResponse['workflowFeedback'] | null;
+  intentType?: string | null;
+  ttsInstructions?: string | null;
+  annotations?: any[] | null; // Consider defining a more specific type if used consistently
+  clarificationQuestion?: string | null;
+  error?: boolean;
+} & ( // Role-specific properties
+  | { role: "assistant"; tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] | null; }
+  | { role: "tool"; tool_call_id: string; } // `tool_call_id` is required for role 'tool'
+  | { role: "user"; tool_calls?: never; tool_call_id?: never; } // User messages should not have tool_calls/tool_call_id
+  | { role: "system"; tool_calls?: never; tool_call_id?: never; } // System messages should not have tool_calls/tool_call_id
+);
+
+
 export type ResponseApiInputTextPart = { type: "input_text"; text: string };
 export type ResponseApiInputImagePart = {
 type: "input_image";
@@ -490,6 +499,8 @@ photographerUrl: string | null;
 sourceUrl: string;
 sourcePlatform: "unsplash" | "pexels" | "serper_images" | "other";
 avgColor?: string;
+width?: number; // Added
+height?: number; // Added
 }
 export interface CachedProduct {
 productId: string | null;
