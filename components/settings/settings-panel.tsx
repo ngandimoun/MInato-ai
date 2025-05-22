@@ -150,9 +150,24 @@ export function SettingsPanel({
       return;
     }
     setIsFetchingSettings(true);
-    await fetchUserProfileAndState(true);
-    await fetchPersonasFromBackend();
-    setIsFetchingSettings(false);
+    let timeoutId: NodeJS.Timeout | null = null;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error("Settings load timed out. Please try again.")), 15000);
+    });
+    try {
+      await Promise.race([
+        (async () => {
+          await fetchUserProfileAndState(true);
+          await fetchPersonasFromBackend();
+        })(),
+        timeoutPromise
+      ]);
+    } catch (e) {
+      toast({ title: "Failed to load settings", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+      setIsFetchingSettings(false);
+    }
   }, [user, fetchUserProfileAndState, fetchPersonasFromBackend]);
 
   useEffect(() => {
