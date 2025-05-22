@@ -4,6 +4,7 @@ import { Readable } from "stream";
 import { ReadableStream as WebReadableStream } from "stream/web";
 import { randomUUID } from "crypto";
 import { supabase } from "../supabaseClient";
+import { getSupabaseAdminClient } from "../supabase/server";
 import { appConfig } from "../config";
 import { rawOpenAiClient as openai } from "./llm_clients";
 import { TTS_AUDIO_BUCKET } from "../constants";
@@ -213,11 +214,14 @@ export class TTSService {
     speed: number = 1.0
   ): Promise<{ url: string | null; error?: string }> {
     const logPrefix = "[TTSService Store]";
+    const supabaseAdmin = getSupabaseAdminClient(); // Get admin client instance
+
     if (!openai) { /* ... */ return { url: null, error: "TTS service not configured (OpenAI client)." }; }
     if (!appConfig?.llm?.ttsModel || !appConfig?.llm?.ttsDefaultVoice) { /* ... */ return { url: null, error: "TTS service not fully configured (model/voice)." }; }
     if (!text?.trim()) return { url: null, error: "TTS input text cannot be empty." };
     if (!userId) return { url: null, error: "User ID is required for storing TTS audio." };
-    if (!supabase) { /* ... */ return { url: null, error: "Storage service not configured (Supabase client)." }; }
+    // Use supabaseAdmin for check, though if getSupabaseAdminClient() itself errors, it would throw earlier.
+    if (!supabaseAdmin) { /* ... */ return { url: null, error: "Storage service not configured (Supabase Admin client)." }; }
 
     const ttsModelToUse = TTS_MODEL;
     const defaultVoiceToUse = appConfig.llm.ttsDefaultVoice;
@@ -271,17 +275,22 @@ export class TTSService {
       }
 
       const fileName = `${randomUUID()}.${storageFormat}`; // Use final storageFormat for extension
-      const filePath = `tts/${userId}/${fileName}`;
+      const filePath = `public/${fileName}`; // Path within the bucket
       const contentType = `audio/${storageFormat === "mp3" ? "mpeg" : storageFormat}`;
       logger.debug(`${logPrefix} Uploading audio to Supabase: ${TTS_AUDIO_BUCKET}/${filePath} (Type: ${contentType})`);
 
       const startUpload = Date.now();
-      const { error: uploadError } = await supabase.storage.from(TTS_AUDIO_BUCKET).upload(filePath, audioBuffer, { contentType: contentType, upsert: false });
+      const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+        .from(TTS_AUDIO_BUCKET)
+        .upload(filePath, audioBuffer, {
+          contentType: contentType,
+          upsert: true, 
+        });
       const uploadDuration = Date.now() - startUpload;
       if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
       logger.debug(`${logPrefix} Upload successful (${uploadDuration}ms). Retrieving public URL...`);
 
-      const { data: urlData } = supabase.storage.from(TTS_AUDIO_BUCKET).getPublicUrl(filePath);
+      const { data: urlData } = supabaseAdmin.storage.from(TTS_AUDIO_BUCKET).getPublicUrl(filePath);
       const publicUrl = urlData?.publicUrl;
       if (!publicUrl) throw new Error("Failed to generate audio URL after upload.");
 

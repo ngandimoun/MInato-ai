@@ -16,7 +16,6 @@ import { logger } from "../../../memory-framework/config";
 import { randomUUID } from "crypto";
 import { appConfig } from "@/lib/config";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/server";
-// import { supabaseAdmin } from "@/lib/supabaseClient"; // Use getSupabaseAdminClient instead
 
 let orchestratorInstance: Orchestrator | null = null;
 
@@ -112,7 +111,16 @@ export async function POST(req: NextRequest) {
 
     try {
       const formData = await req.formData();
-      const audioFile = formData.get("audio");
+      const audioFileFromForm = formData.get("audio") as File | null; // Use File type, Vercel might handle it.
+      
+      // Modified Check for audioFile
+      if (!audioFileFromForm || typeof audioFileFromForm.size !== 'number' || typeof audioFileFromForm.arrayBuffer !== 'function') {
+        logger.error(`${logPrefix} Missing or invalid "audio" file part (type/size check failed) for user ${userId.substring(0, 8)}.`);
+        return NextResponse.json({ error: 'Missing or invalid "audio" file part' }, { status: 400 });
+      }
+      const audioFile = audioFileFromForm; // Rename for clarity after check
+
+
       const historyParam = formData.get("history");
       const sessionIdParam = formData.get("sessionId");
       if (historyParam && typeof historyParam === "string") {
@@ -133,11 +141,8 @@ export async function POST(req: NextRequest) {
       }
       if (sessionIdParam && typeof sessionIdParam === "string")
         sessionId = sessionIdParam;
-      if (!audioFile || !(audioFile instanceof Blob))
-        return NextResponse.json(
-          { error: 'Missing or invalid "audio" file part' },
-          { status: 400 }
-        );
+      
+      // File size and type checks (remain the same)
       if (audioFile.size > MAX_AUDIO_SIZE_BYTES)
         return NextResponse.json(
           {
@@ -158,6 +163,7 @@ export async function POST(req: NextRequest) {
           },
           { status: 415 }
         );
+      
       detectedMimeType = audioFile.type;
       originalFilename =
         audioFile instanceof File ? audioFile.name : "audio.bin";
@@ -189,45 +195,49 @@ export async function POST(req: NextRequest) {
       logger.error("[API Audio] supabaseAdmin or supabaseAdmin.storage is undefined!");
       return NextResponse.json({ error: "Storage admin client not available." }, { status: 500 });
     }
-    const fileExt =
-      originalFilename?.split(".").pop()?.toLowerCase() ||
-      detectedMimeType?.split("/")[1] ||
-      "bin";
+
+    // Sanitize file extension
+    const originalFilenameExtPart = originalFilename?.split('.').pop()?.toLowerCase();
+    const cleanFileExtFromOriginal = originalFilenameExtPart?.split(';')[0];
+
+    const mimeExtPart = detectedMimeType?.split('/')[1];
+    const cleanMimeExtFromMime = mimeExtPart?.split(';')[0];
+
+    const fileExt = cleanFileExtFromOriginal || cleanMimeExtFromMime || "bin";
+
     const uploadFileName = `${randomUUID()}.${fileExt}`;
     uploadPath = `uploads/audio/${userId}/${uploadFileName}`; 
 
     logger.debug(
       `${logPrefix} Uploading audio to Supabase path: ${uploadPath}`
     );
-    const { error: uploadError } = await supabaseAdminForStorage.storage
+    const { data: uploadData, error: uploadError } = await supabaseAdminForStorage.storage
       .from(MEDIA_UPLOAD_BUCKET)
       .upload(uploadPath, audioBuffer, {
         contentType: detectedMimeType!,
-        upsert: false,
+        upsert: true,
       });
     if (uploadError) {
       logger.error(
         `${logPrefix} Supabase upload error for user ${userId.substring(0, 8)}: ${uploadError.message}`,
         uploadError
       );
-      throw new Error(`Storage upload failed: ${uploadError.message}`);
+      throw new Error(uploadError.message);
     }
     logger.debug(
       `${logPrefix} [UPLOAD] Audio uploaded to Supabase path: ${uploadPath}, size=${audioBuffer.length} bytes, type=${detectedMimeType}`
     );
 
-    const { data: urlData, error: signError } = await supabaseAdminForStorage.storage
+    const { data: signedUrlData } = await supabaseAdminForStorage.storage
       .from(MEDIA_UPLOAD_BUCKET)
-      .createSignedUrl(uploadPath, SIGNED_URL_EXPIRY_SECONDS);
-    if (signError || !urlData?.signedUrl) {
+      .createSignedUrl(uploadData.path, SIGNED_URL_EXPIRY_SECONDS);
+    if (!signedUrlData?.signedUrl) {
       logger.error(
-        `${logPrefix} Failed to create signed URL for user ${userId.substring(0, 8)}: ${signError?.message || "Unknown error"}`
+        `${logPrefix} Failed to create signed URL for user ${userId.substring(0, 8)}: Failed to generate secure audio URL`
       );
-      throw new Error(
-        `Failed to create signed URL: ${signError?.message || "Unknown error"}`
-      );
+      throw new Error('Failed to generate secure audio URL');
     }
-    const signedUrl = urlData.signedUrl;
+    const signedUrl = signedUrlData.signedUrl;
     logger.debug(
       `${logPrefix} Created signed URL for user ${userId.substring(0, 8)} (expires ${SIGNED_URL_EXPIRY_SECONDS}s)`
     );
@@ -245,7 +255,7 @@ export async function POST(req: NextRequest) {
     
     const orchestrator = getOrchestrator();
     logger.info(
-      `${logPrefix} [ORCH] Calling orchestrator.processAudioMessage with: userId=${userId}, signedUrl=${signedUrl.substring(0,50)}..., size=${audioBuffer.length} bytes, type=${detectedMimeType}`
+      `${logPrefix} [ORCH] Calling orchestrator.processAudioMessage with: userId=${userId}, fullSignedUrl=${signedUrl}, size=${audioBuffer.length} bytes, type=${detectedMimeType}`
     );
     const response = await orchestrator.processAudioMessage(
       userId,

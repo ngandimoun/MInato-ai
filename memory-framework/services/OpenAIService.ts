@@ -158,7 +158,7 @@ GUIDELINES (Refer to Schema for exact structure):
 - metadata: Other specific key-values. Includes reminder_details (if requested) and detected_language.
 - summary: Concise single sentence summary of ${userName}'S main point in this turn.
 - detected_language: Primary language of ${userName}'S input (ISO 639-1).
-- reminder_details: Extract reminder if explicitly requested (e.g., "remind me to...") per schema. Infer trigger_datetime (ISO 8601 UTC) based on today (${currentDate}). If no reminder, set metadata.reminder_details to null.
+- reminder_details: Extract reminder if explicitly requested (e.g., "remind me to...") per schema. Infer trigger_datetime (ISO 8601 UTC) based on today (${currentDate}). If no reminder, set metadata.reminder_details.is_reminder to false. If a reminder is detected, set metadata.reminder_details.is_reminder to true.
 
 Referential Context (Use ONLY for understanding, NOT extraction):
 ${contextString}

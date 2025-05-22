@@ -26,7 +26,7 @@ import type { CompletionUsage } from "openai/resources";
 import { MEDIA_UPLOAD_BUCKET } from "../constants";
 import { supabase } from "../supabaseClient";
 import Ajv from "ajv";
-
+import { SchemaService } from "../services/schemaService"; // Import SchemaService
 
 // --- Initialize Raw OpenAI Client ---
 if (!appConfig.openai.apiKey && typeof window === "undefined") {
@@ -88,23 +88,41 @@ async function formatMessagesForResponsesApi(
           } else if (msg.role === "assistant") {
             openAiApiContentParts.push({ type: "output_text", text: part.text });
           } else {
-            logger.warn(`[formatMessages] Role '${msg.role}' avec content array textuel inattendu.`);
             openAiApiContentParts.push({ type: "input_text", text: part.text }); // Fallback
           }
-        } else if (part.type === 'input_image' && typeof part.image_url === 'string') {
+        }
+        // --- IMAGE PARTS ---
+        if (part.type === 'input_image' && typeof part.image_url === 'string') {
           let imageUrl = part.image_url;
           if (imageUrl.startsWith("supabase_storage:")) {
             const storagePath = imageUrl.substring("supabase_storage:".length);
             const { data: urlData } = supabase.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(storagePath);
             if (urlData?.publicUrl) imageUrl = urlData.publicUrl;
-            else { logger.warn(`[formatMessages] Could not get Supabase URL for ${storagePath}.`); continue; }
           }
-          openAiApiContentParts.push({ type: "input_image", image_url: imageUrl });
+          const isValid = (
+            typeof imageUrl === 'string' && imageUrl !== null && (
+              imageUrl.startsWith('http://') || imageUrl.startsWith('https://') ||
+              (imageUrl.startsWith('data:image/') && imageUrl.includes(';base64,'))
+            )
+          );
+          if (isValid) {
+            openAiApiContentParts.push({ type: "input_image", image_url: imageUrl });
+          } else {
+            logger.warn(`[formatMessagesForResponsesApi] Skipping invalid image_url: ${imageUrl}`);
+          }
         } else if ((part as any).type === 'image_url' && typeof (part as any).image_url?.url === 'string') {
-          openAiApiContentParts.push({
-            type: "input_image",
-            image_url: (part as any).image_url.url
-          });
+          let imageUrl = (part as any).image_url.url;
+          const isValid = (
+            typeof imageUrl === 'string' && imageUrl !== null && (
+              imageUrl.startsWith('http://') || imageUrl.startsWith('https://') ||
+              (imageUrl.startsWith('data:image/') && imageUrl.includes(';base64,'))
+            )
+          );
+          if (isValid) {
+            openAiApiContentParts.push({ type: "input_image", image_url: imageUrl });
+          } else {
+            logger.warn(`[formatMessagesForResponsesApi] Skipping invalid image_url (image_url.url): ${imageUrl}`);
+          }
         }
       }
     }
@@ -119,7 +137,7 @@ async function formatMessagesForResponsesApi(
           const { data: urlData } = supabase.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(storagePath);
           if (urlData?.publicUrl) {
             openAiApiContentParts.push({ type: "input_image", image_url: urlData.publicUrl });
-          } else { logger.warn(`[formatMessages] Could not get public URL for attachment storage path: ${storagePath}`); }
+          }
         }
       }
     }
@@ -135,7 +153,6 @@ async function formatMessagesForResponsesApi(
         } else if (msg.role === "system") {
           contentForUserOrSystem = "";
         }
-
         if (contentForUserOrSystem || (msg.role === "system" && contentForUserOrSystem === "")) {
           if (msg.role === "system" && typeof contentForUserOrSystem !== 'string') {
             const systemText = (contentForUserOrSystem as any[]).filter(p => p.type === "input_text").map(p => p.text).join('\n');
@@ -143,8 +160,6 @@ async function formatMessagesForResponsesApi(
           } else {
             apiMessages.push({ role: msg.role as any, content: contentForUserOrSystem as any });
           }
-        } else if (msg.role === "user" && openAiApiContentParts.length === 0 && !(typeof msg.content === 'string' && msg.content.trim())) {
-          logger.warn("[formatMessages] Skipping empty user message after processing.");
         }
         break;
       case "assistant":
@@ -158,7 +173,6 @@ async function formatMessagesForResponsesApi(
           ) as any;
           if ((assistantApiContent as Array<any>).length === 0) assistantApiContent = null;
         }
-
         const assistantMessagePayload: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
           role: "assistant",
           content: assistantApiContent as any,
@@ -168,8 +182,6 @@ async function formatMessagesForResponsesApi(
         }
         if (assistantMessagePayload.content || (assistantMessagePayload.tool_calls && assistantMessagePayload.tool_calls.length > 0)) {
           apiMessages.push(assistantMessagePayload);
-        } else {
-          logger.debug("[formatMessages] Skipping assistant message with no content or tool_calls.");
         }
         break;
       case "tool":
@@ -179,8 +191,6 @@ async function formatMessagesForResponsesApi(
             tool_call_id: msg.tool_call_id,
             content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
           });
-        } else {
-          logger.warn(`[formatMessages] Skipping tool message due to missing tool_call_id or content. ID: ${msg.tool_call_id}`);
         }
         break;
     }
@@ -265,48 +275,39 @@ export async function generateStructuredJson<T extends AnyToolStructuredData | R
     }
 
 
-    let finalJsonSchema = JSON.parse(JSON.stringify(jsonSchema));
+    let finalJsonSchema = JSON.parse(JSON.stringify(jsonSchema)); // Deep clone
 
 
-    if (schemaName === "minato_tool_router_v1" && finalJsonSchema.type === "array") {
-      let itemSchema = finalJsonSchema.items;
-      if (typeof itemSchema === 'object' && itemSchema !== null && itemSchema.type === "object") {
-        itemSchema.additionalProperties = false;
-
-
-        if (itemSchema.properties && itemSchema.properties.arguments && itemSchema.properties.arguments.type === 'object') {
-          // Explicitly set additionalProperties: false for the 'arguments' object
-          // This is the direct fix for the API error.
-          itemSchema.properties.arguments.additionalProperties = false;
-
-
-          // Ensure all defined properties within 'arguments' are in 'required' array if they are meant to be mandatory by the tool.
-          // If tool arguments can be truly dynamic this model of planning needs adjustment for strict schemas,
-          // or the tool's own schema must define 'additionalProperties: false' and list all required args.
-          // For now, the fix is to make the `arguments` object itself not allow additional properties.
-          // if (!itemSchema.properties.arguments.required) {
-          //   itemSchema.properties.arguments.required = Object.keys(itemSchema.properties.arguments.properties || {});
-          // }
+    if (schemaName === "minato_tool_router_v1_1" && finalJsonSchema.type === "object" && finalJsonSchema.properties?.planned_tools?.type === "array") {
+      const itemsSchema = finalJsonSchema.properties.planned_tools.items;
+      if (typeof itemsSchema === 'object' && itemsSchema !== null && itemsSchema.type === "object") {
+        // Ensure the 'arguments' property schema within 'items' is correctly defined
+        if (itemsSchema.properties?.arguments && itemsSchema.properties.arguments.type === 'object') {
+            // If 'arguments' can truly be any object and you don't want to restrict its internal properties:
+            // Ensure additionalProperties is true if LLM can add keys, or false if all keys are predefined.
+            // For tool routing, arguments are often specific to the tool, so `additionalProperties: true` is often safer here.
+            // However, the original schema for `tool_router_v1_1` had `additionalProperties: true` inside arguments.
+            // The key change by OpenAI seems to be that the *tool_step object itself* (the item in planned_tools)
+            // must have additionalProperties: false if you use strict mode for the overall JSON_SCHEMA response format.
+            // And also the root object of the JSON_SCHEMA must have additionalProperties: false.
+            
+            // The current `finalJsonSchema` for minato_tool_router_v1_1 already sets additionalProperties: false for itemSchema.
+            // The `arguments` property within itemsSchema also has additionalProperties: true. This should be fine.
+            // No modification needed here based on the latest understanding.
+        } else {
+            logger.warn(`[LLM Clients JSON] 'arguments' property in '${schemaName}' item schema is not an object or missing. LLM might struggle with argument structure.`);
         }
       }
-      finalJsonSchema = {
-        type: "object",
-        properties: { planned_tools: { type: "array", items: itemSchema } },
-        required: ["planned_tools"],
-        additionalProperties: false
-      };
-      logger.warn(`[LLM Clients JSON] Wrapped array schema '${schemaName}' and made items and their 'arguments' property strict for OpenAI API.`);
+      logger.debug(`[LLM Clients JSON] Schema '${schemaName}' for tool router appears compliant for OpenAI API.`);
     } else if (finalJsonSchema.type === "object") {
       if (finalJsonSchema.additionalProperties !== false) {
-        logger.warn(`[LLM Clients JSON] Schema '${schemaName}' is object but root 'additionalProperties' is not false. Setting to false for strict mode.`);
+        logger.warn(`[LLM Clients JSON] Schema '${schemaName}' is object but root 'additionalProperties' is not false. Setting to false for strict mode compliance with OpenAI Responses API.`);
         finalJsonSchema.additionalProperties = false;
       }
     } else {
-      logger.error(`[LLM Clients JSON] Schema '${schemaName}' root must be 'object' (or 'array' for tool_router). Got '${finalJsonSchema.type}'. ${logSuffix}`);
-      return { error: `Schema '${schemaName}' root must be 'object' or an array that can be wrapped.` };
+      logger.error(`[LLM Clients JSON] Schema '${schemaName}' root must be 'object'. Got '${finalJsonSchema.type}'. ${logSuffix}`);
+      return { error: `Schema '${schemaName}' root must be 'object'.` };
     }
-
-
 
 
     const requestPayload: OpenAI.Responses.ResponseCreateParams = {
@@ -370,77 +371,54 @@ export async function generateStructuredJson<T extends AnyToolStructuredData | R
     if (finishReason === "max_output_tokens") {
       logger.error(`[LLM Clients JSON] Truncated JSON due to max_output_tokens. ${logSuffix}`);
       const partialResult = safeJsonParse<any>(responseText);
-      if (schemaName === "minato_tool_router_v1" && partialResult?.planned_tools) {
-        return partialResult.planned_tools as T;
+      // If it's the tool router and we got at least the planned_tools array (even if incomplete), try to use it
+      if (schemaName === "minato_tool_router_v1_1" && partialResult?.planned_tools) {
+        if (SchemaService.validate(schemaName, partialResult)) {
+            return partialResult as T;
+        }
+        logger.warn(`[LLM Clients JSON] Partial tool router output failed schema validation. Raw: ${responseText.substring(0,300)}`);
+        // Fall through to general partial result handling if needed, or error
       }
-      if (partialResult) return partialResult as T;
-      return { error: `JSON generation failed (truncated due to max_output_tokens). Finish: ${finishReason}` };
+      if (partialResult && SchemaService.validate(schemaName, partialResult)) return partialResult as T; // If partial result IS valid for the schema
+      return { error: `JSON generation failed (truncated due to max_output_tokens, and partial result is invalid for schema '${schemaName}'). Finish: ${finishReason}` };
     }
 
 
     const result = safeJsonParse<any>(responseText);
-    if (schemaName === "minato_tool_router_v1") {
-      const toolRouterSchema = {
-        type: "object",
-        properties: {
-          planned_tools: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                tool_name: { type: "string" },
-                arguments: { 
-                  type: "object",
-                  additionalProperties: true,
-                  properties: {}
-                },
-                reason: { type: "string" }
-              },
-              required: ["tool_name", "arguments", "reason"],
-              additionalProperties: false
-            }
-          }
-        },
-        required: ["planned_tools"],
-        additionalProperties: false
-      };
-
-      // Validate with AJV
-      const ajv = new Ajv();
-      const validate = ajv.compile(toolRouterSchema);
-      if (!validate(result)) {
-        logger.error(`[LLM Clients JSON] Tool router schema validation failed:`, validate.errors);
-        return { error: "Invalid tool router response structure" };
-      }
-
-      if (result.planned_tools && Array.isArray(result.planned_tools)) {
-        return result.planned_tools as T;
-      }
-    }
-
-
     if (!result || typeof result !== "object") {
-      logger.warn(`[LLM Clients JSON] Parsed non-object/null. Type: ${typeof result}. Raw: ${responseText.substring(0, 300)}. ${logSuffix}`);
+      logger.warn(`[LLM Clients JSON] Parsed non-object/null for schema ${schemaName}. Type: ${typeof result}. Raw: ${responseText.substring(0, 300)}. ${logSuffix}`);
       return { error: `JSON parsing yielded ${typeof result}. Expected object for schema ${schemaName}.` };
     }
+    
+    // Final validation using SchemaService
+    if (!SchemaService.validate(schemaName, result)) {
+        logger.error(`[LLM Clients JSON] Output for schema '${schemaName}' FAILED final validation by SchemaService. ${logSuffix}. Data: ${responseText.substring(0,300)}`);
+        return { error: `Generated JSON does not conform to the schema '${schemaName}'.` };
+    }
+    
+    // If it's the tool router, extract the planned_tools array specifically
+    if (schemaName === "minato_tool_router_v1_1") {
+      if (result.planned_tools && Array.isArray(result.planned_tools)) {
+        return result.planned_tools as T; // This is a special case, returns array not object
+      } else {
+        logger.error(`[LLM Clients JSON] Tool router schema '${schemaName}' parsed, but 'planned_tools' array is missing. ${logSuffix}. Data: ${responseText.substring(0,300)}`);
+        return { error: "Tool router response structure missing 'planned_tools'." };
+      }
+    }
+
     return result as T;
   } catch (error: any) {
     let errorMessage = "Structured JSON generation error.";
     if (error instanceof OpenAI.APIError) errorMessage = `OpenAI API Error for JSON Gen (${error.status || "N/A"} ${error.code || "N/A"}): ${error.message}`;
     else if (error.message) errorMessage = error.message;
-    let schemaForLogError = jsonSchema;
-    if (jsonSchema.type === "array" && schemaName === "minato_tool_router_v1") {
-      let itemSchema = jsonSchema.items;
-      if (typeof itemSchema === 'object' && itemSchema !== null && itemSchema.type === "object") {
-        itemSchema.additionalProperties = false;
-        if (itemSchema.properties && itemSchema.properties.arguments && itemSchema.properties.arguments.type === 'object') {
-          itemSchema.properties.arguments.additionalProperties = false;
-        }
-      }
-      schemaForLogError = { type: "object", properties: { planned_tools: { type: "array", items: itemSchema } }, required: ["planned_tools"], additionalProperties: false };
-    } else if (jsonSchema.type === "object" && jsonSchema.additionalProperties !== false) {
-      schemaForLogError = { ...jsonSchema, additionalProperties: false };
+    
+    let schemaForLogError = JSON.parse(JSON.stringify(jsonSchema)); // Deep clone
+    if (schemaName === "minato_tool_router_v1_1" && schemaForLogError.type === "object" && schemaForLogError.properties?.planned_tools?.type === "array") {
+        // Already handled by the new schema definition
+    } else if (schemaForLogError.type === "object" && schemaForLogError.additionalProperties !== false) {
+      schemaForLogError.additionalProperties = false;
     }
+
     logger.error(`[LLM Clients JSON] Exception: ${errorMessage}. ${logSuffix}`, { originalError: error, schemaName, schemaUsedForCall: schemaForLogError });
     return { error: errorMessage };
   }
