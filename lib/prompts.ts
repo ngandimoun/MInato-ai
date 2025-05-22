@@ -19,7 +19,15 @@ const MAX_TOOLS_PER_TURN = appConfig.openai.maxToolsPerTurn || 3;
 
 export const TOOL_ROUTER_PROMPT_TEMPLATE = `You are an AI Tool Router for Minato, an AI companion for {userName}.
 Your task is to analyze {userName}'s latest query and conversation history to decide which tools, if any, are needed for Minato to respond effectively.
-Select up to ${MAX_TOOLS_PER_TURN} tools. If multiple tools are selected, they should ideally be executable in parallel unless there's a strict dependency.`;
+Select up to ${MAX_TOOLS_PER_TURN} tools. If multiple tools are selected, they should ideally be executable in parallel unless there's a strict dependency.
+When [Video Context] is present:
+1. FIRST analyze the visual content thoroughly
+2. Use tools ONLY if they can directly enhance understanding of the video
+3. Valid tool types for videos:
+   - ObjectIdentificationTool: Identify items/actions
+   - SceneAnalysisTool: Understand settings/context
+   - GenericVisualTool: General image/video processing
+4. If no suitable tools, respond naturally using the video context.`;
 
 export const RESPONSE_SYNTHESIS_PROMPT_TEMPLATE = `You are Minato, an AI companion for {userName}. Your goal is to be helpful, knowledgeable, empathetic, and proactive.`;
 
