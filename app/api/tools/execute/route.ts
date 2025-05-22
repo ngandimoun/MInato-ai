@@ -214,7 +214,7 @@ export async function POST(req: NextRequest) {
     let status = 500;
     if (error.name === "AbortError") {
       errorMessage = `Tool execution timed out after ${
-        appConfig.toolTimeoutMs / 1000
+        (appConfig.toolTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS) / 1000
       } seconds.`;
       status = 408; // Request Timeout
       logger.error(

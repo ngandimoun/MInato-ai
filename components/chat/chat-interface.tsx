@@ -188,14 +188,25 @@ content: apiUserMessageContentParts.length > 0 ? apiUserMessageContentParts : (c
 attachments: apiAttachments,
 timestamp: new Date().toISOString(),
 };
-const requestBodyMessages: Partial<Message>[] = [
-...historyForApi.map(m => ({
-id: m.id, role: m.role, content: m.content, name: m.name, tool_calls: m.tool_calls,
-tool_call_id: m.tool_call_id, timestamp: m.timestamp, audioUrl: m.audioUrl,
-attachments: m.attachments?.map(a => ({ ...a, file: undefined })),
-})),
-currentUserMessageForApi
-];
+const requestBodyMessages = historyForApi.map(m => {
+const base = {
+id: m.id,
+role: m.role,
+content: m.content,
+name: m.name,
+timestamp: m.timestamp,
+audioUrl: m.audioUrl,
+attachments: m.attachments?.map((a: any) => ({ ...a, file: undefined })),
+};
+if (m.role === "assistant" && m.tool_calls) {
+return { ...base, tool_calls: m.tool_calls };
+}
+if (m.role === "tool" && m.tool_call_id) {
+return { ...base, tool_call_id: m.tool_call_id };
+}
+return base;
+}) as any[];
+requestBodyMessages.push(currentUserMessageForApi);
 const requestBody: { messages: Partial<Message>[]; id?: string; data?: any } = {
 messages: requestBodyMessages,
 };
@@ -206,9 +217,9 @@ if (hasFileObjects) {
 const formData = new FormData();
 const messagesForFormData = requestBodyMessages.map(m => {
 if (m.id === optimisticId && m.attachments) { // Ensure attachments exists before filtering
-return { ...m, attachments: m.attachments.filter(att => !(att.file instanceof File || att.file instanceof Blob)).map(att => ({...att, file: undefined})) };
+return { ...m, attachments: m.attachments.filter((att: any) => !(att.file instanceof File || att.file instanceof Blob)).map((att: any) => ({...att, file: undefined})) };
 }
-return {...m, attachments: m.attachments?.map(a => ({...a, file: undefined}))}; // Ensure file is undefined for all other messages too
+return {...m, attachments: m.attachments?.map((a: any) => ({...a, file: undefined}))}; // Ensure file is undefined for all other messages too
 });
 formData.append("messages", JSON.stringify(messagesForFormData));
 if(requestBody.id) formData.append("id", requestBody.id);
@@ -377,7 +388,7 @@ formData.append("audio", audioBlob, audioAttachment.name);
 const historyForApi = messagesRef.current.filter(m => m.id !== optimisticId && m.id !== assistantMessageId);
 const messagesForFormData = historyForApi.map(m => ({
 id: m.id, role: m.role, content: m.content, timestamp: m.timestamp,
-attachments: m.attachments?.map(a => ({...a, file: undefined}))
+attachments: m.attachments?.map((a: any) => ({...a, file: undefined}))
 }));
 messagesForFormData.push({
 id: optimisticId, role: "user",

@@ -14,12 +14,12 @@ import type {
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import {
-  ChatMessage,
-  UserState,
-  ChatMessageContentPart as AppChatMessageContentPart,
-  ChatMessageContentPartText as AppChatMessageContentPartText,
-  ChatMessageContentPartInputImage as AppChatMessageContentPartInputImage,
-  AnyToolStructuredData,
+ChatMessage,
+UserState,
+ChatMessageContentPart as AppChatMessageContentPart,
+ChatMessageContentPartText as AppChatMessageContentPartText,
+ChatMessageContentPartInputImage as AppChatMessageContentPartInputImage,
+AnyToolStructuredData,
 } from "@/lib/types/index";
 import { safeJsonParse } from "@/memory-framework/core/utils";
 import type { CompletionUsage } from "openai/resources";
@@ -67,6 +67,18 @@ type ResponseApiOutputTextPart = { type: "output_text"; text: string; };
 type ResponseApiInputImagePart = { type: "input_image"; image_url: string; /* detail n'est pas sur la partie elle-même */ };
 
 
+// Ajout de la fonction de conversion explicite
+type LocalChatCompletionContentPart = OpenAI.Chat.Completions.ChatCompletionContentPart;
+function toChatCompletionContentPart(
+  part: ResponseApiInputTextPart | ResponseApiInputImagePart
+): LocalChatCompletionContentPart {
+  if (part.type === "input_text") {
+    return { type: "text", text: part.text } as LocalChatCompletionContentPart;
+  } else {
+    // Conversion explicite pour image_url
+    return { type: "image_url", image_url: { url: part.image_url } } as LocalChatCompletionContentPart;
+  }
+}
 
 
 async function formatMessagesForResponsesApi(
@@ -87,14 +99,41 @@ async function formatMessagesForResponsesApi(
             openAiApiContentParts.push({ type: "input_text", text: part.text });
           } else if (msg.role === "assistant") {
             openAiApiContentParts.push({ type: "output_text", text: part.text });
-          } else {
+          } else { // Includes 'tool' role if it ever gets array content, though unlikely
             openAiApiContentParts.push({ type: "input_text", text: part.text }); // Fallback
           }
         }
         // --- IMAGE PARTS ---
-        if (part.type === 'input_image' && typeof part.image_url === 'string') {
+        else if (part.type === 'input_image' && typeof part.image_url === 'string') {
           let imageUrl = part.image_url;
+          // Convert supabase_storage: to public URL if needed
           if (imageUrl.startsWith("supabase_storage:")) {
+            const storagePath = imageUrl.substring("supabase_storage:".length);
+            const { data: urlData } = supabase.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(storagePath);
+            if (urlData?.publicUrl) {
+                imageUrl = urlData.publicUrl;
+                logger.debug(`[formatMessagesForResponsesApi] Converted supabase_storage path to public URL: ${imageUrl.substring(0,100)}...`);
+            } else {
+                logger.warn(`[formatMessagesForResponsesApi] Failed to get public URL for supabase_storage path: ${storagePath}. Original URL: ${imageUrl}`);
+            }
+          }
+          const isValid = (
+            typeof imageUrl === 'string' && imageUrl !== null && (
+              imageUrl.startsWith('http://') || imageUrl.startsWith('https://') ||
+              (imageUrl.startsWith('data:image/') && imageUrl.includes(';base64,'))
+            )
+          );
+          if (isValid) {
+            openAiApiContentParts.push({ type: "input_image", image_url: imageUrl });
+          } else {
+            // Avoid logging for common "error_*" placeholders if they are intentionally set
+            if (!imageUrl.startsWith("error_")) {
+                logger.warn(`[formatMessagesForResponsesApi] Skipping invalid image_url (not http/data): ${imageUrl.substring(0,100)}...`);
+            }
+          }
+        } else if ((part as any).type === 'image_url' && typeof (part as any).image_url?.url === 'string') { // Legacy support for older format
+          let imageUrl = (part as any).image_url.url;
+          if (imageUrl.startsWith("supabase_storage:")) { // Also convert legacy format if it's supabase_storage
             const storagePath = imageUrl.substring("supabase_storage:".length);
             const { data: urlData } = supabase.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(storagePath);
             if (urlData?.publicUrl) imageUrl = urlData.publicUrl;
@@ -108,89 +147,128 @@ async function formatMessagesForResponsesApi(
           if (isValid) {
             openAiApiContentParts.push({ type: "input_image", image_url: imageUrl });
           } else {
-            logger.warn(`[formatMessagesForResponsesApi] Skipping invalid image_url: ${imageUrl}`);
+            if (!imageUrl.startsWith("error_")) {
+                 logger.warn(`[formatMessagesForResponsesApi] Skipping invalid image_url (legacy image_url.url, not http/data): ${imageUrl.substring(0,100)}...`);
+            }
           }
-        } else if ((part as any).type === 'image_url' && typeof (part as any).image_url?.url === 'string') {
-          let imageUrl = (part as any).image_url.url;
+        }
+      }
+    } else {
+      const msgAny = msg as any;
+      if (typeof msgAny.content === 'string' && msgAny.content.trim()) {
+        if (msgAny.role === "user" || msgAny.role === "system") {
+          openAiApiContentParts.push({ type: "input_text", text: msgAny.content });
+        } else if (msgAny.role === "assistant") {
+          openAiApiContentParts.push({ type: "output_text", text: msgAny.content });
+        } else if (msgAny.role === "tool") {
+          // Tool role content is directly a string, not part of 'parts'
+        } else {
+          openAiApiContentParts.push({ type: "input_text", text: msgAny.content }); // Fallback for other roles with string content
+        }
+      }
+    }
+
+    // Handle attachments that were not part of message.content (e.g., non-image files or images not directly embedded)
+    // This section primarily ensures image attachments meant for vision are also included if not already processed from `msg.content`.
+    // This is a bit redundant if `initialAttachments` in Orchestrator already populates `mainUserInputContent` correctly.
+    if (msg.role === "user" && msg.attachments) {
+      for (const att of msg.attachments) {
+        if (att.type === "image" && att.url) {
+          let imageUrl = att.url;
+          if (imageUrl.startsWith("supabase_storage:")) {
+            const storagePath = imageUrl.substring("supabase_storage:".length);
+            const { data: urlData } = supabase.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(storagePath);
+            if (urlData?.publicUrl) imageUrl = urlData.publicUrl;
+          }
           const isValid = (
             typeof imageUrl === 'string' && imageUrl !== null && (
               imageUrl.startsWith('http://') || imageUrl.startsWith('https://') ||
               (imageUrl.startsWith('data:image/') && imageUrl.includes(';base64,'))
             )
           );
-          if (isValid) {
+          // Add only if not already present (e.g., from msg.content processing)
+          if (isValid && !openAiApiContentParts.some(p => (p as ResponseApiInputImagePart).image_url === imageUrl)) {
             openAiApiContentParts.push({ type: "input_image", image_url: imageUrl });
-          } else {
-            logger.warn(`[formatMessagesForResponsesApi] Skipping invalid image_url (image_url.url): ${imageUrl}`);
+          } else if (!isValid && !imageUrl.startsWith("error_")) {
+            logger.warn(`[formatMessagesForResponsesApi] Skipping invalid image_url from attachment: ${imageUrl.substring(0,100)}...`);
           }
         }
       }
     }
 
-
-    if (msg.attachments) {
-      for (const att of msg.attachments) {
-        if (att.type === "image" && att.url && !att.url.startsWith("blob:")) {
-          openAiApiContentParts.push({ type: "input_image", image_url: att.url });
-        } else if (att.type === "image" && (att as any).storagePath) {
-          const storagePath = (att as any).storagePath;
-          const { data: urlData } = supabase.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(storagePath);
-          if (urlData?.publicUrl) {
-            openAiApiContentParts.push({ type: "input_image", image_url: urlData.publicUrl });
-          }
-        }
-      }
-    }
 
     switch (msg.role) {
       case "user":
       case "system":
-        let contentForUserOrSystem: string | OpenAI.Chat.Completions.ChatCompletionContentPart[] = "";
-        if (typeof msg.content === 'string' && msg.content.trim()) {
-          contentForUserOrSystem = [{ type: (msg.role === "system" ? "input_text" : "input_text"), text: msg.content } as any];
+        const msgAny = msg as any;
+        let contentForUserOrSystem: string | LocalChatCompletionContentPart[] = "";
+        if (openAiApiContentParts.length === 1 && openAiApiContentParts[0].type === "input_text") {
+            contentForUserOrSystem = openAiApiContentParts[0].text; // OpenAI SDK prefers string if only text
         } else if (openAiApiContentParts.length > 0) {
-          contentForUserOrSystem = openAiApiContentParts as any;
-        } else if (msg.role === "system") {
-          contentForUserOrSystem = "";
+            // Filter out any non-input_text/input_image parts for user/system if they somehow got here
+            contentForUserOrSystem = openAiApiContentParts
+              .filter(p => p.type === "input_text" || p.type === "input_image")
+              .map(toChatCompletionContentPart);
+        } else if (
+          msgAny.role === "system" &&
+          typeof msgAny.content === 'string' && msgAny.content.trim() === ""
+        ) {
+            contentForUserOrSystem = ""; // Allow empty system message
+        } else if (
+          msgAny.role === "system" &&
+          typeof msgAny.content === 'string'
+        ) {
+            contentForUserOrSystem = msgAny.content;
         }
+
+
         if (contentForUserOrSystem || (msg.role === "system" && contentForUserOrSystem === "")) {
-          if (msg.role === "system" && typeof contentForUserOrSystem !== 'string') {
-            const systemText = (contentForUserOrSystem as any[]).filter(p => p.type === "input_text").map(p => p.text).join('\n');
-            apiMessages.push({ role: msg.role as any, content: systemText });
-          } else {
-            apiMessages.push({ role: msg.role as any, content: contentForUserOrSystem as any });
-          }
+            const messagePayload: SdkResponsesApiMessageParam = {
+              role: msg.role as "user" | "system",
+              content: contentForUserOrSystem as any, // Cast as any because SDK types are strict
+            };
+            // Explicitly ensure no tool_calls for user/system messages
+            delete (messagePayload as any).tool_calls;
+            delete (messagePayload as any).tool_call_id;
+            apiMessages.push(messagePayload);
         }
         break;
       case "assistant":
         let assistantApiContent: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam["content"] = null;
-        if (typeof msg.content === 'string' && msg.content.trim()) {
-          assistantApiContent = [{ type: "output_text", text: msg.content } as any];
-        } else if (openAiApiContentParts.length > 0) {
+        if (openAiApiContentParts.length > 0) {
           assistantApiContent = openAiApiContentParts.filter(
             (p): p is ResponseApiOutputTextPart | ChatCompletionContentPartRefusal =>
               p.type === "output_text" || (p as any).type === "refusal"
           ) as any;
           if ((assistantApiContent as Array<any>).length === 0) assistantApiContent = null;
         }
+
         const assistantMessagePayload: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
           role: "assistant",
-          content: assistantApiContent as any,
+          content: assistantApiContent as any, // Cast to make TS happy with complex OpenAI types
         };
-        if (msg.tool_calls && msg.tool_calls.length > 0) {
+
+        // CRITICAL FIX: Only add tool_calls if msg.tool_calls is present and non-empty
+        if (msg.tool_calls && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) {
           assistantMessagePayload.tool_calls = msg.tool_calls;
+        } else {
+          // Ensure tool_calls is not present or is undefined if empty, to avoid sending empty array if not intended
+          delete assistantMessagePayload.tool_calls;
         }
+        
+        // Only push if there's content OR tool_calls
         if (assistantMessagePayload.content || (assistantMessagePayload.tool_calls && assistantMessagePayload.tool_calls.length > 0)) {
           apiMessages.push(assistantMessagePayload);
         }
         break;
       case "tool":
         if (msg.tool_call_id && msg.content !== null && msg.content !== undefined) {
-          apiMessages.push({
+          const toolMessagePayload: OpenAI.Chat.Completions.ChatCompletionToolMessageParam = {
             role: "tool",
             tool_call_id: msg.tool_call_id,
             content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
-          });
+          };
+          apiMessages.push(toolMessagePayload);
         }
         break;
     }
@@ -251,10 +329,7 @@ export async function generateStructuredJson<T extends AnyToolStructuredData | R
   try {
     logger.debug(`[LLM Clients JSON] Generating with ${logSuffix}. Original schema type: ${jsonSchema.type}`);
 
-
-    const formattedHistory = await formatMessagesForResponsesApi(
-      historyForContext.filter(m => typeof m.content === 'string' || (Array.isArray(m.content) && m.content.some(p => (p as AppChatMessageContentPartText).type === 'text')))
-    );
+    const formattedHistory = await formatMessagesForResponsesApi(historyForContext);
 
 
     const userMessageForApi: OpenAI.Responses.ResponseInputItem = {
@@ -266,34 +341,46 @@ export async function generateStructuredJson<T extends AnyToolStructuredData | R
     const inputForApi: OpenAI.Responses.ResponseInputItem[] = [
       ...((formattedHistory as unknown) as OpenAI.Responses.ResponseInputItem[]),
       userMessageForApi
-    ];
+    ].filter(msg => {
+      // Type guard: check if msg has 'role' and 'content'
+      if (typeof msg === 'object' && msg !== null && 'role' in msg && 'content' in msg) {
+        const role = (msg as any).role;
+        const content = (msg as any).content;
+        // tool_calls is only relevant for assistant
+        const toolCalls = 'tool_calls' in msg ? (msg as any).tool_calls : undefined;
+        if (role === 'assistant' && content === null && !toolCalls) return false;
+        if ((role === 'user' || role === 'system') && (content === null || content === "" || (Array.isArray(content) && content.length === 0))) return false;
+        return true;
+      }
+      // If not a message with role/content, keep it (or filter as needed)
+      return true;
+    });
 
 
     if (inputForApi.length === 0 && !instructions) {
       logger.error(`[LLM Clients JSON] No valid messages or instructions. ${logSuffix}`);
       return { error: "No valid messages or instructions to send." };
     }
+    
+    if (inputForApi.length > 0) {
+      const firstMsg = inputForApi[0] as any;
+      logger.debug(`[LLM Clients JSON] InputForApi[0] being sent: role=${firstMsg.role}, hasToolCalls=${!!firstMsg.tool_calls}`);
+      if (firstMsg.tool_calls && firstMsg.role !== 'assistant') {
+        logger.error(`[LLM Clients JSON] CRITICAL PRE-FLIGHT CHECK FAILED: InputForApi[0] has role ${firstMsg.role} AND tool_calls. This will cause API error.`);
+        // This check is more for debugging; formatMessagesForResponsesApi should prevent this.
+      }
+    }
 
 
-    let finalJsonSchema = JSON.parse(JSON.stringify(jsonSchema)); // Deep clone
+    let finalJsonSchema = JSON.parse(JSON.stringify(jsonSchema)); 
 
 
     if (schemaName === "minato_tool_router_v1_1" && finalJsonSchema.type === "object" && finalJsonSchema.properties?.planned_tools?.type === "array") {
       const itemsSchema = finalJsonSchema.properties.planned_tools.items;
       if (typeof itemsSchema === 'object' && itemsSchema !== null && itemsSchema.type === "object") {
-        // Ensure the 'arguments' property schema within 'items' is correctly defined
         if (itemsSchema.properties?.arguments && itemsSchema.properties.arguments.type === 'object') {
-            // If 'arguments' can truly be any object and you don't want to restrict its internal properties:
-            // Ensure additionalProperties is true if LLM can add keys, or false if all keys are predefined.
-            // For tool routing, arguments are often specific to the tool, so `additionalProperties: true` is often safer here.
-            // However, the original schema for `tool_router_v1_1` had `additionalProperties: true` inside arguments.
-            // The key change by OpenAI seems to be that the *tool_step object itself* (the item in planned_tools)
-            // must have additionalProperties: false if you use strict mode for the overall JSON_SCHEMA response format.
-            // And also the root object of the JSON_SCHEMA must have additionalProperties: false.
-            
-            // The current `finalJsonSchema` for minato_tool_router_v1_1 already sets additionalProperties: false for itemSchema.
-            // The `arguments` property within itemsSchema also has additionalProperties: true. This should be fine.
-            // No modification needed here based on the latest understanding.
+           // Schema for arguments is usually defined with additionalProperties: true in the tool definition itself
+           // and the TOOL_ROUTER_SCHEMA_DEFINITION correctly reflects this.
         } else {
             logger.warn(`[LLM Clients JSON] 'arguments' property in '${schemaName}' item schema is not an object or missing. LLM might struggle with argument structure.`);
         }
@@ -371,15 +458,13 @@ export async function generateStructuredJson<T extends AnyToolStructuredData | R
     if (finishReason === "max_output_tokens") {
       logger.error(`[LLM Clients JSON] Truncated JSON due to max_output_tokens. ${logSuffix}`);
       const partialResult = safeJsonParse<any>(responseText);
-      // If it's the tool router and we got at least the planned_tools array (even if incomplete), try to use it
       if (schemaName === "minato_tool_router_v1_1" && partialResult?.planned_tools) {
         if (SchemaService.validate(schemaName, partialResult)) {
             return partialResult as T;
         }
         logger.warn(`[LLM Clients JSON] Partial tool router output failed schema validation. Raw: ${responseText.substring(0,300)}`);
-        // Fall through to general partial result handling if needed, or error
       }
-      if (partialResult && SchemaService.validate(schemaName, partialResult)) return partialResult as T; // If partial result IS valid for the schema
+      if (partialResult && SchemaService.validate(schemaName, partialResult)) return partialResult as T; 
       return { error: `JSON generation failed (truncated due to max_output_tokens, and partial result is invalid for schema '${schemaName}'). Finish: ${finishReason}` };
     }
 
@@ -390,16 +475,14 @@ export async function generateStructuredJson<T extends AnyToolStructuredData | R
       return { error: `JSON parsing yielded ${typeof result}. Expected object for schema ${schemaName}.` };
     }
     
-    // Final validation using SchemaService
     if (!SchemaService.validate(schemaName, result)) {
         logger.error(`[LLM Clients JSON] Output for schema '${schemaName}' FAILED final validation by SchemaService. ${logSuffix}. Data: ${responseText.substring(0,300)}`);
         return { error: `Generated JSON does not conform to the schema '${schemaName}'.` };
     }
     
-    // If it's the tool router, extract the planned_tools array specifically
     if (schemaName === "minato_tool_router_v1_1") {
       if (result.planned_tools && Array.isArray(result.planned_tools)) {
-        return result.planned_tools as T; // This is a special case, returns array not object
+        return result.planned_tools as T; 
       } else {
         logger.error(`[LLM Clients JSON] Tool router schema '${schemaName}' parsed, but 'planned_tools' array is missing. ${logSuffix}. Data: ${responseText.substring(0,300)}`);
         return { error: "Tool router response structure missing 'planned_tools'." };
@@ -412,9 +495,8 @@ export async function generateStructuredJson<T extends AnyToolStructuredData | R
     if (error instanceof OpenAI.APIError) errorMessage = `OpenAI API Error for JSON Gen (${error.status || "N/A"} ${error.code || "N/A"}): ${error.message}`;
     else if (error.message) errorMessage = error.message;
     
-    let schemaForLogError = JSON.parse(JSON.stringify(jsonSchema)); // Deep clone
+    let schemaForLogError = JSON.parse(JSON.stringify(jsonSchema)); 
     if (schemaName === "minato_tool_router_v1_1" && schemaForLogError.type === "object" && schemaForLogError.properties?.planned_tools?.type === "array") {
-        // Already handled by the new schema definition
     } else if (schemaForLogError.type === "object" && schemaForLogError.additionalProperties !== false) {
       schemaForLogError.additionalProperties = false;
     }
@@ -590,7 +672,7 @@ export async function generateResponseWithIntent(
   }
 
 
-  const textHistoryForJson = history.filter(m => typeof m.content === 'string');
+  const textHistoryForJson = history.filter(m => typeof m.content === 'string' || (Array.isArray(m.content) && m.content.some(p => p.type === 'text')));
 
 
   const result = await generateStructuredJson<{ responseText: string; intentType: string }>(
@@ -639,9 +721,16 @@ export async function generateVisionCompletion(
   logger.debug(`[LLM Clients Vision] Generating vision completion. ${logSuffix}`);
 
 
-  const hasImage = messages.some(msg => Array.isArray(msg.content) && msg.content.some(part => (part as any).type === "image_url" || (part as any).type === "input_image"));
+  const hasImage = messages.some(msg => 
+    Array.isArray(msg.content) && 
+    msg.content.some(part => 
+        (part.type === "input_image" && typeof part.image_url === 'string' && (part.image_url.startsWith('http') || part.image_url.startsWith('data:image'))) ||
+        ((part as any).type === "image_url" && typeof (part as any).image_url?.url === 'string' && ((part as any).image_url.url.startsWith('http') || (part as any).image_url.url.startsWith('data:image')))
+    )
+  );
   if (!hasImage) {
-    return { text: null, error: "No image content provided for vision analysis." };
+    logger.warn(`[LLM Clients Vision] No valid http/data image content found for vision analysis. ${logSuffix}`);
+    return { text: null, error: "No valid image content provided for vision analysis." };
   }
 
 

@@ -19,6 +19,7 @@ ChatMessageContentPart,
 ChatMessageContentPartText,
 ResponseApiInputContent,
 MessageAttachment,
+ChatMessageContentPartInputImage,
 } from "@/lib/types/index";
 import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "../tools/base-tool";
 import { tools as appToolsRegistry } from "../tools/index";
@@ -44,7 +45,7 @@ generateAgentResponse,
 generateStructuredJson,
 generateVisionCompletion,
 } from "../providers/llm_clients";
-import { RESPONSE_SYNTHESIS_PROMPT_TEMPLATE, TOOL_ROUTER_PROMPT_TEMPLATE } from "../prompts";
+import { TOOL_ROUTER_PROMPT_TEMPLATE } from "../prompts";
 import { logger } from "../../memory-framework/config";
 import { safeJsonParse } from "../../memory-framework/core/utils";
 import { CompletionUsage } from "openai/resources";
@@ -241,7 +242,9 @@ if (tool.argsSchema) {
   }
 }
 
+
 return true;
+
 
 }
 private async executeToolCalls(
@@ -254,6 +257,7 @@ const logPrefix = `ToolExecutor User:${userId.substring(0, 8)} Sess:${apiContext
 const toolResultsMessages: ChatMessage[] = [];
 const structuredDataMap: Map<string, AnyToolStructuredData | null> = new Map();
 let toolResultsSummaryParts: string[] = [];
+const workflowStateVars: Record<string, any> = {};
 const executionPromises = toolCallsFromRouter
 .filter(routedToolCall => this.validateToolStep(routedToolCall))
 .map(async (routedToolCall) => {
@@ -266,47 +270,99 @@ if (!tool) {
       return { role: "tool" as const, tool_call_id: callId, name: toolName, content: `Error: Tool '${toolName}' is not available.` };
     }
 
-    logger.info(`${logPrefix} Executing tool '${toolName}' (ID: ${callId.substring(0, 6)}) from Router with Args: ${JSON.stringify(routedToolCall.arguments).substring(0, 100)}`);
 
-    const abortController = new AbortController();
-    const timeoutDuration = ('timeoutMs' in tool && typeof (tool as any).timeoutMs === 'number')
-      ? (tool as any).timeoutMs
-      : (appConfig as any).toolTimeoutMs || DEFAULT_TOOL_TIMEOUT_MS;
-    const timeoutId = setTimeout(() => { logger.warn(`${logPrefix} Timeout (${timeoutDuration}ms) for '${toolName}' (ID: ${callId.substring(0, 6)})`); abortController.abort(); }, timeoutDuration);
+    let actualToolArgs = JSON.parse(JSON.stringify(routedToolCall.arguments || {})); 
 
-    try {
-      const toolInput: ToolInput = {
-        ...(routedToolCall.arguments || {}),
-        userId,
-        lang: apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0],
-        sessionId: apiContext?.sessionId,
-        context: { ...(apiContext || {}), userState, sessionId: apiContext?.sessionId, runId: apiContext?.runId, userName: await this.getUserFirstName(userId), abortSignal: abortController.signal },
-      };
-      const output: ToolOutput = await tool.execute(toolInput, abortController.signal);
-      clearTimeout(timeoutId);
-      logger.info(`${logPrefix} Tool '${toolName}' (ID: ${callId.substring(0, 6)}) finished. Success: ${!output.error}`);
+const searchToolsRequiringQuery = ["YouTubeSearchTool", "NewsAggregatorTool", "HackerNewsTool", "WebSearchTool", "MemoryTool", "PexelsSearchTool", "RecipeSearchTool"];
+if ( searchToolsRequiringQuery.includes(toolName) &&
+     tool.argsSchema.required?.includes("query") && 
+     (!actualToolArgs.query || typeof actualToolArgs.query !== 'string' || actualToolArgs.query.trim() === "") && 
+     (typeof workflowStateVars !== 'undefined' && workflowStateVars.userInput && typeof workflowStateVars.userInput === 'string' && workflowStateVars.userInput.trim())
+) {
+  logger.warn(`${logPrefix} Tool '${toolName}' called by Router without 'query'. Using main user input as query: "${String(typeof workflowStateVars !== 'undefined' ? workflowStateVars.userInput : '').substring(0,50)}..."`);
+  actualToolArgs.query = String(typeof workflowStateVars !== 'undefined' ? workflowStateVars.userInput : '');
+}
 
-      if (!output.error && output.structuredData) {
-        structuredDataMap.set(callId, output.structuredData);
-      } else {
-        structuredDataMap.set(callId, null);
-      }
-      const resultString = output.error ? `Error from ${toolName}: ${String(output.error)}` : String(output.result || `${toolName} completed.`).substring(0, 4000);
-      toolResultsSummaryParts.push(`Result from ${toolName}: ${resultString.substring(0, 150)}...`);
-      return { role: "tool" as const, tool_call_id: callId, name: toolName, content: resultString };
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      const isAbort = error.name === 'AbortError' || abortController.signal.aborted;
-      const errorMsg = isAbort ? `Tool '${toolName}' timed out.` : `Tool '${toolName}' error: ${String(error?.message || error)}`;
-      logger.error(`${logPrefix} Tool '${toolName}' (ID: ${callId.substring(0, 6)}) ${isAbort ? "TIMEOUT" : "EXCEPTION"}: ${String(error?.message || error)}`);
-      structuredDataMap.set(callId, null);
-      toolResultsSummaryParts.push(`Error with ${toolName}: ${errorMsg.substring(0, 100)}...`);
-      return { role: "tool" as const, tool_call_id: callId, name: toolName, content: `Error: ${errorMsg}` };
+if (toolName === "SportsInfoTool" && tool.argsSchema.required?.includes("teamName") && (!actualToolArgs.teamName || typeof actualToolArgs.teamName !== 'string' || actualToolArgs.teamName.trim() === "")) {
+    if (typeof workflowStateVars !== 'undefined' && workflowStateVars.userInput && typeof workflowStateVars.userInput === 'string' && workflowStateVars.userInput.trim()) {
+         logger.warn(`${logPrefix} SportsInfoTool called by Router without 'teamName'. Tool may fail or use a default if implemented by the tool itself based on user query: "${String(workflowStateVars.userInput).substring(0,50)}..."`);
+    } else {
+         logger.error(`${logPrefix} SportsInfoTool requires 'teamName', but Router didn't provide it. Skipping.`);
+         toolResultsSummaryParts.push(`Error: Tool '${toolName}' skipped (missing teamName).`);
+         return { role: "tool" as const, tool_call_id: callId, name: toolName, content: `Error: Tool '${toolName}' could not execute (missing required 'teamName' argument).` };
     }
+}
+if (toolName === "RedditTool" && tool.argsSchema.required?.includes("subreddit") && (!actualToolArgs.subreddit || typeof actualToolArgs.subreddit !== 'string' || actualToolArgs.subreddit.trim() === "")) {
+    if (typeof workflowStateVars !== 'undefined' && workflowStateVars.userInput && typeof workflowStateVars.userInput === 'string' && workflowStateVars.userInput.trim()) {
+        logger.warn(`${logPrefix} RedditTool called by Router without 'subreddit'. Tool might use a default or fail based on query: "${String(workflowStateVars.userInput).substring(0,50)}..."`);
+    } else {
+         logger.error(`${logPrefix} RedditTool requires 'subreddit', but Router didn't provide it. Skipping.`);
+         toolResultsSummaryParts.push(`Error: Tool '${toolName}' skipped (missing subreddit).`);
+         return { role: "tool" as const, tool_call_id: callId, name: toolName, content: `Error: Tool '${toolName}' could not execute (missing required 'subreddit' argument).` };
+    }
+}
+ if (toolName === "EventFinderTool" && tool.argsSchema.required?.includes("keyword") && 
+    (!actualToolArgs.keyword || typeof actualToolArgs.keyword !== 'string' || actualToolArgs.keyword.trim() === "") &&
+    (!actualToolArgs.classificationName && !actualToolArgs.location) 
+  ) {
+    if (typeof workflowStateVars !== 'undefined' && workflowStateVars.userInput && typeof workflowStateVars.userInput === 'string' && workflowStateVars.userInput.trim()) {
+        logger.warn(`${logPrefix} EventFinderTool called by Router without 'keyword' and other primary filters. Using main user input as keyword: "${String(workflowStateVars.userInput).substring(0,50)}..."`);
+        actualToolArgs.keyword = String(workflowStateVars.userInput);
+    } else {
+         logger.warn(`${logPrefix} EventFinderTool requires 'keyword' or other filters, but Router provided none and no fallback. Tool may return broad or no results.`);
+    }
+}
+
+const stepForValidation: ToolRouterPlanStep = { ...routedToolCall, arguments: actualToolArgs };
+if (!this.validateToolStep(stepForValidation)) {
+    logger.error(`${logPrefix} Tool '${toolName}' (ID: ${callId.substring(0, 6)}) failed argument validation AFTER fallback. Arguments received: ${JSON.stringify(routedToolCall.arguments)}. Arguments after fallback: ${JSON.stringify(actualToolArgs)}. Skipping.`);
+    toolResultsSummaryParts.push(`Error: Tool '${toolName}' skipped (invalid arguments after fallback).`);
+    return { role: "tool" as const, tool_call_id: callId, name: toolName, content: `Error: Tool '${toolName}' could not execute due to invalid arguments even after attempting fallback.` };
+}
+
+logger.info(`${logPrefix} Executing tool '${toolName}' (ID: ${callId.substring(0, 6)}) from Router with final Args: ${JSON.stringify(actualToolArgs).substring(0, 100)}`);
+
+const abortController = new AbortController();
+const timeoutDuration = ('timeoutMs' in tool && typeof (tool as any).timeoutMs === 'number')
+  ? (tool as any).timeoutMs
+  : (appConfig as any).toolTimeoutMs || DEFAULT_TOOL_TIMEOUT_MS;
+const timeoutId = setTimeout(() => { logger.warn(`${logPrefix} Timeout (${timeoutDuration}ms) for '${toolName}' (ID: ${callId.substring(0, 6)})`); abortController.abort(); }, timeoutDuration);
+
+try {
+  const toolInput: ToolInput = {
+    ...(actualToolArgs as Record<string, any>),
+    userId,
+    lang: apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0],
+    sessionId: apiContext?.sessionId,
+    context: { ...(apiContext || {}), userState, sessionId: apiContext?.sessionId, runId: apiContext?.runId, userName: await this.getUserFirstName(userId), abortSignal: abortController.signal, workflowVariables: typeof workflowStateVars !== 'undefined' ? { ...workflowStateVars } : {} },
+  };
+  const output: ToolOutput = await tool.execute(toolInput, abortController.signal);
+  clearTimeout(timeoutId);
+  logger.info(`${logPrefix} Tool '${toolName}' (ID: ${callId.substring(0, 6)}) finished. Success: ${!output.error}`);
+
+  if (!output.error && output.structuredData) {
+    structuredDataMap.set(callId, output.structuredData);
+  } else {
+    structuredDataMap.set(callId, null);
+  }
+  const resultString = output.error ? `Error from ${toolName}: ${String(output.error)}` : String(output.result || `${toolName} completed.`).substring(0, 4000);
+  toolResultsSummaryParts.push(`Result from ${toolName}: ${resultString.substring(0, 150)}...`);
+  return { role: "tool" as const, tool_call_id: callId, name: toolName, content: resultString };
+} catch (error: any) {
+  clearTimeout(timeoutId);
+  const isAbort = error.name === 'AbortError' || abortController.signal.aborted;
+  const errorMsg = isAbort ? `Tool '${toolName}' timed out.` : `Tool '${toolName}' error: ${String(error?.message || error)}`;
+  logger.error(`${logPrefix} Tool '${toolName}' (ID: ${callId.substring(0, 6)}) ${isAbort ? "TIMEOUT" : "EXCEPTION"}: ${String(error?.message || error)}`);
+  structuredDataMap.set(callId, null);
+  toolResultsSummaryParts.push(`Error with ${toolName}: ${errorMsg.substring(0, 100)}...`);
+  return { role: "tool" as const, tool_call_id: callId, name: toolName, content: `Error: ${errorMsg}` };
+}
   });
+
 
 const settledResults = await Promise.allSettled(executionPromises);
 let lastSuccessfulStructuredData: AnyToolStructuredData | null = null;
+
 
 for (let i = 0; i < settledResults.length; i++) {
   const result = settledResults[i];
@@ -314,7 +370,7 @@ for (let i = 0; i < settledResults.length; i++) {
   if (result.status === "fulfilled" && result.value) {
     const toolMessage = result.value as ChatMessage; // Type assertion
     toolResultsMessages.push(toolMessage);
-    const callId = toolMessage.tool_call_id!;
+    const callId = (typeof (toolMessage as any).tool_call_id === 'string' && (toolMessage as any).tool_call_id) ? (toolMessage as any).tool_call_id : `fallback_id_${i}`;
     // Check if content indicates an error before considering structuredData
     if (
       typeof toolMessage.content === 'string' &&
@@ -333,6 +389,7 @@ for (let i = 0; i < settledResults.length; i++) {
 }
 return { messages: toolResultsMessages, lastStructuredData: lastSuccessfulStructuredData, llmUsage: null, toolResultsSummary: toolResultsSummaryParts.join("\n") || "Tools executed." };
 
+
 }
 public async runOrchestration(
 userId: string,
@@ -345,6 +402,7 @@ const overallStartTime = Date.now();
 const runId = apiContext?.sessionId || apiContext?.runId || `${SESSION_ID_PREFIX}${randomUUID()}`;
 const turnIdentifier = `OrchRun User:${userId.substring(0, 8)} Run:${runId.substring(0, 6)}`;
 
+
 // Log initialAttachments received by runOrchestration
 if (initialAttachments) {
   logger.info(`[${turnIdentifier}] runOrchestration received initialAttachments. Count: ${initialAttachments.length}`);
@@ -352,8 +410,9 @@ if (initialAttachments) {
     logger.info(`[${turnIdentifier}] initialAttachment[${index}]: type=${att.type}, name=${att.name}, url=${att.url}, hasFile=${!!att.file}, storagePath=${att.storagePath}`);
   });
 } else {
-  logger.warn(`[${turnIdentifier}] runOrchestration received NO initialAttachments (null or undefined).`);
+  logger.info(`[${turnIdentifier}] runOrchestration received NO initialAttachments (null or undefined).`);
 }
+
 
 logger.info(`--- ${turnIdentifier} Starting Orchestration Run (Planning: ${PLANNING_MODEL_NAME_ORCH}, Chat/Vision: ${CHAT_VISION_MODEL_NAME_ORCH}) ---`);
 // Initialisation des variables
@@ -379,15 +438,18 @@ let lang: string = "en";
 // AJOUT: Initialisation de toolExecutionMessages
 let toolExecutionMessages: ChatMessage[] = [];
 
+
 const userState: UserState | null = await supabaseAdmin.getUserState(userId);
 let personaId = userState?.active_persona_id || DEFAULT_PERSONA_ID;
 let personaNameForPrompt = "Minato";
 let personaSpecificInstructions = "You are Minato, a helpful, friendly, and knowledgeable AI assistant.";
 
+
 try { // Bloc try principal
   userName = await this.getUserFirstName(userId);
   lang = apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0] || "en";
   const effectiveApiContext = { ...(apiContext || {}), userName, lang, locale: userState?.preferred_locale || (appConfig as any).defaultLocale, runId };
+
 
   try { // Bloc try pour la récupération de la persona (ceci est OK)
     const persona = await this.memoryFramework.getPersonaById(personaId, userId);
@@ -397,8 +459,10 @@ try { // Bloc try principal
     }
   } catch (e: any) { logger.error(`[${turnIdentifier}] Error fetching persona:`, e.message); }
 
+
   // CHANGEMENT: Le bloc try interne problématique a été supprimé.
   // La logique suivante est maintenant directement dans le bloc try principal.
+
 
   if (typeof userInput === 'string') {
     textQueryForRouter = userInput;
@@ -408,118 +472,96 @@ try { // Bloc try principal
     const textPart = userInput.find(p => p.type === 'text') as ChatMessageContentPartText | undefined;
     textQueryForRouter = textPart?.text || "";
 
+
     // Pre-process image parts from mainUserInputContent if they have blob URLs or placeholder IDs
     // by finding their corresponding File object in initialAttachments and uploading.
     if (initialAttachments && initialAttachments.length > 0) {
-      for (let i = 0; i < mainUserInputContent.length; i++) {
-        const part = mainUserInputContent[i];
-        if (part.type === "input_image") {
-          const imagePartToProcess = part as import("@/lib/types/index").ChatMessageContentPartInputImage;
-          let matchingAttachment: MessageAttachment | undefined = undefined;
-          let isBlobUrl = false;
-
-          if (imagePartToProcess.image_url.startsWith("blob:")) {
-            isBlobUrl = true;
-            // Log details about initialAttachments when a blob URL is found
-            logger.info(`[${turnIdentifier}] Encountered blob URL: ${imagePartToProcess.image_url}. Checking initialAttachments (count: ${initialAttachments.length}).`);
-            initialAttachments.forEach((att, attIndex) => {
-              logger.info(`[${turnIdentifier}] Attachment[${attIndex}]: type=${att.type}, name=${att.name}, url=${att.url}, hasFile=${!!att.file}, storagePath=${att.storagePath}`);
-            });
-            matchingAttachment = initialAttachments.find(att => att.url === imagePartToProcess.image_url && att.file);
-          } else if (imagePartToProcess.image_url.startsWith("placeholder_id_")) {
-            const attachmentId = imagePartToProcess.image_url.substring("placeholder_id_".length);
-            logger.info(`[${turnIdentifier}] Encountered placeholder_id_ URL: ${imagePartToProcess.image_url} (ID: ${attachmentId}). Checking initialAttachments.`);
-            initialAttachments.forEach((att, attIndex) => {
-              logger.info(`[${turnIdentifier}] Attachment[${attIndex}]: type=${att.type}, name=${att.name}, id=${att.id}, url=${att.url}, hasFile=${!!att.file}, storagePath=${att.storagePath}`);
-            });
-            matchingAttachment = initialAttachments.find(att => att.id === attachmentId && att.file);
-          }
-
-          if (matchingAttachment && matchingAttachment.file) {
-            try {
-              const fileToUpload = matchingAttachment.file;
-              const originalUrlForLog = imagePartToProcess.image_url;
-              const fileName = (fileToUpload instanceof File && fileToUpload.name) ? fileToUpload.name : randomUUID();
-              const filePath = `user/${userId}/${new Date().toISOString()}_${fileName}`;
-              
-              logger.info(`[${turnIdentifier}] Uploading image ${fileName} (from ${isBlobUrl ? 'blob' : 'placeholder'} URL: ${originalUrlForLog}) to Supabase storage at ${MEDIA_UPLOAD_BUCKET}/${filePath}`);
-              
-              const adminClient = getSupabaseAdminClient();
-              if (!adminClient) {
-                logger.error(`[${turnIdentifier}] Supabase admin client is not available. Cannot upload image.`);
-                imagePartToProcess.image_url = "error_admin_client_missing";
-                matchingAttachment.storagePath = "error_admin_client_missing";
-                continue;
-              }
-
-              const { data: uploadData, error: uploadError } = await adminClient.storage
-                .from(MEDIA_UPLOAD_BUCKET)
-                .upload(filePath, fileToUpload, {
-                  contentType: fileToUpload.type || 'application/octet-stream',
-                  upsert: true,
-                });
-
-              if (uploadError) {
-                logger.error(`[${turnIdentifier}] Supabase image upload failed for ${fileName}: ${uploadError.message}`);
-                // Fallback: try to convert to base64 data URL if file is available
-                if (fileToUpload instanceof Blob) {
-                  try {
-                    const arrayBuffer = await fileToUpload.arrayBuffer();
-                    const base64String = Buffer.from(arrayBuffer).toString('base64');
-                    const mimeType = fileToUpload.type || 'image/png';
-                    const dataUrl = `data:${mimeType};base64,${base64String}`;
-                    imagePartToProcess.image_url = dataUrl;
-                    matchingAttachment.storagePath = 'base64_data_url';
-                    logger.info(`[${turnIdentifier}] Used base64 data URL fallback for image ${fileName}.`);
-                  } catch (base64Err) {
-                    logger.error(`[${turnIdentifier}] Failed to convert image to base64 data URL: ${base64Err}`);
-                    imagePartToProcess.image_url = "error_uploading_image";
-                    matchingAttachment.storagePath = "error_uploading_image";
+      logger.debug(`[${turnIdentifier}] Processing ${initialAttachments.length} initial attachments for vision input preparation.`);
+      const adminClient = getSupabaseAdminClient();
+      if (!adminClient) {
+          logger.error(`[${turnIdentifier}] Supabase admin client is not available. Cannot process file attachments for vision.`);
+      } else {
+          for (let i = 0; i < mainUserInputContent.length; i++) {
+              const part = mainUserInputContent[i];
+              if (part.type === "input_image") {
+                  const imagePartToProcess = part as ChatMessageContentPartInputImage;
+                  let matchingAttachment: MessageAttachment | undefined = undefined;
+                  
+                  if (imagePartToProcess.image_url.startsWith("blob:") || imagePartToProcess.image_url.startsWith("placeholder_id_")) {
+                      const idToMatch = imagePartToProcess.image_url.startsWith("placeholder_id_") 
+                          ? imagePartToProcess.image_url.substring("placeholder_id_".length) 
+                          : imagePartToProcess.image_url; 
+                      
+                      matchingAttachment = initialAttachments.find(att => (att.url === idToMatch || att.id === idToMatch) && att.file);
+                      logger.debug(`[${turnIdentifier}] Attempting to match content part URL/ID "${idToMatch.substring(0,60)}" with initial attachments. Found: ${!!matchingAttachment}, File: ${matchingAttachment?.file && matchingAttachment.file instanceof File ? matchingAttachment.file.name : 'unknown'}`);
                   }
-                } else {
-                  imagePartToProcess.image_url = "error_uploading_image";
-                  matchingAttachment.storagePath = "error_uploading_image";
-                }
-              } else {
-                const newImageUrl = `supabase_storage:${uploadData.path}`;
-                logger.info(`[${turnIdentifier}] Image ${fileName} uploaded. New URL for content part: ${newImageUrl}`);
-                imagePartToProcess.image_url = newImageUrl; // Update the content part's URL
-
-                // Update the corresponding MessageAttachment in initialAttachments as well
-                const attachmentIndexInInitial = initialAttachments.findIndex(att => att.id === matchingAttachment!.id);
-                if (attachmentIndexInInitial !== -1) {
-                  initialAttachments[attachmentIndexInInitial].url = newImageUrl;
-                  initialAttachments[attachmentIndexInInitial].storagePath = uploadData.path;
-                  delete initialAttachments[attachmentIndexInInitial].file;
-                   logger.info(`[${turnIdentifier}] Updated initialAttachment ID ${matchingAttachment.id} with new URL and removed file.`);
-                } else {
-                  logger.warn(`[${turnIdentifier}] Could not find matching attachment ID ${matchingAttachment.id} in initialAttachments to update after upload.`);
-                }
+    
+                  if (matchingAttachment && matchingAttachment.file) {
+                      try {
+                          const fileToUpload = matchingAttachment.file;
+                          const originalUrlForLog = imagePartToProcess.image_url;
+                          const fileName = (fileToUpload instanceof File && fileToUpload.name) ? fileToUpload.name.replace(/[^a-zA-Z0-9._-]/g, "_") : randomUUID();
+                          const fileExtension = (fileName.includes('.') ? fileName.split('.').pop() : 'bin') || 'bin';
+                          const filePath = `user_uploads/${userId}/${Date.now()}_${randomUUID().substring(0,8)}.${fileExtension}`;
+                          
+                          logger.info(`[${turnIdentifier}] Uploading image "${fileName}" (from URL: ${originalUrlForLog.substring(0,60)}) to Supabase at ${MEDIA_UPLOAD_BUCKET}/${filePath}`);
+                          
+                          const { data: uploadData, error: uploadError } = await adminClient.storage
+                              .from(MEDIA_UPLOAD_BUCKET)
+                              .upload(filePath, fileToUpload, { contentType: fileToUpload.type || 'application/octet-stream', upsert: true });
+    
+                          if (uploadError) {
+                              logger.error(`[${turnIdentifier}] Supabase image upload failed for "${fileName}": ${uploadError.message}`);
+                              if (fileToUpload.size < 5 * 1024 * 1024) { 
+                                const arrayBuffer = await fileToUpload.arrayBuffer();
+                                const base64String = Buffer.from(arrayBuffer).toString('base64');
+                                imagePartToProcess.image_url = `data:${fileToUpload.type || 'image/jpeg'};base64,${base64String}`;
+                                logger.info(`[${turnIdentifier}] Used base64 data URL fallback for image "${fileName}".`);
+                              } else {
+                                imagePartToProcess.image_url = "error_uploading_image_too_large_for_base64";
+                              }
+                          } else {
+                              const { data: publicUrlData } = adminClient.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(uploadData.path);
+                              if (publicUrlData?.publicUrl) {
+                                  imagePartToProcess.image_url = publicUrlData.publicUrl; 
+                                  logger.info(`[${turnIdentifier}] Image "${fileName}" uploaded. Public URL for content part: ${publicUrlData.publicUrl.substring(0,100)}`);
+                                  
+                                  const attIndex = initialAttachments.findIndex(att => att.id === matchingAttachment!.id || att.url === originalUrlForLog);
+                                  if (attIndex !== -1) {
+                                    initialAttachments[attIndex].url = publicUrlData.publicUrl;
+                                    initialAttachments[attIndex].storagePath = uploadData.path;
+                                    delete initialAttachments[attIndex].file; 
+                                  }
+                              } else {
+                                  logger.error(`[${turnIdentifier}] Failed to get public URL for uploaded image "${fileName}".`);
+                                  imagePartToProcess.image_url = "error_getting_public_url";
+                              }
+                          }
+                      } catch (e: any) {
+                          logger.error(`[${turnIdentifier}] Exception during attachment image upload for URL ${imagePartToProcess.image_url}: ${e.message}`);
+                          imagePartToProcess.image_url = "error_processing_image_upload";
+                      }
+                  } else if (imagePartToProcess.image_url.startsWith("blob:") || imagePartToProcess.image_url.startsWith("placeholder_id_")) {
+                       logger.warn(`[${turnIdentifier}] Image part has URL ${imagePartToProcess.image_url.substring(0,60)} but no matching *File* attachment found or file was already processed.`);
+                       if (!imagePartToProcess.image_url.startsWith("http") && !imagePartToProcess.image_url.startsWith("data:")) { 
+                          imagePartToProcess.image_url = "error_missing_file_for_url";
+                       }
+                  }
               }
-            } catch (e: any) {
-              logger.error(`[${turnIdentifier}] Exception during image upload for URL ${imagePartToProcess.image_url}: ${e.message}`);
-              imagePartToProcess.image_url = "error_processing_image_upload";
-              if (matchingAttachment) matchingAttachment.storagePath = "error_processing_image_upload";
-            }
-          } else if (isBlobUrl || imagePartToProcess.image_url.startsWith("placeholder_id_")) {
-            logger.warn(`[${turnIdentifier}] Image part has ${isBlobUrl ? 'blob' : 'placeholder'} URL ${imagePartToProcess.image_url} but no matching attachment with a file found or file already processed.`);
-            // If no matching file, mark this part's URL so it's skipped or handled as an error by vision model if not already a valid remote URL
-             if (!imagePartToProcess.image_url.startsWith("http")) { // Don't overwrite if it was a placeholder that somehow became valid http
-              imagePartToProcess.image_url = "error_missing_file_for_url";
-             }
           }
-        }
       }
     }
+
 
     // Filter imageParts for vision from the potentially updated mainUserInputContent
     let imageParts = mainUserInputContent.filter(p => {
       if (p.type === 'input_image') {
         // Ensure we only process valid URLs, not error placeholders
-        return !p.image_url.startsWith("error_"); 
+        return !p.image_url.startsWith("error_");
       }
       return false;
     }) as import("@/lib/types/index").ChatMessageContentPartInputImage[];
+
 
     // FINAL FILTER: Only allow valid URLs (http/https) or data URLs (base64)
     imageParts = imageParts.filter(img => {
@@ -536,28 +578,30 @@ try { // Bloc try principal
       return isValid;
     });
 
+
     if (imageParts.length > 0) {
       logger.info(`[${turnIdentifier}] Detected ${imageParts.length} image attachment(s). Generating descriptions.`);
       let imageDescriptions: string[] = [];
       try {
         const visionPromptForDescription = textQueryForRouter || "Describe the content of the provided image(s) in detail. What are the key objects, scenes, and actions?";
-        
+       
         // Construct ChatMessage[] for generateVisionCompletion
         const visionMessages: ChatMessage[] = [
           {
             role: "user",
             content: [
               { type: "text", text: visionPromptForDescription },
-              ...imageParts.map(img => ({ 
+              ...imageParts.map(img => ({
                 type: "input_image" as const, // This is our internal type
-                image_url: img.image_url, 
-                detail: img.detail || "auto" 
+                image_url: img.image_url,
+                detail: img.detail || "auto"
               } as import("@/lib/types/index").ChatMessageContentPartInputImage))
             ],
             timestamp: Date.now(),
             // name: userName, // Optional, can be added if needed by generateVisionCompletion or its internals
           }
         ];
+
 
         // Log the URLs being sent to generateVisionCompletion
         logger.info(`[${turnIdentifier}] Preparing to call generateVisionCompletion. Vision messages content:`);
@@ -572,7 +616,7 @@ try { // Bloc try principal
             });
           }
         });
-        
+       
         const visionCompletionResult = await generateVisionCompletion(
           visionMessages, // messages: ChatMessage[]
           CHAT_VISION_MODEL_NAME_ORCH, // modelName?: string
@@ -580,6 +624,7 @@ try { // Bloc try principal
           userId // userId?: string
           // No 7th argument (interactionType was incorrect for this function)
         );
+
 
         if (visionCompletionResult.text) {
           imageDescriptions.push(visionCompletionResult.text);
@@ -592,11 +637,12 @@ try { // Bloc try principal
            imageDescriptions.push("[Image content present but no textual summary generated.]");
         }
 
+
       } catch (visionError: any) {
         logger.error(`[${turnIdentifier}] Error during image description generation: ${visionError.message}`);
         imageDescriptions.push("[Error during image analysis.]");
       }
-      
+     
       if (imageDescriptions.length > 0) {
         textQueryForRouter += (textQueryForRouter ? "\n" : "") + `[Image Content Summary: ${imageDescriptions.join("\n")}]`;
       } else {
@@ -604,6 +650,7 @@ try { // Bloc try principal
       }
     }
   }
+
 
   const videoAttachment = initialAttachments?.find(att => att.type === 'video' && att.file);
   if (videoAttachment && videoAttachment.file) {
@@ -624,8 +671,10 @@ try { // Bloc try principal
     }
   }
 
+
   // CHANGEMENT: Suppression de la redéclaration de routedTools. La variable de la portée supérieure sera utilisée.
   // let routedTools: ToolRouterPlan = { planned_tools: [] }; // <= LIGNE SUPPRIMÉE
+
 
   const toolRouterPrompt = injectPromptVariables(TOOL_ROUTER_PROMPT_TEMPLATE, {
     userName, userQuery: textQueryForRouter,
@@ -635,7 +684,9 @@ try { // Bloc try principal
     language: lang, userPersona: personaNameForPrompt,
   });
 
+
   logger.info(`[${turnIdentifier}] Invoking Tool Router (${PLANNING_MODEL_NAME_ORCH})... Query for router: "${textQueryForRouter.substring(0, 70)}"`);
+
 
   const routerSchema = {
     type: "object" as const,
@@ -662,6 +713,7 @@ try { // Bloc try principal
     additionalProperties: false
   };
 
+
   const routerResult = await generateStructuredJson<ToolRouterPlan>(
     toolRouterPrompt, textQueryForRouter,
     routerSchema,
@@ -669,6 +721,7 @@ try { // Bloc try principal
     history.filter(m => typeof m.content === 'string'),
     PLANNING_MODEL_NAME_ORCH, userId
   );
+
 
   if ("error" in routerResult) {
     logger.error(`[${turnIdentifier}] Tool Router (${PLANNING_MODEL_NAME_ORCH}) failed: ${routerResult.error}. Proceeding without tools.`);
@@ -680,6 +733,7 @@ try { // Bloc try principal
     finalFlowType = routedTools.planned_tools.length > 0 ? "workflow_routed" : "direct_llm_no_tools_routed";
   }
 
+
   // toolExecutionMessages est déjà initialisé à [] au début de la fonction
   if (routedTools.planned_tools.length > 0) {
     const executionResult = await this.executeToolCalls(userId, routedTools.planned_tools, effectiveApiContext, userState);
@@ -687,6 +741,7 @@ try { // Bloc try principal
     finalStructuredResult = executionResult.lastStructuredData;
     currentTurnToolResultsSummary = executionResult.toolResultsSummary;
   }
+
 
   // messagesForGpt4o est déjà initialisé à [] au début de la fonction
   messagesForGpt4o = [
@@ -698,12 +753,15 @@ try { // Bloc try principal
     messagesForGpt4o.push({ role: "system", content: `Context from attached video: ${videoSummaryForContext}`, timestamp: Date.now() });
   }
 
+
   // retrievedMemoryContext est déjà initialisé au début de la fonction
   const entitiesForMemorySearch: string[] = [textQueryForRouter.substring(0, 70)];
   // Ensure finalStructuredResult is not null and has a title property (with type safety)
   if (finalStructuredResult && typeof (finalStructuredResult as any).title === 'string') {
     entitiesForMemorySearch.push((finalStructuredResult as any).title);
   }
+
+
 
 
   if (entitiesForMemorySearch.length > 0 && entitiesForMemorySearch.some(e => e.trim() !== "")) {
@@ -714,6 +772,7 @@ try { // Bloc try principal
     }
   }
   // CHANGEMENT: Fin de la section qui était dans le bloc try interne.
+
 
 } catch (error: any) { // Catch du bloc try principal
   const duration = Date.now() - overallStartTime;
@@ -726,13 +785,15 @@ try { // Bloc try principal
   return { sessionId: runId, response: `I apologize, ${userNameForError}. I encountered an internal error. Minato is looking into it.`, error: errorMsg, lang: lang, audioUrl: null, intentType: responseIntentType, ttsInstructions: getDynamicInstructions(responseIntentType), debugInfo: { flow_type: 'error', llmUsage: llmUsage_total, latencyMs: duration }, workflowFeedback: null, clarificationQuestion: undefined, structuredData: null, transcription: typeof userInput === 'string' && apiContext?.transcription ? apiContext.transcription : null, llmUsage: llmUsage_total, attachments: initialAttachments };
 }
 
-const synthesisSystemPrompt = injectPromptVariables(RESPONSE_SYNTHESIS_PROMPT_TEMPLATE, {
+
+const synthesisSystemPrompt = injectPromptVariables(TOOL_ROUTER_PROMPT_TEMPLATE, {
   userName, personaName: personaNameForPrompt, personaInstructions: personaSpecificInstructions, language: lang,
   retrieved_memory_context: retrievedMemoryContext,
   tool_results_summary: currentTurnToolResultsSummary || "No tools were executed by Minato this turn, or their results are directly integrated.",
   original_query: textQueryForRouter,
   tool_router_follow_up_suggestion: toolRouterFollowUpSuggestion || `Is there anything else Minato can help you with today, ${userName}?`
 });
+
 
 logger.info(`[${turnIdentifier}] Synthesizing final response (${CHAT_VISION_MODEL_NAME_ORCH})...`);
 const synthesisResult = await generateStructuredJson<{ responseText: string; intentType: string }>(
@@ -749,12 +810,14 @@ const synthesisResult = await generateStructuredJson<{ responseText: string; int
   userId
 );
 
+
 const synthesisLlmUsage = (synthesisResult as any).usage as CompletionUsage | undefined;
 if (synthesisLlmUsage) {
   llmUsage_total.prompt_tokens += synthesisLlmUsage.prompt_tokens || 0;
   llmUsage_total.completion_tokens += synthesisLlmUsage.completion_tokens || 0;
   llmUsage_total.total_tokens += synthesisLlmUsage.total_tokens || 0;
 }
+
 
 if ("error" in synthesisResult) {
   finalResponseText = `I've processed your request, ${userName}, but I'm having a bit of trouble wording my reply. ${synthesisResult.error?.substring(0, 100) || "Could you try rephrasing?"}`;
@@ -771,6 +834,7 @@ if ("error" in synthesisResult) {
 ttsInstructionsForFinalResponse = getDynamicInstructions(responseIntentType);
 finalResponseSource = CHAT_VISION_MODEL_NAME_ORCH + " Synthesis";
 
+
 const userMemoryMsgForAdd: MemoryFrameworkMessage | null = mainUserInputContent.length > 0
   ? { role: 'user', content: chatMessageContentPartsToMessageParts(mainUserInputContent), name: userName }
   : null;
@@ -778,8 +842,10 @@ const finalAssistantMemoryMsg: MemoryFrameworkMessage | null = finalResponseText
 const finalTurnForMemory: MemoryFrameworkMessage[] = [userMemoryMsgForAdd, finalAssistantMemoryMsg].filter((m): m is MemoryFrameworkMessage => m !== null);
 if (finalTurnForMemory.length > 0) { this.memoryFramework.add_memory(finalTurnForMemory, userId, runId, null).then(success => logger.info(`[${turnIdentifier}] Async memory add OK: ${success}.`)).catch(e => logger.error(`[${turnIdentifier}] Async memory add FAIL:`, e.message)); }
 
+
 const orchestrationMs = Date.now() - overallStartTime;
 finalResponseText = finalResponseText ? injectPromptVariables(finalResponseText, { userName }) : null;
+
 
 const debugInfoInternal: OrchestratorResponse['debugInfo'] = {
   flow_type: finalFlowType,
@@ -791,6 +857,7 @@ const debugInfoInternal: OrchestratorResponse['debugInfo'] = {
   videoSummaryUsed: videoSummaryForContext ? videoSummaryForContext.substring(0, 100) + "..." : null,
 };
 logger.info(`--- ${turnIdentifier} Orchestration complete (${orchestrationMs}ms). Flow: ${finalFlowType}. ---`);
+
 
 return {
   sessionId: runId, response: finalResponseText,
@@ -804,6 +871,7 @@ return {
   llmUsage: llmUsage_total,
   attachments: [], // Ensure attachments are handled if needed in the response
 };
+
 
 }
 async processTextMessage(
@@ -822,17 +890,19 @@ const effectiveApiContext = { ...apiContext, sessionId: effectiveSessionId, loca
 const inputText = text ?? "";
 let orchestratorInput: string | ChatMessageContentPart[] = inputText;
 
+
 // Ensure proper handling of attachments to create ChatMessageContentPartInputImage
 if (attachments && attachments.length > 0) {
   const contentParts: ChatMessageContentPart[] = [{ type: "text", text: inputText }];
   let hasImageAttachment = false;
 
+
   for (const att of attachments) {
     if (att.type === "image") {
       hasImageAttachment = true;
       if (att.file) { // If a file object exists, prioritize it for creating an input_image part
-        const imageUrlForPart = (att.url && att.url.startsWith("blob:")) 
-          ? att.url 
+        const imageUrlForPart = (att.url && att.url.startsWith("blob:"))
+          ? att.url
           : `placeholder_id_${att.id || randomUUID()}`; // Use placeholder if URL is not blob or missing
         contentParts.push({ type: "input_image", image_url: imageUrlForPart, detail: "auto" });
       } else if (att.url) { // No file, but an existing URL (e.g., http, supabase_storage)
@@ -844,6 +914,7 @@ if (attachments && attachments.length > 0) {
     }
     // Other attachment types like 'document' or 'audio' are not typically converted to input_image parts.
   }
+
 
   if (hasImageAttachment || contentParts.length > 1) { // If images were added, or if initial text was only for context to multiple images
     // If the only text part is empty and images were added, remove the empty text part.
@@ -857,8 +928,11 @@ if (attachments && attachments.length > 0) {
 }
 
 
+
+
 const result = await this.runOrchestration(userId, orchestratorInput, history, effectiveApiContext, attachments);
 return { ...result, sessionId: effectiveSessionId, lang: result.lang || lang };
+
 
 }
 private async fetchAudioBuffer(url: string): Promise<Buffer> {
@@ -876,6 +950,7 @@ const controller = new AbortController();
     controller.abort();
   }, 15000); // 15-second timeout
 
+
   logger.debug(`${logPrefix} Fetching audio from Supabase storage: ${url.substring(0,100)}...`);
   const response = await fetch(url, {
     signal: controller.signal,
@@ -883,11 +958,13 @@ const controller = new AbortController();
   });
   clearTimeout(timeoutId);
 
+
   if (!response.ok) {
     const errorText = await response.text().catch(() => `Status ${response.statusText}`);
     logger.error(`${logPrefix} Supabase storage error: ${response.status} ${response.statusText}. URL: ${url.substring(0,100)}... Response body: ${errorText.substring(0,200)}`);
     throw new Error(`Supabase storage error: ${response.status} ${response.statusText}`);
   }
+
 
   const arrayBuffer = await response.arrayBuffer();
   logger.debug(`${logPrefix} Audio fetched successfully from ${url.substring(0,100)}... Size: ${arrayBuffer.byteLength} bytes.`);
@@ -896,6 +973,7 @@ const controller = new AbortController();
   logger.error(`${logPrefix} Audio fetch failed for URL ${url.substring(0,100)}... Error: ${error.message}`, error.stack);
   throw new Error(`Audio processing error: ${error.message}`);
 }
+
 
 }
 public async processAudioMessage(
@@ -934,21 +1012,25 @@ const audioBuffer = await this.fetchAudioBuffer(audioSignedUrl);
     detectedLang = transcriptionResult.language || null;
     logger.info(`--- ${turnIdentifier} STT OK. Lang: ${detectedLang || "unk"}. Text: "${transcribedText.substring(0, 50)}..."`);
 
+
     const userState = await supabaseAdmin.getUserState(userId);
     const lang = detectedLang || apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0] || "en";
     const effectiveApiContext = { ...apiContext, sessionId: currentSessionId, runId: currentSessionId, locale: userState?.preferred_locale || (appConfig as any).defaultLocale, lang, detectedLanguage: detectedLang, userName, transcription: transcribedText };
 
+
     orchResult = await this.runOrchestration(userId, transcribedText, history, effectiveApiContext);
+
 
     if (orchResult && orchResult.error && !orchResult.clarificationQuestion) {
       logger.warn(`--- ${turnIdentifier} Orchestration returned an error: ${orchResult.error}`);
       // Potentially do not proceed to TTS if orchestration itself signals a critical error that shouldn't be spoken
     }
 
+
     let ttsUrl: string | null = null;
     if (orchResult?.response) { // Only generate TTS if there's a response text
-      let selectedVoice = isValidOpenAITtsVoice((appConfig as any).openai.ttsDefaultVoice) 
-        ? (appConfig as any).openai.ttsDefaultVoice 
+      let selectedVoice = isValidOpenAITtsVoice((appConfig as any).openai.ttsDefaultVoice)
+        ? (appConfig as any).openai.ttsDefaultVoice
         : 'nova' as OpenAITtsVoice;
       const persona = userState?.active_persona_id ? await this.memoryFramework.getPersonaById(userState.active_persona_id, userId) : null;
       if (persona?.voice_id && isValidOpenAITtsVoice(persona.voice_id)) {
@@ -964,12 +1046,15 @@ const audioBuffer = await this.fetchAudioBuffer(audioSignedUrl);
       if (orchResult) orchResult.audioUrl = ttsUrl; // Update orchResult directly
     }
 
+
     // Update state and streak regardless of TTS success if core processing was attempted
     supabaseAdmin.updateState(userId, { last_interaction_at: new Date().toISOString(), preferred_locale: effectiveApiContext.locale }).catch((err: any) => logger.error(`Err state update:`, err));
     supabaseAdmin.incrementStreak(userId, "daily_voice").catch((err: any) => logger.error(`Err streak:`, err));
 
+
     const duration = Date.now() - startTime;
     logger.info(`--- ${turnIdentifier} AUDIO complete (${duration}ms).`);
+
 
     const finalDebugInfo: OrchestratorResponse['debugInfo'] = {
       ...(orchResult?.debugInfo || {}), // Spread debugInfo from orchestration
@@ -980,6 +1065,7 @@ const audioBuffer = await this.fetchAudioBuffer(audioSignedUrl);
       latencyMs: duration, // Overall latency for audio processing
       assistantMessageId: (orchResult as any)?.id, // If orchestrator response has an ID
     };
+
 
     // Ensure all parts of OrchestratorResponse are correctly populated from orchResult
     return {
@@ -999,21 +1085,24 @@ const audioBuffer = await this.fetchAudioBuffer(audioSignedUrl);
       attachments: orchResult?.attachments || []
     };
 
+
   } catch (error: any) {
     const duration = Date.now() - startTime;
     const errorMessageString = String(error?.message || error || `Failed processing audio for ${userName}.`);
     logger.error(`--- ${turnIdentifier} Error (${duration}ms): ${errorMessageString}`, error.stack);
 
+
     const userFacingError = `I'm sorry, ${userName}, I encountered an issue processing your audio. Please try again.`; // Simplified user-facing error
     const responseIntentTypeOnError = "error";
     const debugInfoOnError: OrchestratorResponse['debugInfo'] = { latencyMs: duration, audioFetchMs: audioFetchDuration, sttMs: sttDuration, sttModelUsed: (appConfig as any).openai.sttModel, flow_type: 'error' };
+
 
     let errorTtsUrl: string | null = null;
     try {
       // Attempt to generate TTS for the error message itself
       const userStateOnError = await supabaseAdmin.getUserState(userId); // Fetch state again for voice preference
-      const errorTtsVoice = (userStateOnError?.chainedvoice && isValidOpenAITtsVoice(userStateOnError.chainedvoice)) 
-        ? userStateOnError.chainedvoice 
+      const errorTtsVoice = (userStateOnError?.chainedvoice && isValidOpenAITtsVoice(userStateOnError.chainedvoice))
+        ? userStateOnError.chainedvoice
         : (isValidOpenAITtsVoice((appConfig as any).openai.ttsDefaultVoice) ? (appConfig as any).openai.ttsDefaultVoice : 'nova');
       const errorTtsResult = await this.ttsService.generateAndStoreSpeech(
         userFacingError, userId,
@@ -1024,6 +1113,7 @@ const audioBuffer = await this.fetchAudioBuffer(audioSignedUrl);
     } catch (ttsErrorException: any) {
       logger.error(`--- ${turnIdentifier} Failed to generate TTS for error message:`, ttsErrorException.message);
     }
+
 
     return {
       sessionId: currentSessionId,
@@ -1047,6 +1137,7 @@ const audioBuffer = await this.fetchAudioBuffer(audioSignedUrl);
   // This rethrow will be caught by the outer try...catch in the API route
   throw error;
 }
+
 
 }
 }
