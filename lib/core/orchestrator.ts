@@ -22,7 +22,7 @@ MessageAttachment,
 ChatMessageContentPartInputImage,
 } from "@/lib/types/index";
 import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "../tools/base-tool";
-import { tools as appToolsRegistry } from "../tools/index";
+import { tools as appToolsRegistry, resolveToolName } from "../tools/index";
 import { MemoryTool } from "../tools/MemoryTool";
 import { TTSService } from "../providers/tts_service";
 import { STTService } from "../providers/stt_service";
@@ -263,7 +263,7 @@ const executionPromises = toolCallsFromRouter
 .filter(routedToolCall => this.validateToolStep(routedToolCall))
 .map(async (routedToolCall) => {
 const toolName = routedToolCall.tool_name;
-const tool = this.toolRegistry[toolName];
+const tool = resolveToolName(toolName);
 const callId = `toolcall_${randomUUID()}`;
 if (!tool) {
       logger.error(`${logPrefix} Tool '${toolName}' (from Router) not found.`);
@@ -912,6 +912,10 @@ const debugInfoInternal: OrchestratorResponse['debugInfo'] = {
   videoSummaryUsed: videoSummaryForContext ? videoSummaryForContext.substring(0, 100) + "..." : null,
 };
 logger.info(`--- ${turnIdentifier} Orchestration complete (${orchestrationMs}ms). Flow: ${finalFlowType}. ---`);
+
+
+// Limit the number of planned tools to a maximum of four
+routedTools.planned_tools = routedTools.planned_tools.slice(0, 4);
 
 
 return {
