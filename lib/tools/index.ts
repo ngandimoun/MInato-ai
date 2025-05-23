@@ -84,3 +84,28 @@ if (typeof window === "undefined") {
 // }
 
 // Add similar schema definitions to all tools
+
+// Function to map tool name variations to the correct tool instance
+export function resolveToolName(toolName: string): BaseTool | null {
+  const toolNameMap: { [key: string]: string } = {
+    "news": "NewsAggregatorTool",
+    "newstool": "NewsAggregatorTool",
+    "NewsTool": "NewsAggregatorTool",
+    "search": "WebSearchTool",
+    "datetime": "DateTimeTool",
+    "eventfinder": "EventFinderTool",
+    "calendar": "GoogleCalendarReaderTool",
+    "gmail": "GoogleGmailReaderTool",
+    "hackernews": "HackerNewsTool",
+    "youtube": "YouTubeSearchTool",
+    "reddit": "RedditTool",
+    "reminder": "ReminderReaderTool",
+    "sports": "SportsInfoTool",
+    "recipe": "RecipeSearchTool",
+    "memory": "MemoryTool",
+    // Add more mappings as needed
+  };
+  // Try exact match first, then case-insensitive fallback
+  const resolvedName = toolNameMap[toolName] || toolNameMap[toolName.toLowerCase()] || toolName;
+  return tools[resolvedName] || null;
+}
