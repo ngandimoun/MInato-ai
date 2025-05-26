@@ -124,6 +124,9 @@ required: ["action", "maxResults", "query", "summarize_body", "summarize_limit"]
 additionalProperties: false as false,
 };
 cacheTTLSeconds = 60 * 2;
+categories = ["email", "productivity", "google"];
+version = "1.0.0";
+metadata = { provider: "Gmail API", supports: ["read_email", "summarize_email"] };
 async execute(input: GmailInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
 const effectiveAction = input.action === undefined ? "get_recent_emails" : input.action;
 const effectiveMaxResults = input.maxResults === undefined ? 5 : Math.max(1, Math.min(input.maxResults, 10));

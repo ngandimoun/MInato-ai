@@ -1,0 +1,3081 @@
+
+
+Okay, let's break down how tools, workflows, and parallel tool execution work based on these files.
+Choose GPT-4o (gpt-4o-2024-08-06) if:
+
+You require strict adherence to complex JSON schemas.
+
+Your application benefits from faster response times and higher rate limits.
+
+You need to process multimodal inputs (e.g., images, audio).
+
+Cost efficiency is a priority
+
+so it wiil be more asycn , fast and reliable 
+because minato chat m and vision use also gpt-4o-2024-08-06
+and the tts and stt use gpt4o family 
+For applications requiring seamless integration with tools, robust function calling, and precise JSON generation, OpenAI's GPT-4o (e.g., gpt-4o-2024-08-06) stands out as the most capable model currently available.
+
+
+| Feature                    | GPT-4o Highlights                                                          |                                                         |
+| -------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------- |
+| **Function Calling**       | Supports advanced tool usage with multi-function orchestration.            |                                                         |
+| **Structured Outputs**     | Achieves 100% adherence to developer-defined JSON Schemas in strict mode.  |                                                         |
+| **JSON Mode**              | Ensures outputs are valid JSON, reducing the need for post-processing.     |                                                         |
+| **Performance Benchmarks** | Matches top-tier models in tasks like MMLU and HumanEval.                  |                                                         |
+| **Cost-Effectiveness**     | Offers competitive pricing for both input and output tokens.               | ([vellum.ai][1], [openai.com][2], [help.openai.com][3]) |
+
+[1]: https://www.vellum.ai/blog/when-should-i-use-function-calling-structured-outputs-or-json-mode?utm_source=chatgpt.com "When should I use function calling, structured outputs or JSON mode?"
+[2]: https://openai.com/index/introducing-structured-outputs-in-the-api/?utm_source=chatgpt.com "Introducing Structured Outputs in the API - OpenAI"
+[3]: https://help.openai.com/en/articles/8555517-function-calling-in-the-openai-api?utm_source=chatgpt.com "Function Calling in the OpenAI API - OpenAI Help Center"
+
+Conclusion
+For robust tool integration, reliable function calling, and precise JSON generation, GPT-4o is the premier choice, offering advanced capabilities and cost-effective performance
+
+
+Core Principles:
+
+LLM-Driven Orchestration: The system heavily relies on Large Language Models (LLMs) for complex decision-making. This includes:
+
+Planning (Tool Routing): Deciding which tool(s) to use based on the user's query and context.
+
+Synthesis: Generating a natural language response after tools have executed (or if no tools are needed).
+
+Data Extraction/Transformation: Sometimes used to get structured data or resolve ambiguities (like tool name resolution).
+
+Structured Data Exchange: LLMs are often prompted to return JSON objects that conform to a specific schema. This is crucial for reliable tool routing (ToolRouterPlan) and for the final response structure (responseText, intentType). The generateStructuredJson function in llm_clients.ts is key here, using OpenAI's JSON mode.
+
+Modularity: Tools are designed as independent units (BaseTool) with defined inputs (argsSchema) and outputs. This makes them pluggable and manageable.
+
+Context is King: The quality of LLM decisions depends heavily on the context provided. The orchestrator meticulously assembles prompts with user query, chat history, user state, available tools, and memory.
+
+Asynchronous Operations: Many operations (LLM calls, tool executions, I/O) are asynchronous, managed with async/await and Promises.
+
+Configuration-Driven: Key parameters like LLM model names, timeouts, API keys, and feature flags are managed via the appConfig (derived from memory-framework/config/index.ts and lib/config.ts).
+
+I. Tools
+
+Definition (lib/tools/base-tool.ts - not provided but implied, and lib/tools/index.ts):
+
+Each tool inherits from a BaseTool class (or implements a similar interface).
+
+Key properties of a tool:
+
+name: A unique, canonical string identifier (e.g., "WebSearchTool").
+
+description: A natural language description of what the tool does and when to use it. This is provided to the LLM Tool Router.
+
+argsSchema: A JSON schema defining the expected input arguments for the tool (e.g., { type: "object", properties: { query: { type: "string", description: "The search query" } }, required: ["query"] }). This is used for:
+
+Informing the LLM Tool Router about what arguments to generate.
+
+Validating the arguments provided by the LLM before execution (using Ajv).
+
+enabled: A boolean flag to enable/disable the tool.
+
+Key method:
+
+execute(input: ToolInput, abortSignal?: AbortSignal): Promise<ToolOutput>: The core logic of the tool. It takes validated arguments and returns a result, any structured data, or an error. The abortSignal is for timeout management.
+
+Registration (lib/core/orchestrator.ts constructor & lib/tools/index.ts):
+
+Static Registry (lib/tools/index.ts): Most tools are instantiated and added to a tools object.
+
+// lib/tools/index.ts
+export const tools: { [key: string]: BaseTool } = {
+  WebSearchTool: new WebSearchTool(),
+  // ... other tools
+};
+
+
+Dynamic Addition (lib/core/orchestrator.ts constructor): The Orchestrator creates its own toolRegistry. It takes the static appToolsRegistry and adds tools like MemoryTool (which needs an instance of CompanionCoreMemory).
+
+// lib/core/orchestrator.ts
+const memoryToolInstance = new MemoryTool(this.memoryFramework);
+this.toolRegistry = {
+  ...appToolsRegistry,
+  [memoryToolInstance.name]: memoryToolInstance,
+};
+
+Formatting for LLM Router: The Orchestrator then creates availableToolsForRouter, which is a list of tool definitions formatted specifically for the OpenAI API (or a similar LLM). This includes the tool's name, description, and a sanitized version of its argsSchema (via sanitizeToolParameterSchemaForOpenAI).
+
+Resolution (How the system finds the correct tool to execute):
+
+The LLM Tool Router might return a tool_name that is slightly different from the canonical name (e.g., "news" instead of "NewsAggregatorTool", or a non-English name).
+
+The Orchestrator.getResolvedTool() method handles this:
+
+Direct Match: Checks if toolNameFromRouter exists directly in this.toolRegistry.
+
+Static Alias Resolution: Calls resolveToolName(toolNameFromRouter) from lib/tools/index.ts. This function has a hardcoded map of common aliases to canonical names.
+
+Cache Lookup: Checks this.toolNameResolutionCache if a previous LLM-based resolution for this toolNameFromRouter exists.
+
+LLM-based Resolution: If not found, it calls resolveToolNameWithLLM() from lib/providers/llm_clients.ts.
+
+This function prompts another LLM (typically a faster/cheaper one like appConfig.openai.extractionModel).
+
+The prompt includes the givenToolName and the list of canonicalToolNames from the orchestrator's registry.
+
+It asks the LLM to return a JSON object like { "resolved_tool_name": "CanonicalName", "confidence": "high" }.
+
+The result is cached in this.toolNameResolutionCache.
+
+The resolved canonical name is then used to get the tool instance from this.toolRegistry.
+
+Execution (lib/core/orchestrator.ts - executeToolCalls method):
+
+Argument Fallback: Before validation, there's logic to fill in missing required arguments for certain tools if the LLM router didn't provide them. For example, if WebSearchTool is called without a query, but apiContext.userInput exists, that user input is used as the query.
+
+Validation: The (potentially modified) arguments are validated against the tool's argsSchema using Ajv (this.validateToolStep). If validation fails, the tool is skipped.
+
+Timeout: An AbortController and setTimeout are used to enforce a timeout for each tool execution (configurable via appConfig.toolTimeoutMs or a tool-specific timeoutMs).
+
+Call: tool.execute(toolInput, abortController.signal) is called.
+
+Output Handling:
+
+The content of the tool's execution (string summary) is added to a ChatMessage with role: "tool".
+
+If the tool successfully returns structuredData, it's stored, and the lastSuccessfulStructuredData is updated.
+
+Errors are caught and formatted into the tool result message.
+
+II. Workflows (lib/core/orchestrator.ts - runOrchestration method)
+
+This is the main sequence of operations for handling a user request:
+
+Initialization & Context Gathering:
+
+Sets up runId, turnIdentifier.
+
+Fetches user information (name, language, persona from UserState and CompanionCoreMemory).
+
+Prepares effectiveApiContext.
+
+Input Processing & Enrichment:
+
+The userInput can be a string or an array of ChatMessageContentPart (text, images).
+
+
+The PLANNING_MODEL_NAME_ORCH (e.g., gpt-4o) is used for this.
+
+The number of planned tools is capped by appConfig.openai.maxToolsPerTurn.
+
+If routing fails, the flow proceeds to direct LLM response.
+
+Execution Phase (Tool Calls):
+
+If routedTools.planned_tools is not empty, this.executeToolCalls() is invoked (see "Parallel Tools" and "Tools: Execution" sections for details).
+
+Results from tool executions (success or error messages) are collected as toolExecutionMessages.
+
+finalStructuredResult stores the structured data from the last successfully executed tool.
+
+currentTurnToolResultsSummary aggregates a brief summary of all tool actions.
+
+Context Enrichment (Memory):
+
+Relevant memories are fetched using this.memoryFramework.search_memory() based on the textQueryForRouter and potentially titles from finalStructuredResult.
+
+The found memories form retrievedMemoryContext.
+
+Synthesis Phase (Generating Final Response):
+
+messagesForGpt4o are assembled: chat history, current user input (with original image parts if any), and toolExecutionMessages.
+
+III. Parallel Tools (lib/core/orchestrator.ts - executeToolCalls method)
+
+The system executes multiple tools planned by the LLM router in parallel.
+
+Mechanism:
+
+The executeToolCalls function receives the toolCallsFromRouter (an array of ToolRouterPlanStep).
+
+It maps over this array, creating an array of promises (executionPromises). Each promise represents the asynchronous execution of a single tool (including resolution, validation, the actual tool.execute() call, and timeout handling).
+
+const executionPromises = toolCallsFromRouter.map(async (routedToolCall) => {
+    // ... resolve tool, validate args ...
+    const output: ToolOutput = await tool.execute(toolInput, abortController.signal);
+    // ... process output ...
+    return { role: "tool" ... content: resultString };
+});
+
+
+Promise.allSettled(executionPromises) is then used. This is the key to parallel execution.
+
+Promise.allSettled takes an array of Promises and returns a single Promise that fulfills after all the given promises have either fulfilled or rejected.
+
+This means all tool executions are initiated, and the system waits for all of them to complete (successfully or with an error/timeout) before proceeding.
+
+It does not stop if one tool fails; it waits for all.
+
+Benefits:
+
+Reduced Latency: If multiple independent tools are needed (e.g., get weather, get news, check calendar), running them in parallel significantly reduces the total time compared to running them sequentially.
+
+Efficiency: Makes better use of time while waiting for I/O-bound operations (like API calls within tools).
+
+Outcome Processing:
+
+After Promise.allSettled resolves, the code iterates through settledResults.
+
+For each fulfilled promise, the resulting tool message (e.g., { role: "tool", tool_call_id: "...", name: "...", content: "..." }) is added to toolResultsMessages.
+
+The lastSuccessfulStructuredData is updated if a tool call was successful and returned structured data.
+
+For rejected promises or tools that explicitly returned an error, an error message is still formulated and added to toolResultsMessages to inform the synthesis LLM.
+
+Key Elements Summary:
+
+Orchestrator: The central coordinator.
+
+LLM Clients (generateStructuredJson, generateAgentResponse, resolveToolNameWithLLM): Interface to LLMs for planning, synthesis, and specific tasks.
+
+Tool Registry & BaseTool: Defines and manages available tools.
+
+Tool Router Plan (ToolRouterPlan): The LLM's plan for which tools to use.
+
+executeToolCalls with Promise.allSettled: Enables parallel execution of planned tools.
+
+Context Prompts (for routing and synthesis): Carefully crafted prompts that provide LLMs with necessary information.
+
+Configuration (appConfig): Controls models, timeouts, features.
+
+
+This system is designed to be a flexible and powerful AI agent capable of understanding complex requests, utilizing external tools efficiently, and generating contextually appropriate responses.
+
+
+
+
+
+
+Here's how it works, 
+
+LLM-Driven Planning:
+
+The primary decision on which tools to use, and therefore how many, comes from the Tool Router LLM (defined by PLANNING_MODEL_NAME_ORCH, e.g., gpt-4o-2024-08-06).
+
+In the runOrchestration method, the generateStructuredJson function is called with TOOL_ROUTER_PROMPT_TEMPLATE.
+
+The LLM is tasked with returning a ToolRouterPlan, which is an object containing an array: planned_tools: ToolRouterPlanStep[].
+
+The length of this planned_tools array is what the LLM decides based on its understanding of the user's query and the available tools. It could be zero, one, or multiple tools.
+
+System-Imposed Limit:
+
+After the LLM returns its plan (routerResult), the orchestrator applies a hard cap:
+
+// lib/core/orchestrator.ts
+const routerResult = await generateStructuredJson<ToolRouterPlan>(/* ... */);
+
+if ("error" in routerResult) {
+    // ... handle router failure ...
+} else {
+    routedTools = routerResult;
+    // Use appConfig.openai.maxToolsPerTurn for the limit
+    const maxToolsThisTurn = appConfig.openai.maxToolsPerTurn; // <--- KEY LINE
+    if (routedTools.planned_tools.length > maxToolsThisTurn) {
+        logger.warn(`[${turnIdentifier}] Tool Router selected ${routedTools.planned_tools.length} tools, limiting to max ${maxToolsThisTurn}.`);
+        routedTools.planned_tools = routedTools.planned_tools.slice(0, maxToolsThisTurn); // <--- TRUNCATION
+    }
+    // ...
+}
+
+
+appConfig.openai.maxToolsPerTurn determines the maximum number of tools that will actually be considered for execution in a single turn.
+
+Configuration of the Limit:
+
+Looking at lib/config.ts:
+
+// lib/config.ts
+openai: {
+  // ...
+  maxToolsPerTurn: frameworkConfigUnified.llm.maxToolsPerTurn ?? 3,
+},
+
+
+This means it primarily takes the value from the memory-framework config, or defaults to 3 if that's not set.
+
+Looking at memory-framework/config/index.ts:
+
+// memory-framework/config/index.ts
+// In the loadConfig function, under loadedConfig:
+maxToolsPerTurn: 3, // This is a property of the loadedConfig object
+
+// And then in appConfig (at the end of memory-framework/config/index.ts):
+export const appConfig = {
+  // ...
+  openai: {
+    // ...
+    maxToolsPerTurn: 3, // Explicitly set here for the framework's re-exported appConfig
+    // ...
+  },
+};
+
+
+The default value for maxToolsPerTurn is 3.
+
+In summary:
+
+The Tool Router LLM initially decides how many tools it deems necessary by the number of entries it puts in the planned_tools array.
+
+The system then caps this number at appConfig.openai.maxToolsPerTurn, which defaults to 3.
+
+So, for any given user query, the number of tools executed will be:
+
+0 if the LLM decides no tools are needed.
+
+Between 1 and maxToolsPerTurn (inclusive) if the LLM plans tools, up to the configured limit. The actual number executed might be less if some tools fail validation or their execution encounters an error, but the number attempted after planning is capped.
+
+
+
+
+
+
+
+// FILE: lib/core/orchestrator.ts
+import { randomUUID } from "crypto";
+import OpenAI from "openai";
+import type { ChatCompletionMessageToolCall } from "openai/resources/chat/completions";
+import { CompanionCoreMemory } from "../../memory-framework/core/CompanionCoreMemory";
+import {
+MemoryFrameworkMessage,
+UserState,
+AnyToolStructuredData,
+ChatMessage,
+OrchestratorResponse,
+StoredMemoryUnit,
+ReminderDetails,
+PredefinedPersona,
+UserPersona,
+OpenAITtsVoice,
+ExtractedInfo,
+ChatMessageContentPart,
+ChatMessageContentPartText,
+ResponseApiInputContent,
+MessageAttachment,
+ChatMessageContentPartInputImage,
+OpenAIPlanningModel,
+} from "@/lib/types/index";
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "../tools/base-tool";
+import { tools as appToolsRegistry, resolveToolName } from "../tools/index";
+import { MemoryTool } from "../tools/MemoryTool";
+// TODO: Consider if InternalTaskTool is needed and how it's integrated
+// import { InternalTaskTool } from "../tools/InternalTaskTool";
+import { TTSService } from "../providers/tts_service";
+import { STTService } from "../providers/stt_service";
+import { VideoAnalysisService } from "../services/VideoAnalysisService";
+import { supabaseAdmin } from "../supabaseClient";
+import { getSupabaseAdminClient } from "../supabase/server";
+import { Security } from "../utils/security";
+import {
+MAX_CHAT_HISTORY,
+SESSION_ID_PREFIX,
+DEFAULT_USER_NAME,
+MEMORY_SEARCH_LIMIT_DEFAULT,
+DEFAULT_PERSONA_ID,
+DEFAULT_TOOL_TIMEOUT_MS,
+MEDIA_UPLOAD_BUCKET,
+} from "../constants";
+import { appConfig, injectPromptVariables } from "../config";
+import {
+generateAgentResponse,
+generateStructuredJson,
+generateVisionCompletion,
+resolveToolNameWithLLM,
+} from "../providers/llm_clients";
+import { TOOL_ROUTER_PROMPT_TEMPLATE } from "../prompts";
+import { logger } from "../../memory-framework/config";
+import { safeJsonParse } from "../../memory-framework/core/utils";
+import { CompletionUsage } from "openai/resources";
+import Ajv from "ajv";
+import type { ValidateFunction } from "ajv";
+type SdkResponsesApiTool = OpenAI.Chat.Completions.ChatCompletionTool;
+type SdkResponsesApiFunctionCall = ChatCompletionMessageToolCall;
+type ToolRouterPlanStep = {
+tool_name: string;
+arguments: Record<string, any>;
+reason: string;
+};
+type ToolRouterPlan = {
+planned_tools: ToolRouterPlanStep[];
+};
+const TTS_INSTRUCTION_MAP: Record<string, string> = {
+neutral: "Tone: Warm, Pace: Natural, Pitch: Medium",
+greeting: "Tone: Friendly and welcoming, Pace: Natural, Pitch: Medium",
+farewell: "Tone: Warm and concluding, Pace: Natural, Pitch: Slightly lower",
+confirmation_positive: "Tone: Affirming and clear, Pace: Natural, Pitch: Medium",
+confirmation_negative: "Tone: Neutral but clear, Pace: Natural, Pitch: Medium",
+clarification: "Tone: Inquisitive and helpful, Pace: Slightly slower, Pitch: Rising slightly",
+celebratory: "Tone: Excited, Pace: Slightly faster, Emphasis: Moderate (20%), Pitch: Slightly higher",
+happy: "Tone: Bright, Pace: Natural, Pitch: Slightly higher",
+encouraging: "Tone: Supportive, Pace: Natural, Volume: Slightly softer",
+apologetic: "Tone: Soft, Pace: Slower, Pauses: Moderate, Pitch: Slightly lower",
+empathy: "Tone: Caring and understanding, Pace: Gentle, Pitch: Soft",
+concerned: "Tone: Serious, Pace: Slightly slower, Pitch: Slightly lower, Volume: Normal",
+disappointed: "Tone: Subdued, Pace: Slower, Pitch: Lower, Volume: -5%",
+urgent: "Tone: Firm, Pace: Rapid, Volume: +10%, Emphasis: Strong (30%)",
+calm: "Tone: Soothing, Pace: Slower, Volume: -5%",
+gentle: "Tone: Soft, Pace: Slower, Pitch: Medium-Low",
+informative: "Tone: Clear, Pace: Natural, Volume: Normal",
+instructional: "Tone: Clear and guiding, Pace: Deliberate, Pitch: Medium",
+questioning: "Tone: Curious, Pace: Natural, Intonation Contour: Rising at end",
+assertive: "Tone: Confident, Pace: Natural, Volume: +5%",
+formal: "Tone: Neutral-Serious, Pace: Measured, Articulation: Precise",
+whispering: "Tone: Breathy, Volume: -40%, Pace: Natural, Pitch: Low",
+sarcastic: "Tone: Exaggeratedly Sweet OR Flat/Monotone, Pace: Maybe slightly slower, Emphasis: Unusual stress",
+humorous: "Tone: Playful, Pace: Variable, Pitch: Variable highs/lows, Emphasis: Playful stress",
+roasting: "Tone: Playful Teasing OR Mock-Serious, Pace: Slightly faster, Emphasis: Pointed but light",
+flirtatious: "Tone: Playful-Warm, Pace: Slightly slower, Pitch: Slightly lower, Breathiness: Slight increase",
+intimate: "Tone: Soft, Warm, Pace: Slower, Pitch: Low, Volume: -15%, Breathiness: Moderate",
+thinking: "Tone: Neutral, Pace: Slowed, Pauses: Frequent short pauses",
+error: "Tone: Neutral and informative, Pace: Clear, Pitch: Medium",
+workflow_update: "Tone: Neutral and informative, Pace: Natural, Pitch: Medium",
+};
+const DEFAULT_INSTRUCTIONS = TTS_INSTRUCTION_MAP.neutral;
+type DebugFlowType = NonNullable<NonNullable<OrchestratorResponse["debugInfo"]>["flow_type"]>;
+function getDynamicInstructions(intentType?: string | null): string {
+if (intentType && TTS_INSTRUCTION_MAP[intentType]) {
+return TTS_INSTRUCTION_MAP[intentType];
+}
+logger.warn([Orch getDynamicInstructions] Unknown intent type "${intentType}", using default.);
+return DEFAULT_INSTRUCTIONS;
+}
+function summarizeChatHistory(history: ChatMessage[], maxLength: number = 1000): string {
+if (!history || history.length === 0) return "No recent conversation history.";
+return history.slice(-MAX_CHAT_HISTORY * 2)
+.map((msg) => {
+let contentPreview = "";
+if (typeof msg.content === 'string') {
+contentPreview = msg.content.substring(0, 100) + (msg.content.length > 100 ? "..." : "");
+} else if (Array.isArray(msg.content)) {
+const textPartObject = msg.content.find((p): p is ChatMessageContentPartText => p.type === "text");
+const textPart = textPartObject?.text;
+const imagePart = msg.content.find((p) => (p as any).type === "input_image" || (p as any).type === "image_url");
+contentPreview = textPart ? textPart.substring(0, 80) + (textPart.length > 80 ? "..." : "") : "";
+if (imagePart) contentPreview += " [Image Present]";
+} else if ((msg as any).tool_calls) {
+contentPreview = Tool Call: ${(msg as any).tool_calls[0]?.function?.name || "unknown"};
+} else if (msg.role === "tool") {
+contentPreview = Tool Result for ${msg.name || (msg as any).tool_call_id?.substring(0, 6) || "unknown"};
+}
+const roleDisplay = msg.role === "assistant" ? "Minato" : msg.role.charAt(0).toUpperCase() + msg.role.slice(1);
+return ${roleDisplay}: ${contentPreview || "[Empty/Non-Text Content]"};
+})
+.join("\n")
+.substring(0, maxLength);
+}
+function isValidOpenAITtsVoice(voice: string | null | undefined): voice is OpenAITtsVoice {
+if (!voice) return false;
+return (appConfig as any).openai.ttsVoices.includes(voice);
+}
+function sanitizeToolParameterSchemaForOpenAI(originalSchema: BaseTool['argsSchema']): OpenAI.FunctionDefinition["parameters"] {
+if (!originalSchema || originalSchema.type !== 'object' || !originalSchema.properties) {
+return { type: "object", properties: {}, additionalProperties: false };
+}
+const sanitizedProperties: Record<string, OpenAIToolParameterProperties> = {};
+for (const key in originalSchema.properties) {
+const prop = originalSchema.properties[key];
+sanitizedProperties[key] = {
+type: prop.type,
+description: prop.description,
+...(prop.enum && { enum: Array.isArray(prop.enum) ? prop.enum : [prop.enum] }),
+...(prop.items && { items: prop.items as any }),
+...(prop.properties && { properties: prop.properties as any }),
+};
+}
+return {
+type: "object",
+properties: sanitizedProperties as any,
+required: originalSchema.required || [],
+additionalProperties: false,
+};
+}
+const PLANNING_MODEL_NAME_ORCH: OpenAIPlanningModel = appConfig.openai.planningModel;
+const CHAT_VISION_MODEL_NAME_ORCH = appConfig.openai.chatModel;
+function summarizeUserStateForWorkflow(userState: UserState | null, maxLength: number = 200): string {
+if (!userState) return "No user state.";
+const parts: string[] = [];
+if (userState.user_first_name) parts.push(Name: ${userState.user_first_name});
+if (userState.preferred_locale) parts.push(Locale: ${userState.preferred_locale});
+if (userState.latitude && userState.longitude) parts.push(Loc: ~${userState.latitude.toFixed(1)},${userState.longitude.toFixed(1)});
+if (userState.timezone) parts.push(TZ: ${userState.timezone});
+if (userState.active_persona_id) parts.push(Persona: ${userState.active_persona_id});
+const personaTraits = (userState as any)?.active_persona_traits?.join(', ') || 'helpful, friendly';
+parts.push(Traits: ${personaTraits});
+return parts.join(" | ").substring(0, maxLength) || "Basic user state.";
+}
+function chatMessageContentPartsToMessageParts(parts: ChatMessageContentPart[]): import("../../memory-framework/core/types").MessagePart[] {
+return parts.map((p) => {
+if (p.type === "text") {
+return { type: "text", text: p.text };
+} else if (p.type === "input_image") {
+return { type: "image_url", image_url: { url: p.image_url, detail: p.detail } };
+} else {
+const exhaustiveCheck: never = p;
+logger.warn([Orch chatMessageContentPartsToMessageParts] Unsupported part type: ${(p as any).type});
+return { type: "text", text: "[Unsupported content]" };
+}
+});
+}
+export class Orchestrator {
+private ttsService = new TTSService();
+private sttService = new STTService();
+private videoAnalysisService = new VideoAnalysisService();
+private toolRegistry: { [key: string]: BaseTool };
+private memoryFramework: CompanionCoreMemory;
+private availableToolsForRouter: SdkResponsesApiTool[] = [];
+private toolNameResolutionCache: Map<string, string> = new Map();
+constructor() {
+logger.info([Orch] Initializing Orchestrator (Planning: ${PLANNING_MODEL_NAME_ORCH}, Chat/Vision: ${CHAT_VISION_MODEL_NAME_ORCH}, Max ${(appConfig.openai.maxToolsPerTurn || 3)} Tools/Turn)...);
+try {
+this.memoryFramework = new CompanionCoreMemory();
+logger.info("[Orch] Memory Framework initialized.");
+} catch (memError: any) {
+logger.error([Orch] CRITICAL: Failed init Memory Framework: ${memError.message}, memError.stack);
+throw new Error(Memory init failed: ${memError.message});
+}
+const memoryToolInstance = new MemoryTool(this.memoryFramework);
+this.toolRegistry = {
+...appToolsRegistry,
+[memoryToolInstance.name]: memoryToolInstance,
+};
+this.availableToolsForRouter = Object.values(this.toolRegistry)
+.filter(tool => (tool as BaseTool).enabled !== false)
+.map(tool => ({
+type: "function",
+function: {
+name: tool.name,
+description: tool.description,
+parameters: sanitizeToolParameterSchemaForOpenAI(tool.argsSchema),
+strict: true
+}
+}));
+const toolNamesForRouter = this.availableToolsForRouter.map(t => (t.type === 'function' ? t.function.name : t.type)).filter(name => name);
+logger.info([Orch] Final unique tools for Router (${toolNamesForRouter.length}): ${toolNamesForRouter.join(', ')});
+}
+private async logInteraction(logData: Partial<{ /* ... */ }>, isUpdate: boolean = false, logIdToUpdate?: number | null): Promise<number | null> { return null; }
+private async getUserFirstName(userId: string): Promise<string> {
+if (!userId) {
+logger.warn("[Orch getUserFirstName] No userId.");
+return DEFAULT_USER_NAME;
+}
+try {
+const state = await supabaseAdmin.getUserState(userId);
+if (state?.user_first_name?.trim()) return state.user_first_name.trim();
+const profile = await supabaseAdmin.getUserProfile(userId);
+return (
+profile?.first_name?.trim() ||
+profile?.full_name?.trim()?.split(" ")[0] ||
+DEFAULT_USER_NAME
+);
+} catch (error: any) {
+logger.warn([Orch getUserFirstName] Failed fetch for user ${userId.substring(0, 8)}: ${error.message});
+return DEFAULT_USER_NAME;
+}
+}
+private validateToolStep(step: ToolRouterPlanStep): boolean {
+const tool = this.toolRegistry[step.tool_name];
+if (!tool) {
+logger.error(Tool ${step.tool_name} (canonical) not found in registry during validation.);
+return false;
+}
+if (tool.argsSchema) {
+const ajv = new Ajv({ allErrors: true, strict: false });
+const validate: ValidateFunction = ajv.compile(tool.argsSchema);
+const argsToValidate = step.arguments || {};
+if (!validate(argsToValidate)) {
+logger.error(Invalid arguments for ${tool.name} (original router name: ${step.tool_name}):,
+JSON.stringify(validate.errors));
+return false;
+}
+}
+return true;
+}
+private async getResolvedTool(toolNameFromRouter: string, userId?: string): Promise<BaseTool | null> {
+const logPrefix = [Orch ToolResolve User:${userId ? userId.substring(0,8) : 'N/A'}];
+if (this.toolRegistry[toolNameFromRouter]) {
+logger.debug(${logPrefix} Direct match for tool: "${toolNameFromRouter}");
+return this.toolRegistry[toolNameFromRouter];
+}
+const staticResolvedTool = resolveToolName(toolNameFromRouter); 
+if (staticResolvedTool && this.toolRegistry[staticResolvedTool.name]) {
+    logger.debug(`${logPrefix} Static alias match: "${toolNameFromRouter}" -> "${staticResolvedTool.name}"`);
+    return staticResolvedTool;
+}
+
+if (this.toolNameResolutionCache.has(toolNameFromRouter)) {
+    const cachedCanonicalName = this.toolNameResolutionCache.get(toolNameFromRouter)!;
+    logger.debug(`${logPrefix} LLM Cache HIT: "${toolNameFromRouter}" -> "${cachedCanonicalName}"`);
+    return this.toolRegistry[cachedCanonicalName] || null;
+}
+
+logger.info(`${logPrefix} Tool "${toolNameFromRouter}" not found directly or by static alias. Attempting LLM resolution.`);
+const canonicalToolNames = Object.keys(this.toolRegistry);
+const resolvedCanonicalName = await resolveToolNameWithLLM(toolNameFromRouter, canonicalToolNames, userId);
+
+if (this.toolRegistry[resolvedCanonicalName]) {
+    logger.info(`${logPrefix} LLM resolved "${toolNameFromRouter}" to canonical "${resolvedCanonicalName}". Caching.`);
+    this.toolNameResolutionCache.set(toolNameFromRouter, resolvedCanonicalName);
+    return this.toolRegistry[resolvedCanonicalName];
+} else {
+    logger.error(`${logPrefix} LLM resolved "${toolNameFromRouter}" to "${resolvedCanonicalName}", but it's NOT in registry. Returning null.`);
+    this.toolNameResolutionCache.set(toolNameFromRouter, `__UNKNOWN_${resolvedCanonicalName}`);
+    return null;
+}
+Use code with caution.
+}
+private async executeToolCalls(
+userId: string,
+toolCallsFromRouter: ToolRouterPlanStep[],
+apiContext: Record<string, any>,
+userState: UserState | null
+): Promise<{ messages: ChatMessage[]; lastSuccessfulStructuredData: AnyToolStructuredData | null; llmUsage: null; toolResultsSummary: string }> {
+const logPrefix = ToolExecutor User:${userId.substring(0, 8)} Sess:${apiContext?.sessionId?.substring(0, 6)};
+const toolResultsMessages: ChatMessage[] = [];
+const structuredDataMap: Map<string, AnyToolStructuredData | null> = new Map();
+let toolResultsSummaryParts: string[] = [];
+const executionPromises = toolCallsFromRouter.map(async (routedToolCall) => {
+    const toolNameFromRouter = routedToolCall.tool_name;
+    const tool = await this.getResolvedTool(toolNameFromRouter, userId);
+    const callId = `toolcall_${randomUUID()}`;
+
+    if (!tool) {
+        logger.error(`${logPrefix} Tool '${toolNameFromRouter}' (from Router) could NOT be resolved.`);
+        // Add error to summary and return an error message for this specific tool
+        toolResultsSummaryParts.push(`Error: Tool '${toolNameFromRouter}' is not available or recognized.`);
+        return {
+            role: "tool" as const,
+            tool_call_id: callId, // Use the generated callId
+            name: toolNameFromRouter, // Use the name router provided
+            content: `Error: Tool '${toolNameFromRouter}' is not available or recognized by Minato.`,
+        };
+    }
+
+    const currentToolName = tool.name;
+    let actualToolArgs = JSON.parse(JSON.stringify(routedToolCall.arguments || {}));
+
+    // Argument fallback logic (remains the same)
+    const toolsRequiringQueryArg = ["WebSearchTool", "YouTubeSearchTool", "NewsAggregatorTool", "HackerNewsTool", "PexelsSearchTool", "RecipeSearchTool", "MemoryTool"];
+    if (
+        toolsRequiringQueryArg.includes(currentToolName) &&
+        tool.argsSchema.required?.includes("query") &&
+        (!actualToolArgs.query || typeof actualToolArgs.query !== 'string' || actualToolArgs.query.trim() === "")
+    ) {
+        if (apiContext?.userInput && typeof apiContext.userInput === 'string' && apiContext.userInput.trim()) {
+            logger.warn(`${logPrefix} Tool '${currentToolName}' called by Router without 'query'. Using main user input as query: "${String(apiContext.userInput).substring(0,50)}..."`);
+            actualToolArgs.query = String(apiContext.userInput);
+        } else {
+             logger.error(`${logPrefix} Tool '${currentToolName}' requires 'query', but Router didn't provide it and no user input fallback is available. Skipping.`);
+             toolResultsSummaryParts.push(`Error: Tool '${currentToolName}' skipped (missing query).`);
+             return { role: "tool" as const, tool_call_id: callId, name: currentToolName, content: `Error: Tool '${currentToolName}' could not execute (missing required 'query' argument).` };
+        }
+    }
+    // ... (other specific argument fallbacks for SportsInfoTool, RedditTool, EventFinderTool remain the same) ...
+    if (currentToolName === "SportsInfoTool" && tool.argsSchema.required?.includes("teamName") && (!actualToolArgs.teamName || typeof actualToolArgs.teamName !== 'string' || actualToolArgs.teamName.trim() === "")) {
+        if (apiContext?.userInput && typeof apiContext.userInput === 'string' && apiContext.userInput.trim()) {
+             logger.warn(`${logPrefix} SportsInfoTool called by Router without 'teamName'. Tool may fail or use a default if implemented by the tool itself based on user query: "${String(apiContext.userInput).substring(0,50)}..."`);
+        } else {
+             logger.error(`${logPrefix} SportsInfoTool requires 'teamName', but Router didn't provide it and no user input fallback. Skipping.`);
+             toolResultsSummaryParts.push(`Error: Tool '${currentToolName}' skipped (missing teamName).`);
+             return { role: "tool" as const, tool_call_id: callId, name: currentToolName, content: `Error: Tool '${currentToolName}' could not execute (missing required 'teamName' argument).` };
+        }
+    }
+    if (currentToolName === "RedditTool" && tool.argsSchema.required?.includes("subreddit") && (!actualToolArgs.subreddit || typeof actualToolArgs.subreddit !== 'string' || actualToolArgs.subreddit.trim() === "")) {
+        if (apiContext?.userInput && typeof apiContext.userInput === 'string' && apiContext.userInput.trim()) {
+            logger.warn(`${logPrefix} RedditTool called by Router without 'subreddit'. Tool might use a default or fail based on query: "${String(apiContext.userInput).substring(0,50)}..."`);
+        } else {
+             logger.error(`${logPrefix} RedditTool requires 'subreddit', but Router didn't provide it. Skipping.`);
+             toolResultsSummaryParts.push(`Error: Tool '${currentToolName}' skipped (missing subreddit).`);
+             return { role: "tool" as const, tool_call_id: callId, name: currentToolName, content: `Error: Tool '${currentToolName}' could not execute (missing required 'subreddit' argument).` };
+        }
+    }
+     if (currentToolName === "EventFinderTool" && tool.argsSchema.required?.includes("keyword") &&
+        (!actualToolArgs.keyword || typeof actualToolArgs.keyword !== 'string' || actualToolArgs.keyword.trim() === "") &&
+        (!actualToolArgs.classificationName && !actualToolArgs.location)
+      ) {
+        if (apiContext?.userInput && typeof apiContext.userInput === 'string' && apiContext.userInput.trim()) {
+            logger.warn(`${logPrefix} EventFinderTool called by Router without 'keyword' and other primary filters. Using main user input as keyword: "${String(apiContext.userInput).substring(0,50)}..."`);
+            actualToolArgs.keyword = String(apiContext.userInput);
+        } else {
+             logger.warn(`${logPrefix} EventFinderTool requires 'keyword' or other filters, but Router provided none and no fallback. Tool may return broad or no results.`);
+        }
+    }
+
+    const stepForValidation: ToolRouterPlanStep = { ...routedToolCall, tool_name: currentToolName, arguments: actualToolArgs };
+    if (!this.validateToolStep(stepForValidation)) {
+        logger.error(`${logPrefix} Tool '${currentToolName}' (ID: ${callId.substring(0, 6)}, RouterName: ${toolNameFromRouter}) failed argument validation AFTER fallback/resolution. Args received by router: ${JSON.stringify(routedToolCall.arguments)}. Args after fallback for validation: ${JSON.stringify(actualToolArgs)}. Skipping.`);
+        toolResultsSummaryParts.push(`Error: Tool '${currentToolName}' skipped (invalid arguments after fallback).`);
+        return { role: "tool" as const, tool_call_id: callId, name: currentToolName, content: `Error: Tool '${currentToolName}' could not execute due to invalid arguments even after attempting fallback.` };
+    }
+
+    logger.info(`${logPrefix} Executing tool '${currentToolName}' (ID: ${callId.substring(0, 6)}, RouterName: ${toolNameFromRouter}) with final Args: ${JSON.stringify(actualToolArgs).substring(0, 100)}`);
+
+    const abortController = new AbortController();
+    const timeoutDuration = ('timeoutMs' in tool && typeof (tool as any).timeoutMs === 'number')
+      ? (tool as any).timeoutMs
+      : (appConfig as any).toolTimeoutMs || DEFAULT_TOOL_TIMEOUT_MS;
+    const timeoutId = setTimeout(() => { logger.warn(`${logPrefix} Timeout (${timeoutDuration}ms) for '${currentToolName}' (ID: ${callId.substring(0, 6)})`); abortController.abort(); }, timeoutDuration);
+
+    try {
+      const toolInput: ToolInput = {
+        ...(actualToolArgs as Record<string, any>), userId,
+        lang: apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0],
+        sessionId: apiContext?.sessionId,
+        context: { ...(apiContext || {}), userState, sessionId: apiContext?.sessionId, runId: apiContext?.runId, userName: await this.getUserFirstName(userId), abortSignal: abortController.signal, workflowVariables: {} },
+      };
+      const output: ToolOutput = await tool.execute(toolInput, abortController.signal);
+      clearTimeout(timeoutId);
+      logger.info(`${logPrefix} Tool '${currentToolName}' (ID: ${callId.substring(0, 6)}) finished. Success: ${!output.error}`);
+
+      if (!output.error && output.structuredData) {
+        structuredDataMap.set(callId, output.structuredData);
+      } else {
+        structuredDataMap.set(callId, null); // Ensure map entry even on error or no structured data
+      }
+      const resultString = output.error ? `Error from ${currentToolName}: ${String(output.error)}` : String(output.result || `${currentToolName} completed.`).substring(0, 4000);
+      toolResultsSummaryParts.push(`Result from ${currentToolName}: ${resultString.substring(0, 150)}...`);
+      return { role: "tool" as const, tool_call_id: callId, name: currentToolName, content: resultString };
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      const isAbort = error.name === 'AbortError' || abortController.signal.aborted;
+      const errorMsg = isAbort ? `Tool '${currentToolName}' timed out.` : `Tool '${currentToolName}' error: ${String(error?.message || error)}`;
+      logger.error(`${logPrefix} Tool '${currentToolName}' (ID: ${callId.substring(0, 6)}) ${isAbort ? "TIMEOUT" : "EXCEPTION"}: ${String(error?.message || error)}`);
+      structuredDataMap.set(callId, null);
+      toolResultsSummaryParts.push(`Error with ${currentToolName}: ${errorMsg.substring(0, 100)}...`);
+      return { role: "tool" as const, tool_call_id: callId, name: currentToolName, content: `Error: ${errorMsg}` };
+    }
+});
+
+const settledResults = await Promise.allSettled(executionPromises);
+let lastSuccessfulStructuredData: AnyToolStructuredData | null = null;
+
+for (let i = 0; i < settledResults.length; i++) {
+    const result = settledResults[i];
+    const originalRoutedCall = toolCallsFromRouter[i]; // Keep this for referencing the original call if needed
+    if (result.status === "fulfilled" && result.value) {
+        const toolMessage = result.value as ChatMessage; // This is the {role: "tool", ...} message
+        toolResultsMessages.push(toolMessage);
+
+        // Try to get structuredData associated with this tool call
+        // The callId in toolMessage should match the one used when setting structuredDataMap
+        const callIdForResult = typeof toolMessage.tool_call_id === 'string' ? toolMessage.tool_call_id : `toolcall_${i}`; // Fallback if somehow tool_call_id is missing (shouldn't happen)
+        
+        if (
+          typeof toolMessage.content === 'string' &&
+          !toolMessage.content.startsWith("Error:") && // Check for our explicit error prefix
+          structuredDataMap.has(callIdForResult)
+        ) {
+            const data = structuredDataMap.get(callIdForResult);
+            if (data) { // Ensure data is not null
+                lastSuccessfulStructuredData = data;
+            }
+        }
+    } else if (result.status === "rejected") {
+        const originalFailedToolName = originalRoutedCall?.tool_name || "UnknownTool";
+        logger.error(`${logPrefix} Critical error in tool execution promise for ${originalFailedToolName}:`, result.reason);
+        // Create a generic error message for the tool if its promise rejected unexpectedly
+         const callIdForRejected = `toolcall_${randomUUID()}`; // Generate a new one if original is lost
+        toolResultsMessages.push({
+            role: "tool",
+            tool_call_id: callIdForRejected,
+            name: originalFailedToolName,
+            content: `Error: Internal system error during execution of ${originalFailedToolName}. Reason: ${String(result.reason).substring(0,100)}`,
+        } as ChatMessage);
+        toolResultsSummaryParts.push(`Critical Error: Internal system error during execution of ${originalFailedToolName}.`);
+    }
+}
+return { messages: toolResultsMessages, lastSuccessfulStructuredData, llmUsage: null, toolResultsSummary: toolResultsSummaryParts.join("\n") || "Tools processing completed." };
+Use code with caution.
+}
+public async runOrchestration(
+userId: string,
+userInput: string | ChatMessageContentPart[],
+history: ChatMessage[] = [],
+apiContext?: Record<string, any>,
+initialAttachments?: MessageAttachment[]
+): Promise<OrchestratorResponse> {
+const overallStartTime = Date.now();
+const runId = apiContext?.sessionId || apiContext?.runId || ${SESSION_ID_PREFIX}${randomUUID()};
+const turnIdentifier = OrchRun User:${userId.substring(0, 8)} Run:${runId.substring(0, 6)};
+if (initialAttachments) {
+logger.info([${turnIdentifier}] runOrchestration received initialAttachments. Count: ${initialAttachments.length});
+initialAttachments.forEach((att, index) => {
+logger.info([${turnIdentifier}] initialAttachment[${index}]: type=${att.type}, name=${att.name}, url=${att.url}, hasFile=${!!att.file}, storagePath=${att.storagePath});
+});
+} else {
+logger.info([${turnIdentifier}] runOrchestration received NO initialAttachments (null or undefined).);
+}
+logger.info(--- ${turnIdentifier} Starting Orchestration Run (Planning: ${PLANNING_MODEL_NAME_ORCH}, Chat/Vision: ${CHAT_VISION_MODEL_NAME_ORCH}) ---);
+let finalStructuredResult: AnyToolStructuredData | null = null;
+let finalResponseText: string | null = null;
+let responseIntentType: string | null = "neutral";
+let ttsInstructionsForFinalResponse: string | null = null;
+let clarificationQuestionForUser: string | null = null;
+let llmUsage_total: CompletionUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+let finalFlowType: DebugFlowType = "error";
+let finalResponseSource: string | null = "Error";
+let currentTurnToolResultsSummary: string | null = null;
+let toolRouterFollowUpSuggestion: string | null = null;
+let finalToolCallsLogged: any[] = [];
+let videoSummaryForContext: string | null = null;
+let textQueryForRouter: string = "";
+let mainUserInputContent: ChatMessageContentPart[] = [];
+let retrievedMemoryContext: string = "INTERNAL CONTEXT - RELEVANT MEMORIES: None found or not applicable for this turn.";
+let messagesForGpt4o: ChatMessage[] = [];
+let routedTools: ToolRouterPlan = { planned_tools: [] };
+let userName: string = DEFAULT_USER_NAME;
+let lang: string = "en";
+let toolExecutionMessages: ChatMessage[] = [];
+const userState: UserState | null = await supabaseAdmin.getUserState(userId);
+let personaId = userState?.active_persona_id || DEFAULT_PERSONA_ID;
+let personaNameForPrompt = "Minato";
+let personaSpecificInstructions = "You are Minato, a helpful, friendly, and knowledgeable AI assistant.";
+try {
+userName = await this.getUserFirstName(userId);
+lang = apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0] || "en";
+const effectiveApiContext = { ...apiContext, userName, lang, locale: userState?.preferred_locale || (appConfig as any).defaultLocale, runId, userInput: typeof userInput === 'string' ? userInput : (userInput.find(p => p.type === 'text') as ChatMessageContentPartText)?.text || "" };
+try {
+const persona = await this.memoryFramework.getPersonaById(personaId, userId);
+if (persona?.system_prompt) {
+personaSpecificInstructions = persona.system_prompt;
+personaNameForPrompt = persona.name || personaId;
+}
+} catch (e: any) { logger.error([${turnIdentifier}] Error fetching persona:, e.message); }
+if (typeof userInput === 'string') {
+textQueryForRouter = userInput;
+mainUserInputContent.push({ type: "text", text: userInput });
+} else {
+mainUserInputContent = [...userInput];
+const textPart = userInput.find(p => p.type === 'text') as ChatMessageContentPartText | undefined;
+textQueryForRouter = textPart?.text || "";
+if (initialAttachments && initialAttachments.length > 0) {
+  logger.debug(`[${turnIdentifier}] Processing ${initialAttachments.length} initial attachments for vision input preparation.`);
+  const adminClient = getSupabaseAdminClient();
+  if (!adminClient) {
+      logger.error(`[${turnIdentifier}] Supabase admin client is not available. Cannot process file attachments for vision.`);
+  } else {
+      for (let i = 0; i < mainUserInputContent.length; i++) {
+          const part = mainUserInputContent[i];
+          if (part.type === "input_image") {
+              const imagePartToProcess = part as ChatMessageContentPartInputImage;
+              let matchingAttachment: MessageAttachment | undefined = undefined;
+
+              if (imagePartToProcess.image_url.startsWith("blob:") || imagePartToProcess.image_url.startsWith("placeholder_id_")) {
+                  const idToMatch = imagePartToProcess.image_url.startsWith("placeholder_id_")
+                      ? imagePartToProcess.image_url.substring("placeholder_id_".length)
+                      : imagePartToProcess.image_url;
+
+                  matchingAttachment = initialAttachments.find(att => (att.url === idToMatch || att.id === idToMatch) && att.file);
+                  logger.debug(`[${turnIdentifier}] Attempting to match content part URL/ID "${idToMatch.substring(0,60)}" with initial attachments. Found: ${!!matchingAttachment}, File: ${matchingAttachment?.file && matchingAttachment.file instanceof File ? matchingAttachment.file.name : 'unknown'}`);
+              }
+
+              if (matchingAttachment && matchingAttachment.file) {
+                  try {
+                      const fileToUpload = matchingAttachment.file;
+                      const originalUrlForLog = imagePartToProcess.image_url;
+                      const fileName = (fileToUpload instanceof File && fileToUpload.name) ? fileToUpload.name.replace(/[^a-zA-Z0-9._-]/g, "_") : randomUUID();
+                      const fileExtension = (fileName.includes('.') ? fileName.split('.').pop() : 'bin') || 'bin';
+                      const filePath = `user_uploads/${userId}/${Date.now()}_${randomUUID().substring(0,8)}.${fileExtension}`;
+
+                      logger.info(`[${turnIdentifier}] Uploading image "${fileName}" (from URL: ${originalUrlForLog.substring(0,60)}) to Supabase at ${MEDIA_UPLOAD_BUCKET}/${filePath}`);
+
+                      const { data: uploadData, error: uploadError } = await adminClient.storage
+                          .from(MEDIA_UPLOAD_BUCKET)
+                          .upload(filePath, fileToUpload, { contentType: fileToUpload.type || 'application/octet-stream', upsert: true });
+
+                      if (uploadError) {
+                          logger.error(`[${turnIdentifier}] Supabase image upload failed for "${fileName}": ${uploadError.message}`);
+                          if (fileToUpload.size < 5 * 1024 * 1024) {
+                            const arrayBuffer = await fileToUpload.arrayBuffer();
+                            const base64String = Buffer.from(arrayBuffer).toString('base64');
+                            imagePartToProcess.image_url = `data:${fileToUpload.type || 'image/jpeg'};base64,${base64String}`;
+                            logger.info(`[${turnIdentifier}] Used base64 data URL fallback for image "${fileName}".`);
+                          } else {
+                            imagePartToProcess.image_url = "error_uploading_image_too_large_for_base64";
+                          }
+                      } else {
+                          const { data: publicUrlData } = adminClient.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(uploadData.path);
+                          if (publicUrlData?.publicUrl) {
+                              imagePartToProcess.image_url = publicUrlData.publicUrl;
+                              logger.info(`[${turnIdentifier}] Image "${fileName}" uploaded. Public URL for content part: ${publicUrlData.publicUrl.substring(0,100)}`);
+
+                              const attIndex = initialAttachments.findIndex(att => att.id === matchingAttachment!.id || att.url === originalUrlForLog);
+                              if (attIndex !== -1) {
+                                initialAttachments[attIndex].url = publicUrlData.publicUrl;
+                                initialAttachments[attIndex].storagePath = uploadData.path;
+                                delete initialAttachments[attIndex].file;
+                              }
+                          } else {
+                              logger.error(`[${turnIdentifier}] Failed to get public URL for uploaded image "${fileName}".`);
+                              imagePartToProcess.image_url = "error_getting_public_url";
+                          }
+                      }
+                  } catch (e: any) {
+                      logger.error(`[${turnIdentifier}] Exception during attachment image upload for URL ${imagePartToProcess.image_url}: ${e.message}`);
+                      imagePartToProcess.image_url = "error_processing_image_upload";
+                  }
+              } else if (imagePartToProcess.image_url.startsWith("blob:") || imagePartToProcess.image_url.startsWith("placeholder_id_")) {
+                   logger.warn(`[${turnIdentifier}] Image part has URL ${imagePartToProcess.image_url.substring(0,60)} but no matching *File* attachment found or file was already processed.`);
+                   if (!imagePartToProcess.image_url.startsWith("http") && !imagePartToProcess.image_url.startsWith("data:")) {
+                      imagePartToProcess.image_url = "error_missing_file_for_url";
+                   }
+              }
+          }
+      }
+  }
+}
+let imageParts = mainUserInputContent.filter(p => {
+  if (p.type === 'input_image') {
+    return !p.image_url.startsWith("error_");
+  }
+  return false;
+}) as import("@/lib/types/index").ChatMessageContentPartInputImage[];
+imageParts = imageParts.filter(img => {
+  const url = img.image_url;
+  const isValid = (
+    typeof url === 'string' && url !== null && (
+      url.startsWith('http://') || url.startsWith('https://') ||
+      (url.startsWith('data:image/') && url.includes(';base64,'))
+    )
+  );
+  if (!isValid) {
+    logger.warn(`[${turnIdentifier}] Skipping invalid image_url for vision: ${url}`);
+  }
+  return isValid;
+});
+if (imageParts.length > 0) {
+  logger.info(`[${turnIdentifier}] Detected ${imageParts.length} image attachment(s). Generating descriptions.`);
+  let imageDescriptions: string[] = [];
+  try {
+    const visionPromptForDescription = textQueryForRouter || "Describe the content of the provided image(s) in detail. What are the key objects, scenes, and actions?";
+
+    const visionMessages: ChatMessage[] = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: visionPromptForDescription },
+          ...imageParts.map(img => ({
+            type: "input_image" as const,
+            image_url: img.image_url,
+            detail: img.detail || "auto"
+          } as import("@/lib/types/index").ChatMessageContentPartInputImage))
+        ],
+        timestamp: Date.now(),
+      }
+    ];
+    logger.info(`[${turnIdentifier}] Preparing to call generateVisionCompletion. Vision messages content:`);
+    visionMessages.forEach((vm, vmIndex) => {
+      if (Array.isArray(vm.content)) {
+        vm.content.forEach((contentPart, cpIndex) => {
+          if (contentPart.type === 'input_image') {
+            logger.info(`[${turnIdentifier}] VisionMessage[${vmIndex}]-ContentPart[${cpIndex}](input_image) URL: ${contentPart.image_url}`);
+          } else if (contentPart.type === 'text') {
+            logger.info(`[${turnIdentifier}] VisionMessage[${vmIndex}]-ContentPart[${cpIndex}](text): ${(contentPart.text || "").substring(0, 100)}...`);
+          }
+        });
+      }
+    });
+
+    const visionCompletionResult = await generateVisionCompletion(
+      visionMessages,
+      CHAT_VISION_MODEL_NAME_ORCH,
+      (appConfig.openai as any).maxVisionTokens || 2048,
+      userId
+    );
+
+
+    if (visionCompletionResult.text) {
+      imageDescriptions.push(visionCompletionResult.text);
+      logger.info(`[${turnIdentifier}] Image description(s) generated successfully.`);
+    } else if (visionCompletionResult.error) {
+      logger.warn(`[${turnIdentifier}] Image description generation failed: ${visionCompletionResult.error}. Proceeding without image summary.`);
+      imageDescriptions.push("[Image analysis attempted but failed to produce summary.]");
+    } else {
+       logger.warn(`[${turnIdentifier}] Image description generation returned no text and no error.`);
+       imageDescriptions.push("[Image content present but no textual summary generated.]");
+    }
+
+
+  } catch (visionError: any) {
+    logger.error(`[${turnIdentifier}] Error during image description generation: ${visionError.message}`);
+    imageDescriptions.push("[Error during image analysis.]");
+  }
+
+  if (imageDescriptions.length > 0) {
+    textQueryForRouter += (textQueryForRouter ? "\n" : "") + `[Image Content Summary: ${imageDescriptions.join("\n")}]`;
+  } else {
+    textQueryForRouter += (textQueryForRouter ? " " : "") + "[User sent images/frames - summary unavailable]";
+  }
+}
+Use code with caution.
+}
+const videoAttachment = initialAttachments?.find(att => att.type === 'video' && att.file);
+if (videoAttachment && videoAttachment.file) {
+logger.info([${turnIdentifier}] Detected video attachment: ${videoAttachment.name}. Initiating analysis.);
+const videoBuffer = Buffer.from(await videoAttachment.file.arrayBuffer());
+const videoAnalysisResult = await this.videoAnalysisService.analyzeVideo(
+videoBuffer, videoAttachment.name || "uploaded_video",
+videoAttachment.mimeType || "video/mp4",
+textQueryForRouter || "Describe this video.", userId
+);
+if (videoAnalysisResult.summary) {
+videoSummaryForContext = videoAnalysisResult.summary;
+textQueryForRouter += (textQueryForRouter ? "\n" : "") + [Video Content Summary: ${videoSummaryForContext.substring(0, 200)}...];
+try {
+    const visualQAResult = await this.videoAnalysisService.generateQA(
+      videoBuffer,
+      "What are 3 key visual elements? What's the main action? What colors dominate?",
+      userId
+    );
+
+    if (visualQAResult?.answers?.length > 0) {
+      const qaText = `[Visual QA: ${visualQAResult.answers.join("; ").substring(0, 150)}]`;
+      textQueryForRouter += `\n${qaText}`;
+      logger.info(`${turnIdentifier} Added visual QA to context: ${qaText}`);
+    }
+  } catch (qaError) {
+    const qaErrorMsg = qaError instanceof Error ? qaError.message : String(qaError);
+    logger.warn(`${turnIdentifier} Visual QA failed but continuing: ${qaErrorMsg}`);
+  }
+} else if (videoAnalysisResult.error) {
+  logger.warn(`[${turnIdentifier}] Video analysis failed: ${videoAnalysisResult.error}. Proceeding without video summary.`);
+  textQueryForRouter += (textQueryForRouter ? "\n" : "") + "[Video analysis attempted but failed to produce summary.]";
+}
+Use code with caution.
+}
+const toolRouterPrompt = injectPromptVariables(TOOL_ROUTER_PROMPT_TEMPLATE, {
+userName, userQuery: textQueryForRouter,
+conversationHistorySummary: summarizeChatHistory(history),
+userStateSummary: summarizeUserStateForWorkflow(userState),
+available_tools_for_planning: this.availableToolsForRouter.map(t => - ${t.function.name}: ${t.function.description?.substring(0, 100)}...).join("\n"),
+language: lang, userPersona: personaNameForPrompt,
+});
+logger.info([${turnIdentifier}] Invoking Tool Router (${PLANNING_MODEL_NAME_ORCH})... Query for router: "${textQueryForRouter.substring(0, 70)}");
+const routerSchema = {
+type: "object" as const,
+properties: {
+planned_tools: {
+type: "array" as const,
+items: {
+type: "object" as const,
+properties: {
+tool_name: { type: "string" as const },
+arguments: {
+type: "object" as const,
+additionalProperties: true,
+properties: {}
+},
+reason: { type: "string" as const }
+},
+required: ["tool_name", "reason", "arguments"],
+additionalProperties: false
+}
+}
+},
+required: ["planned_tools"],
+additionalProperties: false
+};
+const routerResult = await generateStructuredJson<ToolRouterPlan>(
+toolRouterPrompt, textQueryForRouter,
+routerSchema,
+"tool_router_v1_1",
+history.filter(m => typeof m.content === 'string'),
+PLANNING_MODEL_NAME_ORCH, userId
+);
+if ("error" in routerResult) {
+logger.error([${turnIdentifier}] Tool Router (${PLANNING_MODEL_NAME_ORCH}) failed: ${routerResult.error}. Proceeding without tools.);
+finalFlowType = "direct_llm_after_router_fail";
+} else {
+routedTools = routerResult;
+// Use appConfig.openai.maxToolsPerTurn for the limit
+const maxToolsThisTurn = appConfig.openai.maxToolsPerTurn;
+if (routedTools.planned_tools.length > maxToolsThisTurn) {
+logger.warn([${turnIdentifier}] Tool Router selected ${routedTools.planned_tools.length} tools, limiting to max ${maxToolsThisTurn}.);
+routedTools.planned_tools = routedTools.planned_tools.slice(0, maxToolsThisTurn);
+}
+finalToolCallsLogged = routedTools.planned_tools.map(rt => ({ toolName: rt.tool_name, args: rt.arguments, reason: rt.reason }));
+logger.info([${turnIdentifier}] Tool Router selected ${routedTools.planned_tools.length} tools: ${routedTools.planned_tools.map(t => t.tool_name).join(', ')});
+finalFlowType = routedTools.planned_tools.length > 0 ? "workflow_routed" : "direct_llm_no_tools_routed";
+}
+if (routedTools.planned_tools.length > 0) {
+const executionResult = await this.executeToolCalls(userId, routedTools.planned_tools, effectiveApiContext, userState);
+toolExecutionMessages = executionResult.messages;
+finalStructuredResult = executionResult.lastSuccessfulStructuredData;
+currentTurnToolResultsSummary = executionResult.toolResultsSummary;
+}
+messagesForGpt4o = [
+...history,
+{ role: "user", content: mainUserInputContent, name: userName, timestamp: Date.now(), attachments: initialAttachments?.filter(att => att.type !== 'video') },
+...toolExecutionMessages,
+];
+if (videoSummaryForContext) {
+messagesForGpt4o.unshift({
+role: "system",
+content: SUMMARY: ${videoSummaryForContext},
+timestamp: Date.now()
+});
+}
+const visualQaMatchLog = textQueryForRouter.match(/[Visual QA: ([^\]]+)]/);
+if (visualQaMatchLog && visualQaMatchLog[1]) {
+messagesForGpt4o.push({
+role: "system",
+content: VISUAL QA: ${visualQaMatchLog[1]},
+timestamp: Date.now()
+});
+}
+const videoContextStringLog = videoSummaryForContext ? YOU MUST BASE YOUR RESPONSE ON THE FOLLOWING VIDEO ANALYSIS. Do NOT ignore this.\n${videoSummaryForContext} : null;
+if (videoContextStringLog) {
+messagesForGpt4o.push({
+role: "system",
+content: videoContextStringLog,
+timestamp: Date.now()
+});
+}
+if (videoSummaryForContext && !initialAttachments?.find(att => att.type === 'video')) {
+messagesForGpt4o.push({ role: "system", content: Context from attached video: ${videoSummaryForContext}, timestamp: Date.now() });
+}
+const entitiesForMemorySearch: string[] = [textQueryForRouter.substring(0, 70)];
+if (finalStructuredResult && typeof (finalStructuredResult as any).title === 'string') {
+entitiesForMemorySearch.push((finalStructuredResult as any).title);
+}
+if (entitiesForMemorySearch.length > 0 && entitiesForMemorySearch.some(e => e.trim() !== "")) {
+logger.info([${turnIdentifier}] Performing targeted memory search for ${CHAT_VISION_MODEL_NAME_ORCH}... Entities: ${entitiesForMemorySearch.join('; ').substring(0, 100)});
+const memoryResults = await this.memoryFramework.search_memory(entitiesForMemorySearch.join(" "), userId, { limit: 3, offset: 0 }, runId, { enableHybridSearch: true, enableGraphSearch: false, enableConflictResolution: true });
+if (memoryResults.results.length > 0) {
+retrievedMemoryContext = INTERNAL CONTEXT - RELEVANT MEMORIES (Use these to add helpful related context for ${userName}):\n${memoryResults.results.map(r =>- ${r.content.substring(0, 150)}...).join("\n")};
+}
+} {
+const supabaseStorageUrl = (appConfig as any).supabase.storageUrl;
+if (!url.startsWith(supabaseStorageUrl)) {
+logger.error(${logPrefix} Invalid audio URL: ${url}. Must be a Supabase storage URL.);
+throw new Error(Invalid audio URL: Must be a Supabase storage URL.);
+}
+const controller = new AbortController();
+const timeoutId = setTimeout(() => {
+logger.warn(${logPrefix} Fetch audio from Supabase timed out for URL: ${url.substring(0,100)}...);
+controller.abort();
+}, 15000);
+logger.debug(${logPrefix} Fetching audio from Supabase storage: ${url.substring(0,100)}...);
+const response = await fetch(url, {
+signal: controller.signal,
+});
+clearTimeout(timeoutId);
+if (!response.ok) {
+const errorText = await response.text().catch(() => Status ${response.statusText});
+logger.error(${logPrefix} Supabase storage error: ${response.status} ${response.statusText}. URL: ${url.substring(0,100)}... Response body: ${errorText.substring(0,200)});
+throw new Error(Supabase storage error: ${response.status} ${response.statusText});
+}
+const arrayBuffer = await response.arrayBuffer();
+logger.debug(${logPrefix} Audio fetched successfully from ${url.substring(0,100)}... Size: ${arrayBuffer.byteLength} bytes.);
+return Buffer.from(arrayBuffer);
+} catch (error: any) {
+logger.error(${logPrefix} Audio fetch failed for URL ${url.substring(0,100)}... Error: ${error.message}, error.stack);
+throw new Error(Audio processing error: ${error.message});
+}
+}
+public async processAudioMessage(
+userId: string,
+audioSignedUrl: string,
+history: ChatMessage[] = [],
+sessionId?: string,
+apiContext?: Record<string, any>
+): Promise<OrchestratorResponse> {
+try {
+const supabaseStorageUrl = (appConfig as any).supabase.storageUrl;
+if (!audioSignedUrl.startsWith(supabaseStorageUrl)) {
+throw new Error(Invalid audio URL: Must start with ${supabaseStorageUrl});
+}
+const audioBuffer = await this.fetchAudioBuffer(audioSignedUrl);
+const currentSessionId = sessionId || ${SESSION_ID_PREFIX}${randomUUID()};
+const startTime = Date.now();
+let transcribedText: string | null = null;
+let detectedLang: string | null = null;
+let audioFetchDuration: number | undefined = undefined;
+let sttDuration: number | undefined = undefined;
+let ttsDuration: number | undefined = undefined;
+let orchResult: OrchestratorResponse | null = null;
+let userName: string = apiContext?.userName || DEFAULT_USER_NAME;
+const turnIdentifier = Req[Audio] User:${userId.substring(0, 8)} Sess:${currentSessionId.substring(0, 6)};
+try {
+userName = apiContext?.userName || await this.getUserFirstName(userId) || DEFAULT_USER_NAME;
+const sttStart = Date.now();
+const transcriptionResult = await this.sttService.transcribeAudio(audioBuffer, undefined, undefined, apiContext?.detectedMimeType);
+sttDuration = Date.now() - sttStart;
+if (transcriptionResult.error || !transcriptionResult.text?.trim()) {
+logger.error(--- ${turnIdentifier} STT Error: ${transcriptionResult.error || "Empty transcription."});
+throw new Error(transcriptionResult.error || "Empty transcription.");
+}
+transcribedText = transcriptionResult.text;
+detectedLang = transcriptionResult.language || null;
+logger.info(--- ${turnIdentifier} STT OK. Lang: ${detectedLang || "unk"}. Text: "${transcribedText.substring(0, 50)}...");
+const userState = await supabaseAdmin.getUserState(userId);
+const lang = detectedLang || apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0] || "en";
+const effectiveApiContext = { ...apiContext, sessionId: currentSessionId, runId: currentSessionId, locale: userState?.preferred_locale || (appConfig as any).defaultLocale, lang, detectedLanguage: detectedLang, userName, transcription: transcribedText };
+
+
+orchResult = await this.runOrchestration(userId, transcribedText, history, effectiveApiContext);
+
+
+if (orchResult && orchResult.response) {
+  logger.debug(`[Audio/Text Sync Check] Orchestrator response for audio (transcribed): "${orchResult.response.substring(0, 200)}"`);
+  logger.debug(`[Audio/Text Sync Check] Transcribed text: "${transcribedText}" (audio URL: ${audioSignedUrl})`);
+}
+
+
+let ttsUrl: string | null = null;
+if (orchResult?.response) {
+  let selectedVoice = isValidOpenAITtsVoice((appConfig as any).openai.ttsDefaultVoice)
+    ? (appConfig as any).openai.ttsDefaultVoice
+    : 'nova' as OpenAITtsVoice;
+  const persona = userState?.active_persona_id ? await this.memoryFramework.getPersonaById(userState.active_persona_id, userId) : null;
+  if (persona?.voice_id && isValidOpenAITtsVoice(persona.voice_id)) {
+    selectedVoice = persona.voice_id;
+  } else if (userState?.chainedvoice && isValidOpenAITtsVoice(userState.chainedvoice)) {
+    selectedVoice = userState.chainedvoice as OpenAITtsVoice;
+  }
+  const ttsStart = Date.now();
+  const ttsInstructions = orchResult.ttsInstructions || getDynamicInstructions(orchResult.intentType);
+  const ttsResult = await this.ttsService.generateAndStoreSpeech(orchResult.response, userId, selectedVoice, ttsInstructions);
+  ttsDuration = Date.now() - ttsStart;
+  if (ttsResult.url) ttsUrl = ttsResult.url; else logger.error(`--- ${turnIdentifier} TTS failed: ${ttsResult.error}.`);
+  if (orchResult) orchResult.audioUrl = ttsUrl;
+}
+
+
+supabaseAdmin.updateState(userId, { last_interaction_at: new Date().toISOString(), preferred_locale: effectiveApiContext.locale }).catch((err: any) => logger.error(`Err state update:`, err));
+supabaseAdmin.incrementStreak(userId, "daily_voice").catch((err: any) => logger.error(`Err streak:`, err));
+
+
+const duration = Date.now() - startTime;
+logger.info(`--- ${turnIdentifier} AUDIO complete (${duration}ms).`);
+
+
+const finalDebugInfo: OrchestratorResponse['debugInfo'] = {
+  ...(orchResult?.debugInfo || {}),
+  audioFetchMs: audioFetchDuration,
+  sttMs: sttDuration, ttsMs: ttsDuration,
+  sttModelUsed: (appConfig as any).openai.sttModel,
+  ttsModelUsed: ttsUrl ? (appConfig as any).openai.ttsModel : null,
+  latencyMs: duration,
+  assistantMessageId: (orchResult as any)?.id,
+};
+
+
+return {
+  sessionId: currentSessionId,
+  response: orchResult?.response || null,
+  intentType: orchResult?.intentType || null,
+  ttsInstructions: orchResult?.ttsInstructions || getDynamicInstructions(orchResult?.intentType),
+  clarificationQuestion: orchResult?.clarificationQuestion || null,
+  error: orchResult?.error || null,
+  lang: effectiveApiContext.lang,
+  transcription: transcribedText,
+  audioUrl: orchResult?.audioUrl || null,
+  structuredData: orchResult?.structuredData || null,
+  workflowFeedback: orchResult?.workflowFeedback || null,
+  debugInfo: finalDebugInfo,
+  llmUsage: orchResult?.llmUsage || null,
+  attachments: orchResult?.attachments || []
+};
+Use code with caution.
+} catch (error: any) {
+const duration = Date.now() - startTime;
+const errorMessageString = String(error?.message || error || Failed processing audio for ${userName}.);
+logger.error(--- ${turnIdentifier} Error (${duration}ms): ${errorMessageString}, error.stack);
+const userFacingError = `I'm sorry, ${userName}, I encountered an issue processing your audio. Please try again.`;
+const responseIntentTypeOnError = "error";
+const debugInfoOnError: OrchestratorResponse['debugInfo'] = { latencyMs: duration, audioFetchMs: audioFetchDuration, sttMs: sttDuration, sttModelUsed: (appConfig as any).openai.sttModel, flow_type: 'error' };
+
+
+let errorTtsUrl: string | null = null;
+try {
+  const userStateOnError = await supabaseAdmin.getUserState(userId);
+  const errorTtsVoice = (userStateOnError?.chainedvoice && isValidOpenAITtsVoice(userStateOnError.chainedvoice))
+    ? userStateOnError.chainedvoice
+    : (isValidOpenAITtsVoice((appConfig as any).openai.ttsDefaultVoice) ? (appConfig as any).openai.ttsDefaultVoice : 'nova');
+  const errorTtsResult = await this.ttsService.generateAndStoreSpeech(
+    userFacingError, userId,
+    errorTtsVoice,
+    getDynamicInstructions(responseIntentTypeOnError)
+  );
+  if (errorTtsResult.url) errorTtsUrl = errorTtsResult.url;
+} catch (ttsErrorException: any) {
+  logger.error(`--- ${turnIdentifier} Failed to generate TTS for error message:`, ttsErrorException.message);
+}
+
+
+return {
+  sessionId: currentSessionId,
+  response: userFacingError,
+  error: errorMessageString,
+  transcription: transcribedText,
+  lang: detectedLang || apiContext?.lang || (appConfig as any).defaultLocale.split("-")[0] || "en",
+  workflowFeedback: null,
+  debugInfo: debugInfoOnError,
+  intentType: responseIntentTypeOnError,
+  ttsInstructions: getDynamicInstructions(responseIntentTypeOnError),
+  audioUrl: errorTtsUrl,
+  structuredData: null,
+  clarificationQuestion: null,
+  llmUsage: null,
+  attachments: []
+};
+Use code with caution.
+}
+} catch (error: any) {
+logger.error(Audio processing failed for ${userId}: ${error.message});
+throw error;
+}
+}
+}
+declare module "../../memory-framework/core/CompanionCoreMemory" {
+interface CompanionCoreMemory {
+getPersonaById(personaId: string, userId: string): Promise<PredefinedPersona | UserPersona | null>;
+getDueReminders(dueBefore: string, userId?: string | null, limit?: number): Promise<StoredMemoryUnit[] | null>;
+updateReminderStatus(memoryId: string, status: ReminderDetails["status"], errorMessage?: string | null): Promise<boolean>;
+}
+}
+export type { ToolRouterPlan };
+export { TTS_INSTRUCTION_MAP };
+
+
+
+
+
+
+
+
+
+// FILE: lib/providers/llm_clients.ts
+import OpenAI from "openai";
+import type {
+ChatCompletionMessageParam,
+ChatCompletionMessageToolCall,
+ChatCompletionTool,
+ChatCompletionToolChoiceOption,
+ChatCompletionMessage,
+SdkChatCompletionContentPart, 
+ChatCompletionContentPartRefusal,
+OpenAIPlanningModel,
+} from "openai/resources/chat/completions";
+import { appConfig } from "../config";
+import { logger } from "../../memory-framework/config";
+import {
+ChatMessage,
+UserState,
+ChatMessageContentPart as AppChatMessageContentPart,
+ChatMessageContentPartText as AppChatMessageContentPartText,
+ChatMessageContentPartInputImage as AppChatMessageContentPartInputImage,
+AnyToolStructuredData,
+} from "@/lib/types/index";
+import { safeJsonParse } from "@/memory-framework/core/utils";
+import type { CompletionUsage } from "openai/resources";
+import { MEDIA_UPLOAD_BUCKET } from "../constants";
+import { supabase } from "../supabaseClient";
+import Ajv from "ajv";
+import { SchemaService } from "../services/schemaService";
+
+// --- Existing client setup and constants ---
+if (!appConfig.openai.apiKey && typeof window === "undefined") {
+logger.error("CRITICAL: OpenAI API Key is missing. LLM clients will not function.");
+}
+const openai = new OpenAI({
+apiKey: appConfig.openai.apiKey,
+maxRetries: appConfig.nodeEnv === "test" ? 0 : 3,
+timeout: 120 * 1000,
+});
+if (appConfig.openai.apiKey && typeof window === "undefined") {
+logger.info("[LLM Clients] Raw OpenAI Client initialized for Responses API.");
+}
+const CHAT_VISION_MODEL_NAME: string = appConfig.openai.chatModel;
+const PLANNING_MODEL_NAME: OpenAIPlanningModel = appConfig.openai.planningModel;
+const EXTRACTION_MODEL_NAME: string = appConfig.openai.extractionModel;
+const DEVELOPER_MODEL_NAME: string = appConfig.openai.developerModel;
+const MAX_OUTPUT_TOKENS: number = appConfig.openai.maxTokens;
+const MAX_VISION_TOKENS: number = appConfig.openai.maxVisionTokens;
+const EMBEDDING_MODEL_NAME: string = appConfig.openai.embedderModel;
+const EMBEDDING_DIMENSIONS: number = appConfig.openai.embeddingDims;
+type ResponseApiInputTextPart = { type: "input_text"; text: string; };
+type ResponseApiOutputTextPart = { type: "output_text"; text: string; };
+type ResponseApiInputImagePart = { type: "input_image"; image_url: string; detail: "auto" | "low" | "high"; };
+type ResponseApiInputFilePart = { type: "input_file"; file_id?: string; filename?: string; file_data?: string; };
+type ResponseApiContentPart = ResponseApiInputTextPart | ResponseApiInputImagePart | ResponseApiInputFilePart | ResponseApiOutputTextPart | ChatCompletionContentPartRefusal;
+type SdkResponsesApiMessageParam = OpenAI.Responses.ResponseInputItem;
+type SdkResponsesApiTool = OpenAI.Chat.Completions.ChatCompletionTool;
+type SdkResponsesApiToolChoice = OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
+type SdkFunctionCallOutputItem = OpenAI.Chat.Completions.ChatCompletionMessageToolCall;
+
+// --- Existing functions: formatMessagesForResponsesApi, generateEmbeddingLC, generateStructuredJson, generateAgentResponse, generateResponseWithIntent, generateVisionCompletion ---
+// --- (No changes to these functions are needed for this specific task) ---
+
+async function formatMessagesForResponsesApi(
+messages: ChatMessage[],
+userId?: string
+): Promise<OpenAI.Responses.ResponseInputMessageItem[]> {
+const apiMessages: OpenAI.Responses.ResponseInputMessageItem[] = [];
+
+for (const msg of messages) {
+let openAiApiContentParts: ResponseApiContentPart[] = [];
+if (Array.isArray(msg.content)) {
+  for (const part of msg.content as AppChatMessageContentPart[]) {
+    if (part.type === "text" && typeof part.text === 'string' && part.text.trim()) {
+      if (msg.role === "user" || msg.role === "system") {
+        openAiApiContentParts.push({ type: "input_text", text: part.text });
+      } else if (msg.role === "assistant") {
+        openAiApiContentParts.push({ type: "output_text", text: part.text });
+      }
+    }
+    else if (part.type === 'input_image' && typeof part.image_url === 'string') {
+      let imageUrl = part.image_url;
+      if (imageUrl.startsWith("supabase_storage:")) {
+        const storagePath = imageUrl.substring("supabase_storage:".length);
+        const { data: urlData } = supabase.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(storagePath);
+        if (urlData?.publicUrl) imageUrl = urlData.publicUrl;
+        else logger.warn(`[formatMsg] Failed to get public URL for supabase_storage: ${storagePath}`);
+      }
+      const isValid = imageUrl.startsWith('http://') || imageUrl.startsWith('https://') || (imageUrl.startsWith('data:image/') && imageUrl.includes(';base64,'));
+      if (isValid) {
+        openAiApiContentParts.push({ type: "input_image", image_url: imageUrl, detail: part.detail ?? "auto" });
+      } else if (!imageUrl.startsWith("error_") && !imageUrl.startsWith("blob:")) { 
+        logger.warn(`[formatMsg] Skipping invalid image_url (not http/data/supabase_storage or blob): ${imageUrl.substring(0,100)}...`);
+      }
+    }
+  }
+} else if (typeof msg.content === 'string' && msg.content.trim()) {
+  if (msg.role === "user" || msg.role === "system") {
+    openAiApiContentParts.push({ type: "input_text", text: msg.content });
+  } else if (msg.role === "assistant") {
+    openAiApiContentParts.push({ type: "output_text", text: msg.content });
+  }
+}
+
+if (msg.role === "user" && msg.attachments) {
+    for (const att of msg.attachments) {
+        if (att.type === "image" && att.url) {
+            let imageUrl = att.url;
+             if (imageUrl.startsWith("supabase_storage:")) {
+                const storagePath = imageUrl.substring("supabase_storage:".length);
+                const { data: urlData } = supabase.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(storagePath);
+                if (urlData?.publicUrl) imageUrl = urlData.publicUrl;
+             }
+             const isValid = imageUrl.startsWith('http://') || imageUrl.startsWith('https://') || (imageUrl.startsWith('data:image/') && imageUrl.includes(';base64,'));
+             if (isValid && !openAiApiContentParts.some(p => p.type === "input_image" && (p as ResponseApiInputImagePart).image_url === imageUrl)) {
+                openAiApiContentParts.push({ type: "input_image", image_url: imageUrl, detail: "auto" });
+             } else if (!isValid && !imageUrl.startsWith("error_") && !imageUrl.startsWith("blob:")) {
+                logger.warn(`[formatMsg] Skipping invalid image_url from attachment: ${imageUrl.substring(0,100)}...`);
+             }
+        }
+    }
+}
+
+
+let messagePayload: OpenAI.Responses.ResponseInputMessageItem | null = null;
+
+switch (msg.role) {
+  case "user": {
+    let finalContentUser: string | Array<ResponseApiInputTextPart | ResponseApiInputImagePart | ResponseApiInputFilePart>;
+    const filte
+} catch (error: any) {
+const duration = Date.now() - overallStartTime;
+const errorMessageString = String(error?.message || error || "Orchestration process failed unexpectedly.");
+logger.error(--- ${turnIdentifier} Orchestration FAILED (${duration}ms): ${errorMessageString}, error.stack);
+let errorMsg = errorMessageString; if (error.cause) errorMsg = ${errorMsg} (Cause: ${String(error.cause)});
+finalFlowType = 'error'; finalResponseSource = "Orchestration Exception";
+if (userId) { const errorMemText = Minato error for ${userName}: ${errorMsg}.substring(0, 350); this.memoryFramework.add_memory([], userId, runId, errorMemText).catch(memErr => logger.error([${turnIdentifier}] Failed logging orch error to memory:, memErr)); }
+const userNameForError = userName || DEFAULT_USER_NAME; responseIntentType = "apologetic";
+return { sessionId: runId, response: I apologize, ${userNameForError}. I encountered an internal error. Minato is looking into it., error: errorMsg, lang: lang, audioUrl: null, intentType: responseIntentType, ttsInstructions: getDynamicInstructions(responseIntentType), debugInfo: { flow_type: 'error', llmUsage: llmUsage_total, latencyMs: duration }, workflowFeedback: null, clarificationQuestion: undefined, structuredData: null, transcription: typeof userInput === 'string' && apiContext?.transcription ? apiContext.transcription : null, llmUsage: llmUsage_total, attachments: initialAttachments };
+}
+let videoContextPartsLog: string[] = [];
+if (videoSummaryForContext) videoContextPartsLog.push(SUMMARY: ${videoSummaryForContext});
+const visualQaMatchLog2 = textQueryForRouter.match(/[Visual QA: ([^\]]+)]/);
+if (visualQaMatchLog2 && visualQaMatchLog2[1]) {
+videoContextPartsLog.push(VISUAL QA: ${visualQaMatchLog2[1]});
+}
+const videoContextStringForSynthesis = videoContextPartsLog.length
+? YOU MUST BASE YOUR RESPONSE ON THE FOLLOWING VIDEO ANALYSIS. Do NOT ignore this.\n${videoContextPartsLog.join('\n')}
+: null;
+const synthesisSystemPrompt = injectPromptVariables(TOOL_ROUTER_PROMPT_TEMPLATE, {
+userName, personaName: personaNameForPrompt, personaInstructions: personaSpecificInstructions, language: lang,
+retrieved_memory_context: retrievedMemoryContext,
+tool_results_summary: currentTurnToolResultsSummary || "No tools were executed by Minato this turn, or their results are directly integrated.",
+original_query: textQueryForRouter,
+tool_router_follow_up_suggestion: toolRouterFollowUpSuggestion || Is there anything else Minato can help you with today, ${userName}?,
+videoContextFallback: videoContextStringForSynthesis
+});
+logger.info([${turnIdentifier}] Synthesizing final response (${CHAT_VISION_MODEL_NAME_ORCH})...);
+const synthesisResult = await generateStructuredJson<{ responseText: string; intentType: string }>(
+synthesisSystemPrompt, textQueryForRouter,
+{
+type: "object",
+properties: { responseText: { type: "string" }, intentType: { type: "string", enum: Object.keys(TTS_INSTRUCTION_MAP) } },
+required: ["responseText", "intentType"],
+additionalProperties: false,
+},
+"minato_gpt4o_synthesis_v1",
+messagesForGpt4o,
+CHAT_VISION_MODEL_NAME_ORCH,
+userId
+);
+const synthesisLlmUsage = (synthesisResult as any).usage as CompletionUsage | undefined;
+if (synthesisLlmUsage) {
+llmUsage_total.prompt_tokens += synthesisLlmUsage.prompt_tokens || 0;
+llmUsage_total.completion_tokens += synthesisLlmUsage.completion_tokens || 0;
+llmUsage_total.total_tokens += synthesisLlmUsage.total_tokens || 0;
+}
+if ("error" in synthesisResult) {
+finalResponseText = I've processed your request, ${userName}, but I'm having a bit of trouble wording my reply. ${synthesisResult.error?.substring(0, 100) || "Could you try rephrasing?"};
+responseIntentType = "apologetic";
+finalFlowType = "synthesis_error";
+logger.error([${turnIdentifier}] ${CHAT_VISION_MODEL_NAME_ORCH} Synthesis LLM failed: ${synthesisResult.error});
+} else {
+finalResponseText = synthesisResult.responseText;
+responseIntentType = synthesisResult.intentType;
+if (finalFlowType !== "direct_llm_after_router_fail") {
+finalFlowType = routedTools.planned_tools.length > 0 ? "workflow_synthesis" : "direct_llm_synthesis";
+}
+}
+ttsInstructionsForFinalResponse = getDynamicInstructions(responseIntentType);
+finalResponseSource = CHAT_VISION_MODEL_NAME_ORCH + " Synthesis";
+const userMemoryMsgForAdd: MemoryFrameworkMessage | null = mainUserInputContent.length > 0
+? { role: 'user', content: chatMessageContentPartsToMessageParts(mainUserInputContent), name: userName }
+: null;
+const finalAssistantMemoryMsg: MemoryFrameworkMessage | null = finalResponseText ? { role: 'assistant', content: finalResponseText, name: "Minato" } : null;
+const finalTurnForMemory: MemoryFrameworkMessage[] = [userMemoryMsgForAdd, finalAssistantMemoryMsg].filter((m): m is MemoryFrameworkMessage => m !== null);
+if (finalTurnForMemory.length > 0) { this.memoryFramework.add_memory(finalTurnForMemory, userId, runId, null).then(success => logger.info([${turnIdentifier}] Async memory add OK: ${success}.)).catch(e => logger.error([${turnIdentifier}] Async memory add FAIL:, e.message)); }
+const orchestrationMs = Date.now() - overallStartTime;
+finalResponseText = finalResponseText ? injectPromptVariables(finalResponseText, { userName }) : null;
+const debugInfoInternal: OrchestratorResponse['debugInfo'] = {
+flow_type: finalFlowType,
+llmModelUsed: CHAT_VISION_MODEL_NAME_ORCH,
+workflowPlannerModelUsed: PLANNING_MODEL_NAME_ORCH,
+llmUsage: llmUsage_total,
+latencyMs: orchestrationMs,
+toolCalls: finalToolCallsLogged,
+videoSummaryUsed: videoSummaryForContext ? videoSummaryForContext.substring(0, 100) + "..." : null,
+};
+logger.info(--- ${turnIdentifier} Orchestration complete (${orchestrationMs}ms). Flow: ${finalFlowType}. ---);
+return {
+sessionId: runId, response: finalResponseText,
+intentType: responseIntentType,
+ttsInstructions: ttsInstructionsForFinalResponse,
+clarificationQuestion: clarificationQuestionForUser,
+error: (typeof finalFlowType === 'string' && finalFlowType.includes("error")) ? (finalResponseText || "Processing error") : null,
+lang: lang, structuredData: finalStructuredResult,
+workflowFeedback: null, debugInfo: debugInfoInternal, audioUrl: null,
+transcription: typeof userInput === 'string' && apiContext?.transcription ? apiContext.transcription : (textQueryForRouter !== (typeof userInput === 'string' ? userInput : (userInput.find(p => p.type === 'text') as ChatMessageContentPartText)?.text || '')) ? textQueryForRouter : null,
+llmUsage: llmUsage_total,
+attachments: initialAttachments,
+};
+}
+async processTextMessage(
+userId: string,
+text: string | null,
+history: ChatMessage[] = [],
+sessionId?: string,
+apiContext?: Record<string, any>,
+attachments?: MessageAttachment[]
+): Promise<OrchestratorResponse> {
+const userState = await supabaseAdmin.getUserState(userId);
+const lang = apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0] || "en";
+const effectiveSessionId = sessionId || ${SESSION_ID_PREFIX}${randomUUID()};
+const userName = await this.getUserFirstName(userId);
+const effectiveApiContext = { ...apiContext, sessionId: effectiveSessionId, locale: userState?.preferred_locale || (appConfig as any).defaultLocale, lang, userName };
+const inputText = text ?? "";
+let orchestratorInput: string | ChatMessageContentPart[] = inputText;
+if (attachments && attachments.length > 0) {
+const contentParts: ChatMessageContentPart[] = [{ type: "text", text: inputText }];
+let hasImageAttachment = false;
+for (const att of attachments) {
+if (att.type === "image") {
+hasImageAttachment = true;
+if (att.file) {
+const imageUrlForPart = (att.url && att.url.startsWith("blob:"))
+? att.url
+: placeholder_id_${att.id || randomUUID()};
+contentParts.push({ type: "input_image", image_url: imageUrlForPart, detail: "auto" });
+} else if (att.url) {
+contentParts.push({ type: "input_image", image_url: att.url, detail: "auto" });
+}
+} else if (att.type === "video" && att.file) {
+}
+}
+if (hasImageAttachment || contentParts.length > 1) {
+if (contentParts.length > 1 && contentParts[0].type === "text" && (contentParts[0] as ChatMessageContentPartText).text === "") {
+contentParts.shift();
+}
+orchestratorInput = contentParts;
+}
+}
+const result = await this.runOrchestration(userId, orchestratorInput, history, effectiveApiContext, attachments);
+return { ...result, sessionId: effectiveSessionId, lang: result.lang || lang };
+}
+private async fetchAudioBuffer(url: string): Promise<Buffer> {
+const logPrefix = "[Orchestrator fetchAudioBuffer]";
+tryredParts = openAiApiContentParts.filter(p => p.type === "input_text" || p.type === "input_image" || p.type === "input_file") as Array<ResponseApiInputTextPart | ResponseApiInputImagePart | ResponseApiInputFilePart>;
+    
+    const validFilteredParts = filteredParts;
+
+    if (validFilteredParts.length === 1 && validFilteredParts[0].type === "input_text") {
+      finalContentUser = validFilteredParts[0].text;
+    } else if (validFilteredParts.length > 0) {
+      finalContentUser = validFilteredParts;
+    } else {
+      finalContentUser = (typeof msg.content === 'string' && msg.content.trim() === "") ? "" : "";
+      if (finalContentUser === "" && typeof msg.content === 'string' && msg.content.trim() !== "") {
+          finalContentUser = msg.content;
+      }
+    }
+
+    if (finalContentUser !== "" && (typeof finalContentUser !== 'string' || finalContentUser.trim() !== "") && (!Array.isArray(finalContentUser) || finalContentUser.length > 0)) {
+      if (typeof finalContentUser === "string") {
+        messagePayload = {
+          role: "user",
+          content: [{ type: "input_text", text: finalContentUser }],
+        };
+      } else if (Array.isArray(finalContentUser) && finalContentUser.length > 0) {
+        messagePayload = {
+          role: "user",
+          content: finalContentUser,
+        };
+      }
+    }
+    break;
+  }
+  case "system": {
+    let finalContentSystem: string;
+    if (openAiApiContentParts.length === 1 && openAiApiContentParts[0].type === "input_text") {
+      finalContentSystem = (openAiApiContentParts[0] as ResponseApiInputTextPart).text;
+    } else if (typeof msg.content === 'string') {
+      finalContentSystem = msg.content;
+    } else if (openAiApiContentParts.length > 0 && openAiApiContentParts.every(p => p.type === "input_text")) {
+      finalContentSystem = (openAiApiContentParts as ResponseApiInputTextPart[]).map(p => p.text).join("\n");
+    } else {
+      finalContentSystem = "";
+      if (typeof msg.content === 'string' && msg.content !== "") {
+        logger.warn(`[formatMsg] System message (original ID: ${msg.id || 'N/A'}) had non-string content not convertible to simple string. Setting to empty. Original: ${JSON.stringify(msg.content).substring(0,100)}`);
+      }
+    }
+    messagePayload = {
+      role: "system",
+      content: [{ type: "input_text", text: finalContentSystem }],
+    };
+    break;
+  }
+  case "assistant":
+    break;
+  case "tool":
+    break;
+  default:
+    break;
+}
+
+if (messagePayload) {
+  apiMessages.push(messagePayload);
+}
+
+}
+return apiMessages;
+}
+
+export async function generateEmbeddingLC(text: string): Promise<number[] | { error: string }> {
+if (!text || String(text).trim().length === 0) return { error: "Input text cannot be empty." };
+if (!openai?.embeddings) { logger.error("[LLM Clients Embed] OpenAI client or embeddings service not available."); return { error: "OpenAI client not initialized for embeddings." }; }
+try {
+const cleanedText = String(text).replace(/[\n\r]+/g, " ").trim();
+if (cleanedText.length === 0) return { error: "Input text empty after cleaning." };
+logger.debug(`[LLM Clients Embed] Generating (${EMBEDDING_MODEL_NAME}) for text (len: ${cleanedText.length})...`);
+const start = Date.now();
+const embeddingResponse = await openai.embeddings.create({
+  model: EMBEDDING_MODEL_NAME,
+  input: cleanedText,
+  encoding_format: "float",
+  dimensions: EMBEDDING_DIMENSIONS === 1536 ? undefined : EMBEDDING_DIMENSIONS
+});
+const duration = Date.now() - start;
+const embedding = embeddingResponse?.data?.[0]?.embedding;
+
+
+if (!embedding || !Array.isArray(embedding) || embedding.length !== EMBEDDING_DIMENSIONS) {
+  logger.error(`[LLM Clients Embed] Invalid response or dimension mismatch. Expected ${EMBEDDING_DIMENSIONS}, got ${embedding?.length}. Model: ${EMBEDDING_MODEL_NAME}`);
+  throw new Error(`Invalid embedding response or dimension mismatch (expected ${EMBEDDING_DIMENSIONS}, got ${embedding?.length}).`);
+}
+logger.debug(`[LLM Clients Embed] Generated (${duration}ms). Dim: ${embedding.length}`);
+return embedding;
+
+} catch (error: any) {
+  let errorMessage = "Embedding failed.";
+  if ((error as any).status && (error as any).message) {
+    errorMessage = `OpenAI Embedding API Error (${(error as any).status} ${(error as any).code || "N/A"}): ${(error as any).message}`;
+  } else if (error.message) {
+    errorMessage = error.message;
+  }
+  logger.error(`[LLM Clients Embed] Error: ${errorMessage}`, { originalError: error });
+  return { error: errorMessage };
+}
+}
+export async function generateStructuredJson<T extends AnyToolStructuredData | Record<string, any> = Record<string, any>>(
+instructions: string,
+userInput: string,
+jsonSchema: Record<string, any>,
+schemaName: string,
+historyForContext: ChatMessage[] = [],
+modelName: string,
+userId?: string
+): Promise<T | { error: string }> {
+if (!openai?.responses) { logger.error("[LLM Clients JSON] OpenAI responses service unavailable."); return { error: "OpenAI client not initialized." }; }
+const logSuffix = `User:${userId ? userId.substring(0, 8) : "N/A"} Model:${modelName} Schema:${schemaName}`;
+try {
+logger.debug(`[LLM Clients JSON] Generating with ${logSuffix}. Original schema type: ${jsonSchema.type}`);
+const formattedHistory = await formatMessagesForResponsesApi(historyForContext, userId);
+
+const userMessageForApi: OpenAI.Responses.ResponseInputMessageItem = {
+  role: "user",
+  content: [{ type: "input_text", text: userInput }]
+};
+
+
+const inputForApi: OpenAI.Responses.ResponseInputItem[] = [
+  ...formattedHistory,
+  userMessageForApi
+].filter(msg => {
+  if (typeof msg === 'object' && msg !== null && 'role' in msg) {
+    const role = (msg as any).role;
+    const content = (msg as any).content;
+    const toolCalls = 'tool_calls' in msg ? (msg as any).tool_calls : undefined;
+    if (role === 'assistant' && content === null && !(toolCalls && toolCalls.length > 0) ) return false;
+    if ((role === 'user' || role === 'system') && (content === null || content === "" || (Array.isArray(content) && content.length === 0))) return false;
+    return true;
+  }
+  return true; 
+});
+
+
+if (inputForApi.length === 0 && !instructions) {
+  logger.error(`[LLM Clients JSON] No valid messages or instructions. ${logSuffix}`);
+  return { error: "No valid messages or instructions to send." };
+}
+
+if (inputForApi.length > 0) {
+  const firstMsg = inputForApi[0] as any;
+  logger.debug(`[LLM Clients JSON] InputForApi[0] being sent: role=${firstMsg.role}, hasToolCalls=${!!firstMsg.tool_calls}, hasId=${!!firstMsg.id}`);
+}
+
+
+let finalJsonSchema = JSON.parse(JSON.stringify(jsonSchema)); 
+
+
+if (schemaName === "minato_tool_router_v1_1" && finalJsonSchema.type === "object" && finalJsonSchema.properties?.planned_tools?.type === "array") {
+  const itemsSchema = finalJsonSchema.properties.planned_tools.items;
+  if (typeof itemsSchema === 'object' && itemsSchema !== null && itemsSchema.type === "object") {
+    if (itemsSchema.properties?.arguments && itemsSchema.properties.arguments.type === 'object') {
+    } else {
+        logger.warn(`[LLM Clients JSON] 'arguments' property in '${schemaName}' item schema is not an object or missing. LLM might struggle with argument structure.`);
+    }
+  }
+  logger.debug(`[LLM Clients JSON] Schema '${schemaName}' for tool router appears compliant for OpenAI API.`);
+} else if (finalJsonSchema.type === "object") {
+  if (finalJsonSchema.additionalProperties !== false) {
+    logger.warn(`[LLM Clients JSON] Schema '${schemaName}' is object but root 'additionalProperties' is not false. Setting to false for strict mode compliance with OpenAI Responses API.`);
+    finalJsonSchema.additionalProperties = false;
+  }
+} else {
+  logger.error(`[LLM Clients JSON] Schema '${schemaName}' root must be 'object'. Got '${finalJsonSchema.type}'. ${logSuffix}`);
+  return { error: `Schema '${schemaName}' root must be 'object'.` };
+}
+
+
+const requestPayload: OpenAI.Responses.ResponseCreateParams = {
+  model: modelName,
+  input: inputForApi,
+  instructions: instructions || undefined,
+  text: { format: { type: "json_schema", name: schemaName, schema: finalJsonSchema, strict: true } },
+  store: appConfig.nodeEnv !== "production",
+  max_output_tokens: (modelName === PLANNING_MODEL_NAME)
+    ? Math.min(2048, MAX_OUTPUT_TOKENS) 
+    : MAX_OUTPUT_TOKENS,
+  temperature: (modelName === PLANNING_MODEL_NAME) ? 0.0 : (appConfig.llm.temperature ?? 0.7),
+};
+if (userId) requestPayload.user = userId;
+
+
+const start = Date.now();
+const responseRaw = await openai.responses.create(requestPayload);
+const response = responseRaw as any;
+const duration = Date.now() - start;
+
+
+if (response.status === "failed" || response.status === "incomplete") {
+  const errorReason = response.error?.message || response.incomplete_details?.reason || "Unknown error";
+  logger.error(`[LLM Clients JSON] Request Failed/Incomplete: Status ${response.status}. Reason: ${errorReason}. ${logSuffix}`);
+  return { error: `JSON generation failed (${response.status}): ${errorReason}` };
+}
+
+const assistantOutputItem = response.output?.find(
+  (item: any): item is OpenAI.Responses.ResponseInputMessageItem =>
+    item.type === "message" && item.role === "assistant" && "content" in item
+) as OpenAI.Responses.ResponseInputMessageItem | undefined;
+
+
+let textContentItem: ResponseApiOutputTextPart | undefined;
+if (assistantOutputItem && Array.isArray(assistantOutputItem.content)) {
+  textContentItem = assistantOutputItem.content.find(
+    (part: any): part is ResponseApiOutputTextPart =>
+      part.type === "output_text"
+  ) as ResponseApiOutputTextPart | undefined;
+}
+
+
+const finishReason = response.status === "completed" ? "stop" : response.incomplete_details?.reason || response.status;
+logger.debug(`[LLM Clients JSON] Success (${duration}ms). Finish: ${finishReason}. Usage: ${JSON.stringify(response.usage)}. ${logSuffix}`);
+
+
+if (!textContentItem || typeof textContentItem.text !== 'string') {
+  const refusalPart = (assistantOutputItem?.content as any[])?.find((p: any) => p.type === 'refusal');
+  if (refusalPart) {
+    logger.error(`[LLM Clients JSON] Model refused: ${refusalPart.refusal}. Schema: ${schemaName}. ${logSuffix}`);
+    return { error: `JSON generation refused: ${refusalPart.refusal}` };
+  }
+  logger.error(`[LLM Clients JSON] No 'output_text' in response. ${logSuffix}. Output:`, JSON.stringify(response.output).substring(0, 500));
+  return { error: "JSON generation failed (no text output)." };
+}
+const responseText: string = textContentItem.text;
+
+
+if (finishReason === "max_output_tokens") {
+  logger.error(`[LLM Clients JSON] Truncated JSON due to max_output_tokens. ${logSuffix}`);
+  const partialResult = safeJsonParse<Partial<T>>(responseText);
+  if (schemaName === "minato_tool_router_v1_1" && (partialResult as any)?.planned_tools) {
+    if (SchemaService.validate(schemaName, partialResult)) {
+        return partialResult as T;
+    }
+    logger.warn(`[LLM Clients JSON] Partial tool router output failed schema validation. Raw: ${responseText.substring(0,300)}`);
+  }
+  if (partialResult && SchemaService.validate(schemaName, partialResult)) return partialResult as T; 
+  return { error: `JSON generation failed (truncated due to max_output_tokens, and partial result is invalid for schema '${schemaName}'). Finish: ${finishReason}` };
+}
+
+
+const result = safeJsonParse<any>(responseText);
+if (!result || typeof result !== "object") {
+  logger.warn(`[LLM Clients JSON] Parsed non-object/null for schema ${schemaName}. Type: ${typeof result}. Raw: ${responseText.substring(0, 300)}. ${logSuffix}`);
+  return { error: `JSON parsing yielded ${typeof result}. Expected object for schema ${schemaName}.` };
+}
+
+if (!SchemaService.validate(schemaName, result)) {
+    logger.error(`[LLM Clients JSON] Output for schema '${schemaName}' FAILED final validation by SchemaService. ${logSuffix}. Data: ${responseText.substring(0,300)}`);
+    return { error: `Generated JSON does not conform to the schema '${schemaName}'.` };
+}
+
+if (schemaName === "minato_tool_router_v1_1") {
+  if (result.planned_tools && Array.isArray(result.planned_tools)) {
+    return result.planned_tools as T; 
+  } else {
+    logger.error(`[LLM Clients JSON] Tool router schema '${schemaName}' parsed, but 'planned_tools' array is missing. ${logSuffix}. Data: ${responseText.substring(0,300)}`);
+    return { error: "Tool router response structure missing 'planned_tools'." };
+  }
+}
+
+return result as T;
+
+} catch (error: any) {
+  let errorMessage = "Structured JSON generation error.";
+  if ((error as any).status && (error as any).message) {
+    errorMessage = `OpenAI API Error for JSON Gen (${(error as any).status} ${(error as any).code || "N/A"}): ${(error as any).message}`;
+  } else if (error.message) {
+    errorMessage = error.message;
+  }
+  let schemaForLogError = JSON.parse(JSON.stringify(jsonSchema));
+  if (schemaName === "minato_tool_router_v1_1" && schemaForLogError.type === "object" && schemaForLogError.properties?.planned_tools?.type === "array") {
+  } else if (schemaForLogError.type === "object" && schemaForLogError.additionalProperties !== false) {
+    schemaForLogError.additionalProperties = false;
+  }
+  logger.error(`[LLM Clients JSON] Exception: ${errorMessage}. ${logSuffix}`, { originalError: error, schemaName, schemaUsedForCall: schemaForLogError });
+  return { error: errorMessage };
+}
+}
+export async function generateAgentResponse(
+messages: ChatMessage[],
+responsesApiTools: OpenAI.Chat.Completions.ChatCompletionTool[] | null,
+responsesApiToolChoice: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption | "auto" | "none" | string | null,
+modelName: string = CHAT_VISION_MODEL_NAME,
+maxTokens?: number,
+userId?: string,
+instructions?: string | null
+): Promise<{
+responseContent: string | AppChatMessageContentPart[] | null;
+toolCalls: SdkFunctionCallOutputItem[] | null;
+finishReason: string | undefined;
+usage?: CompletionUsage | null;
+error?: string | null;
+}> {
+if (!openai?.responses) { return { responseContent: null, toolCalls: null, finishReason: "error", error: "OpenAI client not initialized." }; }
+const logSuffix = `User:${userId ? userId.substring(0, 8) : "N/A"} Model:${modelName}`;
+try {
+if (!messages || messages.length === 0) return { responseContent: null, toolCalls: null, finishReason: "error", error: "No messages provided to generateAgentResponse." };
+const apiInputItems = await formatMessagesForResponsesApi(messages, userId);
+
+
+if (apiInputItems.length === 0 && !instructions) {
+  return { responseContent: null, toolCalls: null, finishReason: "error", error: "No processable messages or instructions for API." };
+}
+
+
+const requestPayload: OpenAI.Responses.ResponseCreateParams = {
+  model: modelName,
+  input: apiInputItems,
+  instructions: instructions || undefined,
+  max_output_tokens: maxTokens ?? MAX_OUTPUT_TOKENS,
+  store: appConfig.nodeEnv !== "production",
+  temperature: appConfig.llm.temperature ?? 0.7,
+};
+if (userId) requestPayload.user = userId;
+if (responsesApiTools && responsesApiTools.length > 0) {
+  requestPayload.tools = responsesApiTools.map(tool => {
+    if (tool.type === 'function' && typeof tool.function === 'object') {
+      // Ensure 'strict: true' is part of the function definition passed to OpenAI
+      // for the Responses API, it's part of the tool.function object itself
+      return {
+        type: "function",
+        function: { // Correctly nest function details
+          name: tool.function.name,
+          description: tool.function.description,
+          parameters: tool.function.parameters,
+          strict: true // Ensure strict is applied here
+        }
+      };
+    }
+    return tool; // Should not happen if all tools are functions
+  }) as any; // Cast as any if the SDK type for tools doesn't include strict directly at this level
+}
+if (responsesApiToolChoice) {
+  requestPayload.tool_choice = responsesApiToolChoice as OpenAI.Responses.ResponseCreateParams['tool_choice'];
+}
+
+
+const start = Date.now();
+const responseRaw = await openai.responses.create(requestPayload);
+const response = responseRaw as any;
+const duration = Date.now() - start;
+
+
+if (response.status === "failed" || response.status === "incomplete") {
+  const errorReason = response.error?.message || response.incomplete_details?.reason || "Unknown API error";
+  const apiUsage = response.usage ? { prompt_tokens: response.usage.input_tokens ?? 0, completion_tokens: response.usage.output_tokens ?? 0, total_tokens: response.usage.total_tokens ?? 0 } : null;
+  logger.error(`[LLM Clients Agent] API Request Failed/Incomplete: Status ${response.status}. Reason: ${errorReason}. ${logSuffix}`);
+  return { responseContent: null, toolCalls: null, finishReason: response.status, error: `Agent API error (${response.status}): ${errorReason}`, usage: apiUsage };
+}
+
+
+let finalAssistantContent: string | AppChatMessageContentPart[] | null = null;
+const assistantOutputItem = response.output?.find(
+  (item: any): item is OpenAI.Responses.ResponseInputMessageItem =>
+    item.type === "message" && item.role === "assistant" && "content" in item
+);
+
+
+if (assistantOutputItem && Array.isArray(assistantOutputItem.content)) {
+  const appContentParts: AppChatMessageContentPart[] = [];
+  let allPartsAreText = true;
+  for (const part of assistantOutputItem.content as ResponseApiContentPart[]) {
+    if (part.type === "output_text" && typeof part.text === 'string') {
+      appContentParts.push({ type: "text", text: part.text } as AppChatMessageContentPartText);
+    } else if ((part as any).type === 'refusal' && typeof (part as any).refusal === 'string') {
+      appContentParts.push({ type: "text", text: `[Assistant Refusal: ${(part as any).refusal}]` } as AppChatMessageContentPartText);
+      allPartsAreText = false;
+    } else {
+      allPartsAreText = false;
+      logger.warn(`[LLM Clients Agent] Unhandled assistant output content part type: ${(part as any).type}. ${logSuffix}`);
+    }
+  }
+
+
+  if (appContentParts.length > 0) {
+    if (allPartsAreText && appContentParts.every(p => p.type === 'text')) {
+      finalAssistantContent = (appContentParts as AppChatMessageContentPartText[]).map(p => p.text).join("\n").trim();
+      if (finalAssistantContent === "") finalAssistantContent = null;
+    } else {
+      finalAssistantContent = appContentParts;
+    }
+  }
+} else if (assistantOutputItem && assistantOutputItem.content === null) {
+  finalAssistantContent = null;
+} else if (assistantOutputItem && typeof assistantOutputItem.content === 'string') {
+  finalAssistantContent = assistantOutputItem.content.trim();
+  if (finalAssistantContent === "") finalAssistantContent = null;
+}
+
+
+const extractedSdkFunctionCalls = response.output?.filter(
+  (item: any): item is SdkFunctionCallOutputItem => item.type === "function_call"
+);
+
+
+const finishReasonResult = response.status === "completed" ? (extractedSdkFunctionCalls && extractedSdkFunctionCalls.length > 0 ? "tool_calls" : "stop") : response.incomplete_details?.reason || response.status;
+const mappedUsage: CompletionUsage | null = response.usage ? { prompt_tokens: response.usage.input_tokens ?? 0, completion_tokens: response.usage.output_tokens ?? 0, total_tokens: response.usage.total_tokens ?? 0 } : null;
+
+
+logger.debug(`[LLM Clients Agent] Success (${duration}ms). Finish: ${finishReasonResult}. Content: ${!!finalAssistantContent}. Function Calls: ${extractedSdkFunctionCalls?.length ?? 0}. Usage: ${JSON.stringify(mappedUsage)}. ${logSuffix}`);
+return {
+  responseContent: finalAssistantContent,
+  toolCalls: extractedSdkFunctionCalls && extractedSdkFunctionCalls.length > 0 ? extractedSdkFunctionCalls : null,
+  finishReason: finishReasonResult,
+  usage: mappedUsage,
+  error: null
+};
+
+} catch (error: any) {
+  let errorMessage = "Agent response generation error.";
+  if ((error as any).status && (error as any).message) {
+    errorMessage = `OpenAI API Error for Agent (${(error as any).status} ${(error as any).code || "N/A"}): ${(error as any).message}`;
+  } else if (error.message) {
+    errorMessage = error.message;
+  }
+  const requestPayloadStringOnError = (error as any).request?.body ? JSON.stringify((error as any).request.body).substring(0, 300) : "N/A";
+  logger.error(`[LLM Clients Agent] Exception: ${errorMessage}. ${logSuffix}`, { originalError: error, requestPayloadString: requestPayloadStringOnError });
+  return { responseContent: null, toolCalls: null, finishReason: "error", error: errorMessage };
+}
+}
+
+export async function generateResponseWithIntent(
+instructions: string,
+userPrompt: string | AppChatMessageContentPart[],
+history: ChatMessage[] = [],
+modelName: string = CHAT_VISION_MODEL_NAME,
+maxTokens?: number,
+userId?: string
+): Promise<{ responseText: string; intentType: string } | { error: string }> {
+const logSuffix = `User:${userId ? userId.substring(0, 8) : "N/A"} Model:${modelName}`;
+logger.debug(`[LLM Clients Intent] Generating response and intent. ${logSuffix}`);
+const intentSchema = {
+type: "object" as const,
+properties: {
+responseText: { type: "string" as const, description: "The natural language response for the user, incorporating their name and Minato's persona. This should be a complete, conversational reply." },
+intentType: { type: "string" as const, description: "The single best intent classification for the responseText.", enum: Object.keys(TTS_INSTRUCTION_MAP) },
+},
+required: ["responseText", "intentType"],
+additionalProperties: false,
+};
+const schemaNameForIntent = "minato_intent_response_v4_gpt4o";
+let stringUserInputForJson: string;
+if (typeof userPrompt === 'string') {
+stringUserInputForJson = userPrompt;
+} else {
+stringUserInputForJson = userPrompt.map(part => {
+if (part.type === 'text') return part.text;
+if (part.type === 'input_image') return "[Image was provided by user]";
+return "[Unknown content part]";
+}).join(" ");
+}
+const textHistoryForJson = history.filter(m => typeof m.content === 'string' || (Array.isArray(m.content) && m.content.some(p => p.type === 'text')));
+const result = await generateStructuredJson<{ responseText: string; intentType: string }>(
+instructions, stringUserInputForJson, intentSchema, schemaNameForIntent,
+textHistoryForJson, modelName, userId
+);
+if ("error" in result) {
+logger.error(`[LLM Clients Intent] Structured JSON for intent failed: ${result.error}. ${logSuffix}. Falling back for text response only.`);
+const fallbackMessages: ChatMessage[] = [...history, { role: "user", content: userPrompt, timestamp: Date.now() }];
+const fallbackAgentResult = await generateAgentResponse(
+fallbackMessages, null, null, modelName, maxTokens, userId, instructions
+);
+if (fallbackAgentResult.responseContent) {
+logger.warn(`[LLM Clients Intent] Fallback to plain text response due to JSON error. Intent set to 'neutral'.`);
+let responseTextOnly: string;
+if (typeof fallbackAgentResult.responseContent === 'string') {
+responseTextOnly = fallbackAgentResult.responseContent;
+} else if (Array.isArray(fallbackAgentResult.responseContent)) {
+responseTextOnly = (fallbackAgentResult.responseContent.find(p => p.type === 'text') as AppChatMessageContentPartText | undefined)?.text || "[Could not extract text from multimodal fallback]";
+} else {
+responseTextOnly = "[Unexpected fallback content type]";
+}
+return { responseText: responseTextOnly, intentType: "neutral" };
+}
+return { error: result.error + " (Fallback also failed to produce text)" };
+}
+if (!result.responseText?.trim()) {
+logger.error(`[LLM Clients Intent] responseText became empty. LLM likely returned ONLY the JSON object. Prompting needs refinement. Original result:`, result);
+return { error: "LLM returned only JSON structure, no conversational text." };
+}
+return result;
+}
+
+export async function generateVisionCompletion(
+messages: ChatMessage[],
+modelName: string = CHAT_VISION_MODEL_NAME,
+maxTokens?: number,
+userId?: string
+): Promise<{ text: string | null; error?: string | null; usage?: CompletionUsage | null }> {
+const logSuffix = `User:${userId ? userId.substring(0, 8) : "N/A"} Model:${modelName}`;
+logger.debug(`[LLM Clients Vision] Generating vision completion. ${logSuffix}`);
+const hasImage = messages.some(msg =>
+Array.isArray(msg.content) &&
+msg.content.some(part =>
+(part.type === "input_image" && typeof part.image_url === 'string' && (part.image_url.startsWith('http') || part.image_url.startsWith('data:image')))
+)
+);
+if (!hasImage) {
+logger.warn(`[LLM Clients Vision] No valid http/data image content found for vision analysis. ${logSuffix}`);
+return { text: null, error: "No valid image content provided for vision analysis." };
+}
+const visionInstructions = "You are Minato, an AI assistant. Analyze the provided image(s) in detail and describe what you see. If text is provided with the image(s), consider it as part of the query or context for the analysis. Be descriptive and engaging.";
+const agentResult = await generateAgentResponse(
+messages, null, null, modelName, maxTokens ?? MAX_VISION_TOKENS, userId, visionInstructions
+);
+if (agentResult.error) {
+return { text: null, error: agentResult.error, usage: agentResult.usage };
+}
+if (agentResult.responseContent === null && agentResult.finishReason !== "stop") {
+logger.warn(`[LLM Clients Vision] Model returned no text, finish_reason: ${agentResult.finishReason}. ${logSuffix}`);
+}
+let visionTextResult: string | null = null;
+if (typeof agentResult.responseContent === 'string') {
+visionTextResult = agentResult.responseContent;
+} else if (Array.isArray(agentResult.responseContent)) {
+const textPart = agentResult.responseContent.find(p => p.type === 'text') as AppChatMessageContentPartText | undefined;
+visionTextResult = textPart?.text || null;
+}
+return { text: visionTextResult, error: null, usage: agentResult.usage };
+}
+
+/**
+ * NEW FUNCTION: Resolves a potentially non-English or aliased tool name to its canonical English name.
+ * @param givenToolName The tool name provided by the LLM router.
+ * @param canonicalToolNames A list of valid, canonical tool names registered in the system.
+ * @param userId Optional user ID for logging/context.
+ * @returns The resolved canonical tool name, or the original name if no mapping is found or an error occurs.
+ */
+export async function resolveToolNameWithLLM(
+  givenToolName: string,
+  canonicalToolNames: string[],
+  userId?: string
+): Promise<string> {
+  const logSuffix = `User:${userId ? userId.substring(0, 8) : "N/A"} GivenName:${givenToolName}`;
+  logger.info(`[LLM Clients ToolResolve] Attempting to resolve tool name: "${givenToolName}". Available: [${canonicalToolNames.join(", ")}]. ${logSuffix}`);
+
+  // Simple direct match or common alias check first (could be expanded or use a static map)
+  const lowerGivenName = givenToolName.toLowerCase();
+  for (const canonicalName of canonicalToolNames) {
+    if (canonicalName.toLowerCase() === lowerGivenName) {
+      logger.debug(`[LLM Clients ToolResolve] Direct/lowercase match found: "${givenToolName}" -> "${canonicalName}". ${logSuffix}`);
+      return canonicalName;
+    }
+    // Add common aliases here if desired, e.g.
+    // if (canonicalName === "NewsAggregatorTool" && (lowerGivenName === "news" || lowerGivenName === "newstool")) return canonicalName;
+  }
+
+  const schema = {
+    type: "object" as const,
+    properties: {
+      resolved_tool_name: {
+        type: "string" as const,
+        enum: canonicalToolNames,
+        description: "The closest matching canonical tool name from the provided list.",
+      },
+      confidence: {
+        type: "string" as const,
+        enum: ["high", "medium", "low", "none"],
+        description: "Confidence level of the match. 'none' if no good match found."
+      }
+    },
+    required: ["resolved_tool_name", "confidence"],
+    additionalProperties: false,
+  };
+  const schemaName = "minato_tool_name_resolver_v1";
+
+  const instructions = `You are an expert multilingual tool name resolver. Given a potentially non-English or aliased tool name and a list of valid canonical English tool names, identify the single best matching canonical tool name.
+The user (or another AI) provided the tool name: "${givenToolName}".
+The available canonical English tool names are:
+${canonicalToolNames.map(name => `- ${name}`).join("\n")}
+
+If you find a very strong match, set confidence to "high". If it's a plausible match, "medium". If it's a weak guess, "low". If no reasonable match is found, set confidence to "none" and pick any one of the canonical names as a fallback for resolved_tool_name (or the first one).
+Respond ONLY with the JSON object matching the schema.`;
+
+  const result = await generateStructuredJson<{ resolved_tool_name: string; confidence: string }>(
+    instructions,
+    `Resolve tool name: "${givenToolName}"`,
+    schema,
+    schemaName,
+    [],
+    appConfig.openai.extractionModel, // Use a fast model for this
+    userId
+  );
+
+  if ("error" in result || !result) {
+    logger.error(`[LLM Clients ToolResolve] Error resolving tool name "${givenToolName}" with LLM: ${result?.error || "Unknown error"}. Returning original. ${logSuffix}`);
+    return givenToolName; // Fallback to original name on error
+  }
+
+  if (result.confidence === "none" || result.confidence === "low") {
+    logger.warn(`[LLM Clients ToolResolve] Low confidence ("${result.confidence}") for resolving "${givenToolName}" to "${result.resolved_tool_name}". Consider adding an alias. ${logSuffix}`);
+    // Depending on strictness, you might return originalName here too if confidence is too low.
+    // For now, we'll trust the LLM's "best guess" even if low.
+  }
+
+  logger.info(`[LLM Clients ToolResolve] Resolved "${givenToolName}" to "${result.resolved_tool_name}" with ${result.confidence} confidence. ${logSuffix}`);
+  return result.resolved_tool_name;
+}
+
+
+export { openai as rawOpenAiClient };
+
+
+
+
+
+
+
+// FILE: lib/config.ts
+// This file now re-exports the unified configuration from the memory framework.
+import {
+  config as frameworkConfigUnified, // Use a more descriptive alias
+  logger as frameworkLoggerUnified,
+  injectPromptVariables as frameworkInjectPromptVariablesUnified
+} from "@/memory-framework/config/index"; // Ensure this path is correct
+import { DEFAULT_TOOL_TIMEOUT_MS, OpenAIPlanningModel } from "./constants"; // Added OpenAIPlanningModel
+
+declare const process: any;
+
+// Helper to log missing envs
+function getEnvVar(name: string, fallback: string | number | boolean | undefined, type?: 'string' | 'number' | 'boolean') {
+  const value = process.env[name];
+  if (value === undefined) {
+    if (fallback === undefined && typeof window === "undefined" && process.env.NODE_ENV !== 'test') { // Only error if no fallback and not in test
+      frameworkLoggerUnified.error(`[config] CRITICAL: Env var ${name} is missing and has no fallback.`);
+      // In production, you might want to throw new Error(`Missing env var: ${name}`);
+    } else if (typeof window === "undefined" && fallback !== undefined) {
+      frameworkLoggerUnified.warn(`[config] Env var ${name} is missing, using fallback: ${fallback}`);
+    }
+    return fallback;
+  }
+  if (type === 'boolean') return value.toLowerCase() === 'true';
+  if (type === 'number') {
+      const num = Number(value);
+      return isNaN(num) ? (fallback as number | undefined) : num;
+  }
+  return value;
+}
+
+export interface AppConfig {
+  encryptionKey: any;
+  llm: any;
+  nodeEnv: string;
+  emailFromAddress: string;
+  app: any;
+  toolApiKeys: any;
+  supabase: {
+    storageUrl: string;
+    // Add other Supabase config properties if needed
+  };
+  openai: {
+    apiKey: string;
+    chatModel: string;
+    planningModel: OpenAIPlanningModel; // Ensure this type is used
+    extractionModel: string;
+    developerModel: string;
+    sttModel: string;
+    ttsModel: string;
+    embedderModel: string;
+    embeddingDims: number;
+    ttsDefaultVoice: string;
+    ttsVoices: readonly string[];
+    enableVision: boolean;
+    visionDetail: "auto" | "low" | "high";
+    temperature: number;
+    maxTokens: number;
+    maxVisionTokens: number;
+    text: string;
+    vision: string;
+    planning: OpenAIPlanningModel; // Ensure this type is used
+    extraction: string;
+    tts: string;
+    stt: string;
+    complexModel: string;
+    balancedModel: string;
+    fastModel: string;
+    mediaUploadBucket: string;
+    maxToolsPerTurn: number;
+  };
+  defaultLocale: string;
+  toolTimeoutMs?: number;
+  // ... rest of your config interface
+}
+
+export const appConfig: AppConfig = {
+  ...frameworkConfigUnified,
+  
+  supabase: {
+    // @ts-ignore: process.env is available in Node.js environments
+    storageUrl: process.env.SUPABASE_STORAGE_URL || "https://auzkjkliwlycclkpjlbl.supabase.co/storage/v1",
+  },
+  defaultLocale: process.env.DEFAULT_LOCALE || "en-US",
+  
+  openai: {
+    apiKey: getEnvVar("OPENAI_API_KEY", "") as string,
+    // Main models based on new strategy
+    chatModel: getEnvVar("LLM_CHAT_MODEL", "gpt-4o-2024-08-06") as string, // Primary model for chat & vision
+    planningModel: getEnvVar("LLM_PLANNING_MODEL", "gpt-4o-2024-08-06") as OpenAIPlanningModel, // UPDATED for tool routing
+
+    // Specialized models (can be same as above if preferred, or more specific/cost-effective)
+    extractionModel: getEnvVar("LLM_EXTRACTION_MODEL", "gpt-4.1-nano-2025-04-14") as string, // For memory extraction
+    developerModel: getEnvVar("LLM_DEVELOPER_MODEL", "o3-mini-2025-01-31") as string, // If needed for specific dev tasks
+    
+    // STT/TTS (chained voice) - kept as gpt-4o-mini variants
+    sttModel: getEnvVar("LLM_STT_MODEL", "gpt-4o-mini-transcribe") as string,
+    ttsModel: getEnvVar("LLM_TTS_MODEL", "gpt-4o-mini-tts") as string,
+    
+    // Embedding model
+    embedderModel: getEnvVar("LLM_EMBEDDER_MODEL", "text-embedding-3-small") as string,
+    embeddingDims: getEnvVar("LLM_EMBEDDER_DIMENSIONS", 1536, 'number') as number,
+
+    // Default voices (ensure these are valid for gpt-4o-mini-tts)
+    ttsDefaultVoice: getEnvVar("OPENAI_TTS_VOICE", "nova") as typeof frameworkConfigUnified.llm.ttsDefaultVoice,
+    ttsVoices: frameworkConfigUnified.llm.ttsVoices,
+
+    enableVision: getEnvVar("ENABLE_VISION_ENV", true, 'boolean') as boolean,
+    visionDetail: getEnvVar("VISION_DETAIL", "auto", 'string') as "auto" | "low" | "high",
+    
+    temperature: getEnvVar("LLM_TEMPERATURE", 0.7, 'number') as number, // General temperature
+    maxTokens: getEnvVar("GENERATION_MAX_TOKENS", 1536, 'number') as number, // Max output for general responses
+    maxVisionTokens: getEnvVar("MAX_VISION_TOKENS", 2048, 'number') as number, // Max output for vision-related responses
+    
+    text: getEnvVar("LLM_CHAT_MODEL", "gpt-4o-2024-08-06") as string, 
+    vision: getEnvVar("LLM_CHAT_MODEL", "gpt-4o-2024-08-06") as string, 
+    planning: getEnvVar("LLM_PLANNING_MODEL", "gpt-4o-2024-08-06") as OpenAIPlanningModel, // UPDATED for tool routing
+    extraction: getEnvVar("LLM_EXTRACTION_MODEL", "gpt-4.1-nano-2025-04-14") as string,
+    tts: getEnvVar("LLM_TTS_MODEL", "gpt-4o-mini-tts") as string,
+    stt: getEnvVar("LLM_STT_MODEL", "gpt-4o-mini-transcribe") as string,
+    
+    complexModel: getEnvVar("LLM_COMPLEX_MODEL", "gpt-4o-2024-08-06") as string,
+    balancedModel: getEnvVar("LLM_BALANCED_MODEL", "gpt-4o-2024-08-06") as string,
+    fastModel: getEnvVar("LLM_FAST_MODEL", "gpt-4.1-nano-2025-04-14") as string,
+
+    mediaUploadBucket: getEnvVar("MEDIA_UPLOAD_BUCKET", "images") as string,
+    maxToolsPerTurn: frameworkConfigUnified.llm.maxToolsPerTurn ?? 3,
+  },
+  
+  toolTimeoutMs: getEnvVar("TOOL_TIMEOUT_MS", DEFAULT_TOOL_TIMEOUT_MS, 'number') as number,
+};
+export const logger = frameworkLoggerUnified;
+export const injectPromptVariables = frameworkInjectPromptVariablesUnified;
+
+if (typeof window === "undefined") {
+    logger.info("[lib/config.ts] appConfig, logger, and injectPromptVariables are re-exporting from memory-framework/config.");
+    logger.info(`[lib/config.ts] Key Models - Chat/Vision: ${appConfig.openai.chatModel}, Planning: ${appConfig.openai.planningModel}, Extraction: ${appConfig.openai.extractionModel}`);
+}
+
+
+
+
+
+
+
+// FILE: memory-framework/config/index.ts
+import { FrameworkConfig } from "../core/types"; 
+import dotenv from "dotenv";
+import path from "path";
+import {
+  OpenAIEmbeddingModel,
+  OpenAILLMBalanced,
+  OpenAILLMFast,
+  OpenAIPlanningModel,
+  OpenAIVisionModel,
+  OpenAITtsModel,
+  OpenAISttModel,
+  OpenAITtsVoice,
+  OpenAIDeveloperModel,
+  OpenAILLMComplex,
+} from "../../lib/types/index";
+import {
+  MEMORY_SEARCH_LIMIT_DEFAULT,
+  DEFAULT_USER_NAME,
+  DEFAULT_PERSONA_ID,
+  OPENAI_EMBEDDING_DIMENSION,
+  DEFAULT_TOOL_TIMEOUT_MS, 
+  EXTERNAL_CACHE_SIMILARITY_THRESHOLD,
+  EXTERNAL_CACHE_DEFAULT_LIMIT, 
+} from "../../lib/constants";
+
+
+const ENV_KEYS = {
+  OPENAI_API_KEY: "OPENAI_API_KEY",
+  LLM_PLANNING_MODEL: "LLM_PLANNING_MODEL", 
+  LLM_CHAT_MODEL: "LLM_CHAT_MODEL", 
+  LLM_COMPLEX_MODEL: "LLM_COMPLEX_MODEL", 
+  LLM_EXTRACTION_MODEL: "LLM_EXTRACTION_MODEL", 
+  LLM_DEVELOPER_MODEL: "LLM_DEVELOPER_MODEL", 
+  LLM_TTS_MODEL: "LLM_TTS_MODEL", 
+  LLM_STT_MODEL: "LLM_STT_MODEL", 
+  LLM_EMBEDDER_MODEL: "LLM_EMBEDDER_MODEL",
+  LLM_EMBEDDER_DIMENSIONS: "LLM_EMBEDDER_DIMENSIONS",
+  LLM_TEMPERATURE: "LLM_TEMPERATURE",
+  VISION_DETAIL: "VISION_DETAIL",
+  MAX_VISION_TOKENS: "MAX_VISION_TOKENS",
+  GENERATION_MAX_TOKENS: "GENERATION_MAX_TOKENS",
+  ENABLE_TTS_POST_PROCESSING: "ENABLE_TTS_POST_PROCESSING",
+  TTS_TARGET_LOUDNESS_DB: "TTS_TARGET_LOUDNESS_DB",
+
+  NEXT_PUBLIC_SUPABASE_URL: "NEXT_PUBLIC_SUPABASE_URL",
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  SUPABASE_SERVICE_ROLE_KEY: "SUPABASE_SERVICE_ROLE_KEY",
+  SUPABASE_MEMORY_TABLE: "SUPABASE_MEMORY_TABLE",
+  SUPABASE_CACHE_TABLE: "SUPABASE_CACHE_TABLE",
+  SUPABASE_MATCH_MEMORY_FUNC: "SUPABASE_MATCH_MEMORY_FUNC",
+  SUPABASE_MATCH_CACHE_FUNC: "SUPABASE_MATCH_CACHE_FUNC",
+  SUPABASE_FTS_CONFIG: "SUPABASE_FTS_CONFIG",
+  SUPABASE_PERSONAS_TABLE: "SUPABASE_PERSONAS_TABLE",
+  SUPABASE_USER_PERSONAS_TABLE: "SUPABASE_USER_PERSONAS_TABLE",
+  SUPABASE_USER_INTEGRATIONS_TABLE: "SUPABASE_USER_INTEGRATIONS_TABLE",
+  SUPABASE_USER_STATES_TABLE: "SUPABASE_USER_STATES_TABLE",
+  SUPABASE_USER_PROFILES_TABLE: "SUPABASE_USER_PROFILES_TABLE",
+  SUPABASE_PUSH_SUBS_TABLE: "SUPABASE_PUSH_SUBS_TABLE",
+
+  NEO4J_URI: "NEO4J_URI",
+  NEO4J_USERNAME: "NEO4J_USERNAME",
+  NEO4J_PASSWORD: "NEO4J_PASSWORD",
+
+  UPSTASH_REDIS_URL: "UPSTASH_REDIS_URL",
+  UPSTASH_REDIS_TOKEN: "UPSTASH_REDIS_TOKEN",
+  CACHE_PROVIDER_ENV: "CACHE_PROVIDER",
+
+  VAPID_PUBLIC_KEY: "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
+  VAPID_PRIVATE_KEY: "VAPID_PRIVATE_KEY",
+  VAPID_SUBJECT: "VAPID_SUBJECT",
+
+  LOG_LEVEL: "LOG_LEVEL",
+  DEFAULT_LOCALE: "DEFAULT_LOCALE",
+  ENCRYPTION_KEY: "ENCRYPTION_KEY",
+  ALLOW_DEV_UNAUTH: "ALLOW_DEV_UNAUTH",
+  DEFAULT_TOOL_TIMEOUT_MS_ENV: "DEFAULT_TOOL_TIMEOUT_MS", 
+  APP_URL: "NEXT_PUBLIC_APP_URL", 
+  NODE_ENV: "NODE_ENV",
+
+  SERPER_API_KEY: "SERPER_API_KEY",
+  YOUTUBE_API_KEY: "YOUTUBE_API_KEY",
+  UNSPLASH_ACCESS_KEY: "UNSPLASH_ACCESS_KEY",
+  PEXELS_API_KEY: "PEXELS_API_KEY",
+  OPENWEATHERMAP_API_KEY: "OPENWEATHERMAP_API_KEY",
+  WOLFRAMALPHA_APP_ID: "WOLFRAMALPHA_APP_ID",
+  THESPORTSDB_API_KEY: "THESPORTSDB_API_KEY",
+  TICKETMASTER_API_KEY: "TICKETMASTER_API_KEY",
+  GOOGLE_CLIENT_ID: "GOOGLE_CLIENT_ID",
+  GOOGLE_CLIENT_SECRET: "GOOGLE_CLIENT_SECRET",
+  GOOGLE_REDIRECT_URI: "GOOGLE_REDIRECT_URI",
+  GNEWS_API_KEY: "GNEWS_API_KEY",
+  NEWSAPI_ORG_KEY: "NEWSAPI_ORG_KEY",
+  RESEND_API_KEY: "RESEND_API_KEY",
+  EMAIL_FROM_ADDRESS: "EMAIL_FROM_ADDRESS",
+  ENABLE_VISION_ENV: "ENABLE_VISION",
+  SEMANTIC_CACHE_ENABLED_ENV: "SEMANTIC_CACHE_ENABLED",
+  MEDIA_UPLOAD_BUCKET: "MEDIA_UPLOAD_BUCKET",
+} as const;
+
+const ALL_TTS_VOICES: ReadonlyArray<OpenAITtsVoice> = [
+  "alloy", "ash", "ballad", "coral", "echo", "fable",
+  "nova", "onyx", "sage", "shimmer", "verse",
+] as const;
+
+const DEFAULT_TTS_VOICE_CONST: OpenAITtsVoice = ALL_TTS_VOICES.includes("nova")
+  ? "nova"
+  : ALL_TTS_VOICES[0];
+
+const DEFAULTS_UNIFIED = {
+  LLM_PLANNING_MODEL: "gpt-4o-2024-08-06" as OpenAIPlanningModel, // UPDATED
+  LLM_CHAT_MODEL: "gpt-4o-2024-08-06" as OpenAILLMBalanced,
+  LLM_COMPLEX_MODEL: "gpt-4o-2024-08-06" as OpenAILLMComplex,
+  LLM_EXTRACTION_MODEL: "gpt-4.1-nano-2025-04-14" as OpenAILLMFast,
+  LLM_DEVELOPER_MODEL: "o3-mini-2025-01-31" as OpenAIDeveloperModel,
+  LLM_VISION_MODEL: "gpt-4o-2024-08-06" as OpenAIVisionModel,
+  LLM_TTS_MODEL: "gpt-4o-mini-tts" as OpenAITtsModel,
+  LLM_STT_MODEL: "gpt-4o-mini-transcribe" as OpenAISttModel,
+  LLM_EMBEDDER_MODEL: "text-embedding-3-small" as OpenAIEmbeddingModel,
+  LLM_EMBEDDER_DIMENSIONS: OPENAI_EMBEDDING_DIMENSION,
+  LLM_TEMPERATURE: 0.7,
+  VISION_DETAIL: "auto" as "low" | "high" | "auto",
+  MAX_VISION_TOKENS: 2048,
+  GENERATION_MAX_TOKENS: 1536,
+  TTS_DEFAULT_VOICE: DEFAULT_TTS_VOICE_CONST,
+  ENABLE_TTS_POST_PROCESSING_DEFAULT: false,
+  TTS_TARGET_LOUDNESS_DB_DEFAULT: -16,
+
+  SUPABASE_TABLE_NAME: "memories",
+  SUPABASE_MATCH_FUNCTION: "match_memories_v2",
+  SUPABASE_FTS_CONFIG: "english",
+  SUPABASE_CACHE_TABLE_NAME: "external_content_cache",
+  SUPABASE_MATCH_CACHE_FUNCTION: "match_external_content_cache",
+  SUPABASE_PERSONAS_TABLE: "personas",
+  SUPABASE_USER_PERSONAS_TABLE: "user_personas",
+  SUPABASE_USER_INTEGRATIONS_TABLE: "user_integrations",
+  SUPABASE_USER_STATES_TABLE: "user_states",
+  SUPABASE_USER_PROFILES_TABLE: "user_profiles",
+  SUPABASE_PUSH_SUBS_TABLE: "user_push_subscriptions",
+
+  NEO4J_PROVIDER: "neo4j",
+
+  CACHE_PROVIDER: "none" as FrameworkConfig["cache"]["provider"],
+  EMBEDDING_CACHE_TTL: 3600 * 24 * 7,
+  SEARCH_CACHE_TTL: 90,
+  EXTRACTION_CACHE_TTL: 3600 * 6,
+
+  SEMANTIC_CACHE_ENABLED: true, 
+  SEMANTIC_CACHE_SIMILARITY_THRESHOLD: EXTERNAL_CACHE_SIMILARITY_THRESHOLD,
+  SEMANTIC_CACHE_DEFAULT_LIMIT: EXTERNAL_CACHE_DEFAULT_LIMIT,
+  SEMANTIC_CACHE_DEFAULT_TTL: 3600 * 24,
+  SEMANTIC_CACHE_PRODUCT_TTL: 3600 * 4,
+  SEMANTIC_CACHE_VIDEO_TTL: 3600 * 24 * 7,
+  SEMANTIC_CACHE_IMAGE_TTL: 3600 * 24 * 30,
+  SEMANTIC_CACHE_RECIPE_TTL: 3600 * 24 * 14,
+  SEMANTIC_CACHE_WEATHER_TTL: 60 * 15,
+  SEMANTIC_CACHE_PLACE_TTL: 3600 * 24 * 7,
+  SEMANTIC_CACHE_GIF_TTL: 3600 * 12,
+  SEMANTIC_CACHE_FACT_TTL: 3600 * 24 * 7,
+  SEMANTIC_CACHE_NEWS_TTL: 3600 * 1,
+  SEMANTIC_CACHE_SPORTS_TTL: 3600 * 2,
+  SEMANTIC_CACHE_EVENT_TTL: 3600 * 6,
+  SEMANTIC_CACHE_TIKTOK_TTL: 3600 * 24 * 3,
+  SEMANTIC_CACHE_CALENDAR_TTL: 60 * 5,
+  SEMANTIC_CACHE_EMAIL_TTL: 60 * 2,
+  SEMANTIC_CACHE_TASK_TTL: 60 * 1,
+  SEMANTIC_CACHE_REMINDER_TTL: 60 * 1,
+
+  MEMORY_SEARCH_LIMIT_DEFAULT: MEMORY_SEARCH_LIMIT_DEFAULT,
+  CONFLICT_RESOLUTION:
+    "use_latest_graph_ts" as FrameworkConfig["conflictResolutionStrategy"],
+  HYBRID_SEARCH_DEFAULT: true,
+  GRAPH_SEARCH_DEFAULT: true,
+  RERANK_DEFAULT: false,
+  ADD_MEMORY_ON_FAILURE: true,
+
+  VAPID_SUBJECT: "mailto:renemakoule@gmail.com",
+
+  LOG_LEVEL: "info" as FrameworkConfig["logLevel"],
+  DEFAULT_LOCALE: "en-US",
+  ENCRYPTION_KEY_DEFAULT: "default_dummy_key_for_dev_32bytes_must_change!",
+  ALLOW_DEV_UNAUTH: false,
+  TOOL_TIMEOUT_MS: DEFAULT_TOOL_TIMEOUT_MS, 
+  APP_URL: "http://localhost:3000",
+  NODE_ENV: "development",
+  DEFAULT_USER_NAME_CONST: DEFAULT_USER_NAME,
+  DEFAULT_PERSONA_ID_CONST: DEFAULT_PERSONA_ID,
+  ENABLE_VISION_APP: true,
+  EMAIL_FROM_ADDRESS: "Minato AI <renemakoule@gmail.com>",
+  DEFAULT_CATEGORIES: [
+    "personal_details", "user_preferences", "relationships", "work_education",
+    "locations", "events_milestones", "health_wellness", "hobbies_interests",
+    "likes_dislikes", "goals_aspirations", "facts_knowledge", "sentiment_mood",
+    "feedback_correction", "temporary_info", "planning", "media_consumption",
+    "shared_experiences", "inside_jokes", "technical_details", "product_interest",
+    "content_interest", "reminders", "tasks", "data_analysis", "misc",
+  ],
+};
+
+function getEnvVar(
+  key: keyof typeof ENV_KEYS,
+  required: boolean = true,
+  defaultValue?: string | number | boolean,
+  type?: 'string' | 'number' | 'boolean'
+): string | number | boolean | undefined {
+  const envVarName = ENV_KEYS[key];
+  const value =
+    typeof process !== "undefined" && process.env
+      ? process.env[envVarName]
+      : undefined;
+
+  if (value !== undefined) {
+    if (type === "boolean" || typeof defaultValue === "boolean" && type === undefined)
+      return value.toLowerCase() === "true";
+    if (type === "number" || typeof defaultValue === "number" && type === undefined) {
+      const num = Number(value);
+      return isNaN(num) ? defaultValue : num;
+    }
+    return value;
+  }
+  if (required && defaultValue === undefined && typeof window === "undefined" && process.env.NODE_ENV !== 'test') {
+    const message = `[Config Load] CRITICAL: Missing required environment variable: ${envVarName} (config key: ${key})`;
+    console.error(message);
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(message);
+    }
+  }
+  return defaultValue;
+}
+
+export function injectPromptVariables(
+  template: string,
+  variables: Record<
+    string,
+    string | number | boolean | undefined | null | Record<string, any>
+  >
+): string {
+  let populatedTemplate = template;
+  for (const key in variables) {
+    const value = variables[key];
+    const replacement =
+      typeof value === "object" && value !== null
+        ? JSON.stringify(value, null, 2)
+        : String(value ?? "");
+    populatedTemplate = populatedTemplate.replace(
+      new RegExp(`{${key}}`, "g"),
+      replacement
+    );
+  }
+  return populatedTemplate;
+}
+
+function loadConfig(): FrameworkConfig {
+  if (typeof window === "undefined") {
+    getEnvVar("OPENAI_API_KEY", true);
+    getEnvVar("NEXT_PUBLIC_SUPABASE_URL", true);
+    getEnvVar("SUPABASE_SERVICE_ROLE_KEY", true);
+    getEnvVar("NEO4J_URI", true);
+    getEnvVar("NEO4J_USERNAME", true);
+    getEnvVar("NEO4J_PASSWORD", true);
+    const encryptionKey = getEnvVar( "ENCRYPTION_KEY", true, DEFAULTS_UNIFIED.ENCRYPTION_KEY_DEFAULT ) as string;
+    if (Buffer.from(encryptionKey, "utf-8").length !== 32) {
+      const errMsg = "CRITICAL SECURITY: ENCRYPTION_KEY must be exactly 32 bytes long.";
+      console.error(`[Config Load] ${errMsg}`);
+      if ( getEnvVar("NODE_ENV", false, DEFAULTS_UNIFIED.NODE_ENV) === "production" ) throw new Error(errMsg);
+    }
+    if ( getEnvVar( "CACHE_PROVIDER_ENV", false, DEFAULTS_UNIFIED.CACHE_PROVIDER ) === "upstash_redis" ) {
+      getEnvVar("UPSTASH_REDIS_URL", true);
+      getEnvVar("UPSTASH_REDIS_TOKEN", true);
+    }
+    if ( getEnvVar("NODE_ENV", false, DEFAULTS_UNIFIED.NODE_ENV) === "production" ) {
+      getEnvVar("VAPID_PUBLIC_KEY", true);
+      getEnvVar("VAPID_PRIVATE_KEY", true);
+      getEnvVar("VAPID_SUBJECT", true);
+    }
+    getEnvVar("APP_URL", true); 
+  }
+
+  const determinedCacheProvider = getEnvVar( "CACHE_PROVIDER_ENV", false, DEFAULTS_UNIFIED.CACHE_PROVIDER ) as FrameworkConfig["cache"]["provider"];
+  const nodeEnv = getEnvVar( "NODE_ENV", false, DEFAULTS_UNIFIED.NODE_ENV ) as string;
+
+  const loadedConfig = {
+    llm: {
+      provider: "openai",
+      apiKey: getEnvVar("OPENAI_API_KEY", true, "") as string,
+      planningModel: getEnvVar( "LLM_PLANNING_MODEL", false, DEFAULTS_UNIFIED.LLM_PLANNING_MODEL, 'string' ) as OpenAIPlanningModel, // Will use the updated default
+      chatModel: getEnvVar( "LLM_CHAT_MODEL", false, DEFAULTS_UNIFIED.LLM_CHAT_MODEL, 'string' ) as OpenAILLMBalanced,
+      complexModel: getEnvVar( "LLM_COMPLEX_MODEL", false, DEFAULTS_UNIFIED.LLM_COMPLEX_MODEL, 'string' ) as OpenAILLMComplex,
+      extractionModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL, 'string' ) as OpenAILLMFast,
+      developerModel: getEnvVar( "LLM_DEVELOPER_MODEL", false, DEFAULTS_UNIFIED.LLM_DEVELOPER_MODEL, 'string' ) as OpenAIDeveloperModel,
+      fastModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL, 'string' ) as OpenAILLMFast, 
+      visionModel: getEnvVar( "LLM_VISION_MODEL", false, DEFAULTS_UNIFIED.LLM_VISION_MODEL, 'string' ) as OpenAIVisionModel, 
+      ttsModel: getEnvVar( "LLM_TTS_MODEL", false, DEFAULTS_UNIFIED.LLM_TTS_MODEL, 'string' ) as OpenAITtsModel,
+      sttModel: getEnvVar( "LLM_STT_MODEL", false, DEFAULTS_UNIFIED.LLM_STT_MODEL, 'string' ) as OpenAISttModel,
+      enableVision: getEnvVar( "ENABLE_VISION_ENV", false, DEFAULTS_UNIFIED.ENABLE_VISION_APP, 'boolean' ) as boolean,
+      temperature: getEnvVar( "LLM_TEMPERATURE", false, DEFAULTS_UNIFIED.LLM_TEMPERATURE, 'number' ) as number,
+      maxTokens: getEnvVar( "GENERATION_MAX_TOKENS", false, DEFAULTS_UNIFIED.GENERATION_MAX_TOKENS, 'number' ) as number,
+      topP: 1.0,
+      ttsDefaultVoice: DEFAULTS_UNIFIED.TTS_DEFAULT_VOICE,
+      ttsVoices: ALL_TTS_VOICES,
+      visionDetail: getEnvVar( "VISION_DETAIL", false, DEFAULTS_UNIFIED.VISION_DETAIL, 'string' ) as "low" | "high" | "auto",
+      maxVisionTokens: getEnvVar( "MAX_VISION_TOKENS", false, DEFAULTS_UNIFIED.MAX_VISION_TOKENS, 'number' ) as number,
+      realtimeTools: null, 
+      enableTtsPostProcessing: getEnvVar("ENABLE_TTS_POST_PROCESSING", false, DEFAULTS_UNIFIED.ENABLE_TTS_POST_PROCESSING_DEFAULT, 'boolean') as boolean,
+      ttsTargetLoudnessDb: getEnvVar("TTS_TARGET_LOUDNESS_DB", false, DEFAULTS_UNIFIED.TTS_TARGET_LOUDNESS_DB_DEFAULT, 'number') as number,
+      realtimeModel: "gpt-4o-mini-realtime-preview-2024-12-17" as any,
+      realtimeSttModel: "gpt-4o-mini-transcribe" as any,
+      realtimeDefaultVoice: "nova" as any,
+      realtimeVoices: ["nova"] as any,
+      realtimeVadConfig: {} as any,
+    },
+    embedder: {
+      provider: "openai",
+      model: getEnvVar( "LLM_EMBEDDER_MODEL", false, DEFAULTS_UNIFIED.LLM_EMBEDDER_MODEL, 'string' ) as OpenAIEmbeddingModel,
+      apiKey: getEnvVar("OPENAI_API_KEY", true, "") as string,
+      dimensions: getEnvVar( "LLM_EMBEDDER_DIMENSIONS", false, DEFAULTS_UNIFIED.LLM_EMBEDDER_DIMENSIONS, 'number' ) as number,
+    },
+    vectorStore: {
+      provider: "supabase",
+      url: getEnvVar("NEXT_PUBLIC_SUPABASE_URL", true, "") as string,
+      serviceKey: getEnvVar("SUPABASE_SERVICE_ROLE_KEY", true, "") as string,
+      tableName: getEnvVar( "SUPABASE_MEMORY_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_TABLE_NAME, 'string' ) as string,
+      cacheTableName: getEnvVar( "SUPABASE_CACHE_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_CACHE_TABLE_NAME, 'string' ) as string,
+      matchCacheFunctionName: getEnvVar( "SUPABASE_MATCH_CACHE_FUNC", false, DEFAULTS_UNIFIED.SUPABASE_MATCH_CACHE_FUNCTION, 'string' ) as string,
+      embeddingDimension: getEnvVar( "LLM_EMBEDDER_DIMENSIONS", false, DEFAULTS_UNIFIED.LLM_EMBEDDER_DIMENSIONS, 'number' ) as number,
+      matchFunctionName: getEnvVar( "SUPABASE_MATCH_MEMORY_FUNC", false, DEFAULTS_UNIFIED.SUPABASE_MATCH_FUNCTION, 'string' ) as string,
+      ftsConfiguration: getEnvVar( "SUPABASE_FTS_CONFIG", false, DEFAULTS_UNIFIED.SUPABASE_FTS_CONFIG, 'string' ) as string,
+      personasTableName: getEnvVar( "SUPABASE_PERSONAS_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_PERSONAS_TABLE, 'string' ) as string,
+      userPersonasTableName: getEnvVar( "SUPABASE_USER_PERSONAS_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_USER_PERSONAS_TABLE, 'string' ) as string,
+      userIntegrationsTableName: getEnvVar( "SUPABASE_USER_INTEGRATIONS_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_USER_INTEGRATIONS_TABLE, 'string' ) as string,
+      userStatesTableName: getEnvVar( "SUPABASE_USER_STATES_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_USER_STATES_TABLE, 'string' ) as string,
+      userProfilesTableName: getEnvVar( "SUPABASE_USER_PROFILES_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_USER_PROFILES_TABLE, 'string' ) as string,
+      userPushSubscriptionsTableName: getEnvVar( "SUPABASE_PUSH_SUBS_TABLE", false, DEFAULTS_UNIFIED.SUPABASE_PUSH_SUBS_TABLE, 'string' ) as string,
+    },
+    graphStore: {
+      provider: DEFAULTS_UNIFIED.NEO4J_PROVIDER as "neo4j",
+      url: getEnvVar("NEO4J_URI", true, "") as string,
+      username: getEnvVar("NEO4J_USERNAME", true, "") as string,
+      password: getEnvVar("NEO4J_PASSWORD", true, "") as string,
+    },
+    cache: {
+      provider: determinedCacheProvider,
+      url: determinedCacheProvider === "upstash_redis" ? (getEnvVar("UPSTASH_REDIS_URL", true, "") as string) : "",
+      token: determinedCacheProvider === "upstash_redis" ? (getEnvVar("UPSTASH_REDIS_TOKEN", true, "") as string) : "",
+      embeddingCacheTTLSeconds: DEFAULTS_UNIFIED.EMBEDDING_CACHE_TTL,
+      searchCacheTTLSeconds: DEFAULTS_UNIFIED.SEARCH_CACHE_TTL,
+      extractionCacheTTLSeconds: DEFAULTS_UNIFIED.EXTRACTION_CACHE_TTL,
+    },
+    semanticCache: {
+      enabled: getEnvVar( "SEMANTIC_CACHE_ENABLED_ENV", false, DEFAULTS_UNIFIED.SEMANTIC_CACHE_ENABLED, 'boolean' ) as boolean,
+      similarityThreshold: DEFAULTS_UNIFIED.SEMANTIC_CACHE_SIMILARITY_THRESHOLD,
+      defaultLimit: DEFAULTS_UNIFIED.SEMANTIC_CACHE_DEFAULT_LIMIT,
+      defaultTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_DEFAULT_TTL,
+      productTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_PRODUCT_TTL,
+      videoTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_VIDEO_TTL,
+      imageTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_IMAGE_TTL,
+      recipeTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_RECIPE_TTL,
+      weatherTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_WEATHER_TTL,
+      placeTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_PLACE_TTL,
+      gifTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_GIF_TTL,
+      factTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_FACT_TTL,
+      newsTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_NEWS_TTL,
+      sportsTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_SPORTS_TTL,
+      eventTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_EVENT_TTL,
+      tiktokTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_TIKTOK_TTL,
+      calendarTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_CALENDAR_TTL,
+      emailTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_EMAIL_TTL,
+      taskTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_TASK_TTL,
+      reminderTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_REMINDER_TTL,
+      calculation_or_factTTL: DEFAULTS_UNIFIED.SEMANTIC_CACHE_FACT_TTL,
+    },
+    memory: {
+      searchDefaultLimit: DEFAULTS_UNIFIED.MEMORY_SEARCH_LIMIT_DEFAULT,
+      extractionModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL, 'string' ) as OpenAILLMFast,
+      addMemoryOnFailure: DEFAULTS_UNIFIED.ADD_MEMORY_ON_FAILURE,
+    },
+    notifications: {
+      vapidPublicKey: getEnvVar("VAPID_PUBLIC_KEY", false, undefined, 'string') as string | null,
+      vapidPrivateKey: getEnvVar("VAPID_PRIVATE_KEY", false, undefined, 'string') as string | null,
+      vapidSubject: getEnvVar( "VAPID_SUBJECT", false, DEFAULTS_UNIFIED.VAPID_SUBJECT, 'string' ) as string,
+    },
+    defaultCategories: DEFAULTS_UNIFIED.DEFAULT_CATEGORIES,
+    conflictResolutionStrategy: DEFAULTS_UNIFIED.CONFLICT_RESOLUTION,
+    hybridSearchEnabledDefault: DEFAULTS_UNIFIED.HYBRID_SEARCH_DEFAULT,
+    graphSearchEnabledDefault: DEFAULTS_UNIFIED.GRAPH_SEARCH_DEFAULT,
+    rerankEnabledDefault: DEFAULTS_UNIFIED.RERANK_DEFAULT,
+    logLevel: getEnvVar( "LOG_LEVEL", false, DEFAULTS_UNIFIED.LOG_LEVEL, 'string' ) as FrameworkConfig["logLevel"],
+    defaultLocale: getEnvVar( "DEFAULT_LOCALE", false, DEFAULTS_UNIFIED.DEFAULT_LOCALE, 'string' ) as string,
+    defaultUserName: DEFAULTS_UNIFIED.DEFAULT_USER_NAME_CONST,
+    defaultPersonaId: DEFAULTS_UNIFIED.DEFAULT_PERSONA_ID_CONST,
+    allowDevUnauth: getEnvVar( "ALLOW_DEV_UNAUTH", false, DEFAULTS_UNIFIED.ALLOW_DEV_UNAUTH, 'boolean' ) as boolean,
+    encryptionKey: getEnvVar( "ENCRYPTION_KEY", true, DEFAULTS_UNIFIED.ENCRYPTION_KEY_DEFAULT, 'string' ) as string,
+    toolTimeoutMs: getEnvVar( "DEFAULT_TOOL_TIMEOUT_MS_ENV", false, DEFAULTS_UNIFIED.TOOL_TIMEOUT_MS, 'number' ) as number,
+    app: {
+      url: getEnvVar("APP_URL", true, DEFAULTS_UNIFIED.APP_URL, 'string') as string,
+      nodeEnv: nodeEnv,
+    },
+    toolApiKeys: {
+      serper: getEnvVar("SERPER_API_KEY", false, undefined, 'string') as string | undefined,
+      youtube: getEnvVar("YOUTUBE_API_KEY", false, undefined, 'string') as string | undefined,
+      unsplash: getEnvVar("UNSPLASH_ACCESS_KEY", false, undefined, 'string') as string | undefined,
+      pexels: getEnvVar("PEXELS_API_KEY", false, undefined, 'string') as string | undefined,
+      openweathermap: getEnvVar("OPENWEATHERMAP_API_KEY", false, undefined, 'string') as string | undefined,
+      wolframalpha: getEnvVar("WOLFRAMALPHA_APP_ID", false, undefined, 'string') as string | undefined,
+      theSportsDb: getEnvVar("THESPORTSDB_API_KEY", false, undefined, 'string') as string | undefined,
+      ticketmaster: getEnvVar("TICKETMASTER_API_KEY", false, undefined, 'string') as string | undefined,
+      googleClientId: getEnvVar("GOOGLE_CLIENT_ID", false, undefined, 'string') as string | undefined,
+      googleClientSecret: getEnvVar("GOOGLE_CLIENT_SECRET", false, undefined, 'string') as string | undefined,
+      googleRedirectUri: getEnvVar("GOOGLE_REDIRECT_URI", false, undefined, 'string') as string | undefined,
+      gnews: getEnvVar("GNEWS_API_KEY", false, undefined, 'string') as string | undefined,
+      newsapiOrg: getEnvVar("NEWSAPI_ORG_KEY", false, undefined, 'string') as string | undefined,
+      resend: getEnvVar("RESEND_API_KEY", false, undefined, 'string') as string | undefined,
+    },
+    emailFromAddress: getEnvVar( "EMAIL_FROM_ADDRESS", false, DEFAULTS_UNIFIED.EMAIL_FROM_ADDRESS, 'string' ) as string,
+    openaiApiKey: getEnvVar("OPENAI_API_KEY", true, "", 'string') as string, 
+    supabaseUrl: getEnvVar("NEXT_PUBLIC_SUPABASE_URL", true, "", 'string') as string, 
+    supabaseAnonKey: getEnvVar("NEXT_PUBLIC_SUPABASE_ANON_KEY", false, "", 'string') as string, 
+    upstashRedisUrl: determinedCacheProvider === "upstash_redis" ? (getEnvVar("UPSTASH_REDIS_URL", true, "") as string) : "",
+    upstashRedisToken: determinedCacheProvider === "upstash_redis" ? (getEnvVar("UPSTASH_REDIS_TOKEN", true, "") as string) : "",
+    neo4jUri: getEnvVar("NEO4J_URI", true, "") as string,
+    embeddingDimension: getEnvVar( "LLM_EMBEDDER_DIMENSIONS", false, DEFAULTS_UNIFIED.LLM_EMBEDDER_DIMENSIONS, 'number' ) as number,
+    mediaUploadBucket: getEnvVar("MEDIA_UPLOAD_BUCKET", false, "images", 'string') as string,
+    maxToolsPerTurn: 3,
+    maxVideoFrames: 10,
+    maxVideoSizeBytes: 100 * 1024 * 1024,
+  };
+
+  const finalConfig = loadedConfig as unknown as FrameworkConfig;
+
+  if (typeof window === "undefined") {
+    console.log("--- [Config Loaded - Pre-Logger Init] ---");
+    console.log(`Log Level (from env/default): ${finalConfig.logLevel}`);
+    console.log("--- [Config End - Pre-Logger Init] ---");
+  }
+  return finalConfig;
+}
+
+export const config: FrameworkConfig = loadConfig();
+
+export const logger = {
+  debug: (message: string, ...args: any[]) => {
+    if (config.logLevel === "debug") {
+      const processedArgs = args.map(arg => (arg === undefined ? "undefined" : arg));
+      console.debug(`[MINATO-DEBUG] ${message}`, ...processedArgs);
+    }
+  },
+  info: (message: string, ...args: any[]) => {
+    if (["debug", "info"].includes(config.logLevel)) {
+      const processedArgs = args.map(arg => (arg === undefined ? "undefined" : arg));
+      console.info(`[MINATO-INFO] ${message}`, ...processedArgs);
+    }
+  },
+  warn: (message: string, ...args: any[]) => {
+    if (["debug", "info", "warn"].includes(config.logLevel)) {
+      const processedArgs = args.map(arg => (arg === undefined ? "undefined" : arg));
+      console.warn(`[MINATO-WARN] ${message}`, ...processedArgs);
+    }
+  },
+  error: (message: string, ...args: any[]) => {
+    const processedArgs = args.map(arg => {
+      if (arg === undefined) return "[Logger: UndefinedArg]"; 
+      if (arg instanceof Error) {
+        const errMessage = typeof arg.message === 'string' ? arg.message : '(No message property or undefined)';
+        const errStack = typeof arg.stack === 'string' ? `\nStack: ${arg.stack}` : '';
+        return `ErrorObj: ${errMessage}${errStack}`;
+      }
+      try {
+        return typeof arg === 'object' && arg !== null ? JSON.stringify(arg) : String(arg);
+      } catch (e) {
+        return "[Logger: UnstringifiableArg]";
+      }
+    });
+    console.error(`[MINATO-ERROR] ${message}`, ...processedArgs);
+  },
+};
+
+if (typeof window === "undefined") {
+  logger.info("Unified configuration system initialized.");
+  logger.info(`Log Level: ${config.logLevel}`);
+  logger.info(`Node Env: ${config.app.nodeEnv}`);
+  logger.info(`App URL: ${config.app.url}`);
+  logger.info("LLM Settings:");
+  logger.info(`  Main Chat/Vision Model: ${config.llm.chatModel}`);
+  logger.info(`  Planning/Tool Routing Model: ${config.llm.planningModel}`); // Log updated model
+  logger.info(`  Extraction Model: ${config.llm.extractionModel}`);
+  logger.info(`  TTS Post-Processing Enabled: ${config.llm.enableTtsPostProcessing}`);
+  if (config.allowDevUnauth && config.app.nodeEnv === "production") {
+    logger.error("CRITICAL SECURITY: ALLOW_DEV_UNAUTH IS TRUE IN PRODUCTION!");
+  }
+  if (
+    config.encryptionKey === DEFAULTS_UNIFIED.ENCRYPTION_KEY_DEFAULT &&
+    config.app.nodeEnv === "production"
+  ) {
+    logger.error(
+      "CRITICAL SECURITY: USING DEFAULT ENCRYPTION_KEY IN PRODUCTION!"
+    );
+  }
+}
+
+export const appConfig = {
+  ...config,
+  openai: {
+    ...(config.llm), 
+    embedderModel: config.embedder.model,
+    embeddingDims: config.embedder.dimensions,
+    text: config.llm.chatModel, 
+    vision: config.llm.chatModel, 
+    planning: config.llm.planningModel, // Ensure this reflects the change
+    extraction: config.llm.extractionModel,
+    tts: config.llm.ttsModel,
+    stt: config.llm.sttModel,
+    mediaUploadBucket: getEnvVar("MEDIA_UPLOAD_BUCKET", false, "images", 'string') as string,
+    maxToolsPerTurn: 3,
+    maxVideoFrames: 10,
+    maxVideoSizeBytes: 100 * 1024 * 1024,
+    enableTtsPostProcessing: config.llm.enableTtsPostProcessing,
+    ttsTargetLoudnessDb: config.llm.ttsTargetLoudnessDb,
+  },
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// FILE: lib/tools/index.ts
+import { BaseTool } from "./base-tool";
+import { logger } from "../../memory-framework/config";
+
+// --- Import Tool Implementations ---
+import { WebSearchTool } from "./WebSearchTool";
+import { YouTubeSearchTool } from "./YouTubeSearchTool";
+import { PexelsSearchTool } from "./PexelsSearchTool";
+import { RecipeSearchTool } from "./RecipeSearchTool";
+import { DateTimeTool } from "./DateTimeTool";
+import { HackerNewsTool } from "./HackerNewsTool";
+import { RedditTool } from "./RedditTool";
+import { SportsInfoTool } from "./SportsInfoTool";
+import { EventFinderTool } from "./EventFinderTool";
+import { GoogleCalendarReaderTool } from "./GoogleCalendarReaderTool";
+import { GoogleGmailReaderTool } from "./GoogleGmailReaderTool";
+import { NewsAggregatorTool } from "./NewsAggregatorTool";
+import { ReminderReaderTool } from "./ReminderReaderTool";
+// MemoryTool and InternalTaskTool are added dynamically by Orchestrator
+
+// --- Tool Registry (Canonical Names Only) ---
+export const tools: { [key: string]: BaseTool } = {
+  WebSearchTool: new WebSearchTool(),
+  YouTubeSearchTool: new YouTubeSearchTool(),
+  PexelsSearchTool: new PexelsSearchTool(),
+  RecipeSearchTool: new RecipeSearchTool(),
+  NewsAggregatorTool: new NewsAggregatorTool(),
+  DateTimeTool: new DateTimeTool(),
+  HackerNewsTool: new HackerNewsTool(),
+  RedditTool: new RedditTool(),
+  SportsInfoTool: new SportsInfoTool(),
+  EventFinderTool: new EventFinderTool(),
+  GoogleCalendarReaderTool: new GoogleCalendarReaderTool(),
+  GoogleGmailReaderTool: new GoogleGmailReaderTool(),
+  ReminderReaderTool: new ReminderReaderTool(),
+  // MemoryTool and InternalTaskTool will be added to orchestrator's instance of the registry
+};
+
+// --- Server Startup Verification (No changes needed here if above is correct) ---
+if (typeof window === "undefined") {
+  const staticToolNames = Object.keys(tools);
+  logger.info(
+    `[Tools Registry] Initialized ${
+      staticToolNames.length
+    } static tools in registry: ${staticToolNames.join(", ")}`
+  );
+  // Verification logic can remain to ensure tool.name matches key
+  let mismatchFound = false;
+  for (const key in tools) {
+    if (tools[key].name !== key) {
+      logger.error(
+        `[Tools Registry] CRITICAL MISMATCH! Tool object name "${tools[key].name}" != registry key "${key}".`
+      );
+      mismatchFound = true;
+    }
+  }
+  if (mismatchFound) {
+    logger.error(
+      `[Tools Registry] Tool registry key mismatch detected. Ensure keys in the 'tools' object match the 'name' property of the tool instances.`
+    );
+  } else {
+    logger.info(
+      "[Tools Registry] All static tool names verified against registry keys."
+    );
+  }
+}
+
+// Function to map tool name variations to the correct tool instance
+export function resolveToolName(toolName: string): BaseTool | null {
+  // Comprehensive map for aliases and common LLM outputs
+  const toolNameMap: { [key: string]: string } = {
+    // WebSearchTool Aliases
+    "search": "WebSearchTool",
+    "websearch": "WebSearchTool",
+    "googlesearch": "WebSearchTool",
+    "find": "WebSearchTool", // Generic 'find' might map to web search
+
+    // NewsAggregatorTool Aliases
+    "news": "NewsAggregatorTool",
+    "newstool": "NewsAggregatorTool",
+    "NewsTool": "NewsAggregatorTool", // Exact case from error log
+    "latestnews": "NewsAggregatorTool",
+    "headlines": "NewsAggregatorTool",
+
+    // YouTubeSearchTool Aliases
+    "youtube": "YouTubeSearchTool",
+    "youtubesearch": "YouTubeSearchTool",
+    "findvideo": "YouTubeSearchTool",
+
+    // PexelsSearchTool Aliases
+    "image": "PexelsSearchTool",
+    "findimage": "PexelsSearchTool",
+    "pexels": "PexelsSearchTool",
+
+    // RecipeSearchTool Aliases
+    "recipe": "RecipeSearchTool",
+    "findrecipe": "RecipeSearchTool",
+    "cook": "RecipeSearchTool",
+
+    // DateTimeTool Aliases
+    "datetime": "DateTimeTool",
+    "currenttime": "DateTimeTool",
+    "time": "DateTimeTool",
+
+    // HackerNewsTool Aliases
+    "hackernews": "HackerNewsTool",
+    "HackerNewsTool": "HackerNewsTool", // Exact case from error log
+    "hn": "HackerNewsTool",
+
+    // RedditTool Aliases
+    "reddit": "RedditTool",
+    "redditsearch": "RedditTool",
+
+    // SportsInfoTool Aliases
+    "sports": "SportsInfoTool",
+    "sportinfo": "SportsInfoTool",
+    "gameresult": "SportsInfoTool",
+    "nextgame": "SportsInfoTool",
+
+    // EventFinderTool Aliases
+    "eventfinder": "EventFinderTool",
+    "findevent": "EventFinderTool",
+    "ticketmaster": "EventFinderTool",
+
+    // GoogleCalendarReaderTool Aliases
+    "calendar": "GoogleCalendarReaderTool",
+    "googlecalendar": "GoogleCalendarReaderTool",
+    "checkschedule": "GoogleCalendarReaderTool",
+
+    // GoogleGmailReaderTool Aliases
+    "email": "GoogleGmailReaderTool",
+    "gmail": "GoogleGmailReaderTool",
+    "checkemail": "GoogleGmailReaderTool",
+
+    // ReminderReaderTool Aliases
+    "reminder": "ReminderReaderTool",
+    "checkreminders": "ReminderReaderTool",
+
+    // MemoryTool Aliases (MemoryTool instance is added dynamically to orchestrator's registry)
+    "memory": "MemoryTool",
+    "recall": "MemoryTool",
+    "remember": "MemoryTool",
+    "MemoryDisplayTool": "MemoryTool", // Exact case from error log
+    "display my memories": "MemoryTool", // Example phrase mapping if needed
+    "showmemory": "MemoryTool",
+  };
+
+  const lowerCaseToolName = toolName.toLowerCase();
+  let canonicalName: string | undefined = undefined;
+
+  // 1. Check direct mapping (case-insensitive for input key)
+  canonicalName = toolNameMap[lowerCaseToolName];
+
+  // 2. If no mapping, assume the input toolName might be the canonical name already
+  if (!canonicalName) {
+    canonicalName = toolName;
+  }
+
+  // 3. Look up in the canonical `tools` registry
+  const toolInstance = tools[canonicalName];
+
+  if (!toolInstance) {
+    // If still not found, it might be a dynamically added tool (like MemoryTool if not in static list)
+    // Or it's genuinely unknown.
+    logger.warn(`[Tools] Tool lookup: "${toolName}" resolved to "${canonicalName}", which was not found in the static tools registry. It might be a dynamic tool or an unrecognized tool name.`);
+    // For dynamically added tools, the orchestrator's specific registry should handle it.
+    // This function primarily resolves for static tools or known aliases.
+    // Returning null means orchestrator will re-check its own full registry.
+    return null;
+  }
+  return toolInstance;
+}
+
+
+

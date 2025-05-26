@@ -1145,45 +1145,43 @@ export type OpenAIRealtimeVoice =
 | "alloy" | "ash" | "ballad" | "coral" | "echo"
 | "fable" | "nova" | "onyx" | "sage" | "shimmer" | "verse";
 // --- Orchestrator API Response ---
+export type WorkflowFeedback = {
+    workflowName?: string;
+    currentStepDescription: string;
+    status: string;
+    progress?: number;
+};
+
 export type OrchestratorResponse = {
-sessionId: string;
-response?: string | null;
-audioUrl?: string | null;
-transcription?: string | null;
-structuredData?: AnyToolStructuredData | null;
-llmUsage?: CompletionUsage | null;
-clarificationQuestion?: string | null;
-intentType?: string | null;
-ttsInstructions?: string | null;
-error?: string | null;
-lang?: string | null;
-workflowFeedback?: {
-workflowName?: string;
-currentStepDescription?: string;
-status: "starting" | "in_progress" | "tool_called" | "llm_processing" | "completed" | "failed" | "waiting_for_user";
-progress?: number;
-} | null;
-debugInfo?: {
-llmModelUsed?: string | null;
-sttModelUsed?: string | null;
-ttsModelUsed?: string | null;
-visionModelUsed?: string | null;
-realtimeModelUsed?: string | null;
-workflowPlannerModelUsed?: string | null;
-toolCalls?: Array<{ toolName: string; toolArgs: Record<string, any>; toolCallId?: string; }> | null;
-toolResultsSummary?: Record<string, {
-tool: string;
-status: "success" | "error" | "timeout" | "skipped";
-message?: string;
-cacheHit?: boolean;
-}> | null;
-cacheHit?: boolean;
-cacheSourceApi?: string | null;
-latencyMs?: number;
-flow_type?: 'pending' | 'clarification' | 'direct_llm' | 'single_tool' | 'workflow' | 'cache_hit' | 's2s_interaction' | 'direct_llm_after_router_fail' | 'workflow_synthesis' | 'direct_llm_synthesis' | 'error' | 'synthesis_error' | 'workflow_routed' | 'direct_llm_no_tools_routed';
-[key: string]: any;
-} | null;
-attachments?: MessageAttachment[];
+    sessionId: string;
+    response: string | null;
+    error?: string | null;
+    lang: string;
+    intentType?: string | null;
+    ttsInstructions?: string | null;
+    clarificationQuestion?: string | null;
+    clarificationDetails?: {
+        reason: string;
+        toolName?: string;
+        argumentErrors?: any;
+        toolResolutionConfidence?: string;
+        [key: string]: any;
+    } | null;
+    audioUrl?: string | null;
+    structuredData?: AnyToolStructuredData | null;
+    workflowFeedback?: WorkflowFeedback | null;
+    debugInfo?: {
+        flow_type?: string;
+        llmModelUsed?: string;
+        workflowPlannerModelUsed?: string;
+        llmUsage?: CompletionUsage;
+        latencyMs?: number;
+        toolCalls?: any[];
+        videoSummaryUsed?: string | null;
+    };
+    transcription?: string | null;
+    llmUsage?: CompletionUsage | null;
+    attachments?: MessageAttachment[];
 };
 // --- Realtime API Types (aligned with OpenAI documentation) ---
 export type RealtimeInputAudioTranscriptionConfig = {

@@ -8,6 +8,8 @@ import { formatDistanceToNowStrict, parseISO, format } from 'date-fns';
 // Import specific locales as needed
 import { enUS, fr as frLocale, es as esLocale, de as deLocale, ja as jaLocale } from 'date-fns/locale'; // Renamed to avoid conflict
 import type { Locale as DateFnsLocaleType } from 'date-fns';
+import { generateStructuredJson } from "../providers/llm_clients";
+import { SchemaService } from "../services/schemaService";
 
 // Map of supported locales for date-fns
 const dateFnsLocalesMap: { [key: string]: DateFnsLocaleType } = {
@@ -35,20 +37,44 @@ export class NewsAggregatorTool extends BaseTool {
   argsSchema = {
     type: "object" as const,
     properties: {
-      query: { type: ["string", "null"] as const, description: "Optional. Keywords or phrase to search news for. Can be null if using other filters." } as OpenAIToolParameterProperties,
-      sources: { type: ["string", "null"] as const, description: "Optional. Comma-separated news source IDs (e.g., 'bbc-news,cnn'). Use this OR category/country/query. Can be null." } as OpenAIToolParameterProperties,
+      query: {
+        type: ["string", "null"] as const,
+        description: "Optional. Keywords or phrase to search news for. If null, will fetch top headlines.",
+        default: null
+      } as OpenAIToolParameterProperties,
+      sources: {
+        type: ["string", "null"] as const,
+        description: "Optional. Comma-separated news source IDs (e.g., 'bbc-news,cnn'). Must be valid source IDs or 'all'. See NewsAPI docs for full list.",
+        pattern: "^(all|([a-z0-9-]+)(,[a-z0-9-]+)*)?$",
+        default: "all"
+      } as OpenAIToolParameterProperties,
       category: {
         type: ["string", "null"] as const,
         enum: ["business", "entertainment", "general", "health", "science", "sports", "technology", null],
         description: "Optional. Category to fetch news from. If null or omitted, defaults to 'general'.",
+        default: "general"
       } as OpenAIToolParameterProperties,
-      country: { type: ["string", "null"] as const, description: "Optional. 2-letter ISO country code (e.g., 'us', 'gb') for top headlines. If null or omitted, defaults to user's context or 'us'." } as OpenAIToolParameterProperties,
-      limit: { type: ["number", "null"] as const, description: "Optional. Maximum number of articles to return (must be between 1 and 10). If null or omitted, defaults to 5." } as OpenAIToolParameterProperties,
+      country: {
+        type: ["string", "null"] as const,
+        enum: ["us", "gb", "au", "ca", "de", "fr", "it", "es", "ru", "in", "br", "ar", "sa", "ie", "nl", "no", "se", "is", "zh", null],
+        description: "Optional. 2-letter ISO country code (e.g., 'us', 'gb'). If null or omitted, defaults to 'us'.",
+        default: "us"
+      } as OpenAIToolParameterProperties,
+      limit: {
+        type: ["number", "null"] as const,
+        description: "Optional. Maximum number of articles to return (must be between 1 and 10). If null or omitted, defaults to 5.",
+        minimum: 1,
+        maximum: 10,
+        default: 5
+      } as OpenAIToolParameterProperties,
     },
-    required: ["query", "sources", "category", "country", "limit"],
+    required: ["sources"],
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 60 * 15; // 15 minutes
+  categories = ["news", "search", "media"];
+  version = "1.0.0";
+  metadata = { providers: ["GNews.io", "NewsAPI.org"], supportsCategories: ["business", "entertainment", "general", "health", "science", "sports", "technology"] };
 
   private readonly GNEWS_API_KEY: string | undefined;
   private readonly NEWSAPI_ORG_KEY: string | undefined;
@@ -89,6 +115,9 @@ export class NewsAggregatorTool extends BaseTool {
 
     const params = new URLSearchParams({ token: this.GNEWS_API_KEY, country, lang: langCode, max: String(effectiveLimit) });
     let url = "";
+
+    // --- LOGGING: Print query and sources ---
+    this.log("info", `[GNews] User query: ${input.query}, Final q: ${query}, Category: ${effectiveCategory}, Sources: ${input.sources}`);
 
     if (query) {
         url = `${this.GNEWS_API_BASE}/search`;
@@ -131,9 +160,12 @@ export class NewsAggregatorTool extends BaseTool {
     const params = new URLSearchParams({ apiKey: this.NEWSAPI_ORG_KEY, pageSize: String(effectiveLimit) });
     let url = "";
 
+    // --- LOGGING: Print query and sources ---
+    this.log("info", `[NewsAPI] User query: ${input.query}, Final q: ${query}, Category: ${effectiveCategory}, Sources: ${sources}`);
+
     if (query) { 
         params.set("q", query);
-        if (sources) { 
+        if (sources && sources !== "all") { 
             url = `${this.NEWSAPI_ORG_BASE}/everything`;
             params.set("sources", sources);
             if (params.has("language")) params.delete("language"); // Sources param overrides language/country/category for NewsAPI
@@ -143,7 +175,7 @@ export class NewsAggregatorTool extends BaseTool {
             if (!query) params.set("country", country); 
             params.set("language", langCode);
         }
-    } else if (sources) { 
+    } else if (sources && sources !== "all") { 
         url = `${this.NEWSAPI_ORG_BASE}/top-headlines`;
         params.set("sources", sources);
     } else { 
@@ -236,25 +268,41 @@ export class NewsAggregatorTool extends BaseTool {
     }
 
     logger.info(`${logPrefix} Found ${articles.length} articles via ${sourceUsed}.`);
-    const topArticlesForSummary = articles.slice(0, Math.min(3, effectiveLimit));
-    let resultString = `Okay ${userNameForResponse}, I found some news from ${sourceUsed} for you. `;
-    if (topArticlesForSummary.length > 0) {
-      resultString += `Here are the top headlines:\n`;
-      resultString += topArticlesForSummary.map((a, i) => {
-        const publishedAgo = a.publishedAt ? `(${formatDistanceToNowStrict(parseISO(a.publishedAt), { addSuffix: true, locale:dateFnsLocale })})` : "";
-        return `${i + 1}. "${a.title}" from ${a.sourceName} ${publishedAgo}`;
-      }).join("\n");
-      if (articles.length > topArticlesForSummary.length) {
-        resultString += `\n...and ${articles.length - topArticlesForSummary.length} more. I can show you the full list.`;
+    const topNForSummary = Math.min(3, articles.length); // Summarize top 3 or fewer
+    const articlesForSummary = articles.slice(0, topNForSummary);
+    let narrativeSummary = `Okay ${userNameForResponse}, I found some interesting news about ${input.query || 'the topics you asked about'} from ${sourceUsed}. `;
+
+    if (articlesForSummary.length > 0) {
+      if (articlesForSummary.length === 1) {
+        const article = articlesForSummary[0];
+        narrativeSummary += `Specifically, ${article.sourceName} reports that "${article.title.substring(0,150)}". `;
+        if (article.description) {
+            narrativeSummary += `It's about: ${article.description.substring(0, 120)}... `;
+        }
+      } else {
+        narrativeSummary += "Here's a quick look: ";
+        articlesForSummary.forEach((article, index) => {
+          narrativeSummary += `${article.sourceName} mentions "${article.title.substring(0, 70)}..."`;
+          if (index < articlesForSummary.length - 1) {
+            narrativeSummary += "; ";
+          } else {
+            narrativeSummary += ". ";
+          }
+        });
       }
-    } else { 
-        resultString = `Minato found ${articles.length} articles from ${sourceUsed}, ${userNameForResponse}. You can see them in the card.`;
+      if (articles.length > topNForSummary) {
+        narrativeSummary += `There ${articles.length - topNForSummary === 1 ? 'is' : 'are'} ${articles.length - topNForSummary} more article${articles.length - topNForSummary === 1 ? '' : 's'} in the card.`;
+      } else {
+        narrativeSummary += `You can see the full details in the card.`;
+      }
+    } else { // Should not happen if articles.length > 0, but as a fallback
+        narrativeSummary = `Minato found ${articles.length} articles from ${sourceUsed}, ${userNameForResponse}. You can see them in the card.`;
     }
-    
+
     outputStructuredData = {
       result_type: "news_articles", source_api: sourceUsed.toLowerCase().replace(/[^a-z0-9]/g, ""),
       query: queryInputForStructuredData, articles: articles.slice(0, effectiveLimit), error: undefined,
     };
-    return { result: resultString, structuredData: outputStructuredData } as ToolOutput;
+    return { result: narrativeSummary, structuredData: outputStructuredData } as ToolOutput;
   }
 }

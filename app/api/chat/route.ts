@@ -340,13 +340,17 @@ if (currentUserMessageForApi) {
 await saveChatMessageToDb(currentUserMessageForApi, userId, conversationId, supabaseAdminClient);
 }
 const ipAddress = req.headers.get("x-forwarded-for") ?? "unknown";
+
+// Generate a new unique runId for THIS specific orchestrator execution (turn)
+const turnSpecificRunId = randomUUID();
+
 const effectiveApiContext = {
-ipAddress,
-locale: req.headers.get("accept-language")?.split(",")[0] || appConfig.defaultLocale,
-origin: req.headers.get("origin"),
-sessionId: conversationId,
-runId: conversationId,
-...(clientDataFromRequest && { clientData: clientDataFromRequest }),
+  ipAddress,
+  locale: req.headers.get("accept-language")?.split(",")[0] || appConfig.defaultLocale,
+  origin: req.headers.get("origin"),
+  sessionId: conversationId, // The long-lived conversation ID for history/context
+  runId: turnSpecificRunId,  // A unique ID for this specific turn/orchestration run
+  ...(clientDataFromRequest && { clientData: clientDataFromRequest }),
 };
 const finalOrchestratorInput: string | ChatMessageContentPart[] =
 orchestratorInputContentParts.length === 1 && orchestratorInputContentParts[0].type === 'text'
@@ -363,7 +367,8 @@ logger.info(`${logPrefix} Sent error to client: ${errorMessage}.`);
 logger.error(`${logPrefix} Stream Error - Failed to enqueue error event: ${e.message}.`);
 }
 };
-let assistantMessageToSave: ChatMessage | null = null; 
+
+let lastSavedAssistantMessageId: string | undefined = undefined;
 
 try {
   logger.info(`[${logPrefix}] runOrchestration: About to call orchestrator.runOrchestration. Inspecting initialAttachmentsForOrchestrator (count: ${initialAttachmentsForOrchestrator?.length || 0}):`);
@@ -376,71 +381,77 @@ try {
   }
 
   logger.info(`${logPrefix} Calling orchestrator.runOrchestration... User ${userId.substring(0,8)}`);
-  const orchestratorResult = await orchestrator.runOrchestration(
+  const orchestratorResults = await orchestrator.runOrchestration(
     userId, 
     finalOrchestratorInput,
     history,
     effectiveApiContext,
     initialAttachmentsForOrchestrator // Pass attachments with File objects here
   );
-  logger.debug(`${logPrefix} Orchestrator finished. Error: ${orchestratorResult.error}. Response: ${!!orchestratorResult.response}.`);
+  logger.debug(`${logPrefix} Orchestrator finished. Error: ${Array.isArray(orchestratorResults) ? orchestratorResults.map(r => r.error).join('; ') : orchestratorResults.error}. Response: ${Array.isArray(orchestratorResults) ? orchestratorResults.map(r => !!r.response).join('; ') : !!orchestratorResults.response}.`);
 
-  assistantMessageToSave = { 
+  // Support both single and array responses from orchestrator
+  const resultsArray = Array.isArray(orchestratorResults) ? orchestratorResults : [orchestratorResults];
+
+  for (const result of resultsArray) {
+    const assistantMessageToSave: ChatMessage = { 
       id: randomUUID(), 
       role: "assistant",
-      content: orchestratorResult.response || (orchestratorResult.structuredData ? "[Structured Data Response]" : "[Response processed]"), // Adjusted placeholder
+      content: (result.response as string | ChatMessageContentPart[] | null) || (result.structuredData ? "[Structured Data Response]" : "[Response processed]"),
       timestamp: new Date().toISOString(),
-      attachments: orchestratorResult.attachments?.map(att => ({...att, file: undefined})) || [],
-      tool_calls: orchestratorResult.debugInfo?.toolCalls as unknown as ToolCallOutput[] || null,
-      structured_data: orchestratorResult.structuredData || null,
-      audioUrl: orchestratorResult.audioUrl || undefined,
-      intentType: orchestratorResult.intentType || undefined,
-      ttsInstructions: orchestratorResult.ttsInstructions || undefined,
-      error: !!orchestratorResult.error,
-      debugInfo: orchestratorResult.debugInfo || null,
-      workflowFeedback: orchestratorResult.workflowFeedback || null,
-      clarificationQuestion: orchestratorResult.clarificationQuestion || null,
-  };
-  await saveChatMessageToDb(assistantMessageToSave, userId, conversationId, supabaseAdminClient);
+      attachments: (result.attachments?.map((att: MessageAttachment) => ({...att, file: undefined})) as MessageAttachment[]) || [],
+      tool_calls: result.debugInfo?.toolCalls as unknown as ToolCallOutput[] || null,
+      structured_data: result.structuredData || null,
+      audioUrl: result.audioUrl || undefined,
+      intentType: result.intentType || undefined,
+      ttsInstructions: result.ttsInstructions || undefined,
+      error: !!result.error,
+      debugInfo: result.debugInfo || null,
+      workflowFeedback: result.workflowFeedback || null,
+      clarificationQuestion: result.clarificationQuestion || null,
+    };
+    await saveChatMessageToDb(assistantMessageToSave, userId, conversationId, supabaseAdminClient);
+    lastSavedAssistantMessageId = assistantMessageToSave.id;
 
-  if (orchestratorResult.error && !orchestratorResult.clarificationQuestion) {
-    sendErrorToStream(orchestratorResult.error, 500);
-    controller.close();
-    return;
-  }
+    if (result.error && !result.clarificationQuestion) {
+      sendErrorToStream(result.error, 500);
+      controller.close();
+      return;
+    }
 
-  if (orchestratorResult.response) {
-    const fullTextResponse = orchestratorResult.response;
-    const chunkSize = 30; 
-    for (let i = 0; i < fullTextResponse.length; i += chunkSize) {
-      const chunk = fullTextResponse.substring(i, i + chunkSize);
-      controller.enqueue(encoder.encode(createSSEEvent("text-chunk", { text: chunk })));
-      await new Promise(resolve => setTimeout(resolve, 10)); 
+    if (result.response) {
+      const fullTextResponse = result.response;
+      const chunkSize = 30; 
+      for (let i = 0; i < fullTextResponse.length; i += chunkSize) {
+        const chunk = fullTextResponse.substring(i, i + chunkSize);
+        controller.enqueue(encoder.encode(createSSEEvent("text-chunk", { text: chunk })));
+        await new Promise(resolve => setTimeout(resolve, 10)); 
+      }
+    }
+
+    if (result.structuredData) {
+      controller.enqueue(encoder.encode(createSSEEvent("ui-component", { data: result.structuredData })));
+    }
+
+    const annotations: Record<string, any> = { messageId: assistantMessageToSave.id };
+    if (result.intentType) annotations.intentType = result.intentType;
+    if (result.ttsInstructions) annotations.ttsInstructions = result.ttsInstructions;
+    if (result.audioUrl) { 
+      annotations.audioUrl = result.audioUrl;
+    }
+    if (result.debugInfo) annotations.debugInfo = result.debugInfo;
+    if (result.workflowFeedback) annotations.workflowFeedback = result.workflowFeedback;
+    if (result.clarificationQuestion) annotations.clarificationQuestion = result.clarificationQuestion;
+    if (result.attachments && result.attachments.length > 0) {
+      annotations.attachments = result.attachments.map((att: MessageAttachment) => ({...att, file: undefined}));
+    }
+
+    if (Object.keys(annotations).length > 1 || (Object.keys(annotations).length === 1 && !annotations.messageId)) { // ensure messageId isn't the ONLY key
+      controller.enqueue(encoder.encode(createSSEEvent("annotations", annotations)));
     }
   }
 
-  if (orchestratorResult.structuredData) {
-    controller.enqueue(encoder.encode(createSSEEvent("ui-component", { data: orchestratorResult.structuredData })));
-  }
-
-  const annotations: Record<string, any> = { messageId: assistantMessageToSave.id };
-  if (orchestratorResult.intentType) annotations.intentType = orchestratorResult.intentType;
-  if (orchestratorResult.ttsInstructions) annotations.ttsInstructions = orchestratorResult.ttsInstructions;
-  if (orchestratorResult.audioUrl) { 
-    annotations.audioUrl = orchestratorResult.audioUrl;
-  }
-  if (orchestratorResult.debugInfo) annotations.debugInfo = orchestratorResult.debugInfo;
-  if (orchestratorResult.workflowFeedback) annotations.workflowFeedback = orchestratorResult.workflowFeedback;
-  if (orchestratorResult.clarificationQuestion) annotations.clarificationQuestion = orchestratorResult.clarificationQuestion;
-  if (orchestratorResult.attachments && orchestratorResult.attachments.length > 0) {
-    annotations.attachments = orchestratorResult.attachments.map(att => ({...att, file: undefined}));
-  }
-
-  if (Object.keys(annotations).length > 1 || (Object.keys(annotations).length === 1 && !annotations.messageId)) { // ensure messageId isn't the ONLY key
-    controller.enqueue(encoder.encode(createSSEEvent("annotations", annotations)));
-  }
-
-  controller.enqueue(encoder.encode(createSSEEvent("stream-end", { sessionId: effectiveApiContext.sessionId, assistantMessageId: assistantMessageToSave.id })));
+  controller.enqueue(encoder.encode(createSSEEvent("stream-end", { sessionId: effectiveApiContext.sessionId, assistantMessageId: lastSavedAssistantMessageId })));
 
 } catch (e: any) {
   logger.error(`${logPrefix} Error in stream 'start' for user ${userId.substring(0,8)}:`, e.message, e.stack);

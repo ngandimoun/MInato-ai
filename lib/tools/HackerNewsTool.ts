@@ -64,6 +64,9 @@ export class HackerNewsTool extends BaseTool {
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 60 * 10; // Cache HN for 10 minutes
+  categories = ["news", "tech", "community"];
+  version = "1.0.0";
+  metadata = { provider: "Hacker News API", supports: ["top", "new", "best", "ask", "show", "job"] };
 
   private readonly FIREBASE_API_BASE = "https://hacker-news.firebaseio.com/v0";
   private readonly ALGOLIA_API_BASE = "https://hn.algolia.com/api/v1";
@@ -139,7 +142,21 @@ export class HackerNewsTool extends BaseTool {
     const queryInputForStructuredData = { ...input, query: effectiveQuery, filter: effectiveFilter, limit: effectiveLimit, time: effectiveTime };
 
     if (!effectiveQuery && !effectiveFilter) {
-      return { error: "Must provide query or filter.", result: `What would you like to see from Hacker News, ${userNameForResponse}? (e.g., top stories, or search for a topic)`, structuredData: {result_type: "hn_stories", source_api: "hackernews", query: queryInputForStructuredData, sourceDescription: "Error", count: 0, stories: [], error: "Must provide query or filter." }} as ToolOutput;
+      const errorMsg = "Must provide query or filter.";
+      const outputStructuredData: HackerNewsStructuredOutput = {
+        result_type: "hn_stories",
+        source_api: "hackernews",
+        query: queryInputForStructuredData,
+        sourceDescription: "Error: No query or filter provided.",
+        count: 0,
+        stories: [],
+        error: errorMsg,
+      };
+      return {
+        error: errorMsg,
+        result: `What would you like to see from Hacker News, ${userNameForResponse}? (e.g., top stories, or search for a topic)` ,
+        structuredData: outputStructuredData
+      } as ToolOutput;
     }
 
     let sourceDescription = "";
@@ -218,7 +235,7 @@ export class HackerNewsTool extends BaseTool {
 
       if (outputStructuredData.count === 0) {
         const msg = `Minato couldn't find any relevant ${sourceDescription} for ${userNameForResponse} right now. Perhaps try a broader search?`;
-        this.log("info", `${logPrefix} ${msg}`);
+        outputStructuredData.error = msg;
         return { result: msg, structuredData: outputStructuredData } as ToolOutput;
       }
 

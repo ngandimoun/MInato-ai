@@ -31,7 +31,7 @@ import { CompletionUsage } from "openai/resources";
 // Default values for configuration
 const WORKFLOW_MAX_TOOLS_PER_TURN = 3;
 const DEFAULT_LLM_STEP_MODEL: OpenAILLMFast = appConfig.llm.extractionModel || "gpt-4.1-nano-2025-04-14";
-export const DYNAMIC_WORKFLOW_DESIGN_MODEL: OpenAIPlanningModel | OpenAILLMBalanced = appConfig.llm.chatModel || "gpt-4.1-mini-2025-04-14";
+export const DYNAMIC_WORKFLOW_DESIGN_MODEL: OpenAIPlanningModel | OpenAILLMBalanced = appConfig.llm.chatModel || "gpt-4o-2024-08-06";
 
 type WorkflowStatus = "pending" | "running" | "waiting_for_user" | "completed" | "failed" | "paused_for_continuation";
 
@@ -148,15 +148,28 @@ export class WorkflowEngine {
     public async selectAndPlanWorkflow( userQuery: string, userId: string, history: ChatMessage[], userName: string, userState: UserState | null ): Promise<{ plan: DynamicWorkflowPlan | null; clarificationQuestion?: string | null; actionType: "generate_dynamic_workflow" | "request_clarification" | "no_workflow_needed" | "error"; isPartialPlan?: boolean; continuationSummary?: string | null; llmUsage?: CompletionUsage | null; error?: string | null; }> {
         const logPrefix = `[WF SelectAndPlan User:${userId.substring(0,8)}] Query:"${userQuery.substring(0,30)}..."`;
         this.logger.info(`${logPrefix} Using LLM for dynamic workflow planning (Model: ${DYNAMIC_WORKFLOW_DESIGN_MODEL}).`);
-        const availableToolsForPlanning = Object.values(this.toolRegistry)
-        .filter(t => (t as any).enabled !== false)
-        .map(t => {
-        const argsSchemaObj = t.argsSchema as { properties?: Record<string, OpenAIToolParameterProperties>; required?: string[] };
-        const args = argsSchemaObj.properties ? Object.keys(argsSchemaObj.properties) : [];
-        const reqArgs = argsSchemaObj.required || [];
-        const argSummary = args.map(arg => `${arg}${reqArgs.includes(arg) ? '*' : ''}`).join(', ');
-        return `- ${t.name}: ${t.description.substring(0,100)}... Args: ${argSummary || 'None'}`;
-        }).join("\n");
+        const enhancedToolsForPlanning = Object.values(this.toolRegistry)
+          .filter(t => (t as any).enabled !== false)
+          .map(t => {
+            const argsSchemaObj = t.argsSchema as { properties?: Record<string, OpenAIToolParameterProperties>; required?: string[] };
+            const args = argsSchemaObj.properties ? Object.keys(argsSchemaObj.properties) : [];
+            const reqArgs = argsSchemaObj.required || [];
+            const argSummary = args.map(arg => {
+              let enumNote = '';
+              if (argsSchemaObj.properties && argsSchemaObj.properties[arg] && argsSchemaObj.properties[arg].enum) {
+                enumNote = ` (enum: ${argsSchemaObj.properties[arg].enum.join(', ')})`;
+              }
+              return `${arg}${reqArgs.includes(arg) ? '*' : ''}${enumNote}`;
+            }).join(', ');
+            let extraNote = '';
+            if (t.name === 'NewsAggregatorTool' && argsSchemaObj.properties && argsSchemaObj.properties['sources'] && argsSchemaObj.properties['sources'].enum) {
+              extraNote = `\n  NOTE: Always provide a value for 'sources'. If unsure, use '${argsSchemaObj.properties['sources'].enum[0]}'.`;
+            }
+            if (t.name === 'WebSearchTool' && argsSchemaObj.properties && argsSchemaObj.properties['mode'] && argsSchemaObj.properties['mode'].enum) {
+              extraNote += `\n  NOTE: Always provide a value for 'mode'. If unsure, use '${argsSchemaObj.properties['mode'].enum[0]}'.`;
+            }
+            return `- ${t.name}: ${t.description.substring(0,100)}... Required arguments: ${reqArgs.length > 0 ? reqArgs.join(', ') : 'None'}${argSummary ? ' | Args: ' + argSummary : ''}${extraNote}`;
+          }).join("\n");
         const language = userState?.preferred_locale?.split("-")[0] || appConfig.defaultLocale.split("-")[0] || "en";
         const personaContext: Record<string, any> = {
         userPersona: userState?.active_persona_id || 'Default Minato Persona',
@@ -166,13 +179,14 @@ export class WorkflowEngine {
         style: (userState as any)?.active_persona_style || 'conversational',
         tone: (userState as any)?.active_persona_tone || 'neutral and helpful',
         };
-        // Use TOOL_ROUTER_PROMPT_TEMPLATE directly since it's imported from prompts.ts
+        const canonicalNameInstruction = `IMPORTANT: When specifying a tool in your plan, ALWAYS use the exact canonical tool name as shown in the available_tools_for_planning list. DO NOT invent, abbreviate, or use variants/aliases. Only use the exact name (case-sensitive) from the list.\n\nIMPORTANT: For each tool, you MUST provide ALL required arguments as specified below. Do NOT omit any required fields. If a field is an enum, always provide a valid value.\n\nExamples:\n✅ Correct: { tool_name: "WebSearchTool", toolArgs: { query: "latest news", mode: "news" } }\n❌ Incorrect: { tool_name: "WebSearchTool", toolArgs: { query: "latest news" } } // missing 'mode'\n✅ Correct: { tool_name: "NewsAggregatorTool", toolArgs: { query: "AI research", sources: "all" } }\n❌ Incorrect: { tool_name: "NewsAggregatorTool", toolArgs: { query: "AI research" } } // missing 'sources'\n\nRepeat: DO NOT invent, abbreviate, or use variants/aliases. ALWAYS provide all required arguments. NEVER omit required fields.`;
+        const availableToolsSection = `\nIMPORTANT: USE ONLY THE EXACT TOOL NAMES BELOW. DO NOT INVENT OR ABBREVIATE.\n\n${enhancedToolsForPlanning}\n\n${canonicalNameInstruction}\n`;
         const injectedPrompt = injectPromptVariables(TOOL_ROUTER_PROMPT_TEMPLATE, { 
             userQuery, 
             userName, 
             conversationHistorySummary: summarizeChatHistoryForWorkflow(history), 
             userStateSummary: summarizeUserStateForWorkflow(userState), 
-            available_tools_for_planning: availableToolsForPlanning, 
+            available_tools_for_planning: availableToolsSection,
             language, 
             ...personaContext 
         });
@@ -416,7 +430,10 @@ export class WorkflowEngine {
                     wfState.status = "completed";
                     this.clearWorkflowState(sessionId);
                     responseIntentType = planResult.actionType === "error" ? "error" : "neutral";
-                    return { responseText: "Okay, Minato will stop there.", structuredData: null, workflowFeedback: { workflowName: wfState.fullPlanGoal, status: "completed" }, isComplete: true, llmUsage: totalLlmUsage, intentType: responseIntentType, ttsInstructions: null, error: planResult.actionType === "error" ? (planResult.error || "Planner error on continuation") : undefined, variables: wfState.variables };
+                    return { responseText: "Okay, Minato will stop there.", structuredData: null, workflowFeedback: {
+                        workflowName: wfState.fullPlanGoal, status: "completed",
+                        currentStepDescription: ""
+                    }, isComplete: true, llmUsage: totalLlmUsage, intentType: responseIntentType, ttsInstructions: null, error: planResult.actionType === "error" ? (planResult.error || "Planner error on continuation") : undefined, variables: wfState.variables };
                 }
             } else { 
                 this.logger.warn(`${logPrefix} Resumed 'waiting_for_user' but currentStepIndex out of bounds or no partial plan continuation. Resetting workflow state.`); 

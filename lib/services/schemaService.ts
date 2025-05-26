@@ -8,6 +8,12 @@ import { ENTITY_EXTRACTION_SCHEMA_OPENAI } from "../prompts"; // Import entity e
 const TOOL_ROUTER_SCHEMA_NAME = "tool_router_v1_1"; // Consistent name
 const SYNTHESIS_SCHEMA_NAME = "minato_gpt4o_synthesis_v1";
 const ENTITY_EXTRACTION_SCHEMA_NAME = ENTITY_EXTRACTION_SCHEMA_OPENAI.name; // Use name from imported schema
+const MINATO_NEWS_QUERY_EXTRACTION_SCHEMA_NAME = "minato_news_query_extraction_v1";
+const MINATO_YOUTUBE_QUERY_EXTRACTION_SCHEMA_NAME = "minato_youtube_query_extraction_v1";
+const MINATO_REDDIT_QUERY_EXTRACTION_SCHEMA_NAME = "minato_reddit_query_extraction_v1";
+const MINATO_RECIPE_QUERY_EXTRACTION_SCHEMA_NAME = "minato_recipe_query_extraction_v1";
+const MINATO_PEXELS_QUERY_EXTRACTION_SCHEMA_NAME = "minato_pexels_query_extraction_v1";
+const EVENTFINDER_ARG_EXTRACTION_SCHEMA_NAME = "eventfinder_arg_extraction";
 
 // The schema definition as expected by the test and generateStructuredJson
 const TOOL_ROUTER_SCHEMA_DEFINITION = {
@@ -84,7 +90,131 @@ const SCHEMA_VERSIONS: Record<string, SchemaDefinition> = {
     name: 'entity_relationship_extraction',
     version: '3_strict_metadata',
     schema: ENTITY_EXTRACTION_SCHEMA_OPENAI.schema // Use the imported schema object directly
-  }
+  },
+  [MINATO_NEWS_QUERY_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_news_query_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        keywords: { type: "string" },
+        sources: { type: "string" },
+        category: {
+          type: "string",
+          enum: [
+            "general", "business", "entertainment", "health", "science", "sports", "technology", ""
+          ]
+        }
+      },
+      required: ["keywords", "sources", "category"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_YOUTUBE_QUERY_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_youtube_query_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        query: { type: "string" },
+        limit: { type: "number" }
+      },
+      required: ["query", "limit"],
+      additionalProperties: false
+    }
+  },
+  // --- Version 2: Enhanced for category, description_keywords, and context ---
+  [MINATO_YOUTUBE_QUERY_EXTRACTION_SCHEMA_NAME + '_v2']: {
+    name: 'minato_youtube_query_extraction',
+    version: '2',
+    schema: {
+      type: "object",
+      properties: {
+        query: { type: "string" },
+        limit: { type: "number" },
+        category: { type: "string" }, // e.g., "music", "sports", "education"
+        description_keywords: { type: "string" }, // comma-separated keywords for video description
+        context: {
+          type: "object",
+          properties: {
+            previous_query: { type: "string" },
+            previous_video_title: { type: "string" }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      },
+      required: ["query", "limit"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_REDDIT_QUERY_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_reddit_query_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        subreddit: { type: "string" },
+        filter: { type: "string", enum: ["hot", "new", "top", "rising"] },
+        time: { type: ["string", "null"], enum: ["hour", "day", "week", "month", "year", "all", null] },
+        limit: { type: "number", minimum: 1, maximum: 10 }
+      },
+      required: ["subreddit", "filter", "time", "limit"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_RECIPE_QUERY_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_recipe_query_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        query: { type: "string" },
+        random: { type: "boolean" }
+      },
+      required: ["query", "random"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_PEXELS_QUERY_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_pexels_query_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        query: { type: "string" },
+        limit: { type: "number", minimum: 1, maximum: 5 },
+        orientation: { type: ["string", "null"], enum: ["landscape", "portrait", "square", null] },
+        size: { type: ["string", "null"], enum: ["large", "medium", "small", null] }
+      },
+      required: ["query", "limit", "orientation", "size"],
+      additionalProperties: false
+    }
+  },
+  [EVENTFINDER_ARG_EXTRACTION_SCHEMA_NAME]: {
+    name: 'eventfinder_arg_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        keyword: { type: ["string", "null"] },
+        city: { type: ["string", "null"] },
+        countryCode: { type: ["string", "null"] },
+        postalCode: { type: ["string", "null"] },
+        relativeDateDescription: { type: ["string", "null"] },
+        classificationName: { type: ["string", "null"] }
+      },
+      required: [
+        "keyword",
+        "city",
+        "countryCode",
+        "postalCode",
+        "relativeDateDescription",
+        "classificationName"
+      ],
+      additionalProperties: false
+    }
+  },
 };
 
 // Mock for generateStructuredJson (if we want to test SchemaService in isolation)

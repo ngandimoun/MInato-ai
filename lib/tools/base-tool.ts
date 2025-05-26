@@ -55,8 +55,36 @@ export abstract class BaseTool {
     additionalProperties: false; // Must be false for strict mode
     description?: string;
   };
+  /**
+   * Optional: Categories describing the tool's domain or use-case (e.g., ["search", "news", "media"])
+   */
+  categories?: string[];
+  /**
+   * Optional: Version string for the tool implementation (e.g., "1.0.0")
+   */
+  version?: string;
+  /**
+   * Optional: Arbitrary metadata for the tool (for future extensibility)
+   */
+  metadata?: Record<string, any>;
   cacheTTLSeconds?: number = 90;
   enabled: boolean = true;
+  /**
+   * Optional: Per-tool execution timeout in milliseconds. Overrides global default if set.
+   */
+  timeoutMs?: number;
+  /**
+   * Optional: Maximum number of times this tool can be called per session/user. If exceeded, tool will not execute.
+   */
+  maxCallsPerSession?: number;
+  /**
+   * Optional: Per-user rate limits for this tool (calls per minute, hour, day).
+   */
+  rateLimits?: {
+    perMinute?: number;
+    perHour?: number;
+    perDay?: number;
+  };
 
   abstract execute( input: ToolInput, abortSignal?: AbortSignal ): Promise<ToolOutput>;
 

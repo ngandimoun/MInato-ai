@@ -35,6 +35,7 @@ import { RecipeCard } from "../tool-cards/RecipeCard";
 import { GenericToolCard } from "../tool-cards/GenericToolCard";
 
 import { NewsAggregatorCard } from "../tool-cards/NewsAggregatorCard"; 
+import { HackerNewsCard } from "../tool-cards/HackerNewsCard";
 
 
 
@@ -44,6 +45,7 @@ interface StructuredDataRendererProps {
 }
 
 export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
+  console.log("[StructuredDataRenderer] Incoming data prop:", data);
   let parsedData: AnyToolStructuredData | null = null;
 
   if (typeof data === 'string') {
@@ -64,17 +66,24 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
     parsedData = data;
   }
 
+  console.log("[StructuredDataRenderer] parsedData:", parsedData);
+  if (parsedData) {
+    console.log("[StructuredDataRenderer] parsedData.result_type:", parsedData.result_type);
+  }
+
   if (!parsedData) {
     // logger.debug("[StructDataRender] No valid parsed data to render.");
     return null;
   }
 
   let contentToRender;
-  switch (parsedData.result_type) {
+  const normalizedResultType = parsedData.result_type?.trim().toLowerCase();
+  console.log("[StructuredDataRenderer] normalizedResultType:", normalizedResultType);
+  switch (normalizedResultType) {
     case "product_list":
     case "web_snippet":
-    case "answerBox":
-    case "knowledgeGraph":
+    case "answerbox":
+    case "knowledgegraph":
       contentToRender = <WebSearchCard data={parsedData as any} />;
       break;
     case "datetime_info":
@@ -113,17 +122,20 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
     case "internal_memory_result":
       contentToRender = <MemoryToolCard data={parsedData as MemoryToolResult} />;
       break;
+    case "news_articles":
+      contentToRender = <NewsAggregatorCard data={parsedData as NewsArticleList} />;
+      break;
+    case "hn_stories":
+      contentToRender = <HackerNewsCard data={parsedData as any} />;
+      break;
     case "reminders":
       contentToRender = <ReminderReaderCard data={parsedData as ReminderResult} />;
-      break;
-      case "reminders":
-      contentToRender = <NewsAggregatorCard data={parsedData as NewsArticleList} />;
       break;
     case "permission_denied":
       contentToRender = (
         <div className="p-3 border rounded-md bg-destructive/10 text-destructive-foreground text-sm">
           <p className="font-medium">Access Denied</p>
-          <p>{parsedData.message || "Minato does not have permission to access this resource."}</p>
+          <p>{('message' in parsedData && typeof parsedData.message === 'string') ? parsedData.message : "Minato does not have permission to access this resource."}</p>
           <p className="text-xs opacity-70">Source: {parsedData.source_api}</p>
         </div>
       );
