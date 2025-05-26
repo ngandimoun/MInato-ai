@@ -14,7 +14,7 @@ const RPC_FUNCTION_NAME = "get_pending_reminders";
 
 export class ReminderReaderTool extends BaseTool {
   name = "ReminderReaderTool";
-  description = "Reads pending reminders stored in the AI's memory for the user, looking ahead a specified number of days, including any that are overdue.";
+  description = "Reads reminders from the user's Minato memory system.";
   argsSchema = {
     type: "object" as const,
     properties: {
@@ -26,6 +26,9 @@ export class ReminderReaderTool extends BaseTool {
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 60 * 1; // Cache for 1 minute
+  categories = ["reminder", "productivity", "memory"];
+  version = "1.0.0";
+  metadata = { provider: "Minato Memory Framework", supports: ["read_reminders"] };
 
   async execute(input: ReminderInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
     const { userId: contextUserId } = input;

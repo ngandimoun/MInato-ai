@@ -22,8 +22,7 @@ interface LocalLocationTimeData {
 
 export class DateTimeTool extends BaseTool {
   name = "DateTimeTool";
-  description =
-    "Gets the current date and time for one or multiple locations using IANA timezones. If no location is specified, uses context timezone or UTC.";
+  description = "Provides current date and time information, and can format dates/times for the user.";
   argsSchema = {
     type: "object" as const,
     properties: {
@@ -46,6 +45,9 @@ export class DateTimeTool extends BaseTool {
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 30; // Short cache for time
+  categories = ["utility", "datetime"];
+  version = "1.0.0";
+  metadata = { supports: ["current_time", "date_formatting"] };
 
   private resolveTimezone(identifier: string | undefined | null): string | null { // Allow null
     if (!identifier) return null;

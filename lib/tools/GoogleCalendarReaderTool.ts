@@ -64,8 +64,7 @@ calendarId?: string | null;
 }
 export class GoogleCalendarReaderTool extends BaseTool {
 name = "GoogleCalendarReaderTool";
-description =
-"Reads upcoming events from a specified Google Calendar (defaults to primary) for today. Requires appropriate user permissions and user consent.";
+description = "Reads events from the user's Google Calendar. Requires appropriate permissions and user consent.";
 argsSchema = {
 type: "object" as const,
 properties: {
@@ -87,6 +86,9 @@ required: ["action", "maxResults", "calendarId"],
 additionalProperties: false as false,
 };
 cacheTTLSeconds = 60 * 5; 
+categories = ["calendar", "productivity", "google"];
+version = "1.0.0";
+metadata = { provider: "Google Calendar API", supports: ["read_events"] };
 async execute(input: CalendarInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
 const effectiveAction = (input.action === null || input.action === undefined) ? "get_today_events" : input.action;
 const effectiveMaxResults = (input.maxResults === null || input.maxResults === undefined) ? 5 : Math.max(1, Math.min(input.maxResults, 10));

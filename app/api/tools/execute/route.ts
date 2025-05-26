@@ -6,9 +6,10 @@ import {
   RATE_LIMIT_ID_TOOL_EXECUTION,
   DEFAULT_TOOL_TIMEOUT_MS,
 } from "@/lib/constants";
-import { tools as appToolsRegistry } from "@/lib/tools/index";
+import { tools as appToolsRegistry, resolveToolName } from "@/lib/tools/index";
 import { ToolInput, ToolOutput } from "@/lib/tools/base-tool";
 import type { UserState } from "@/lib/types";
+import Ajv from "ajv";
 // Locally defined for this route (not exported from types)
 interface ToolExecutionRequest {
   toolName: string;
@@ -120,7 +121,12 @@ export async function POST(req: NextRequest) {
   }
 
   const { toolName, toolArgs, sessionId } = requestBody;
-  const tool = appToolsRegistry[toolName];
+  let tool = appToolsRegistry[toolName];
+
+  if (!tool) {
+    const resolved = resolveToolName(toolName);
+    if (resolved && typeof resolved === 'object' && 'execute' in resolved) tool = resolved;
+  }
 
   if (!tool) {
     logger.error(
@@ -135,6 +141,20 @@ export async function POST(req: NextRequest) {
         error: `Tool '${toolName}' not found.`,
       } as ToolExecutionResponse,
       { status: 404 }
+    );
+  }
+
+  // Validate arguments
+  const ajv = new Ajv({ allErrors: true, strict: false });
+  const validate = ajv.compile(tool.argsSchema);
+  if (!validate(toolArgs)) {
+    logger.error(
+      `${logPrefix} Invalid arguments for user ${userId.substring(0, 8)}:`,
+      validate.errors
+    );
+    return NextResponse.json(
+      { error: `Invalid arguments: ${JSON.stringify(validate.errors)}` },
+      { status: 400 }
     );
   }
 
@@ -241,4 +261,8 @@ export async function POST(req: NextRequest) {
     };
     return NextResponse.json(responsePayload, { status: status });
   }
+}
+
+export function GET() {
+  return NextResponse.json({ error: "Method Not Allowed" }, { status: 405 });
 }

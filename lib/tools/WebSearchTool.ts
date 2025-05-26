@@ -90,6 +90,9 @@ export class WebSearchTool extends BaseTool {
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 60 * 15; // Cache for 15 minutes
+  categories = ["search", "web"];
+  version = "1.0.0";
+  metadata = { provider: "Serper API", supports: ["product_search", "tiktok_search", "fallback_search"] };
 
   private readonly API_KEY: string;
   private readonly SERPER_API_URL = "https://google.serper.dev/search";

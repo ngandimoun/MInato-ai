@@ -9,6 +9,7 @@ import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { logger } from "@/memory-framework/config";
+import { StructuredDataRenderer } from "./structured-data-renderer";
 
 interface MessageListProps {
   messages: Message[];
@@ -97,7 +98,7 @@ export function MessageList({ messages, messagesEndRef }: MessageListProps) {
                     <AnimatePresence initial={false}>
                     {groupedMessages[dateKey].map((message) => (
                         <motion.div
-                            key={message.id || `msg-${Math.random()}`} // Fallback key if id is missing
+                            key={message.id || `msg-${Math.random()}`}
                             layout
                             initial={{ opacity: 0, y: 15 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -105,6 +106,9 @@ export function MessageList({ messages, messagesEndRef }: MessageListProps) {
                             transition={{ type: "spring", stiffness: 350, damping: 30, duration: 0.25 }}
                         >
                             <MessageItem message={message} />
+                            {message.structured_data && (
+                              <StructuredDataRenderer data={message.structured_data} />
+                            )}
                         </motion.div>
                     ))}
                     </AnimatePresence>

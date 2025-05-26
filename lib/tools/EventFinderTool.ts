@@ -25,12 +25,76 @@ interface EventFinderInput extends ToolInput {
 
 // Internal types for Ticketmaster response structure (kept for mapping)
 interface TicketmasterImage { url: string; ratio?: string; width?: number; height?: number; fallback?: boolean; }
-interface TicketmasterDateInfo { localDate: string; localTime?: string; dateTime?: string; status?: { code: string }; spanMultipleDays?: boolean; }
-interface TicketmasterClassification { primary?: boolean; segment?: { id: string; name: string }; genre?: { id: string; name: string }; subGenre?: { id: string; name: string }; type?: { id: string; name: string }; subType?: { id: string; name: string }; }
-interface TicketmasterVenue { name: string; id: string; url?: string; postalCode?: string; city?: { name: string }; state?: { name: string; stateCode?: string }; country?: { name: string; countryCode: string }; address?: { line1?: string }; location?: { longitude: string; latitude: string }; images?: TicketmasterImage[]; }
-interface TicketmasterAttraction { name: string; id: string; url?: string; images?: TicketmasterImage[]; classifications?: TicketmasterClassification[]; }
-interface TicketmasterPriceRange { type: string; currency: string; min: number; max: number; }
-interface TicketmasterEventRaw { name: string; type: string; id: string; test?: boolean; url?: string; locale?: string; images?: TicketmasterImage[]; dates?: { start?: TicketmasterDateInfo; end?: TicketmasterDateInfo; timezone?: string; status?: { code: string }; spanMultipleDays?: boolean; }; classifications?: TicketmasterClassification[]; promoter?: { id: string; name: string; description?: string }; promoters?: Array<{ id: string; name: string; description?: string }>; priceRanges?: TicketmasterPriceRange[]; seatmap?: { staticUrl?: string }; _links?: { self: { href: string }; attractions?: Array<{ href: string }>; venues?: Array<{ href: string }>; }; _embedded?: { venues?: TicketmasterVenue[]; attractions?: TicketmasterAttraction[]; }; }
+interface TicketmasterDateInfo { 
+  localDate: string; 
+  localTime?: string; 
+  dateTime?: string; 
+  status?: { code: string }; 
+  spanMultipleDays?: boolean; 
+}
+interface TicketmasterClassification { 
+  primary?: boolean; 
+  segment?: { id: string; name: string }; 
+  genre?: { id: string; name: string }; 
+  subGenre?: { id: string; name: string }; 
+  type?: { id: string; name: string }; 
+  subType?: { id: string; name: string }; 
+}
+interface TicketmasterVenue { 
+  name: string; 
+  id: string; 
+  url?: string; 
+  postalCode?: string; 
+  city?: { name: string }; 
+  state?: { name: string; stateCode?: string }; 
+  country?: { name: string; countryCode: string }; 
+  address?: { line1?: string }; 
+  location?: { longitude: string; latitude: string }; 
+  images?: TicketmasterImage[]; 
+}
+interface TicketmasterAttraction { 
+  name: string; 
+  id: string; 
+  url?: string; 
+  images?: TicketmasterImage[]; 
+  classifications?: TicketmasterClassification[]; 
+}
+interface TicketmasterPriceRange { 
+  type: string; 
+  currency: string; 
+  min: number; 
+  max: number; 
+}
+interface TicketmasterEventRaw { 
+  name: string; 
+  type: string; 
+  id: string; 
+  test?: boolean; 
+  url?: string; 
+  locale?: string; 
+  images?: TicketmasterImage[]; 
+  dates?: { 
+    start?: TicketmasterDateInfo; 
+    end?: TicketmasterDateInfo; 
+    timezone?: string; 
+    status?: { code: string }; 
+    spanMultipleDays?: boolean; 
+  }; 
+  classifications?: TicketmasterClassification[]; 
+  promoter?: { id: string; name: string; description?: string }; 
+  promoters?: Array<{ id: string; name: string; description?: string }>; 
+  priceRanges?: TicketmasterPriceRange[]; 
+  seatmap?: { staticUrl?: string }; 
+  _links?: { 
+    self: { href: string }; 
+    attractions?: Array<{ href: string }>; 
+    venues?: Array<{ href: string }>; 
+  }; 
+  _embedded?: { 
+    venues?: TicketmasterVenue[]; 
+    attractions?: TicketmasterAttraction[]; 
+  }; 
+}
 interface TicketmasterDiscoveryResponse { _embedded?: { events: TicketmasterEventRaw[] }; _links?: any; page?: { size: number; totalElements: number; totalPages: number; number: number; }; errors?: Array<{ code: string; detail: string; status: string }>;}
 
 export class EventFinderTool extends BaseTool {
@@ -51,10 +115,13 @@ export class EventFinderTool extends BaseTool {
       countryCode: { type: ["string", "null"] as const, description: "Optional ISO 3166-1 alpha-2 country code (e.g., 'US', 'GB') to focus search. Can be null." } as OpenAIToolParameterProperties,
       source: { type: ["string", "null"] as const, enum: ["ticketmaster", "songkick", null], description: "Preferred event source. If null or omitted, defaults to Ticketmaster." } as OpenAIToolParameterProperties, // Default handled in code
     },
-    required: ["keyword", "location", "radius", "radiusUnit", "startDate", "endDate", "classificationName", "limit", "countryCode", "source"],
+    required: ["radius", "radiusUnit", "limit", "source"],
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 60 * 15; // Cache events for 15 minutes
+  categories = ["events", "search", "ticketing"];
+  version = "1.0.0";
+  metadata = { provider: "Ticketmaster API", supports: ["concerts", "sports", "theater", "family"] };
 
   private readonly API_BASE = "https://app.ticketmaster.com/discovery/v2/events.json";
   private readonly API_KEY: string;
@@ -181,17 +248,40 @@ export class EventFinderTool extends BaseTool {
       if (mappedEvents.length > 0) {
           const firstEvent = mappedEvents[0];
           const eventName = firstEvent.name;
-          const venueName = firstEvent._embedded?.venues?.[0]?.name || "an unconfirmed venue";
-          const eventDate = firstEvent.dates?.start?.localDate ? format(parseISO(firstEvent.dates.start.localDate), "MMMM do") : "an upcoming date";
+          const venue = firstEvent._embedded?.venues?.[0];
+          const venueName = venue?.name || "an unconfirmed venue";
+          const venueCity = venue?.city?.name;
+          const venueCountry = venue?.country?.countryCode;
+          const venueLocation = [venueCity, venueCountry].filter(Boolean).join(", ");
           
-          resultString = `Hey ${userNameForResponse}, I found some events ${locationDescription}${effectiveKeyword ? ` related to "${effectiveKeyword}"` : ""}! For example, there's "${eventName}" at ${venueName} on ${eventDate}.`;
+          const eventDate = firstEvent.dates?.start?.localDate ? format(parseISO(firstEvent.dates.start.localDate), "EEEE, MMMM do, yyyy") : "an upcoming date";
+          const eventTime = firstEvent.dates?.start?.localTime ? format(parseISO(`1970-01-01T${firstEvent.dates.start.localTime}`), "h:mm a") : null;
+          const dateTimeStr = eventTime ? `${eventDate} at ${eventTime}` : eventDate;
+          
+          const priceRange = firstEvent.priceRanges?.[0];
+          const priceStr = priceRange ? ` Tickets range from ${priceRange.currency} ${priceRange.min} to ${priceRange.currency} ${priceRange.max}.` : "";
+          
+          const classification = firstEvent.classifications?.[0];
+          const genre = classification?.genre?.name;
+          const subGenre = classification?.subGenre?.name;
+          const genreStr = [genre, subGenre].filter(Boolean).join(" - ");
+          
+          resultString = `Hey ${userNameForResponse}, I found some exciting events ${locationDescription}${effectiveKeyword ? ` related to "${effectiveKeyword}"` : ""}! The highlight is "${eventName}"${genreStr ? ` (${genreStr})` : ""} at ${venueName}${venueLocation ? ` in ${venueLocation}` : ""} on ${dateTimeStr}.${priceStr}`;
+          
           if (mappedEvents.length > 1) {
-            resultString += ` There are ${mappedEvents.length -1} more too. I can show you the list if you'd like!`;
+            resultString += ` There are ${mappedEvents.length - 1} more events too! Would you like to see the full list?`;
           } else {
-            resultString += ` Would you like more details or to see if there are other options?`;
+            resultString += ` Would you like more details about this event?`;
           }
       } else {
-          resultString = `Minato searched for events ${locationDescription} for ${userNameForResponse}${effectiveKeyword ? ` related to "${effectiveKeyword}"` : ""} but didn't find any matching your criteria right now.`;
+          const criteria = [
+            effectiveKeyword ? `keyword: "${effectiveKeyword}"` : null,
+            locationDescription ? `location: ${locationDescription}` : null,
+            effectiveClassificationName ? `category: ${effectiveClassificationName}` : null,
+            startDateTime ? `after: ${format(parseISO(startDateTime), "MMM d")}` : null
+          ].filter(Boolean).join(", ");
+          
+          resultString = `I searched for events ${locationDescription} for you, ${userNameForResponse}${criteria ? ` (${criteria})` : ""}, but couldn't find any matches right now. Would you like to try with different dates or a broader search?`;
       }
 
       outputStructuredData.count = mappedEvents.length;
@@ -212,3 +302,4 @@ export class EventFinderTool extends BaseTool {
     }
   }
 }
+

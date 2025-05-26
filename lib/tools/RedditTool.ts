@@ -47,6 +47,33 @@ export class RedditTool extends BaseTool {
   cacheTTLSeconds = 60 * 5;
   private readonly REDDIT_BASE_URL = "https://www.reddit.com";
   private readonly USER_AGENT = `MinatoAICompanion/1.0 (by /u/YourRedditUsername contact: ${appConfig.emailFromAddress || "support@example.com"})`;
+  categories = [
+    "community",
+    "news",
+    "search",
+    "discussion",
+    "trending",
+    "memes",
+    "social",
+    "forums",
+    "subreddits",
+    "topics",
+    "user-generated",
+    "community-news"
+  ];
+  version = "1.0.0";
+  metadata = { provider: "Reddit API", supports: [
+    "hot",
+    "new",
+    "top",
+    "rising",
+    "controversial",
+    "gilded",
+    "random",
+    "best",
+    "search",
+    "comments"
+  ] };
 
   constructor() {
     super();

@@ -108,11 +108,11 @@ const DEFAULT_TTS_VOICE_CONST: OpenAITtsVoice = ALL_TTS_VOICES.includes("nova")
   : ALL_TTS_VOICES[0];
 
 const DEFAULTS_UNIFIED = {
-  LLM_PLANNING_MODEL: "gpt-4.1-2025-04-14" as OpenAIPlanningModel,
+  LLM_PLANNING_MODEL: "gpt-4o-2024-08-06" as OpenAIPlanningModel,
   LLM_CHAT_MODEL: "gpt-4o-2024-08-06" as OpenAILLMBalanced,
   LLM_COMPLEX_MODEL: "gpt-4o-2024-08-06" as OpenAILLMComplex,
-  LLM_EXTRACTION_MODEL: "gpt-4.1-nano-2025-04-14" as OpenAILLMFast,
-  LLM_DEVELOPER_MODEL: "o3-mini-2025-01-31" as OpenAIDeveloperModel,
+  LLM_EXTRACTION_MODEL: "gpt-4o-2024-08-06" as OpenAILLMFast,
+
   LLM_VISION_MODEL: "gpt-4o-2024-08-06" as OpenAIVisionModel,
   LLM_TTS_MODEL: "gpt-4o-mini-tts" as OpenAITtsModel,
   LLM_STT_MODEL: "gpt-4o-mini-transcribe" as OpenAISttModel,
@@ -287,7 +287,7 @@ function loadConfig(): FrameworkConfig {
       chatModel: getEnvVar( "LLM_CHAT_MODEL", false, DEFAULTS_UNIFIED.LLM_CHAT_MODEL, 'string' ) as OpenAILLMBalanced,
       complexModel: getEnvVar( "LLM_COMPLEX_MODEL", false, DEFAULTS_UNIFIED.LLM_COMPLEX_MODEL, 'string' ) as OpenAILLMComplex,
       extractionModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL, 'string' ) as OpenAILLMFast,
-      developerModel: getEnvVar( "LLM_DEVELOPER_MODEL", false, DEFAULTS_UNIFIED.LLM_DEVELOPER_MODEL, 'string' ) as OpenAIDeveloperModel,
+      
       fastModel: getEnvVar( "LLM_EXTRACTION_MODEL", false, DEFAULTS_UNIFIED.LLM_EXTRACTION_MODEL, 'string' ) as OpenAILLMFast, 
       visionModel: getEnvVar( "LLM_CHAT_MODEL", false, DEFAULTS_UNIFIED.LLM_CHAT_MODEL, 'string' ) as OpenAIVisionModel, 
       ttsModel: getEnvVar( "LLM_TTS_MODEL", false, DEFAULTS_UNIFIED.LLM_TTS_MODEL, 'string' ) as OpenAITtsModel,

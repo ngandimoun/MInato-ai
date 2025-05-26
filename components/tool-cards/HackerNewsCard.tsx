@@ -82,6 +82,8 @@ const StoryItem: React.FC<{ story: HackerNewsStory }> = ({ story }) => {
 };
 
 export function HackerNewsCard({ data }: HackerNewsCardProps) {
+  console.log("[HackerNewsCard] Rendering with data:", data);
+  console.log("typeof data.result_type:", typeof data.result_type, "value:", data.result_type, "===", data.result_type === "hn_stories");
   if (!data) return <p className="text-sm text-muted-foreground">No Hacker News data.</p>;
 
   const iconForSource = () => {

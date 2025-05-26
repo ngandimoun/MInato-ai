@@ -28,6 +28,9 @@ export class SportsInfoTool extends BaseTool {
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 3600 * 1; // Cache sports info for 1 hour
+  categories = ["sports", "info", "team"];
+  version = "1.0.0";
+  metadata = { provider: "TheSportsDB", supports: ["next_game", "last_game", "team_info"] };
 
   private readonly API_KEY: string;
   private readonly API_BASE = "https://www.thesportsdb.com/api/v1/json/";

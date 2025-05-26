@@ -276,10 +276,37 @@ const rawEvents = value.split("\n\n");
             const eventData = JSON.parse(eventDataJson);
             if (eventName === "text-chunk" && typeof eventData.text === 'string') {
                 accumulatedText += eventData.text;
-                setMessages(prev => prev.map(msg => msg.id === assistantMessageId ? { ...msg, content: accumulatedText } : msg ));
+                setMessages(prev =>
+                    prev.map(msg =>
+                        msg.id === assistantMessageId
+                            ? { ...msg, content: accumulatedText }
+                            : msg
+                    )
+                );
             } else if (eventName === "ui-component" && eventData.data) {
-                finalUiComponentData = eventData.data as AnyToolStructuredData;
-                setMessages(prev => prev.map(msg => msg.id === assistantMessageId ? { ...msg, structured_data: finalUiComponentData } : msg ));
+                const cardMessageId = `asst-card-${generateId()}`;
+                setMessages(prev => {
+                    // Prevent duplicate cards by checking for existing structured_data (deep equality)
+                    if (prev.some(msg => msg.structured_data && JSON.stringify(msg.structured_data) === JSON.stringify(eventData.data))) return prev;
+                    return [
+                        ...prev,
+                        {
+                            id: cardMessageId,
+                            role: "assistant",
+                            content: null,
+                            timestamp: new Date().toISOString(),
+                            attachments: [],
+                            audioUrl: undefined,
+                            structured_data: eventData.data as AnyToolStructuredData,
+                            debugInfo: null,
+                            workflowFeedback: null,
+                            intentType: null,
+                            ttsInstructions: null,
+                            clarificationQuestion: null,
+                            error: false
+                        }
+                    ];
+                });
             } else if (eventName === "annotations" && typeof eventData === 'object' && eventData !== null) {
                 const { id, role, content, timestamp, messageId, attachments, ...validAnnotations } = eventData;
                 finalAnnotations = { ...finalAnnotations, ...validAnnotations };
@@ -310,21 +337,45 @@ try { if (!signal.aborted) await reader.cancel("Stream processing finished or er
 catch (cancelError: any) { logger.warn("[ChatInterface] Error cancelling reader (already closed?):", cancelError.message); }
 }
 if (streamProcessingError) throw streamProcessingError;
+
+// Update the summary message (identified by assistantMessageId)
 setMessages(prev => prev.map(msg => {
-if (msg.id === assistantMessageId) {
-return {
-...msg,
-id: finalAssistantMessageIdFromServer || assistantMessageId,
-content: accumulatedText || (finalUiComponentData ? msg.content || "[Structured Data]" : (finalAttachmentsFromAssistant.length > 0 ? msg.content || "[Attachment(s) Received]" : "[Response processed]")),
-structured_data: finalUiComponentData || msg.structured_data,
-attachments: finalAttachmentsFromAssistant.length > 0 ? finalAttachmentsFromAssistant : msg.attachments,
-...finalAnnotations,
-timestamp: new Date().toISOString(),
-error: msg.error || false
-};
-}
-return msg;
+    if (msg.id === assistantMessageId) {
+        const definitiveId = finalAssistantMessageIdFromServer || assistantMessageId;
+
+        let newContent: string | ChatMessageContentPart[] | null = accumulatedText;
+        
+        // If accumulatedText is empty, decide on fallback content
+        if (!accumulatedText) {
+            if (finalAttachmentsFromAssistant.length > 0) {
+                // If there are attachments, use existing content or a fallback string
+                newContent = msg.content || "[Attachment(s) Received]";
+            } else if (!finalUiComponentData) {
+                // If no UI component was involved, and no attachments, it's a general processed response
+                newContent = msg.content || "[Response processed]";
+            } else {
+                // If there was UI component data, but no text, it means the summary message was just a placeholder for a card that streamed no text.
+                // In this case, the summary content should be null or its existing content.
+                newContent = msg.content; // Preserve existing content (could be null, string, or parts)
+            }
+        }
+        
+        const { structured_data, ...relevantAnnotations } = finalAnnotations as any;
+
+        return {
+            ...msg,
+            id: definitiveId,
+            content: newContent,
+            structured_data: msg.structured_data, 
+            attachments: finalAttachmentsFromAssistant.length > 0 ? finalAttachmentsFromAssistant : msg.attachments,
+            ...relevantAnnotations, 
+            timestamp: new Date().toISOString(),
+            error: msg.error || false 
+        };
+    }
+    return msg;
 }));
+
 playSound("receive");
 } catch (error: any) {
 logger.error(`[ChatInterface handleSendMessage] Outer error: ${error.message}`, error);
@@ -420,35 +471,55 @@ errorDetail = errorBodyText.substring(0, 200) || `HTTP ${response.status}`;
 }
 throw new Error(errorDetail);
 }
-const orchestratorResponse: OrchestratorResponse = await response.json();
-if (orchestratorResponse.error && !orchestratorResponse.clarificationQuestion) {
-logger.error("[ChatInterface handleSendAudio] Orchestrator Error:", orchestratorResponse.error);
-setMessages(prev => prev.map(msg => msg.id === assistantMessageId ? { ...msg, content: `Error: ${orchestratorResponse.error}`, error: true } : msg));
-toast({ title: "Audio Processing Error", description: orchestratorResponse.error, variant: "destructive" });
-} else {
-finalAssistantMessageIdFromServer = (orchestratorResponse.debugInfo as any)?.assistantMessageId || `asst-${generateId()}`;
+const orchestratorResponseRaw = await response.json();
+const responses = Array.isArray(orchestratorResponseRaw) ? orchestratorResponseRaw : [orchestratorResponseRaw];
+
 setMessages(prev => prev.map(msg => {
-if (msg.id === assistantMessageId) {
-return {
-...msg,
-id: finalAssistantMessageIdFromServer!,
-content: orchestratorResponse.response || (orchestratorResponse.structuredData ? "[Structured Data]" : "[Audio processed]"),
-structured_data: orchestratorResponse.structuredData || null,
-attachments: orchestratorResponse.attachments || [],
-audioUrl: orchestratorResponse.audioUrl || undefined,
-intentType: orchestratorResponse.intentType || null,
-ttsInstructions: orchestratorResponse.ttsInstructions || null,
-clarificationQuestion: orchestratorResponse.clarificationQuestion || null,
-debugInfo: orchestratorResponse.debugInfo || null,
-workflowFeedback: orchestratorResponse.workflowFeedback || null,
-timestamp: new Date().toISOString(),
-error: !!orchestratorResponse.error,
-};
-}
-return msg;
+  if (msg.id === assistantMessageId) {
+    // Use the first response (summary) for the main assistant message
+    const first = responses[0];
+    return {
+      ...msg,
+      id: finalAssistantMessageIdFromServer!,
+      content: first.response || (first.structuredData ? "[Structured Data]" : "[Audio processed]"),
+      structured_data: first.structuredData || null,
+      attachments: first.attachments || [],
+      audioUrl: first.audioUrl || undefined,
+      intentType: first.intentType || null,
+      ttsInstructions: first.ttsInstructions || null,
+      clarificationQuestion: first.clarificationQuestion || null,
+      debugInfo: first.debugInfo || null,
+      workflowFeedback: first.workflowFeedback || null,
+      timestamp: new Date().toISOString(),
+      error: !!first.error,
+    };
+  }
+  return msg;
 }));
-playSound("receive");
+
+// If there is a second response (the card), add it as a new message
+if (responses.length > 1 && responses[1].structuredData) {
+  setMessages(prev => [
+    ...prev,
+    {
+      id: `asst-card-${generateId()}`,
+      role: "assistant",
+      content: null,
+      timestamp: new Date().toISOString(),
+      attachments: [],
+      audioUrl: undefined,
+      structured_data: responses[1].structuredData,
+      debugInfo: responses[1].debugInfo || null,
+      workflowFeedback: responses[1].workflowFeedback || null,
+      intentType: responses[1].intentType || null,
+      ttsInstructions: responses[1].ttsInstructions || null,
+      clarificationQuestion: responses[1].clarificationQuestion || null,
+      error: !!responses[1].error,
+    }
+  ]);
 }
+
+playSound("receive");
 } catch (error: any) {
 logger.error(`[ChatInterface handleSendAudio] Error: ${error.message} ${error.stack}`);
 toast({ title: "Error Processing Audio", description: error.message, variant: "destructive" });

@@ -16,7 +16,7 @@ type PexelsClient = ReturnType<typeof createClient>;
 
 export class PexelsSearchTool extends BaseTool {
   name = "PexelsSearchTool";
-  description = "Searches Pexels for high-quality, royalty-free photos based on keywords, description, orientation, or size.";
+  description = "Searches Pexels for high-quality images based on keywords. Returns a list of images with URLs and attributions.";
   argsSchema = {
     type: "object" as const,
     properties: {
@@ -40,6 +40,9 @@ export class PexelsSearchTool extends BaseTool {
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 3600 * 24;
+  categories = ["search", "image", "media"];
+  version = "1.0.0";
+  metadata = { provider: "Pexels API", maxResults: 10 };
 
   private readonly pexelsClient: PexelsClient | null;
   private fetchImplementation: typeof fetch = (typeof window !== 'undefined' ? window.fetch : nodeFetch) as typeof fetch;
