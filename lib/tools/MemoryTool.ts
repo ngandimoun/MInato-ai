@@ -28,7 +28,7 @@ export class MemoryTool extends BaseTool {
       memory_type_filter: { type: ["string", "null"] as const, description: "Optional: Filter memories by type (e.g., 'user_preference', 'fact'). Can be null." } as OpenAIToolParameterProperties,
       status_filter: { type: ["string", "null"] as const, description: "Optional: Filter memories by status (e.g., 'active'). If null or omitted, defaults to 'active'.", } as OpenAIToolParameterProperties,
     },
-    required: ["query", "action", "limit", "memory_type_filter", "status_filter"],
+    required: ["query"],
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 15; // Short cache for memory search

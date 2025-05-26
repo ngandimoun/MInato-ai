@@ -642,3 +642,72 @@ visionTextResult = textPart?.text || null;
 return { text: visionTextResult, error: null, usage: agentResult.usage };
 }
 export { openai as rawOpenAiClient };
+
+/**
+ * Resolves a potentially non-English or aliased tool name to its canonical English name using the LLM.
+ * @param givenToolName The tool name provided by the LLM router or user.
+ * @param canonicalToolNames A list of valid, canonical tool names registered in the system.
+ * @param userId Optional user ID for logging/context.
+ * @returns The resolved canonical tool name and confidence, or just the resolved name if LLM fails.
+ */
+export async function resolveToolNameWithLLM(
+  givenToolName: string,
+  canonicalToolNames: string[],
+  userId?: string
+): Promise<{ resolved_tool_name: string; confidence: string } | string> {
+  const logSuffix = `User:${userId ? userId.substring(0, 8) : "N/A"} GivenName:${givenToolName}`;
+  logger.info(`[LLM Clients ToolResolve] Attempting to resolve tool name: "${givenToolName}". Available: [${canonicalToolNames.join(", ")}]. ${logSuffix}`);
+
+  // Simple direct match or common alias check first
+  const lowerGivenName = givenToolName.toLowerCase();
+  for (const canonicalName of canonicalToolNames) {
+    if (canonicalName.toLowerCase() === lowerGivenName) {
+      logger.debug(`[LLM Clients ToolResolve] Direct/lowercase match found: "${givenToolName}" -> "${canonicalName}". ${logSuffix}`);
+      return { resolved_tool_name: canonicalName, confidence: "high" };
+    }
+  }
+
+  const schema = {
+    type: "object" as const,
+    properties: {
+      resolved_tool_name: {
+        type: "string" as const,
+        enum: canonicalToolNames,
+        description: "The closest matching canonical tool name from the provided list.",
+      },
+      confidence: {
+        type: "string" as const,
+        enum: ["high", "medium", "low", "none"],
+        description: "Confidence level of the match. 'none' if no good match found."
+      }
+    },
+    required: ["resolved_tool_name", "confidence"],
+    additionalProperties: false,
+  };
+  const schemaName = "minato_tool_name_resolver_v1";
+
+  const instructions = `You are an expert multilingual tool name resolver. Given a potentially non-English or aliased tool name and a list of valid canonical English tool names, identify the single best matching canonical tool name.\nThe user (or another AI) provided the tool name: "${givenToolName}".\nThe available canonical English tool names are:\n${canonicalToolNames.map(name => `- ${name}`).join("\n")}\nIf you find a very strong match, set confidence to "high". If it's a plausible match, "medium". If it's a weak guess, "low". If no reasonable match is found, set confidence to "none" and pick any one of the canonical names as a fallback for resolved_tool_name (or the first one). Respond ONLY with the JSON object matching the schema.`;
+
+  // Use a fast/cheap model for extraction
+  try {
+    const result = await (await import("./llm_clients")).generateStructuredJson<{ resolved_tool_name: string; confidence: string }>(
+      instructions,
+      `Resolve tool name: "${givenToolName}"`,
+      schema,
+      schemaName,
+      [],
+      appConfig.openai.extractionModel,
+      userId
+    );
+    if (typeof result === "object" && "resolved_tool_name" in result && "confidence" in result) {
+      logger.info(`[LLM Clients ToolResolve] Resolved "${givenToolName}" to "${result.resolved_tool_name}" with ${result.confidence} confidence. ${logSuffix}`);
+      return result;
+    } else {
+      logger.error(`[LLM Clients ToolResolve] LLM did not return expected object. Fallback to first canonical. ${logSuffix}`);
+      return canonicalToolNames[0];
+    }
+  } catch (e: any) {
+    logger.error(`[LLM Clients ToolResolve] Exception during LLM tool name resolution: ${e.message}. Fallback to first canonical. ${logSuffix}`);
+    return canonicalToolNames[0];
+  }
+}

@@ -7,6 +7,12 @@ import { CachedVideoList, CachedYouTubeVideo } from "@/lib/types/index";
 interface YouTubeSearchInput extends ToolInput {
   query: string;
   limit?: number | null;
+  category?: string;
+  description_keywords?: string;
+  context?: {
+    previous_query?: string;
+    previous_video_title?: string;
+  };
 }
 interface YouTubeThumbnail { url: string; width?: number; height?: number; }
 interface YouTubeThumbnails { default?: YouTubeThumbnail; medium?: YouTubeThumbnail; high?: YouTubeThumbnail; }
@@ -25,6 +31,17 @@ export class YouTubeSearchTool extends BaseTool {
         type: ["number", "null"] as const,
         description: "Maximum number of videos to return (1-5). Defaults to 3 if null or not provided.",
       } as OpenAIToolParameterProperties,
+      category: { type: "string", description: "Intended video category (music, sports, education, etc)" },
+      description_keywords: { type: "string", description: "Comma-separated keywords for video description" },
+      context: {
+        type: "object",
+        properties: {
+          previous_query: { type: "string" },
+          previous_video_title: { type: "string" }
+        },
+        required: [],
+        additionalProperties: false
+      }
     },
     required: ["query", "limit"],
     additionalProperties: false as false,
@@ -33,6 +50,9 @@ export class YouTubeSearchTool extends BaseTool {
   private readonly API_KEY: string;
   private readonly API_BASE = "https://www.googleapis.com/youtube/v3/search";
   private readonly USER_AGENT: string;
+  categories = ["search", "video", "media"];
+  version = "1.0.0";
+  metadata = { provider: "YouTube Data API", maxResults: 5 };
   constructor() {
     super();
     this.API_KEY = appConfig.toolApiKeys.youtube || "";
@@ -51,14 +71,29 @@ export class YouTubeSearchTool extends BaseTool {
   async execute(input: YouTubeSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
     const { query } = input;
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 3 : Math.max(1, Math.min(input.limit, 5));
-    const userNameForResponse = input.context?.userName || "friend";
+    let userNameForResponse = "friend";
+    let langCode = "en";
+    if (input.context && typeof input.context === 'object') {
+      if ('userName' in input.context && typeof (input.context as any).userName === 'string') {
+        userNameForResponse = (input.context as any).userName;
+      }
+      if ('locale' in input.context && typeof (input.context as any).locale === 'string') {
+        langCode = (input.context as any).locale.split("-")[0];
+      } else if (input.lang && typeof input.lang === 'string') {
+        langCode = input.lang.split("-")[0];
+      }
+    } else if (input.lang && typeof input.lang === 'string') {
+      langCode = input.lang.split("-")[0];
+    }
     const logPrefix = `[YouTubeTool] Query: "${query.substring(0, 30)}..."`;
+    if (input.category || input.description_keywords || input.context) {
+      this.log("info", `${logPrefix} Extra fields: category=${input.category}, description_keywords=${input.description_keywords}, context=${JSON.stringify(input.context)}`);
+    }
     const queryInputForStructuredData = { ...input, limit: effectiveLimit };
     if (abortSignal?.aborted) { return { error: "YouTube search cancelled.", result: "Cancelled." }; }
     if (!this.API_KEY) { return { error: "YouTube Tool is not configured.", result: `Sorry, ${userNameForResponse}, Minato cannot search YouTube right now.` }; }
     if (!query?.trim()) { return { error: "Missing search query.", result: `What video should Minato look for on YouTube, ${userNameForResponse}?`, structuredData: { result_type: "video_list", source_api: "youtube", query: queryInputForStructuredData, videos: [], error: "Missing search query." } }; }
 
-    const langCode = input.context?.locale?.split("-")[0] || input.lang?.split("-")[0] || "en";
     const params = new URLSearchParams({
       key: this.API_KEY, part: "snippet", q: query.trim(), type: "video",
       maxResults: String(effectiveLimit),
@@ -82,29 +117,81 @@ export class YouTubeSearchTool extends BaseTool {
       }
       const videos = data.items?.filter(item => item.id?.videoId && item.snippet) || [];
 
-      if (videos.length === 0) {
-        this.log("info", `${logPrefix} No videos found.`);
-        return { result: `Minato couldn't find any YouTube videos matching "${query}" for ${userNameForResponse}.`, structuredData: outputData };
+      // --- BEGIN: Post-fetch filtering/ranking and conversational follow-up logic ---
+      let filteredVideos = videos;
+      // 1. Conversational follow-up: If query is vague and context is present, refine query
+      let effectiveQuery = query;
+      if (
+        (!query || query.trim().length < 4 || /^(show me more|more like that|another|again|similar|like last|like previous|find more|find another|next)$/i.test(query.trim())) &&
+        input.context && (input.context.previous_video_title || input.context.previous_query)
+      ) {
+        // Use previous video title or query to refine
+        effectiveQuery = input.context.previous_video_title || input.context.previous_query || query;
+        this.log("info", `${logPrefix} Using conversational context for vague query. Refined query: ${effectiveQuery}`);
+      }
+      // 2. Post-fetch filtering/ranking using description_keywords and category
+      let keywords: string[] = [];
+      if (input.description_keywords) {
+        keywords = input.description_keywords
+          .split(",")
+          .map(k => k.trim().toLowerCase())
+          .filter(Boolean);
+      }
+      // If keywords are present, re-rank videos by keyword match in title/description
+      if (keywords.length > 0) {
+        filteredVideos = filteredVideos
+          .map(item => {
+            const title = item.snippet.title.toLowerCase();
+            const desc = (item.snippet.description || "").toLowerCase();
+            const keywordMatches = keywords.filter(k => title.includes(k) || desc.includes(k)).length;
+            return { item, keywordMatches };
+          })
+          .sort((a, b) => b.keywordMatches - a.keywordMatches)
+          .map(obj => obj.item);
+      }
+      // Optionally, if category is present, deprioritize videos that don't match category in title/desc
+      if (input.category && input.category.trim() && input.category !== "general") {
+        const cat = input.category.trim().toLowerCase();
+        filteredVideos = filteredVideos.sort((a, b) => {
+          const aText = (a.snippet.title + " " + (a.snippet.description || "")).toLowerCase();
+          const bText = (b.snippet.title + " " + (b.snippet.description || "")).toLowerCase();
+          const aCat = aText.includes(cat) ? 1 : 0;
+          const bCat = bText.includes(cat) ? 1 : 0;
+          return bCat - aCat;
+        });
+      }
+      // Limit to effectiveLimit
+      const limitedVideos = filteredVideos.slice(0, effectiveLimit);
+      // --- END: Filtering/ranking and follow-up logic ---
+
+      if (limitedVideos.length === 0) {
+        this.log("info", `${logPrefix} No videos found after filtering.`);
+        return { result: `Minato couldn't find any YouTube videos matching "${effectiveQuery}" for ${userNameForResponse}.`, structuredData: outputData };
       }
 
-      this.log("info", `${logPrefix} Found ${videos.length} videos.`);
-      const structuredResults: CachedYouTubeVideo[] = videos.map(item => ({
+      this.log("info", `${logPrefix} Found ${limitedVideos.length} videos after filtering/ranking.`);
+      const structuredResults: CachedYouTubeVideo[] = limitedVideos.map(item => ({
         videoId: item.id.videoId!, title: item.snippet.title, description: item.snippet.description || null,
         channelTitle: item.snippet.channelTitle || null, publishedAt: item.snippet.publishedAt || item.snippet.publishTime || null,
         thumbnailUrl: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || null,
-        videoUrl: this.buildYouTubeWatchUrl(item.id.videoId!), // Original watch URL
-        embedUrl: this.buildYouTubeEmbedUrl(item.id.videoId!), // Embed URL
+        videoUrl: this.buildYouTubeWatchUrl(item.id.videoId!),
+        embedUrl: this.buildYouTubeEmbedUrl(item.id.videoId!),
       }));
 
       let textResult = "";
       if (structuredResults.length > 0) {
         const firstVideo = structuredResults[0];
-        textResult = `Hey ${userNameForResponse}, I found a great video called "${firstVideo.title}" about "${query}"! It looks interesting. Would you like to watch it together right here?`;
+        // If context was used for follow-up, mention it
+        if (effectiveQuery !== query) {
+          textResult = `Based on your previous video, I found "${firstVideo.title}" for you, ${userNameForResponse}. Want to watch it?`;
+        } else {
+          textResult = `Hey ${userNameForResponse}, I found a great video called "${firstVideo.title}" about "${effectiveQuery}"! It looks interesting. Would you like to watch it together right here?`;
+        }
         if (structuredResults.length > 1) {
           textResult += ` I also found ${structuredResults.length - 1} other video(s) if this one isn't quite right.`;
         }
-      } else { // Should be caught by videos.length === 0 earlier, but as a fallback
-        textResult = `Minato searched YouTube for "${query}" for ${userNameForResponse} but didn't find specific videos to highlight.`;
+      } else {
+        textResult = `Minato searched YouTube for "${effectiveQuery}" for ${userNameForResponse} but didn't find specific videos to highlight.`;
       }
 
       outputData.videos = structuredResults; outputData.error = undefined;

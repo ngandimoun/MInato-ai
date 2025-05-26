@@ -7,6 +7,7 @@ import { appConfig } from "../config";
 
 interface RecipeSearchInput extends ToolInput {
   query: string; // Required
+  random?: boolean;
 }
 
 interface MealDbMeal {
@@ -30,16 +31,20 @@ interface MealDbSearchResponse { meals: MealDbMeal[] | null; }
 
 export class RecipeSearchTool extends BaseTool {
   name = "RecipeSearchTool";
-  description = "Searches for recipes by dish name or main ingredient using TheMealDB (a free recipe database). Provides details like ingredients, instructions, and image.";
+  description = "Searches for recipes by keyword, ingredient, or cuisine. Returns recipe details, ingredients, and instructions.";
   argsSchema = {
     type: "object" as const,
     properties: {
-      query: { type: "string" as const, description: "The name of the dish or a key ingredient to search recipes for (e.g., 'Chicken Alfredo', 'avocado toast', 'chocolate chip cookies'). This is required." } as OpenAIToolParameterProperties,
+      query: { type: "string" as const, description: "The name of the dish or a key ingredient to search recipes for (e.g., 'Chicken Alfredo', 'avocado toast', 'chocolate chip cookies'). This is required unless 'random' is true." } as OpenAIToolParameterProperties,
+      random: { type: "boolean" as const, description: "If true, returns a random recipe. If true, 'query' is ignored.", default: false } as OpenAIToolParameterProperties,
     },
     required: ["query"],
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 3600 * 24; // Cache recipes for a day
+  categories = ["search", "recipe", "food"];
+  version = "1.0.0";
+  metadata = { provider: "TheMealDB", cuisineSupport: true };
 
   private readonly API_BASE = "https://www.themealdb.com/api/json/v1/1";
   private readonly USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app.url}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
@@ -92,13 +97,58 @@ export class RecipeSearchTool extends BaseTool {
     };
   }
 
-  async execute(input: RecipeSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    const { query } = input; 
+  async execute(input: RecipeSearchInput & { random?: boolean }, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    const { query, random } = input;
     const userNameForResponse = input.context?.userName || "friend";
-    const logPrefix = `[RecipeTool] Query:"${query.substring(0, 30)}..."`;
+    const logPrefix = `[RecipeTool] Query:"${query ? query.substring(0, 30) : ''}..." Random:${!!random}`;
     const queryInputForStructuredData = { ...input };
 
     if (abortSignal?.aborted) { return { error: "Recipe search cancelled.", result: "Cancelled." }; }
+
+    // If random is true, fetch a random recipe
+    if (random === true) {
+      const url = `${this.API_BASE}/random.php`;
+      this.log("info", `${logPrefix} Fetching random recipe: ${url}...`);
+      let outputStructuredData: CachedSingleRecipe = {
+        result_type: "recipe", source_api: "themealdb", query: queryInputForStructuredData, recipe: null, error: undefined,
+      };
+      try {
+        const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(8000) });
+        if (abortSignal?.aborted) { outputStructuredData.error = "Request timed out or cancelled."; return { error: "Recipe search cancelled.", result: "Cancelled.", structuredData: outputStructuredData }; }
+        if (!response.ok) { throw new Error(`TheMealDB API request failed: ${response.status} ${response.statusText}`); }
+        const data: MealDbSearchResponse = await response.json() as MealDbSearchResponse;
+        const mealsApi = data.meals;
+        if (!mealsApi || !Array.isArray(mealsApi) || mealsApi.length === 0) {
+          const resultText = `Minato couldn't find any random recipes for ${userNameForResponse}. Perhaps try again?`;
+          return { result: resultText, structuredData: outputStructuredData };
+        }
+        const firstMeal = mealsApi[0];
+        this.log("info", `${logPrefix} Found random recipe: "${firstMeal.strMeal}" (ID: ${firstMeal.idMeal})`);
+        const recipeContent = this.mapMealToAppRecipeContent(firstMeal);
+        const structuredRecipeForUi: CachedRecipe = {
+          ...recipeContent,
+          result_type: "recipe_detail",
+          source_api: "themealdb_detail",
+          query: queryInputForStructuredData,
+          error: undefined,
+        };
+        outputStructuredData.recipe = structuredRecipeForUi;
+        outputStructuredData.error = undefined;
+        let resultString = `Okay ${userNameForResponse}, Minato found a random recipe: "${structuredRecipeForUi.title}"!`;
+        if (structuredRecipeForUi.category) resultString += ` It's a type of ${structuredRecipeForUi.category} dish`;
+        if (structuredRecipeForUi.area) resultString += `, popular in ${structuredRecipeForUi.area} cuisine`;
+        resultString += ". It looks delicious! I can show you the details.";
+        return { result: resultString, structuredData: outputStructuredData };
+      } catch (error: any) {
+        const errorMsg = `Random recipe search failed: ${error.message}`;
+        outputStructuredData.error = errorMsg;
+        if (error.name === 'AbortError') { outputStructuredData.error = "Request timed out."; return { error: "Recipe search timed out.", result: `Sorry, ${userNameForResponse}, the recipe search took too long.`, structuredData: outputStructuredData }; }
+        this.log("error", `${logPrefix} Failed:`, error.message);
+        return { error: errorMsg, result: `Sorry, ${userNameForResponse}, Minato encountered an error searching for a random recipe. Please try again.`, structuredData: outputStructuredData };
+      }
+    }
+
+    // If not random, use the current search logic
     if (!query?.trim()) { return { error: "Missing search query.", result: `What recipe should Minato look for, ${userNameForResponse}?`, structuredData: { result_type: "recipe", source_api: "themealdb", query: queryInputForStructuredData, recipe: null, error: "Missing search query." } }; }
 
     const url = `${this.API_BASE}/search.php?s=${encodeURIComponent(query.trim())}`;
@@ -118,15 +168,15 @@ export class RecipeSearchTool extends BaseTool {
         const resultText = `Minato couldn't find any recipes matching "${query}" on TheMealDB for ${userNameForResponse}. Perhaps try a different ingredient or dish name?`;
         return { result: resultText, structuredData: outputStructuredData };
       }
-      const firstMeal = mealsApi[0]; 
+      const firstMeal = mealsApi[0];
       this.log("info", `${logPrefix} Found ${mealsApi.length} recipes. Selecting first: "${firstMeal.strMeal}" (ID: ${firstMeal.idMeal})`);
       const recipeContent = this.mapMealToAppRecipeContent(firstMeal);
 
       const structuredRecipeForUi: CachedRecipe = {
         ...recipeContent,
-        result_type: "recipe_detail", 
+        result_type: "recipe_detail",
         source_api: "themealdb_detail",
-        query: queryInputForStructuredData, 
+        query: queryInputForStructuredData,
         error: undefined,
       };
       outputStructuredData.recipe = structuredRecipeForUi;
@@ -136,7 +186,6 @@ export class RecipeSearchTool extends BaseTool {
       if (structuredRecipeForUi.category) resultString += ` It's a type of ${structuredRecipeForUi.category} dish`;
       if (structuredRecipeForUi.area) resultString += `, popular in ${structuredRecipeForUi.area} cuisine`;
       resultString += ". It looks delicious! I can show you the details.";
-      
       return { result: resultString, structuredData: outputStructuredData };
     } catch (error: any) {
       const errorMsg = `Recipe search failed: ${error.message}`;
