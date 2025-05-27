@@ -17,6 +17,7 @@ const EVENTFINDER_ARG_EXTRACTION_SCHEMA_NAME = "eventfinder_arg_extraction";
 const MINATO_REMINDER_READER_EXTRACTION_SCHEMA_NAME = "minato_reminder_reader_extraction_v1";
 const MINATO_REMINDER_SETTER_EXTRACTION_SCHEMA_NAME = "minato_reminder_setter_extraction_v1";
 const MINATO_DATETIME_PARSE_ADVANCED_SCHEMA_NAME = "minato_datetime_parse_advanced_v2";
+const MINATO_WEBSEARCH_EXTRACTION_SCHEMA_NAME = "minato_websearch_extraction_v1";
 
 // The schema definition as expected by the test and generateStructuredJson
 const TOOL_ROUTER_SCHEMA_DEFINITION = {
@@ -259,6 +260,25 @@ const SCHEMA_VERSIONS: Record<string, SchemaDefinition> = {
         confidence: { type: "string", enum: ["high", "medium", "low"] }
       },
       required: ["iso_datetime_utc", "detected_recurrence", "confidence"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_WEBSEARCH_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_websearch_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        query: { type: "string" },
+        mode: { type: "string", enum: ["product_search", "tiktok_search", "fallback_search"] },
+        minPrice: { type: ["number", "null"] },
+        maxPrice: { type: ["number", "null"] },
+        color: { type: ["string", "null"] },
+        brand: { type: ["string", "null"] },
+        location: { type: ["string", "null"] },
+        language: { type: ["string", "null"] }
+      },
+      required: ["query", "mode"],
       additionalProperties: false
     }
   },

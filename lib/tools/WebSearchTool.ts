@@ -10,6 +10,7 @@ import {
 } from "@/lib/types/index";
 import Ajv, { ValidateFunction } from "ajv";
 import { SchemaService } from "../services/schemaService";
+import { generateStructuredJson } from "../providers/llm_clients";
 
 interface WebSearchInput extends ToolInput {
   query: string;
@@ -20,6 +21,8 @@ interface WebSearchInput extends ToolInput {
   brand?: string | null;
   location?: string | null;
   language?: string | null;
+  apiContext?: Record<string, any>;
+  skipSearch?: boolean;
 }
 
 interface SerperOrganicResult { price?: any; title?: string; link?: string; snippet?: string; position?: number; imageUrl?: string; attributes?: Record<string, any>; source?: string; }
@@ -73,7 +76,7 @@ const SCHEMA_VERSIONS: Record<string, SchemaDefinition> = {
 export class WebSearchTool extends BaseTool {
   name = "WebSearchTool";
   description =
-    "Performs web searches using Serper API. Operates in three modes: 'product_search' for finding specific products online, 'tiktok_search' for finding TikTok videos, and 'fallback_search' for general information, current events, or when specialized tools fail.";
+    "Performs web searches using Serper API. Specialized for TikTok videos (with 'tiktok_search' mode), product shopping (with 'product_search' mode), and general web information (with 'fallback_search' mode). Use this tool specifically for TikTok content, shopping/products, or general web searches when other specialized tools fail.";
   argsSchema = {
     type: "object" as const,
     properties: {
@@ -86,7 +89,7 @@ export class WebSearchTool extends BaseTool {
       color: { type: ["string", "null"] as const, description: "Optional: Color filter for 'product_search' mode (e.g., 'red', 'blue'). Provide as string or null." } as OpenAIToolParameterProperties,
       brand: { type: ["string", "null"] as const, description: "Optional: Brand filter for 'product_search' mode (e.g., 'Apple', 'Sony'). Provide as string or null." } as OpenAIToolParameterProperties,
     },
-    required: ["query", "mode", "location", "language", "minPrice", "maxPrice", "color", "brand"],
+    required: ["query", "mode"],
     additionalProperties: false as false,
   };
   cacheTTLSeconds = 60 * 15; // Cache for 15 minutes
@@ -219,9 +222,502 @@ export class WebSearchTool extends BaseTool {
     return { resultText: null, extractedData: null, resultType: null, sourceApi: null };
   }
 
+  private inferSearchMode(queryText: string): "product_search" | "tiktok_search" | "fallback_search" {
+    const lowerQuery = queryText.toLowerCase();
+    
+    // IMPROVED: Make TikTok detection stronger and more specific
+    // Check for explicit TikTok searches first with stronger matching
+    if (
+      lowerQuery.includes('tiktok') || 
+      lowerQuery.includes('tik tok') ||
+      lowerQuery.includes('tik-tok') ||
+      // Look for TikTok + action phrases
+      (lowerQuery.match(/\b(find|show|get|search|watch)\b/) && lowerQuery.includes('tiktok')) ||
+      // More specific TikTok video requests
+      lowerQuery.match(/\b(tiktok|tik tok).+\b(video|videos|clip|trend|trending)\b/) ||
+      // Detect TikTok creators
+      lowerQuery.match(/\b(@\w+).+(tiktok|tik tok)\b/)
+    ) {
+      return "tiktok_search";
+    }
+    
+    // Check for shopping/product specific keywords
+    const productKeywords = [
+      'buy', 'purchase', 'shop', 'shopping', 'price', 'cheap', 'expensive',
+      'cost', 'order', 'amazon', 'ebay', 'etsy', 'store', 'mall', 'retail',
+      'dollar', 'euro', 'pound', '$', '€', '£', 'discount', 'deal', 'sale',
+      'brand', 'product', 'item', 'wear', 'fashion', 'clothing', 'shoe', 'dress',
+      'furniture', 'electronics', 'phone', 'laptop', 'computer', 'tablet'
+    ];
+    
+    for (const keyword of productKeywords) {
+      if (lowerQuery.includes(keyword)) {
+        return "product_search";
+      }
+    }
+    
+    // Default to fallback search for general queries
+    return "fallback_search";
+  }
+  
+  // NEW: Helper method to check if a query is explicitly about TikTok
+  private isExplicitlyTikTokQuery(query: string): boolean {
+    const lowerQuery = query.toLowerCase();
+    return (
+      lowerQuery.includes('tiktok') ||
+      lowerQuery.includes('tik tok') ||
+      lowerQuery.includes('tik-tok')
+    );
+  }
+  
+  // NEW: Helper method to check if a query is explicitly about YouTube
+  private isExplicitlyYouTubeQuery(query: string): boolean {
+    const lowerQuery = query.toLowerCase();
+    return (
+      lowerQuery.includes('youtube') ||
+      lowerQuery.includes('you tube') ||
+      lowerQuery.includes('yt ')
+    );
+  }
+  
+  // NEW: Helper method to analyze video intent type
+  private analyzeVideoIntent(query: string): 'tiktok' | 'youtube' | 'general' {
+    // Directly check for platform mentions first
+    if (this.isExplicitlyTikTokQuery(query)) return 'tiktok';
+    if (this.isExplicitlyYouTubeQuery(query)) return 'youtube';
+    
+    const lowerQuery = query.toLowerCase();
+    
+    // Check for TikTok-specific terms/patterns - Enhanced with more patterns
+    const tiktokPatterns = [
+      // Platform-specific mentions
+      /\btrending\s+on\s+tik\s*tok\b/i,
+      /\btiktok\s+trend\b/i,
+      /\bviral\s+(on\s+)?tik\s*tok\b/i,
+      /\btiktok\s+dance\b/i,
+      /\btiktok\s+challenge\b/i,
+      /\bfor\s+you\s+page\b/i,
+      /\bfyp\b/i,
+      
+      // Content format indicators
+      /\bshort(\s+form)?\s+video\b/i,
+      /\bshort\s+clip\b/i,
+      /\bvertical\s+video\b/i,
+      /\b(15|30|60)\s+second\b/i,
+      /\bone\s+minute\b/i,
+      /\bquick\s+video\b/i,
+      
+      // TikTok-specific features
+      /\bduet\b/i,
+      /\bstitch\b/i,
+      /\bsound\b/i,
+      /\btrend\s+sound\b/i,
+      /\bfilter\b/i,
+      /\beffect\b/i,
+      /\btransition\b/i,
+      
+      // TikTok creator terms
+      /\b@[a-z0-9_.]+\b/i,
+      /\btiktok\s+creator\b/i,
+      /\btiktoker\b/i,
+      
+      // TikTok content categories
+      /\b(skincare|makeup|beauty)\s+(routine|tutorial)\s+(short|quick)\b/i,
+      /\blifehack\b/i,
+      /\bhair\s+tutorial\s+short\b/i,
+      /\bdiy\s+quick\b/i,
+      /\bfood\s+hack\b/i,
+      /\bdance\s+trend\b/i,
+      /\boutfit\s+ideas\b/i,
+    ];
+    
+    for (const pattern of tiktokPatterns) {
+      if (pattern.test(lowerQuery)) return 'tiktok';
+    }
+    
+    // Check for YouTube-specific terms/patterns
+    const youtubePatterns = [
+      /\blong\s+video\b/i,
+      /\byoutube\s+channel\b/i,
+      /\blong\s+form\b/i,
+      /\byoutuber\b/i,
+      /\bsubscribe\b/i,
+      /\bplaylist\b/i,
+      /\bhow\s+to\s+video\b/i,
+      /\bfull\s+documentary\b/i,
+      /\blecture\b/i,
+      /\btutorial\s+video\b/i,
+      /\b(10|20|30)\+?\s+minute\b/i,
+      /\bwatch\s+review\b/i,
+    ];
+    
+    for (const pattern of youtubePatterns) {
+      if (pattern.test(lowerQuery)) return 'youtube';
+    }
+    
+    // Enhanced topic-based indicators
+    const tiktokTopics = [
+      'skincare routine', 'beauty hack', 'dance', 'makeup tutorial short',
+      'recipe quick', 'life hack', 'trend', 'viral', 'challenge',
+      'fashion tips', 'outfit idea', 'prank', 'reaction', 'before and after',
+      'transformation', 'get ready with me', 'grwm', 'day in my life',
+      'aesthetic', 'satisfying', 'asmr short', 'morning routine',
+      'storytime', 'duet with', 'pov', 'point of view'
+    ];
+    
+    const youtubeTopics = [
+      'podcast', 'documentary', 'review', 'walkthrough', 'gameplay',
+      'unboxing', 'analysis', 'tutorial detailed', 'lecture', 'music video official',
+      'cover song', 'interview full', 'recipe full', 'how to make', 'explained',
+      'lesson', 'complete guide', 'full album', 'compilation', 'stream',
+      'live performance', 'concert', 'behind the scenes', 'commentary',
+      'reaction video full', 'review detailed'
+    ];
+    
+    // Count topic matches with better matching
+    let tiktokScore = 0;
+    let youtubeScore = 0;
+    
+    // Improve topic matching by checking for whole phrase presence
+    for (const topic of tiktokTopics) {
+      if (lowerQuery.includes(topic)) tiktokScore += 2;
+      // Also check for partial matches with word boundaries
+      else {
+        const words = topic.split(' ');
+        for (const word of words) {
+          if (word.length > 3 && new RegExp(`\\b${word}\\b`, 'i').test(lowerQuery)) {
+            tiktokScore += 0.5;
+          }
+        }
+      }
+    }
+    
+    for (const topic of youtubeTopics) {
+      if (lowerQuery.includes(topic)) youtubeScore += 2;
+      // Also check for partial matches with word boundaries
+      else {
+        const words = topic.split(' ');
+        for (const word of words) {
+          if (word.length > 3 && new RegExp(`\\b${word}\\b`, 'i').test(lowerQuery)) {
+            youtubeScore += 0.5;
+          }
+        }
+      }
+    }
+    
+    // Video length indicators
+    if (lowerQuery.match(/\b(short|quick|brief|fast)\b/i)) tiktokScore += 1.5;
+    if (lowerQuery.match(/\b(long|detailed|complete|full|comprehensive)\b/i)) youtubeScore += 1.5;
+    
+    // Check for instructional intent (favors YouTube for detailed tutorials)
+    if (lowerQuery.match(/\b(how\s+to|tutorial|guide|explain|learn)\b/i)) {
+      if (lowerQuery.match(/\b(detailed|step\s+by\s+step|complete)\b/i)) {
+        youtubeScore += 1.5;
+      } else if (lowerQuery.match(/\b(quick|easy|simple|fast)\b/i)) {
+        tiktokScore += 1;
+      }
+    }
+    
+    // Debug logging for analysis scores
+    this.log("debug", `Video intent analysis - TikTok score: ${tiktokScore}, YouTube score: ${youtubeScore} for query: "${lowerQuery}"`);
+    
+    // Decide based on topic scores with stronger threshold
+    if (tiktokScore > youtubeScore && tiktokScore >= 1.5) return 'tiktok';
+    if (youtubeScore > tiktokScore && youtubeScore >= 1.5) return 'youtube';
+    
+    // If the scores are very close, look for additional signals
+    if (Math.abs(tiktokScore - youtubeScore) < 1) {
+      // If query mentions video but no specific platform, check for length indicators
+      if (lowerQuery.includes('video')) {
+        if (lowerQuery.match(/\b(short|clip|snippet|brief)\b/i)) return 'tiktok';
+        if (lowerQuery.match(/\b(full|long|complete|entire)\b/i)) return 'youtube';
+      }
+    }
+    
+    // If no clear signal, return general
+    return 'general';
+  }
+
+  private async extractWebSearchParameters(userInput: string, userId?: string): Promise<Partial<WebSearchInput>> {
+    if (!userInput.trim()) {
+      return {};
+    }
+    
+    // NEW: First check if this is just a conversational response that shouldn't trigger a search
+    if (this.isConversationalResponse(userInput)) {
+      this.log("info", `Detected conversational response: "${userInput}" - Not triggering web search`);
+      return { skipSearch: true };
+    }
+    
+    // Clean the user input by removing phrases like "use websearch to" or "find me"
+    const cleanedInput = userInput
+      .replace(/^use\s+web(\s*search)?\s*(tool)?\s*to\s*/i, '')
+      .replace(/^(hey|hi|hello|ok|okay)\s+(minato|there)\s*/i, '')
+      .replace(/^can\s+you\s+/i, '')
+      .replace(/^please\s+/i, '')
+      .trim();
+      
+    // NEW: After cleaning, check again for conversational responses
+    if (this.isConversationalResponse(cleanedInput)) {
+      this.log("info", `Cleaned input is still just a conversational response: "${cleanedInput}" - Not triggering search`);
+      return { skipSearch: true };
+    }
+      
+    // Analyze the video intent of the user query
+    const videoIntent = this.analyzeVideoIntent(cleanedInput);
+    
+    // Check for TikTok intent in the original user input
+    if (videoIntent === 'tiktok') {
+      // Force TikTok mode if TikTok is the intent
+      return {
+        query: cleanedInput.replace(/\b(use websearch to find|find me|search for|look for|show me)\b/i, '')
+          .replace(/\b(a|some)\b/i, '')
+          .replace(/\b(tiktok|tik tok|tik-tok)\b/i, '')
+          .trim(),
+        mode: "tiktok_search"
+      };
+    }
+    // If the query seems to be about YouTube content, let the router know
+    else if (videoIntent === 'youtube') {
+      // Don't set mode to fallback explicitly as we want other tools to handle it
+      // But add a hint in the apiContext
+      return {
+        query: cleanedInput,
+        mode: "fallback_search",
+        apiContext: { videoIntent: 'youtube' }
+      };
+    }
+    
+    try {
+      // The extraction prompt for identifying WebSearchTool parameters
+      const extractionPrompt = `
+You are a specialized parameter extractor for a WebSearchTool which has three modes:
+1. "product_search" - For shopping, finding products to buy, price comparisons
+2. "tiktok_search" - For finding TikTok videos, tutorials, trends (SHORT form videos)
+3. "fallback_search" - For general information, facts, and answers
+
+Given this user query: "${cleanedInput.replace(/"/g, '\\"')}"
+
+IMPORTANT DISTINCTION BETWEEN TIKTOK AND YOUTUBE:
+- TikTok videos are typically short-form (15sec-3min), trending content, dances, challenges, viral clips
+- YouTube videos are typically longer-form (3min+), tutorials, reviews, music videos, lectures
+- If the query seems to be asking for YOUTUBE content, DO NOT select tiktok_search mode
+
+Analyze what the user is looking for and extract these parameters:
+- query: The exact search query (required)
+- mode: One of ["product_search", "tiktok_search", "fallback_search"] (required)
+- minPrice: Minimum price if mentioned (number or null)
+- maxPrice: Maximum price if mentioned (number or null)
+- color: Color preference if mentioned (string or null)
+- brand: Brand preference if mentioned (string or null)
+- location: Location mentioned (country code, city name, or null)
+- language: Language preference if mentioned (language code or null)
+
+MODE SELECTION GUIDELINES:
+- Use "product_search" if the user is looking to buy/shop for items, asking about products, prices, or comparing products
+- Use "tiktok_search" ONLY if the user is explicitly looking for TikTok content (short-form videos, TikTok trends, etc.)
+- Use "fallback_search" for general knowledge, facts, news, or any non-shopping searches
+
+Output as JSON with these exact fields.`;
+
+      const model = (appConfig as any).openai?.extractionModel || "gpt-4o-mini-2024-07-18";
+      this.log("debug", `Extracting WebSearch parameters from: "${cleanedInput.substring(0, 50)}..." using ${model}`);
+      
+      const llmResult = await generateStructuredJson<{
+        query: string;
+        mode: "product_search" | "tiktok_search" | "fallback_search";
+        minPrice?: number | null;
+        maxPrice?: number | null;
+        color?: string | null;
+        brand?: string | null;
+        location?: string | null;
+        language?: string | null;
+      }>(
+        extractionPrompt,
+        cleanedInput,
+        SchemaService.getLatestVersion('minato_websearch_extraction')?.schema || {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            mode: { type: "string", enum: ["product_search", "tiktok_search", "fallback_search"] },
+            minPrice: { type: ["number", "null"] },
+            maxPrice: { type: ["number", "null"] },
+            color: { type: ["string", "null"] },
+            brand: { type: ["string", "null"] },
+            location: { type: ["string", "null"] },
+            language: { type: ["string", "null"] }
+          },
+          required: ["query", "mode"],
+          additionalProperties: false
+        },
+        "minato_websearch_extraction_v1",
+        [],
+        model,
+        userId
+      );
+
+      if (llmResult && typeof llmResult === 'object' && !('error' in llmResult)) {
+        this.log("info", `Successfully extracted WebSearch parameters: ${JSON.stringify(llmResult)}`);
+        return llmResult;
+      } else {
+        this.log("warn", `LLM extraction failed: ${JSON.stringify(llmResult)}`);
+        return {
+          query: cleanedInput,
+          mode: this.inferSearchMode(cleanedInput)
+        };
+      }
+    } catch (error) {
+      this.log("error", `Error extracting WebSearch parameters: ${(error as Error).message}`);
+      return {
+        query: cleanedInput,
+        mode: this.inferSearchMode(cleanedInput)
+      };
+    }
+  }
+  
+  // NEW: Helper method to detect simple conversational responses
+  private isConversationalResponse(text: string): boolean {
+    // Normalize and clean input
+    const normalized = text.toLowerCase().trim();
+    
+    // 1. Single word affirmative/negative responses
+    const simpleResponses = [
+      'yes', 'yeah', 'yep', 'yup', 'sure', 'ok', 'okay', 'fine',
+      'no', 'nope', 'nah', 'never', 
+      'thanks', 'thank', 'thx',
+      'good', 'great', 'awesome', 'cool', 'nice', 'perfect'
+    ];
+    
+    if (simpleResponses.includes(normalized)) {
+      return true;
+    }
+    
+    // 2. Very short phrases (likely conversational)
+    if (normalized.length < 5 && !normalized.includes('?')) {
+      return true;
+    }
+    
+    // 3. Common conversation continuers
+    const conversationContinuers = [
+      'i see', 'got it', 'i understand', 'understood',
+      'that\'s good', 'that\'s great', 'that\'s nice',
+      'please do', 'go ahead', 'continue', 
+      'tell me more', 'i agree', 'sounds good',
+      'thank you', 'thanks for', 'appreciate it',
+      'that works', 'perfect', 'exactly'
+    ];
+    
+    for (const phrase of conversationContinuers) {
+      if (normalized.includes(phrase)) {
+        return true;
+      }
+    }
+    
+    // 4. Questions that aren't information seeking
+    const conversationalQuestions = [
+      'can you', 'could you', 'would you',
+      'will you', 'do you', 'are you',
+      'is that', 'was that', 'what about'
+    ];
+    
+    // Only if the text ends with a question mark and contains one of these phrases
+    if (normalized.endsWith('?')) {
+      for (const phrase of conversationalQuestions) {
+        if (normalized.includes(phrase)) {
+          return true;
+        }
+      }
+    }
+    
+    // 5. Check if this is just expressing an emotion
+    const emotionExpressions = [
+      'wow', 'oh', 'ah', 'hmm', 'huh', 'lol', 'haha', 
+      'omg', 'really', 'seriously', 'awesome', 'amazing'
+    ];
+    
+    for (const emotion of emotionExpressions) {
+      // Check for exact match or with punctuation
+      if (normalized === emotion || normalized === `${emotion}!` || normalized === `${emotion}.`) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
 
   async execute(toolInput: WebSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    const { query, mode } = toolInput;
+    // Handle the context property if it exists by moving it to apiContext
+    if ('context' in toolInput) {
+      // @ts-ignore - Handle the context property even though it's not in the interface
+      const contextValue = toolInput.context;
+      
+      // Move context to apiContext to avoid validation errors
+      if (!toolInput.apiContext) {
+        toolInput.apiContext = {};
+      }
+      
+      if (typeof contextValue === 'object' && contextValue !== null) {
+        toolInput.apiContext.webSearchContext = contextValue;
+      }
+      
+      // Delete the context property to avoid validation errors
+      // @ts-ignore - Delete property even though it's not in the interface
+      delete toolInput.context;
+    }
+    
+    // NEW: Check if this request should be skipped (conversational response)
+    if (toolInput.skipSearch) {
+      return { 
+        error: "Search skipped - detected conversational response", 
+        result: "I'll continue our conversation without searching for that.", 
+        structuredData: undefined 
+      };
+    }
+    
+    // Get context from apiContext early to check for TikTok intent
+    const apiContext = toolInput.apiContext || {};
+    const webSearchContext = apiContext.webSearchContext || {};
+    const userInput = webSearchContext.userInput || toolInput.query || "";
+    
+    // NEW: Check one more time if the user input is conversational
+    if (this.isConversationalResponse(userInput)) {
+      return { 
+        error: "Search skipped - detected conversational response", 
+        result: "I'll continue our conversation without searching for that.", 
+        structuredData: undefined 
+      };
+    }
+    
+    // Analyze the video intent of the user query
+    const videoIntent = this.analyzeVideoIntent(userInput);
+    
+    // Check for TikTok intent in the original user input
+    if (videoIntent === 'tiktok') {
+      // Force TikTok mode if TikTok is the intent
+      toolInput.mode = "tiktok_search";
+      
+      // Clean up the query by removing "tiktok" mentions if needed
+      if (!toolInput.query || toolInput.query.trim() === "") {
+        toolInput.query = userInput.replace(/\b(use websearch to find|find me|search for|look for|show me)\b/i, '')
+          .replace(/\b(a|some)\b/i, '')
+          .replace(/\b(tiktok|tik tok|tik-tok)\b/i, '')
+          .trim();
+      }
+      
+      this.log("info", `Forced TikTok search mode based on video intent analysis: "${userInput.substring(0, 50)}..."`);
+    }
+    // If the query seems to be about YouTube content, let the router know
+    else if (videoIntent === 'youtube') {
+      // Don't set mode to fallback explicitly as we want other tools to handle it
+      // But add a hint in the apiContext
+      if (!toolInput.apiContext) toolInput.apiContext = {};
+      toolInput.apiContext.videoIntent = 'youtube';
+      
+      this.log("info", `Detected YouTube intent in query: "${userInput.substring(0, 50)}...". Suggesting YouTube tool may be more appropriate.`);
+    }
+    
+    // Extract the base properties
+    let { query, mode } = toolInput;
     const location = (toolInput.location === null) ? undefined : toolInput.location;
     const language = (toolInput.language === null) ? undefined : toolInput.language;
     const minPrice = (toolInput.minPrice === null || toolInput.minPrice === undefined || toolInput.minPrice <= 0) ? undefined : toolInput.minPrice;
@@ -229,18 +725,44 @@ export class WebSearchTool extends BaseTool {
     const color = (toolInput.color === null) ? undefined : toolInput.color;
     const brand = (toolInput.brand === null) ? undefined : toolInput.brand;
 
+    const userNameForResponse = webSearchContext.userName || "friend";
+    
+    // If mode is missing, attempt to extract parameters from user input or query
+    if (!mode) {
+      const userInputForExtraction = userInput || query || "";
+      this.log("info", `Mode parameter missing. Attempting to extract from user input: "${userInputForExtraction.substring(0, 50)}..."`);
+      
+      const extractedParams = await this.extractWebSearchParameters(userInputForExtraction, toolInput.userId);
+      
+      // Update parameters with extracted values
+      query = extractedParams.query || query;
+      mode = extractedParams.mode || this.inferSearchMode(userInputForExtraction);
+      
+      // Only update these if they weren't already set
+      if (minPrice === undefined && extractedParams.minPrice !== undefined) toolInput.minPrice = extractedParams.minPrice;
+      if (maxPrice === undefined && extractedParams.maxPrice !== undefined) toolInput.maxPrice = extractedParams.maxPrice;
+      if (color === undefined && extractedParams.color) toolInput.color = extractedParams.color;
+      if (brand === undefined && extractedParams.brand) toolInput.brand = extractedParams.brand;
+      if (location === undefined && extractedParams.location) toolInput.location = extractedParams.location;
+      if (language === undefined && extractedParams.language) toolInput.language = extractedParams.language;
+      
+      this.log("info", `Extracted mode: ${mode}, query: "${query?.substring(0, 50)}..."`);
+    }
+
     const safeQueryString = String(query || "");
     const logPrefix = `[WebSearchTool Mode:${mode}] Query:"${safeQueryString.substring(0, 50)}..."`;
-    const userNameForResponse = toolInput.context?.userName || "friend";
 
     if (abortSignal?.aborted) { return { error: "Web Search cancelled.", result: "Cancelled.", structuredData: undefined }; }
     if (!this.API_KEY) { return { error: "Web Search Tool is not configured.", result: `Sorry, ${userNameForResponse}, Minato cannot perform web searches right now.`, structuredData: undefined }; }
     if (!query?.trim()) { return { error: "Missing or empty search query.", result: "What exactly should Minato search the web for?", structuredData: undefined }; }
-    if (!["product_search", "tiktok_search", "fallback_search"].includes(mode)) { return { error: "Invalid mode specified.", result: "Minato needs to know whether to search for products, TikToks, or general information.", structuredData: undefined }; }
+    if (!["product_search", "tiktok_search", "fallback_search"].includes(mode)) { 
+      this.log("warn", `Invalid mode '${mode}', falling back to 'fallback_search'`);
+      mode = "fallback_search"; 
+    }
 
     const requestBody: Record<string, any> = { q: query.trim() };
-    const langCode = language?.split("-")[0].toLowerCase() || toolInput.context?.locale?.split("-")[0] || "en";
-    const countryCode = location?.toUpperCase() || toolInput.context?.countryCode?.toUpperCase() || "us";
+    const langCode = language?.split("-")[0].toLowerCase() || webSearchContext.locale?.split("-")[0] || "en";
+    const countryCode = location?.toUpperCase() || webSearchContext.countryCode?.toUpperCase() || "us";
     requestBody.hl = langCode; requestBody.gl = countryCode;
     this.log("info", `${logPrefix} Using lang:${langCode}, country:${countryCode}`);
 

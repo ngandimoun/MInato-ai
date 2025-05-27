@@ -552,6 +552,119 @@ Example 2 JSON:
           logger.info(`[NewsAggregatorTool] Final actualToolArgs: ${JSON.stringify(actualToolArgs)}`);
         }
         // --- END: NewsAggregatorTool-specific fallback for required arguments ---
+
+        // --- BEGIN: WebSearchTool-specific fallback for required arguments ---
+        if (canonicalToolName === "WebSearchTool") {
+          // Extract and validate mode and query parameters
+          actualToolArgs = JSON.parse(JSON.stringify(routedToolCall.arguments || {}));
+          
+          // If any required parameters are missing, provide default values
+          if (!actualToolArgs.mode || !actualToolArgs.query || actualToolArgs.location === undefined || 
+              actualToolArgs.language === undefined || actualToolArgs.minPrice === undefined || 
+              actualToolArgs.maxPrice === undefined || actualToolArgs.color === undefined || 
+              actualToolArgs.brand === undefined) {
+            
+            logger.warn(`${logPrefix} Tool 'WebSearchTool' called with missing required parameters. Using cleaned fallback user input: "${userInputForFallback?.substring(0, 50)}..."`);
+            
+            // Save the original user input via apiContext instead of in the args
+            if (!apiContext.webSearchContext) apiContext.webSearchContext = {};
+            apiContext.webSearchContext.userInput = userInputForFallback;
+            apiContext.webSearchContext.userName = await this.getUserFirstName(userId);
+            
+            // Set query if missing
+            if (!actualToolArgs.query && userInputForFallback) {
+              const cleanedInput = userInputForFallback
+                .replace(/^use\s+web(\s*search)?\s*(tool)?\s*to\s*/i, '')
+                .replace(/^(hey|hi|hello|ok|okay)\s+(minato|there)\s*/i, '')
+                .replace(/^can\s+you\s+/i, '')
+                .replace(/^please\s+/i, '')
+                .trim();
+                
+              actualToolArgs.query = cleanedInput;
+            }
+            
+            // Set default mode based on query content if missing
+            if (!actualToolArgs.mode) {
+              let defaultMode = "fallback_search"; // Default to general search
+              
+              // Check if this looks like a product search
+              const productKeywords = ['buy', 'purchase', 'shop', 'price', 'cost', 'cheap', 'expensive', 'amazon', 'ebay', 'dollar', 'euro', 'find me', 'shopping'];
+              const userQuery = (actualToolArgs.query || userInputForFallback || "").toLowerCase();
+              
+              for (const keyword of productKeywords) {
+                if (userQuery.includes(keyword)) {
+                  defaultMode = "product_search";
+                  break;
+                }
+              }
+              
+              // Check if this looks like a TikTok search
+              if (userQuery.includes("tiktok") || userQuery.includes("tik tok") || userQuery.includes("video")) {
+                defaultMode = "tiktok_search";
+              }
+              
+              // Apply the default mode
+              actualToolArgs.mode = defaultMode;
+              logger.info(`${logPrefix} Set default mode '${defaultMode}' for WebSearchTool based on query content`);
+            }
+            
+            // Set other required parameters with null values if they're missing
+            if (actualToolArgs.location === undefined) actualToolArgs.location = null;
+            if (actualToolArgs.language === undefined) actualToolArgs.language = null;
+            if (actualToolArgs.minPrice === undefined) actualToolArgs.minPrice = null;
+            if (actualToolArgs.maxPrice === undefined) actualToolArgs.maxPrice = null;
+            if (actualToolArgs.color === undefined) actualToolArgs.color = null;
+            if (actualToolArgs.brand === undefined) actualToolArgs.brand = null;
+            
+            // Try to extract location from query if possible
+            const locationRegex = /\b(?:in|at|from|for)\s+([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)?)\b/i;
+            const userQuery = actualToolArgs.query || "";
+            const locationMatch = userQuery.match(locationRegex);
+            if (locationMatch && locationMatch[1]) {
+              actualToolArgs.location = locationMatch[1].trim();
+            }
+            
+            // Try to extract price range if product_search mode
+            if (actualToolArgs.mode === "product_search") {
+              const minPriceRegex = /\b(?:min|minimum|from|over|above)\s+(?:price\s+)?[$€£¥]?(\d+(?:\.\d+)?)/i;
+              const maxPriceRegex = /\b(?:max|maximum|under|below|less than)\s+(?:price\s+)?[$€£¥]?(\d+(?:\.\d+)?)/i;
+              
+              const minMatch = userQuery.match(minPriceRegex);
+              const maxMatch = userQuery.match(maxPriceRegex);
+              
+              if (minMatch && minMatch[1]) {
+                actualToolArgs.minPrice = parseFloat(minMatch[1]);
+              }
+              
+              if (maxMatch && maxMatch[1]) {
+                actualToolArgs.maxPrice = parseFloat(maxMatch[1]);
+              }
+              
+              // Extract color if mentioned
+              const colorRegex = /\b(?:color|colour)\s+(?:is\s+)?([a-z]+)\b|\b([a-z]+)\s+(?:color|colour)\b/i;
+              const colorMatch = userQuery.match(colorRegex);
+              if (colorMatch && (colorMatch[1] || colorMatch[2])) {
+                actualToolArgs.color = (colorMatch[1] || colorMatch[2]).toLowerCase();
+              }
+              
+              // Extract brand if mentioned
+              const brandRegex = /\b(?:brand|make|by)\s+([A-Za-z0-9\s]+)\b|\b([A-Za-z]+)\s+brand\b/i;
+              const brandMatch = userQuery.match(brandRegex);
+              if (brandMatch && (brandMatch[1] || brandMatch[2])) {
+                actualToolArgs.brand = (brandMatch[1] || brandMatch[2]).trim();
+              }
+            }
+            
+            // Remove any context field if it exists to avoid validation failures
+            if ('context' in actualToolArgs) {
+              delete actualToolArgs.context;
+            }
+            
+            logger.info(`${logPrefix} WebSearchTool parameters after fallback: ${JSON.stringify(actualToolArgs)}`);
+          }
+        }
+        // --- END: WebSearchTool-specific fallback for required arguments ---
+
         // --- BEGIN: SportsInfoTool-specific fallback for required arguments ---
         if (canonicalToolName === "SportsInfoTool") {
           // If either teamName or queryType is missing, try to infer using LLM or fallback
