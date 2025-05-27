@@ -37,8 +37,7 @@ import { GenericToolCard } from "../tool-cards/GenericToolCard";
 import { NewsAggregatorCard } from "../tool-cards/NewsAggregatorCard"; 
 import { HackerNewsCard } from "../tool-cards/HackerNewsCard";
 
-
-
+import ReminderConfirmationCard from "../tool-cards/ReminderConfirmationCard";
 
 interface StructuredDataRendererProps {
   data: string | AnyToolStructuredData | null | undefined;
@@ -74,6 +73,26 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
   if (!parsedData) {
     // logger.debug("[StructDataRender] No valid parsed data to render.");
     return null;
+  }
+
+  // Fallback: If parsedData does not have result_type but matches ReminderConfirmationCard shape, render it
+  if (
+    typeof parsedData === 'object' &&
+    parsedData !== null &&
+    'content' in parsedData && typeof (parsedData as any).content === 'string' &&
+    'trigger_datetime_utc' in parsedData && typeof (parsedData as any).trigger_datetime_utc === 'string' &&
+    'confirmation_message' in parsedData && typeof (parsedData as any).confirmation_message === 'string'
+  ) {
+    return (
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="mt-2"
+      >
+        <ReminderConfirmationCard data={parsedData as any} />
+      </motion.div>
+    );
   }
 
   let contentToRender;
@@ -139,6 +158,9 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
           <p className="text-xs opacity-70">Source: {parsedData.source_api}</p>
         </div>
       );
+      break;
+    case "reminder_set_confirmation":
+      contentToRender = <ReminderConfirmationCard data={parsedData as any} />;
       break;
     default:
       logger.warn(`[StructDataRender] No specific card for result_type: '${parsedData.result_type}'. Using GenericToolCard.`);

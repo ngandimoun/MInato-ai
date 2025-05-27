@@ -1378,6 +1378,182 @@ If a specific date is mentioned (e.g., "July 4th events"), "relativeDateDescript
         } // Closing brace for if (canonicalToolName === "EventFinderTool")
         // --- END: EventFinderTool-specific fallback for required arguments ---
 
+        // --- BEGIN: ReminderReaderTool-specific fallback for required arguments ---
+        if (canonicalToolName === "ReminderReaderTool") {
+          // All arguments are optional, but we can improve the experience with LLM extraction
+          if (userInputForFallback && typeof userInputForFallback === 'string' && userInputForFallback.trim()) {
+            // Clean the user input
+            let cleanedUserInputForReminder = userInputForFallback;
+            cleanedUserInputForReminder = cleanedUserInputForReminder.replace(/^(hey |ok |hi |hello )?minato[,:]?\s*/i, "");
+            cleanedUserInputForReminder = cleanedUserInputForReminder.replace(/^(show|get|give|tell|list|check|read) (me )?(my |the )?(reminders?|todos?|tasks?)?\s*/i, "");
+            cleanedUserInputForReminder = cleanedUserInputForReminder.replace(/^(what are|what's|whats) (my )?(reminders?|todos?|tasks?)?\s*/i, "");
+            cleanedUserInputForReminder = cleanedUserInputForReminder.trim();
+            
+            try {
+              const extractionPrompt = `You are an expert reminder query parser. Given the user query: "${cleanedUserInputForReminder.replace(/"/g, '\"')}"
+
+Your tasks are:
+1. Determine the action type: "get_pending" (default), "get_overdue", "get_today", or "get_all"
+2. Extract the time range if specified (e.g., "next 3 days" → daysAhead: 3)
+3. Extract the limit if specified (e.g., "show me 5 reminders" → limit: 5)
+
+Common patterns:
+- "my reminders" → action: "get_pending", daysAhead: 7
+- "overdue reminders" → action: "get_overdue"
+- "today's reminders" → action: "get_today"
+- "reminders for next week" → action: "get_pending", daysAhead: 7
+- "all my reminders" → action: "get_all", daysAhead: 30
+- "next 3 reminders" → limit: 3
+
+Respond in STRICT JSON format:
+{
+  "action": "get_pending | get_overdue | get_today | get_all",
+  "daysAhead": "number (0-30)",
+  "limit": "number (1-20)"
+}`;
+
+              const llmResult = await generateStructuredJson<{ action: string; daysAhead: number; limit: number } | { error: string }>(
+                extractionPrompt,
+                cleanedUserInputForReminder,
+                {
+                  type: "object",
+                  properties: {
+                    action: { type: "string", enum: ["get_pending", "get_overdue", "get_today", "get_all"] },
+                    daysAhead: { type: "number", minimum: 0, maximum: 30 },
+                    limit: { type: "number", minimum: 1, maximum: 20 }
+                  },
+                  required: ["action", "daysAhead", "limit"],
+                  additionalProperties: false
+                },
+                "minato_reminder_reader_extraction_v1",
+                [],
+                (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
+                userId
+              );
+              
+              logger.info(`[ReminderReaderTool] LLM extraction result: ${JSON.stringify(llmResult)}`);
+              
+              if (llmResult && typeof llmResult === "object" && !llmResult.hasOwnProperty("error")) {
+                actualToolArgs.action = (llmResult as { action: string }).action;
+                actualToolArgs.daysAhead = (llmResult as { daysAhead: number }).daysAhead;
+                actualToolArgs.limit = (llmResult as { limit: number }).limit;
+              }
+            } catch (e) {
+              logger.warn(`${logPrefix} LLM reminder reader extraction failed: ${((e as any).message) || e}`);
+            }
+          }
+          
+          // Apply defaults if not set
+          if (!actualToolArgs.action) actualToolArgs.action = "get_pending";
+          if (actualToolArgs.daysAhead === undefined) actualToolArgs.daysAhead = 7;
+          if (actualToolArgs.limit === undefined) actualToolArgs.limit = 10;
+        }
+        // --- END: ReminderReaderTool-specific fallback for required arguments ---
+
+        // --- BEGIN: ReminderSetterTool-specific fallback for required arguments ---
+        if (canonicalToolName === "ReminderSetterTool") {
+          const missingContent = !actualToolArgs.content || typeof actualToolArgs.content !== 'string' || actualToolArgs.content.trim() === "";
+          const missingTime = !actualToolArgs.trigger_datetime_description || typeof actualToolArgs.trigger_datetime_description !== 'string' || actualToolArgs.trigger_datetime_description.trim() === "";
+          
+          if ((missingContent || missingTime) && userInputForFallback && typeof userInputForFallback === 'string' && userInputForFallback.trim()) {
+            // Clean the user input
+            let cleanedUserInputForSetter = userInputForFallback;
+            cleanedUserInputForSetter = cleanedUserInputForSetter.replace(/^(hey |ok |hi |hello )?minato[,:]?\s*/i, "");
+            cleanedUserInputForSetter = cleanedUserInputForSetter.replace(/^(remind|set a reminder|create a reminder|add a reminder) (me )?(to |about |for )?\s*/i, "");
+            cleanedUserInputForSetter = cleanedUserInputForSetter.trim();
+            
+            try {
+              const extractionPrompt = `You are an expert reminder parsing assistant. Given the user request: "${cleanedUserInputForSetter.replace(/"/g, '\"')}"
+
+Your tasks are:
+1. Extract what the user wants to be reminded about (content)
+2. Extract when they want to be reminded (trigger_datetime_description)
+3. Determine if it's recurring (daily, weekly, monthly, yearly)
+4. Categorize the reminder (task, habit, medication, appointment, goal)
+5. Assign priority (low, medium, high)
+
+Common patterns:
+- "remind me to call mom tomorrow" → content: "call mom", trigger_datetime_description: "tomorrow"
+- "remind me about the meeting at 3pm" → content: "meeting", trigger_datetime_description: "at 3pm"
+- "remind me to take medication every morning at 8am" → content: "take medication", trigger_datetime_description: "tomorrow at 8am", recurrence: "daily"
+- "exam tomorrow" → content: "exam", trigger_datetime_description: "tomorrow"
+- "workout every day at 6pm" → content: "workout", trigger_datetime_description: "today at 6pm", recurrence: "daily", category: "habit"
+- "doctor appointment next Monday at 2pm" → content: "doctor appointment", trigger_datetime_description: "next Monday at 2pm", category: "appointment"
+
+Respond in STRICT JSON format:
+{
+  "content": "string (what to remind about)",
+  "trigger_datetime_description": "string (when to remind)",
+  "recurrence_rule": "daily | weekly | monthly | yearly | null",
+  "category": "task | habit | medication | appointment | goal",
+  "priority": "low | medium | high"
+}`;
+
+              const llmResult = await generateStructuredJson<{ 
+                content: string; 
+                trigger_datetime_description: string; 
+                recurrence_rule: string | null;
+                category: string;
+                priority: string;
+              } | { error: string }>(
+                extractionPrompt,
+                cleanedUserInputForSetter,
+                {
+                  type: "object",
+                  properties: {
+                    content: { type: "string" },
+                    trigger_datetime_description: { type: "string" },
+                    recurrence_rule: { type: ["string", "null"], enum: ["daily", "weekly", "monthly", "yearly", null] },
+                    category: { type: "string", enum: ["task", "habit", "medication", "appointment", "goal"] },
+                    priority: { type: "string", enum: ["low", "medium", "high"] }
+                  },
+                  required: ["content", "trigger_datetime_description", "recurrence_rule", "category", "priority"],
+                  additionalProperties: false
+                },
+                "minato_reminder_setter_extraction_v1",
+                [],
+                (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
+                userId
+              );
+              
+              logger.info(`[ReminderSetterTool] LLM extraction result: ${JSON.stringify(llmResult)}`);
+              
+              if (llmResult && typeof llmResult === "object" && !llmResult.hasOwnProperty("error")) {
+                const extracted = llmResult as { 
+                  content: string; 
+                  trigger_datetime_description: string; 
+                  recurrence_rule: string | null;
+                  category: string;
+                  priority: string;
+                };
+                
+                if (extracted.content) actualToolArgs.content = extracted.content;
+                if (extracted.trigger_datetime_description) actualToolArgs.trigger_datetime_description = extracted.trigger_datetime_description;
+                if (extracted.recurrence_rule) actualToolArgs.recurrence_rule = extracted.recurrence_rule;
+                if (extracted.category) actualToolArgs.category = extracted.category;
+                if (extracted.priority) actualToolArgs.priority = extracted.priority;
+              }
+            } catch (e) {
+              logger.warn(`${logPrefix} LLM reminder setter extraction failed: ${((e as any).message) || e}`);
+            }
+            
+            // Final fallback
+            if (!actualToolArgs.content && cleanedUserInputForSetter) {
+              // Try to split by common time indicators
+              const timeIndicators = /\b(tomorrow|today|tonight|at \d|in \d|next|this|every)\b/i;
+              const match = cleanedUserInputForSetter.match(timeIndicators);
+              if (match) {
+                const splitIndex = cleanedUserInputForSetter.indexOf(match[0]);
+                if (splitIndex > 0) {
+                  actualToolArgs.content = cleanedUserInputForSetter.substring(0, splitIndex).trim();
+                  actualToolArgs.trigger_datetime_description = cleanedUserInputForSetter.substring(splitIndex).trim();
+                }
+              }
+            }
+          }
+        }
+        // --- END: ReminderSetterTool-specific fallback for required arguments ---
+
         // The following searchToolsRequiringQuery, YouTubeSearchTool, SportsInfoTool, RedditTool blocks should be OUTSIDE and AFTER the EventFinderTool block.
 
         const searchToolsRequiringQuery = [

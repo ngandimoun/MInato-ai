@@ -14,6 +14,9 @@ const MINATO_REDDIT_QUERY_EXTRACTION_SCHEMA_NAME = "minato_reddit_query_extracti
 const MINATO_RECIPE_QUERY_EXTRACTION_SCHEMA_NAME = "minato_recipe_query_extraction_v1";
 const MINATO_PEXELS_QUERY_EXTRACTION_SCHEMA_NAME = "minato_pexels_query_extraction_v1";
 const EVENTFINDER_ARG_EXTRACTION_SCHEMA_NAME = "eventfinder_arg_extraction";
+const MINATO_REMINDER_READER_EXTRACTION_SCHEMA_NAME = "minato_reminder_reader_extraction_v1";
+const MINATO_REMINDER_SETTER_EXTRACTION_SCHEMA_NAME = "minato_reminder_setter_extraction_v1";
+const MINATO_DATETIME_PARSE_ADVANCED_SCHEMA_NAME = "minato_datetime_parse_advanced_v2";
 
 // The schema definition as expected by the test and generateStructuredJson
 const TOOL_ROUTER_SCHEMA_DEFINITION = {
@@ -212,6 +215,50 @@ const SCHEMA_VERSIONS: Record<string, SchemaDefinition> = {
         "relativeDateDescription",
         "classificationName"
       ],
+      additionalProperties: false
+    }
+  },
+  [MINATO_REMINDER_READER_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_reminder_reader_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["get_pending", "get_overdue", "get_today", "get_all"] },
+        daysAhead: { type: "number", minimum: 0, maximum: 30 },
+        limit: { type: "number", minimum: 1, maximum: 20 }
+      },
+      required: ["action", "daysAhead", "limit"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_REMINDER_SETTER_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_reminder_setter_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        content: { type: "string" },
+        trigger_datetime_description: { type: "string" },
+        recurrence_rule: { type: ["string", "null"], enum: ["daily", "weekly", "monthly", "yearly", null] },
+        category: { type: "string", enum: ["task", "habit", "medication", "appointment", "goal"] },
+        priority: { type: "string", enum: ["low", "medium", "high"] }
+      },
+      required: ["content", "trigger_datetime_description", "recurrence_rule", "category", "priority"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_DATETIME_PARSE_ADVANCED_SCHEMA_NAME]: {
+    name: 'minato_datetime_parse_advanced',
+    version: '2',
+    schema: {
+      type: "object",
+      properties: {
+        iso_datetime_utc: { type: ["string", "null"] },
+        detected_recurrence: { type: ["string", "null"], enum: ["daily", "weekly", "monthly", "yearly", null] },
+        confidence: { type: "string", enum: ["high", "medium", "low"] }
+      },
+      required: ["iso_datetime_utc", "detected_recurrence", "confidence"],
       additionalProperties: false
     }
   },
