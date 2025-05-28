@@ -46,10 +46,11 @@ try {
         offset: 0,
         searchOptions: { // Sensible defaults for general browsing vs specific search
           enableHybridSearch: true,
-          enableGraphSearch: true,
-          vectorWeight: fetchQuery ? 0.7 : 0.2, // Less vector weight for general fetch
-          keywordWeight: fetchQuery ? 0.3 : 0.1, // Less keyword weight for general
+          enableGraphSearch: isInitialFetch ? false : true, // Don't use graph search for initial fetch
+          vectorWeight: fetchQuery ? 0.7 : 0.5, // Balanced vector weight for recent memories
+          keywordWeight: fetchQuery ? 0.3 : 0.5, // Higher keyword weight for recent
           graphWeight: fetchQuery ? 0.6 : 0.0,   // No graph weight for general initially
+          recentFirst: isInitialFetch || !fetchQuery, // Prioritize recent memories when no query
         }
       }),
     });
@@ -180,13 +181,22 @@ if (memories.length === 0 && hasPerformedInitialFetch) {
     );
 }
 
-return memories.map((memory) => (
-    <MemoryItem
-        key={memory.memory_id}
-        memory={memory}
-        onDelete={() => handleDeleteMemory(memory.memory_id)}
-    />
-));
+return (
+    <div className="space-y-3">
+        {!searchQuery && (
+            <div className="text-sm font-medium text-muted-foreground mb-2 px-1">
+                Recent Memories
+            </div>
+        )}
+        {memories.map((memory) => (
+            <MemoryItem
+                key={memory.memory_id}
+                memory={memory}
+                onDelete={() => handleDeleteMemory(memory.memory_id)}
+            />
+        ))}
+    </div>
+);
 };
 
 return (

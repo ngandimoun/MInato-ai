@@ -5,6 +5,7 @@ import { HackerNewsStructuredOutput, HackerNewsStory } from "@/lib/types/index";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { formatDistanceToNowStrict, parseISO, fromUnixTime, format } from 'date-fns'; // Added more date-fns functions
+import { generateStructuredJson } from "../providers/llm_clients";
 
 interface HNInput extends ToolInput {
   query?: string;
@@ -131,7 +132,93 @@ export class HackerNewsTool extends BaseTool {
     }
   }
 
+  private async extractHackerNewsParameters(userInput: string): Promise<Partial<HNInput>> {
+    // Enhanced extraction prompt for HackerNews
+    const extractionPrompt = `
+You are an expert parameter extractor for Minato's HackerNewsTool which fetches stories from Hacker News.
+
+Given this user query about Hacker News: "${userInput.replace(/\"/g, '\\"')}"
+
+COMPREHENSIVE ANALYSIS GUIDELINES:
+
+1. FILTER TYPE DETECTION:
+   - Identify if user wants "top", "new", "best", "ask", "show", or "job" stories
+   - Look for keywords like "trending" (→top), "latest" (→new), "best", "Ask HN", "Show HN", "jobs"
+   - Default to "top" if unspecified but implied by context
+
+2. SEARCH QUERY EXTRACTION:
+   - If user wants to search for specific topics (e.g., "Find HN posts about AI"), extract the search query ("AI")
+   - Only populate query if user is clearly looking for specific content vs. browsing a list
+   - If both filter and query are detected, prioritize query (as it overrides filter)
+
+3. TIME RANGE ANALYSIS:
+   - For "top" stories, determine desired time range: "hour", "day", "week", "month", "year", "all"
+   - Map expressions like "today" to "day", "this week" to "week", etc.
+   - Default to "day" for top stories if unspecified
+
+4. RESULT LIMIT DETERMINATION:
+   - Identify how many stories the user wants (1-10)
+   - Map expressions like "a few" to 3, "several" to 5, etc.
+   - Default to 5 if unspecified
+
+OUTPUT FORMAT: JSON object with these fields:
+- "query": (string|null) Search terms if the user wants to search for specific content, null if browsing lists
+- "filter": (string|null) One of: "top", "new", "best", "ask", "show", "job", or null if unspecified
+- "time": (string|null) For top stories: "hour", "day", "week", "month", "year", "all", or null if unspecified
+- "limit": (number|null) Number of stories (1-10) or null if unspecified
+
+If a parameter cannot be confidently extracted, set it to null rather than guessing.
+
+RESPOND ONLY WITH THE JSON OBJECT.`;
+
+    try {
+      // Define the schema for HNInput
+      const hnParamsSchema = {
+        type: "object",
+        properties: {
+          query: { type: ["string", "null"] },
+          filter: { type: ["string", "null"], enum: ["top", "new", "best", "ask", "show", "job", null] },
+          time: { type: ["string", "null"], enum: ["hour", "day", "week", "month", "year", "all", null] },
+          limit: { type: ["number", "null"] }
+        }
+      };
+
+      const extractionResult = await generateStructuredJson<Partial<HNInput>>(
+        extractionPrompt,
+        userInput,
+        hnParamsSchema,
+        "HackerNewsToolParameters",
+        [], // no history context needed
+        "gpt-4o-mini"
+      );
+      
+      return extractionResult || {};
+    } catch (error) {
+      logger.error("[HackerNewsTool] Parameter extraction failed:", error);
+      return {};
+    }
+  }
+
   async execute(input: HNInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    // If input is from natural language, extract parameters
+    if (input._rawUserInput && typeof input._rawUserInput === 'string') {
+      const extractedParams = await this.extractHackerNewsParameters(input._rawUserInput);
+      
+      // Only use extracted parameters if they're not already specified
+      if (extractedParams.query && input.query === undefined) {
+        input.query = extractedParams.query;
+      }
+      if (extractedParams.filter && input.filter === undefined) {
+        input.filter = extractedParams.filter;
+      }
+      if (extractedParams.time && input.time === undefined) {
+        input.time = extractedParams.time;
+      }
+      if (extractedParams.limit && input.limit === undefined) {
+        input.limit = extractedParams.limit;
+      }
+    }
+
     const effectiveQuery = (typeof input.query === "string" && input.query.trim() !== "") ? input.query.trim() : undefined;
     const effectiveFilter = effectiveQuery ? undefined : (typeof input.filter === "string" && input.filter.trim() !== "" ? input.filter : "top");
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));

@@ -85,7 +85,38 @@ User's timezone: ${userTimezone || 'UTC'}
 
 Given the user's description of when they want to be reminded: "${dateTimeDescription.replace(/"/g, '\\"')}"
 
-Parse this into an absolute future date and time in ISO 8601 UTC format (YYYY-MM-DDTHH:mm:ssZ).
+Your task is to parse this into an absolute future date and time in ISO 8601 UTC format (YYYY-MM-DDTHH:mm:ssZ).
+
+COMPREHENSIVE PARSING GUIDELINES:
+
+1. CONTEXTUAL AWARENESS:
+   - Consider current time, day of week, and month when interpreting relative references
+   - Apply common sense to disambiguate (e.g., "5pm" today if it's currently 2pm, but tomorrow if it's 7pm)
+
+2. MULTILINGUAL UNDERSTANDING:
+   - Recognize time descriptions in multiple languages
+   - Handle international date formats (DD/MM/YYYY vs MM/DD/YYYY)
+   - Process language-specific time expressions
+
+3. HANDLING AMBIGUITY WITH PRECISION:
+   - For vague timeframes, use these sensible defaults:
+     * "morning" → 8:00 AM
+     * "afternoon" → 2:00 PM
+     * "evening" → 7:00 PM
+     * "night" → 10:00 PM
+     * "soon/right away/asap" → 5 minutes from now
+     * "later/in a bit" → 30 minutes from now
+     * "later today" → 3 hours from now
+
+4. RELATIVE TIME INTERPRETATION:
+   - Precisely calculate relative offsets: "in 15 minutes", "3 hours from now", "next week"
+   - Handle complex combinations: "tomorrow afternoon at 2:30"
+   - Properly interpret day references: "next Monday" vs "this Monday"
+
+5. RECURRENCE IDENTIFICATION:
+   - Detect patterns like "every day at 9am", "each Monday", "weekly", "monthly"
+   - Identify the first occurrence and appropriate recurrence pattern
+   - When recurrence is detected, return the first upcoming occurrence in iso_datetime_utc
 
 Common patterns to recognize:
 - Relative times: "in X minutes/hours/days/weeks/months"
@@ -96,7 +127,7 @@ Common patterns to recognize:
 - Morning/afternoon/evening: assume 8am/2pm/7pm respectively if no time given
 - Recurring patterns: "every morning" → parse as tomorrow 8am with daily recurrence
 - Contextual: "after work" → 6pm, "before bed" → 10pm, "lunch time" → 12pm
-- Vague times: "soon" → in 30 minutes, "later" → in 2 hours, "later today" → in 4 hours
+- Vague times: "soon" → in 5 minutes, "later" → in 30 minutes, "later today" → in 3 hours
 - ASAP/urgent: "asap", "urgent", "now" → in 5 minutes
 
 Examples (assuming current time is 2024-01-15T14:30:00Z):
@@ -109,13 +140,17 @@ Examples (assuming current time is 2024-01-15T14:30:00Z):
 - "this evening" → "2024-01-15T19:00:00Z"
 - "at 3:45pm" → "2024-01-15T15:45:00Z" (if after current time, else tomorrow)
 - "on Monday" → next Monday at current time
-- "every morning at 7" → "2024-01-16T07:00:00Z" (parse as tomorrow 7am)
-- "soon" → "2024-01-15T15:00:00Z" (30 minutes from now)
-- "later" → "2024-01-15T16:30:00Z" (2 hours from now)
+- "every morning at 7" → "2024-01-16T07:00:00Z" (first occurrence: tomorrow 7am)
+- "every day at 3pm" → "2024-01-15T15:00:00Z" (first occurrence: today at 3pm, if before 3pm)
+- "soon" → "2024-01-15T14:35:00Z" (5 minutes from now)
+- "later" → "2024-01-15T15:00:00Z" (30 minutes from now)
 - "asap" → "2024-01-15T14:35:00Z" (5 minutes from now)
 
-If the description is ambiguous or in the past, return null.
-If it mentions "every" or recurring patterns, still parse the first occurrence.
+IMPORTANT RULES:
+1. If the time is ambiguous, choose the SOONEST reasonable interpretation
+2. If the description is vague but time-related, make a reasonable assumption rather than returning null
+3. Always return null for past times (with 5-minute grace period for clock differences)
+4. For recurring patterns, focus on determining the FIRST occurrence correctly
 
 Respond in STRICT JSON format:
 {

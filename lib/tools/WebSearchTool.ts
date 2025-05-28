@@ -491,13 +491,44 @@ export class WebSearchTool extends BaseTool {
     try {
       // The extraction prompt for identifying WebSearchTool parameters
       const extractionPrompt = `
-You are a specialized parameter extractor for a WebSearchTool which has three modes:
-1. "product_search" - For shopping, finding products to buy, price comparisons
-2. "tiktok_search" - For finding TikTok videos, tutorials, trends (SHORT form videos)
-3. "fallback_search" - For general information, facts, and answers
+You are an expert parameter extractor for Minato's WebSearchTool which operates in three distinct modes:
+1. "product_search" - For shopping, finding products to buy, price comparisons, retail information
+2. "tiktok_search" - For finding TikTok-specific content, short-form videos, trends
+3. "fallback_search" - For general information, facts, news, and standard web searches
 
 Given this user query: "${cleanedInput.replace(/"/g, '\\"')}"
 
+COMPREHENSIVE ANALYSIS GUIDELINES:
+
+1. USER INTENT CLASSIFICATION:
+   - Precisely determine if the user wants to purchase something, find TikTok content, or get general information
+   - Consider implicit shopping intent (comparing products, asking about prices, looking for stores)
+   - Understand nuanced video content requests (short-form vs long-form, platform-specific)
+
+2. SHOPPING PARAMETERS EXTRACTION:
+   - Identify price ranges (both explicit "under $50" and implicit "affordable")
+   - Recognize brand mentions (including misspelled or incomplete brand names)
+   - Extract color preferences (including descriptive terms like "dark", "bright", "pastel")
+   - Detect quality indicators ("high-quality", "premium", "budget")
+
+3. LOCATION & LANGUAGE AWARENESS:
+   - Extract location references for region-specific searches
+   - Identify language preferences for results
+   - Handle multilingual queries appropriately
+
+4. QUERY REFINEMENT:
+   - Remove unnecessary filler words while preserving meaning
+   - Maintain key search terms especially for product specifications
+   - Preserve quoted phrases exactly as provided
+
+CRITICAL DISTINCTIONS BETWEEN PLATFORMS:
+- TikTok: Short-form videos (15sec-3min), trending content, viral clips, challenges, dances
+- YouTube: Longer-form content (3min+), tutorials, reviews, documentaries, music videos, lectures
+- If the query seems to be requesting YOUTUBE content, DO NOT select tiktok_search mode
+
+MODE SELECTION RULES:
+- "product_search": Select for purchasing intent, shopping, product comparisons, reviews tied to purchase decisions
+- "tiktok_search": Select ONLY when the user EXPLICITLY requests TikTok content or clearly wants short-form viral videos
 IMPORTANT DISTINCTION BETWEEN TIKTOK AND YOUTUBE:
 - TikTok videos are typically short-form (15sec-3min), trending content, dances, challenges, viral clips
 - YouTube videos are typically longer-form (3min+), tutorials, reviews, music videos, lectures

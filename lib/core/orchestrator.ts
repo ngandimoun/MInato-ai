@@ -46,7 +46,7 @@ generateStructuredJson,
 generateVisionCompletion,
 resolveToolNameWithLLM,
 } from "../providers/llm_clients";
-import { TOOL_ROUTER_PROMPT_TEMPLATE } from "../prompts";
+import { TOOL_ROUTER_PROMPT_TEMPLATE, RESPONSE_SYNTHESIS_PROMPT_TEMPLATE } from "../prompts";
 import { logger } from "../../memory-framework/config";
 import { safeJsonParse } from "../../memory-framework/core/utils";
 import { CompletionUsage } from "openai/resources";
@@ -1105,6 +1105,86 @@ JSON: { "query": "", "random": true }
           if (typeof actualToolArgs.random !== "boolean") actualToolArgs.random = false;
         }
         // --- END: RecipeSearchTool-specific fallback for required arguments ---
+        
+        // --- BEGIN: GoogleCalendarReaderTool-specific fallback for required arguments ---
+        if (canonicalToolName === "GoogleCalendarReaderTool") {
+          const missingAction = !actualToolArgs.action || typeof actualToolArgs.action !== 'string';
+          const missingMaxResults = actualToolArgs.maxResults === undefined || actualToolArgs.maxResults === null;
+          const missingCalendarId = actualToolArgs.calendarId === undefined || actualToolArgs.calendarId === null;
+          
+          if (missingAction || missingMaxResults || missingCalendarId) {
+            logger.warn(`${logPrefix} GoogleCalendarReaderTool missing required parameters. Adding defaults.`);
+            
+            // Default action
+            if (missingAction) {
+              actualToolArgs.action = "get_today_events";
+            }
+            
+            // Default max results
+            if (missingMaxResults) {
+              actualToolArgs.maxResults = 5;
+            } else {
+              // Ensure it's within bounds
+              actualToolArgs.maxResults = Math.max(1, Math.min(actualToolArgs.maxResults, 10));
+            }
+            
+            // Default calendar ID
+            if (missingCalendarId) {
+              actualToolArgs.calendarId = "primary";
+            }
+            
+            logger.info(`${logPrefix} GoogleCalendarReaderTool parameters after fallback: ${JSON.stringify(actualToolArgs)}`);
+          }
+        }
+        // --- END: GoogleCalendarReaderTool-specific fallback for required arguments ---
+        
+        // --- BEGIN: GoogleGmailReaderTool-specific fallback for required arguments ---
+        if (canonicalToolName === "GoogleGmailReaderTool") {
+          const missingAction = !actualToolArgs.action || typeof actualToolArgs.action !== 'string';
+          const missingMaxResults = actualToolArgs.maxResults === undefined || actualToolArgs.maxResults === null;
+          const missingQuery = !actualToolArgs.query || typeof actualToolArgs.query !== 'string';
+          const missingSummarizeBody = actualToolArgs.summarize_body === undefined || actualToolArgs.summarize_body === null;
+          const missingSummarizeLimit = actualToolArgs.summarize_limit === undefined || actualToolArgs.summarize_limit === null;
+          
+          if (missingAction || missingMaxResults || missingQuery || missingSummarizeBody || missingSummarizeLimit) {
+            logger.warn(`${logPrefix} GoogleGmailReaderTool missing required parameters. Adding defaults.`);
+            
+            // Default action
+            if (missingAction) {
+              actualToolArgs.action = "get_recent_emails";
+            }
+            
+            // Default max results
+            if (missingMaxResults) {
+              actualToolArgs.maxResults = 5;
+            } else {
+              // Ensure it's within bounds
+              actualToolArgs.maxResults = Math.max(1, Math.min(actualToolArgs.maxResults, 10));
+            }
+            
+            // Default query
+            if (missingQuery) {
+              actualToolArgs.query = "is:unread category:primary";
+            }
+            
+            // Default summarize_body
+            if (missingSummarizeBody) {
+              actualToolArgs.summarize_body = false;
+            }
+            
+            // Default summarize_limit
+            if (missingSummarizeLimit) {
+              actualToolArgs.summarize_limit = 1;
+            } else {
+              // Ensure it's within bounds
+              actualToolArgs.summarize_limit = Math.max(1, Math.min(actualToolArgs.summarize_limit, 3));
+            }
+            
+            logger.info(`${logPrefix} GoogleGmailReaderTool parameters after fallback: ${JSON.stringify(actualToolArgs)}`);
+          }
+        }
+        // --- END: GoogleGmailReaderTool-specific fallback for required arguments ---
+        
         // --- BEGIN: HackerNewsTool-specific fallback for required arguments ---
         if (canonicalToolName === "HackerNewsTool") {
           const missingQuery = !actualToolArgs.query || typeof actualToolArgs.query !== 'string' || actualToolArgs.query.trim() === "";
@@ -2233,19 +2313,24 @@ Respond in STRICT JSON format:
     const videoContextString = videoContextParts.length
       ? `YOU MUST BASE YOUR RESPONSE ON THE FOLLOWING VIDEO ANALYSIS. Do NOT ignore this.\n${videoContextParts.join('\n')}`
       : null;
-    const synthesisSystemPrompt = injectPromptVariables(TOOL_ROUTER_PROMPT_TEMPLATE, {
-      userName, personaName: personaNameForPrompt, personaInstructions: personaSpecificInstructions, language: lang,
-      retrieved_memory_context: retrievedMemoryContext,
-      tool_results_summary: currentTurnToolResultsSummary || "No tools were executed by Minato this turn, or their results are directly integrated.",
-      original_query: textQueryForRouter,
-      tool_router_follow_up_suggestion: toolRouterFollowUpSuggestion || `Is there anything else Minato can help you with today, ${userName}?`,
-      videoContextFallback: videoContextString
+    const synthesisSystemPrompt = injectPromptVariables(RESPONSE_SYNTHESIS_PROMPT_TEMPLATE, {
+      userName,
+      originalQuery: textQueryForRouter,
+      toolResultsSummary: currentTurnToolResultsSummary || "No tools were executed by Minato this turn, or their results are directly integrated.",
+      language: lang,
+      personaCustomization: personaSpecificInstructions || `Minato is a helpful, supportive AI companion for ${userName}.`
     });
+    
     // Add explicit instruction for LLM to always include tool-provided summaries in the chat response
     const synthesisSystemPromptWithSummaryInstruction =
       `${synthesisSystemPrompt}
 
-IMPORTANT: Never mention tool names, APIs, or implementation details in your response. Always respond as Minato, the user's AI companion, in a natural, conversational way. If any tool provided a summary of its findings (such as a news summary, search summary, or result summary), ALWAYS include that summary in your chat response before any card or detailed list. Make the summary engaging and conversational. Do not reference the tool or implementation in your response.`;
+IMPORTANT ADDITIONAL GUIDANCE:
+1. If any tool provided a summary of its findings (news, search results, etc.), INCLUDE that summary in your response.
+2. Make the summary engaging and conversational, fully integrated with your persona.
+3. NEVER mention tool names, APIs, or implementation details.
+4. If video context was provided, incorporate insights from it naturally.
+${videoContextString ? `\n${videoContextString}` : ''}`;
     logger.info(`[${turnIdentifier}] Synthesizing final response (${CHAT_VISION_MODEL_NAME_ORCH})...`);
     const synthesisResult = await generateStructuredJson<{ responseText: string; intentType: string }>(
       synthesisSystemPromptWithSummaryInstruction, textQueryForRouter, // textQueryForRouter for user message context in synthesis

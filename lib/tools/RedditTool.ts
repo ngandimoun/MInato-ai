@@ -5,6 +5,7 @@ import { RedditStructuredOutput, RedditPost } from "@/lib/types/index";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { formatDistanceToNowStrict, fromUnixTime } from 'date-fns'; // For better date formatting
+import { generateStructuredJson } from "../providers/llm_clients";
 
 interface RedditInput extends ToolInput {
   subreddit: string;
@@ -119,7 +120,94 @@ export class RedditTool extends BaseTool {
     };
   }
 
+  private async extractRedditParameters(userInput: string): Promise<Partial<RedditInput>> {
+    // Enhanced extraction prompt for Reddit
+    const extractionPrompt = `
+You are an expert parameter extractor for Minato's RedditTool which fetches posts from Reddit subreddits.
+
+Given this user query about Reddit: "${userInput.replace(/\"/g, '\\"')}"
+
+COMPREHENSIVE ANALYSIS GUIDELINES:
+
+1. SUBREDDIT IDENTIFICATION:
+   - Precisely extract the subreddit name (e.g., "programming", "AskReddit", "worldnews")
+   - Handle variations such as "r/subreddit", "the subreddit X", etc.
+   - If multiple subreddits are mentioned, identify the primary one
+   - Do not include "r/" in the output
+
+2. FILTER TYPE DETECTION:
+   - Identify if user wants "hot", "new", "top", or "rising" posts
+   - Look for keywords like "trending" (→hot), "latest" (→new), "best" (→top), "upcoming" (→rising)
+   - Default to "hot" if unspecified
+
+3. TIME RANGE ANALYSIS:
+   - For "top" posts, determine desired time range: "hour", "day", "week", "month", "year", "all"
+   - Map expressions like "today" to "day", "this week" to "week", etc.
+   - Default to "day" for top posts if unspecified
+
+4. RESULT LIMIT DETERMINATION:
+   - Identify how many posts the user wants (1-10)
+   - Map expressions like "a few" to 3, "several" to 5, etc.
+   - Default to 5 if unspecified
+
+OUTPUT FORMAT: JSON object with these fields:
+- "subreddit": (string) The identified subreddit name WITHOUT "r/" prefix
+- "filter": (string|null) One of: "hot", "new", "top", "rising", or null if unspecified
+- "time": (string|null) For top posts: "hour", "day", "week", "month", "year", "all", or null if unspecified
+- "limit": (number|null) Number of posts (1-10) or null if unspecified
+
+If a parameter cannot be confidently extracted, set it to null rather than guessing.
+
+RESPOND ONLY WITH THE JSON OBJECT.`;
+
+    try {
+      // Define the schema for RedditInput
+      const redditParamsSchema = {
+        type: "object",
+        properties: {
+          subreddit: { type: "string" },
+          filter: { type: ["string", "null"], enum: ["hot", "new", "top", "rising", null] },
+          time: { type: ["string", "null"], enum: ["hour", "day", "week", "month", "year", "all", null] },
+          limit: { type: ["number", "null"] }
+        }
+      };
+
+      const extractionResult = await generateStructuredJson<Partial<RedditInput>>(
+        extractionPrompt,
+        userInput,
+        redditParamsSchema,
+        "RedditToolParameters",
+        [], // no history context needed
+        "gpt-4o-mini"
+      );
+      
+      return extractionResult || {};
+    } catch (error) {
+      logger.error("[RedditTool] Parameter extraction failed:", error);
+      return {};
+    }
+  }
+
   async execute(input: RedditInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    // If input is from natural language, extract parameters
+    if (input._rawUserInput && typeof input._rawUserInput === 'string') {
+      const extractedParams = await this.extractRedditParameters(input._rawUserInput);
+      
+      // Only use extracted parameters if they're not already specified
+      if (extractedParams.subreddit && !input.subreddit) {
+        input.subreddit = extractedParams.subreddit;
+      }
+      if (extractedParams.filter && input.filter === undefined) {
+        input.filter = extractedParams.filter;
+      }
+      if (extractedParams.time && input.time === undefined) {
+        input.time = extractedParams.time;
+      }
+      if (extractedParams.limit && input.limit === undefined) {
+        input.limit = extractedParams.limit;
+      }
+    }
+    
     const subredditInput = String(input.subreddit || "").trim(); 
     const effectiveFilter = (input.filter === null || input.filter === undefined) ? "hot" : input.filter;
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));

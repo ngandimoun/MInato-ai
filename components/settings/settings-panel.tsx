@@ -196,7 +196,17 @@ if (state) {
 const handleSaveName = async () => {
 if (isSavingName || !user) return;
 setIsSavingName(true);
-const success = await updateProfileState({ full_name: username, first_name: username.split(" ")[0] || username });
+
+// Extract first name correctly from full name
+const nameParts = username.trim().split(/\s+/);
+const firstName = nameParts[0] || username.trim();
+
+const success = await updateProfileState({ 
+  full_name: username.trim(), 
+  first_name: firstName,
+  user_first_name: firstName  // Add user_first_name to ensure it's consistent with first_name
+});
+
 if (success) toast({ title: "Name saved!" });
 else toast({ title: "Failed to save name", variant: "destructive" });
 setIsSavingName(false);
@@ -204,7 +214,12 @@ setIsSavingName(false);
 const handleSaveLanguage = async () => {
 if (isSavingLanguage || !user) return;
 setIsSavingLanguage(true);
-const success = await updateProfileState({ preferred_locale: language });
+
+// Make sure we're using a properly formatted locale string
+const formattedLocale = language.trim();
+
+const success = await updateProfileState({ preferred_locale: formattedLocale });
+
 if (success) toast({ title: "Language preference saved!" });
 else toast({ title: "Failed to save language", variant: "destructive" });
 setIsSavingLanguage(false);
@@ -212,16 +227,35 @@ setIsSavingLanguage(false);
 const handleSavePersona = async () => {
 if (isSavingPersona || !user) return;
 setIsSavingPersona(true);
-const success = await updateProfileState({ active_persona_id: selectedPersonaId });
-if (success) toast({ title: "Active persona saved!" });
-else toast({ title: "Failed to save persona", variant: "destructive" });
+
+// Validate the persona ID exists in the personas list
+const personaExists = personas.some(p => p.id === selectedPersonaId);
+const personaIdToUse = personaExists ? selectedPersonaId : DEFAULT_PERSONA_ID;
+
+const success = await updateProfileState({ active_persona_id: personaIdToUse });
+
+if (success) {
+  toast({ title: "Active persona saved!" });
+  // If we fallback to default, update the UI
+  if (personaIdToUse !== selectedPersonaId) {
+    setSelectedPersonaId(personaIdToUse);
+  }
+} else {
+  toast({ title: "Failed to save persona", variant: "destructive" });
+}
 setIsSavingPersona(false);
 };
 const handleSaveMinatoVoice = async (newVoice: OpenAITtsVoice) => {
 if (isSavingVoice || !user) return;
 setIsSavingVoice(true);
-setSelectedMinatoVoice(newVoice);
-const success = await updateProfileState({ chainedvoice: newVoice });
+
+// Validate the voice ID against the allowed list
+const isValidVoice = ALL_TTS_VOICES_WITH_DESC.some(voice => voice.id === newVoice);
+const voiceToUse = isValidVoice ? newVoice : defaultMinatoVoice;
+
+setSelectedMinatoVoice(voiceToUse);
+const success = await updateProfileState({ chainedvoice: voiceToUse });
+
 if (success) toast({ title: "Minato's voice updated!" });
 else {
 toast({ title: "Failed to update voice", variant: "destructive" });
@@ -230,57 +264,71 @@ setSelectedMinatoVoice((state?.chainedvoice as OpenAITtsVoice) || defaultMinatoV
 setIsSavingVoice(false);
 };
 const handleSavePersonaDialog = async (personaData: Omit<UIPersona, "id" | "isCustom">) => {
-if (!user) return;
-// Similar logic to before, ensure isFetchingPanelData or a specific flag for this action
-setIsFetchingPanelData(true); // Reuse or add a new state like isSavingDialogPersona
-try {
-let newOrUpdatedPersona;
-const payload = {
-name: personaData.name,
-description: personaData.description || "",
-system_prompt: personaData.system_prompt,
-voice_id: personaData.voice_id,
-};
-if (editingPersona && editingPersona.isCustom && editingPersona.id) {
-    const res = await fetch(`/api/personas/${editingPersona.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "Failed to update persona");
+  if (!user) return;
+  setIsFetchingPanelData(true);
+  
+  try {
+    let newOrUpdatedPersona;
+    const payload = {
+      name: personaData.name.trim(),
+      description: (personaData.description || "").trim(),
+      system_prompt: personaData.system_prompt.trim(),
+      voice_id: personaData.voice_id,
+    };
+    
+    // Validate that required fields are non-empty
+    if (!payload.name) {
+      throw new Error("Persona name cannot be empty");
     }
-    newOrUpdatedPersona = await res.json();
-    toast({ title: "Persona updated!" });
-  } else {
-    const res = await fetch("/api/personas", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "Failed to create persona");
+    
+    if (!payload.system_prompt) {
+      throw new Error("System prompt cannot be empty");
     }
-    newOrUpdatedPersona = await res.json();
-    toast({ title: "Persona created!" });
+    
+    if (editingPersona && editingPersona.isCustom && editingPersona.id) {
+      const res = await fetch(`/api/personas/${editingPersona.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP error ${res.status}` }));
+        throw new Error(err.error || "Failed to update persona");
+      }
+      newOrUpdatedPersona = await res.json();
+      toast({ title: "Persona updated!" });
+    } else {
+      const res = await fetch("/api/personas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP error ${res.status}` }));
+        throw new Error(err.error || "Failed to create persona");
+      }
+      newOrUpdatedPersona = await res.json();
+      toast({ title: "Persona created!" });
+    }
+    
+    await fetchPersonasFromBackend(); // Refresh persona list
+    
+    // Set new/updated as active and save to backend
+    setSelectedPersonaId(newOrUpdatedPersona.id);
+    await updateProfileState({ active_persona_id: newOrUpdatedPersona.id });
+    
+  } catch (e: any) {
+    toast({
+      title: `Failed to ${editingPersona ? "update" : "create"} persona`,
+      description: e.message,
+      variant: "destructive"
+    });
+  } finally {
+    setIsFetchingPanelData(false);
   }
-  await fetchPersonasFromBackend(); // Refresh persona list
-  setSelectedPersonaId(newOrUpdatedPersona.id); // Set new/updated as active
-  await updateProfileState({ active_persona_id: newOrUpdatedPersona.id }); // Save active persona to backend
-} catch (e: any) {
-  toast({
-    title: `Failed to ${editingPersona ? "update" : "create"} persona`,
-    description: e.message,
-    variant: "destructive"
-  });
-} finally {
-    setIsFetchingPanelData(false); // Reuse or add a new state like isSavingDialogPersona
-}
-setEditingPersona(undefined);
-setPersonaEditorOpen(false);
-
+  
+  setEditingPersona(undefined);
+  setPersonaEditorOpen(false);
 };
 const handleDeletePersona = async (id: string) => {
 if (!user) return;
@@ -338,35 +386,6 @@ await fetchUserProfileAndState(true); // Refresh profile/state after disconnect
 toast({ title: "Disconnection Error", description: error.message, variant: "destructive" });
 } finally {
 setIsConnectingGoogle(null);
-}
-};
-const onGoogleToggle = (service: 'calendar' | 'email', checked: boolean) => {
-if (checked) {
-// If enabling a service and the other is not connected, or neither are, connect for both
-if ((service === "calendar" && !googleCalendarConnected) || (service === "email" && !googleGmailConnected)) {
-if (!googleCalendarConnected && !googleGmailConnected) {
-handleGoogleConnect("both"); // If neither connected, request both
-} else if (service === "calendar" && !googleCalendarConnected) {
-handleGoogleConnect("calendar"); // Only request calendar if email is already connected
-} else if (service === "email" && !googleGmailConnected) {
-handleGoogleConnect("email"); // Only request email if calendar is already connected
-}
-// If one is already connected, and user toggles the other on, the current scopes
-// might not cover the new one. For simplicity and best UX, it's often better to
-// re-request for "both" to ensure all desired scopes are granted.
-// Or, have separate "Connect Calendar" / "Connect Email" buttons.
-// Current switch logic implies enabling one might require re-auth for combined scopes.
-// This simplified logic will re-trigger OAuth for "both" if any service is newly enabled.
-} else {
-// If already connected (e.g., 'both' was granted, now toggling calendar on while gmail is also on)
-// just update state optimistically, assuming permissions are there.
-// Backend API call will confirm.
-updateProfileState(service === 'calendar' ? { googlecalendarenabled: true } : { googleemailenabled: true });
-}
-} else {
-// Toggling off - disconnect all for simplicity, or implement finer-grained scope removal.
-// For now, any toggle-off disconnects all.
-handleGoogleDisconnect();
 }
 };
 const handleCreatePersona = () => {
@@ -577,18 +596,188 @@ className="relative h-12 rounded-none border-b-2 border-transparent px-3 py-2 da
             </TabsContent>
 
             <TabsContent value="privacy" className="mt-0 space-y-6">
-              <div className="rounded-lg border border-border p-4 bg-muted/30"> <p className="text-sm text-foreground/90"> Minato is committed to protecting your privacy. Your data is encrypted and securely stored. We only use your information to provide and improve our services. </p> </div>
-              <div className="space-y-4"> <h3 className="text-sm font-medium">Integrations</h3> <div className="rounded-lg border border-border p-4 space-y-4">
-                <div className="flex items-center justify-between"> <div className="flex items-center gap-2"> <Calendar className="h-5 w-5 text-primary" /> <div> <h4 className="font-medium text-sm"> Google Calendar </h4> <p className="text-xs text-muted-foreground"> Allow Minato to access your calendar events </p> </div> </div> <div className="flex items-center gap-2"> <Switch checked={googleCalendarConnected} onCheckedChange={(checked) => onGoogleToggle("calendar", checked)} id="gcal-switch" disabled={isConnectingGoogle === 'calendar' || isConnectingGoogle === 'both' || isConnectingGoogle === 'disconnect_all' || isConnectingGoogle?.startsWith('disconnect')} /> <Label htmlFor="gcal-switch" className="sr-only"> Toggle Google Calendar </Label> </div> </div>
-                <div className="flex items-center justify-between"> <div className="flex items-center gap-2"> <Mail className="h-5 w-5 text-primary" /> <div> <h4 className="font-medium text-sm"> Google Gmail </h4> <p className="text-xs text-muted-foreground"> Allow Minato to access your emails </p> </div> </div> <div className="flex items-center gap-2"> <Switch checked={googleGmailConnected} onCheckedChange={(checked) => onGoogleToggle("email", checked)} id="gmail-switch" disabled={isConnectingGoogle === 'email' || isConnectingGoogle === 'both' || isConnectingGoogle === 'disconnect_all' || isConnectingGoogle?.startsWith('disconnect')} /> <Label htmlFor="gmail-switch" className="sr-only"> Toggle Google Gmail </Label> </div> </div>
-                { (googleCalendarConnected || googleGmailConnected) && (
-                    <Button variant="destructive" size="sm" onClick={() => handleGoogleDisconnect()} disabled={!!isConnectingGoogle?.startsWith('disconnect')} className="w-full mt-2">
-                        {isConnectingGoogle?.startsWith('disconnect') ? <Loader2 className="h-4 w-4 animate-spin mr-1.5"/> : ""}
+              <div className="rounded-lg border border-border p-4 bg-muted/30"> 
+                <p className="text-sm text-foreground/90"> 
+                  Minato is committed to protecting your privacy. Your data is encrypted and securely stored. 
+                  We only use your information to provide and improve our services.
+                </p> 
+              </div>
+              
+              <div className="space-y-4"> 
+                <h3 className="text-sm font-medium flex items-center gap-2">
+                  Google Integrations
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3.5 w-3.5 text-muted-foreground/70 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-80">
+                        <p className="text-xs">
+                          Connect your Google account to let Minato check your calendar events and emails.
+                          You can revoke access at any time in your Google account settings or here.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </h3> 
+                
+                <div className="rounded-lg border border-border p-4 space-y-6 relative overflow-hidden">
+                  {/* Calendar Integration */}
+                  <div className="flex items-center justify-between"> 
+                    <div className="flex items-center gap-2"> 
+                      <Calendar className="h-5 w-5 text-primary" /> 
+                      <div> 
+                        <h4 className="font-medium text-sm flex items-center gap-1.5"> 
+                          Google Calendar 
+                          {googleCalendarConnected && <Check className="h-3.5 w-3.5 text-green-500" />}
+                        </h4> 
+                        <p className="text-xs text-muted-foreground"> 
+                          {googleCalendarConnected 
+                            ? "Minato can access your calendar events" 
+                            : "Allow Minato to check your calendar events"}
+                        </p> 
+                      </div> 
+                    </div> 
+                    <div className="flex items-center gap-2"> 
+                      {googleCalendarConnected ? (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleGoogleDisconnect()} 
+                          disabled={!!isConnectingGoogle} 
+                          className="flex items-center gap-1.5"
+                        >
+                          Disconnect
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleGoogleConnect("calendar")} 
+                          disabled={!!isConnectingGoogle} 
+                          className="text-primary border-primary/50 hover:bg-primary/10 flex items-center gap-1.5"
+                        >
+                          Connect
+                        </Button>
+                      )}
+                    </div> 
+                  </div>
+                  
+                  {/* Gmail Integration */}
+                  <div className="flex items-center justify-between"> 
+                    <div className="flex items-center gap-2"> 
+                      <Mail className="h-5 w-5 text-primary" /> 
+                      <div> 
+                        <h4 className="font-medium text-sm flex items-center gap-1.5"> 
+                          Google Gmail 
+                          {googleGmailConnected && <Check className="h-3.5 w-3.5 text-green-500" />}
+                        </h4> 
+                        <p className="text-xs text-muted-foreground"> 
+                          {googleGmailConnected 
+                            ? "Minato can access your email messages" 
+                            : "Allow Minato to check your emails"}
+                        </p> 
+                      </div> 
+                    </div> 
+                    <div className="flex items-center gap-2"> 
+                      {googleGmailConnected ? (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleGoogleDisconnect()} 
+                          disabled={!!isConnectingGoogle} 
+                          className="flex items-center gap-1.5"
+                        >
+                          Disconnect
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleGoogleConnect("email")} 
+                          disabled={!!isConnectingGoogle} 
+                          className="text-primary border-primary/50 hover:bg-primary/10 flex items-center gap-1.5"
+                        >
+                          Connect
+                        </Button>
+                      )}
+                    </div> 
+                  </div>
+                  
+                  {/* Connect Both Services at Once (Optional) */}
+                  {!googleCalendarConnected && !googleGmailConnected && (
+                    <div className="pt-2 border-t border-border/50">
+                      <Button 
+                        variant="default" 
+                        size="sm" 
+                        onClick={() => handleGoogleConnect("both")} 
+                        disabled={!!isConnectingGoogle} 
+                        className="w-full flex items-center justify-center gap-1.5"
+                      >
+                        Connect Calendar & Gmail Together
+                      </Button>
+                      <p className="text-xs text-muted-foreground text-center mt-2">
+                        Connect both services at once for the full experience
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Disconnect All Services */}
+                  {(googleCalendarConnected || googleGmailConnected) && (
+                    <div className="pt-2 border-t border-border/50">
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        onClick={() => handleGoogleDisconnect()} 
+                        disabled={!!isConnectingGoogle} 
+                        className="w-full flex items-center justify-center gap-1.5"
+                      >
+                        {isConnectingGoogle?.startsWith('disconnect') && <Loader2 className="h-4 w-4 animate-spin"/>}
                         Disconnect All Google Services
-                    </Button>
-                )}
-                {isConnectingGoogle && !isConnectingGoogle.startsWith('disconnect') && <p className="text-xs text-muted-foreground mt-1 flex items-center"><Loader2 className="h-3 w-3 animate-spin mr-1"/>Redirecting to Google...</p>}
-              </div> </div>
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {/* Connection Status */}
+                  {isConnectingGoogle && (
+                    <div className={cn(
+                      "absolute inset-0 bg-background/80 backdrop-blur-[1px] flex items-center justify-center flex-col gap-2",
+                      isConnectingGoogle.startsWith('disconnect') ? "text-destructive" : "text-primary"
+                    )}>
+                      <Loader2 className="h-8 w-8 animate-spin"/>
+                      <p className="text-sm font-medium">
+                        {isConnectingGoogle.startsWith('disconnect') 
+                          ? "Disconnecting Google services..." 
+                          : isConnectingGoogle === 'both'
+                            ? "Connecting Google Calendar & Gmail..."
+                            : isConnectingGoogle === 'calendar'
+                              ? "Connecting Google Calendar..."
+                              : "Connecting Google Gmail..."}
+                      </p>
+                      {!isConnectingGoogle.startsWith('disconnect') && (
+                        <p className="text-xs text-muted-foreground">You'll be redirected to Google's authorization page</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Google Integration Information */}
+                <Card className="bg-muted/30 border-primary/10">
+                  <CardContent className="p-3 pt-3">
+                    <div className="flex gap-2 text-xs text-muted-foreground">
+                      <Info className="h-4 w-4 text-primary/70 flex-shrink-0 mt-0.5"/>
+                      <div>
+                        <p>When you enable these integrations, Minato will:</p>
+                        <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                          <li>Only access your data when you ask related questions</li>
+                          <li>Never share your data with third parties</li>
+                          <li>Only use read-only access (won't modify anything)</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
           </div>
         </ScrollArea>

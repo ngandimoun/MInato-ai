@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../supabaseClient";
 import { logger } from "../../memory-framework/config";
 import { ReminderInfo, ReminderResult, StoredMemoryUnit, ReminderDetails } from "@/lib/types/index";
 import { formatDistanceToNowStrict, format, isPast, parseISO, differenceInCalendarDays, isToday, isTomorrow } from "date-fns";
+import { generateStructuredJson } from "../providers/llm_clients";
 
 interface ReminderInput extends ToolInput {
   action?: "get_pending" | "get_all" | "get_overdue" | "get_today" | null;
@@ -43,7 +44,115 @@ export class ReminderReaderTool extends BaseTool {
     supports: ["read_reminders", "overdue_check", "today_reminders", "habit_tracking"] 
   };
 
+  private async extractReminderParameters(userInput: string): Promise<Partial<ReminderInput>> {
+    // Enhanced extraction prompt for ReminderReaderTool
+    const extractionPrompt = `
+You are an expert parameter extractor for Minato's ReminderReaderTool which reads information about a user's reminders.
+
+Given this user query about reminders: "${userInput.replace(/\"/g, '\\"')}"
+
+COMPREHENSIVE ANALYSIS GUIDELINES:
+
+1. ACTION TYPE IDENTIFICATION:
+   - Determine which type of reminder listing the user wants:
+     a) "get_pending" - Default action for showing upcoming reminders
+     b) "get_overdue" - When the user wants to see late/missed reminders
+     c) "get_today" - When the user only wants today's reminders
+     d) "get_all" - When the user wants a complete listing of reminders
+
+2. TIME RANGE DETERMINATION:
+   - Extract "daysAhead" value when the user specifies a time range
+   - Common phrases include "next week" (7 days), "next few days" (3-5 days), "next month" (30 days)
+   - Default to 7 days if not specified and action is "get_pending"
+   - Set to 0 for "get_today" action
+   
+3. LIMIT DETERMINATION:
+   - Extract "limit" when the user specifies a maximum number of reminders to show
+   - Look for phrases like "show me top 5", "first 3", etc.
+   - Default to 10 if not specified
+
+4. MULTILINGUAL UNDERSTANDING:
+   - Recognize reminder-related terms in multiple languages
+   - Identify time ranges across different language patterns
+
+5. SPECIAL PATTERN RECOGNITION:
+   - "What am I forgetting?" or "What did I miss?" → "get_overdue"
+   - "What's on my plate today?" or "Today's agenda" → "get_today"
+   - "Upcoming reminders" or "What's next?" → "get_pending"
+
+OUTPUT FORMAT (JSON):
+{
+  "action": "get_pending" | "get_all" | "get_overdue" | "get_today" | null,
+  "daysAhead": number | null,
+  "limit": number | null
+}
+
+If any parameter cannot be confidently identified, set it to null.
+`;
+
+    const reminderParamSchema = {
+      type: "object",
+      properties: {
+        action: { type: ["string", "null"], enum: ["get_pending", "get_all", "get_overdue", "get_today", null] },
+        daysAhead: { type: ["number", "null"] },
+        limit: { type: ["number", "null"] }
+      },
+      required: ["action", "daysAhead", "limit"],
+      additionalProperties: false
+    };
+
+    try {
+      const result = await generateStructuredJson<{ action: "get_pending" | "get_all" | "get_overdue" | "get_today" | null; daysAhead: number | null; limit: number | null; }>(
+        extractionPrompt,
+        userInput,
+        reminderParamSchema,
+        "reminder_param_extractor",
+        [],
+        "gpt-4o-mini",
+      );
+
+      // Apply defaults and validation
+      if ('error' in result) {
+        this.log("error", "Failed to extract reminder parameters:", result.error);
+        return {}; // Return empty object on error
+      }
+
+      const extractedParams: Partial<ReminderInput> = {
+        action: result.action,
+        daysAhead: result.daysAhead,
+        limit: result.limit
+      };
+
+      return extractedParams;
+    } catch (error) {
+      this.log("error", "Failed to extract reminder parameters:", error);
+      // Return minimal defaults if extraction fails
+      return {};
+    }
+  }
+
   async execute(input: ReminderInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    // If key parameters are missing and we have rawInput, try to extract them
+    if (input.rawInput && (!input.action && !input.daysAhead && !input.limit)) {
+      try {
+        const extractedParams = await this.extractReminderParameters(input.rawInput);
+        this.log("info", `Extracted reminder parameters from raw input:`, extractedParams);
+        
+        // Merge extracted parameters with input
+        if (extractedParams.action !== undefined && input.action === undefined) {
+          input.action = extractedParams.action;
+        }
+        if (extractedParams.daysAhead !== undefined && input.daysAhead === undefined) {
+          input.daysAhead = extractedParams.daysAhead;
+        }
+        if (extractedParams.limit !== undefined && input.limit === undefined) {
+          input.limit = extractedParams.limit;
+        }
+      } catch (error) {
+        this.log("error", `Failed to extract parameters from raw input:`, error);
+      }
+    }
+
     const { userId: contextUserId } = input;
     const effectiveAction = (input.action === null || input.action === undefined) ? "get_pending" : input.action;
     const effectiveDaysAhead = (input.daysAhead === null || input.daysAhead === undefined) ? 7 : Math.max(0, Math.min(input.daysAhead, 30));
@@ -57,7 +166,7 @@ export class ReminderReaderTool extends BaseTool {
     if (!userId) return { error: "User ID missing.", result: `I need to know who you are, ${userNameForResponse}, to check reminders.`, structuredData: {result_type: "reminders", source_api: "internal_memory", query: queryInputForStructuredData, reminders: [], error: "User ID missing"} };
     if (!supabaseAdmin) {
       logger.error(`${logPrefix}: Supabase admin client unavailable.`);
-      return { error: "Database unavailable", result: `Sorry, ${userNameForResponse}, Minato cannot access reminders.`, structuredData: {result_type: "reminders", source_api: "internal_memory", query: queryInputForStructuredData, reminders: [], error: "Database unavailable"} };
+      return { error: "Database unavailable", result: `Sorry, ${userNameForResponse}, I cannot access reminders right now.`, structuredData: {result_type: "reminders", source_api: "internal_memory", query: queryInputForStructuredData, reminders: [], error: "Database unavailable"} };
     }
 
     let outputStructuredData: ReminderResult = {
@@ -138,12 +247,12 @@ export class ReminderReaderTool extends BaseTool {
       if (filteredReminders.length === 0) {
         let emptyMessage = "";
         if (effectiveAction === "get_overdue") {
-          emptyMessage = `Great news, ${userNameForResponse}! You have no overdue reminders. You're all caught up! 🎉`;
+          emptyMessage = `Great news! You have no overdue reminders. You're all caught up! 🎉`;
         } else if (effectiveAction === "get_today") {
-          emptyMessage = `You have no reminders scheduled for today, ${userNameForResponse}. Enjoy your day! ☀️`;
+          emptyMessage = `You have no reminders scheduled for today. Enjoy your day! ☀️`;
         } else {
           const horizonText = adjustedDaysAhead === 0 ? "for today" : `in the next ${adjustedDaysAhead === 1 ? "day" : `${adjustedDaysAhead} days`}`;
-          emptyMessage = `You have no pending reminders scheduled ${horizonText}, ${userNameForResponse}. Would you like me to remind you about something?`;
+          emptyMessage = `You have no pending reminders scheduled ${horizonText}. Would you like me to remind you about something?`;
         }
         logger.info(`${logPrefix} No reminders found for action: ${effectiveAction}`);
         return { result: emptyMessage, structuredData: outputStructuredData };
@@ -156,7 +265,7 @@ export class ReminderReaderTool extends BaseTool {
       
       // Add urgency for overdue reminders
       if (overdueCount > 0) {
-        resultString += `⚠️ Hey ${userNameForResponse}, you have ${overdueCount} overdue reminder${overdueCount > 1 ? 's' : ''}! `;
+        resultString += `⚠️ You have ${overdueCount} overdue reminder${overdueCount > 1 ? 's' : ''}! `;
       }
       
       // Add today's reminders
@@ -227,7 +336,7 @@ export class ReminderReaderTool extends BaseTool {
     } catch (error: any) {
       logger.error(`${logPrefix} Failed:`, error);
       outputStructuredData.error = error.message || "Failed to fetch reminders";
-      return { error: outputStructuredData.error, result: `Sorry, ${userNameForResponse}, I'm having trouble accessing your reminders right now. Let me try again in a moment.`, structuredData: outputStructuredData };
+      return { error: outputStructuredData.error, result: `Sorry, I'm having trouble accessing your reminders right now. Let me try again in a moment.`, structuredData: outputStructuredData };
     }
   }
 }

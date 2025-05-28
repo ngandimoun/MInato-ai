@@ -4,6 +4,8 @@ import fetch from "node-fetch";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { CachedVideoList, CachedYouTubeVideo } from "@/lib/types/index";
+import { generateStructuredJson } from "../providers/llm_clients";
+
 interface YouTubeSearchInput extends ToolInput {
   query: string;
   limit?: number | null;
@@ -62,6 +64,87 @@ export class YouTubeSearchTool extends BaseTool {
       this.log("warn", "Update YouTubeSearchTool USER_AGENT contact info with actual details.");
     }
   }
+  
+  private async extractYouTubeParameters(userInput: string): Promise<Partial<YouTubeSearchInput>> {
+    // Enhanced extraction prompt for YouTube
+    const extractionPrompt = `
+You are an expert parameter extractor for Minato's YouTubeSearchTool which searches for videos on YouTube.
+
+Given this user query about YouTube videos: "${userInput.replace(/\"/g, '\\"')}"
+
+COMPREHENSIVE ANALYSIS GUIDELINES:
+
+1. VIDEO QUERY IDENTIFICATION:
+   - Extract the core topic, keywords, or content the user is looking for
+   - Focus on what type of video content they want to see (e.g., "how to make pasta", "drone footage", "latest SpaceX launch")
+   - For complex requests, identify the main subject
+   - If query references a previous video like "show me more like that", extract that context
+
+2. CATEGORY SPECIFICATION:
+   - Identify the general category or topic area (e.g., "music", "gaming", "education", "comedy", "science")
+   - Use broad, standard YouTube categories
+   - Leave empty if no clear category is evident
+
+3. DESCRIPTION KEYWORDS EXTRACTION:
+   - Identify specific keywords that should appear in video descriptions
+   - Format as comma-separated terms for filtering
+   - Focus on qualifying terms beyond the main query (e.g., "tutorial", "official", "4K", "2023")
+
+4. RESULT LIMIT DETERMINATION:
+   - Identify how many videos the user wants (1-5)
+   - Map expressions like "a couple" to 2, "a few" to 3, etc.
+   - Default to 3 if unspecified
+
+5. CONTEXT ANALYSIS:
+   - If query references previous videos or searches (e.g., "more like that", "similar videos")
+   - Set appropriate context values if they can be inferred
+
+OUTPUT FORMAT: JSON object with these fields:
+- "query": (string) The core video search terms
+- "category": (string|null) General video category or null if unspecified
+- "description_keywords": (string|null) Comma-separated keywords for filtering or null if unspecified
+- "limit": (number|null) Number of videos (1-5) or null if unspecified
+- "context": (object|null) Contains previous_query and/or previous_video_title if applicable
+
+If a parameter cannot be confidently extracted, set it to null rather than guessing.
+
+RESPOND ONLY WITH THE JSON OBJECT.`;
+
+    try {
+      // Define the schema for YouTubeSearchInput
+      const youtubeParamsSchema = {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          category: { type: ["string", "null"] },
+          description_keywords: { type: ["string", "null"] },
+          limit: { type: ["number", "null"] },
+          context: {
+            type: ["object", "null"],
+            properties: {
+              previous_query: { type: ["string", "null"] },
+              previous_video_title: { type: ["string", "null"] }
+            }
+          }
+        }
+      };
+
+      const extractionResult = await generateStructuredJson<Partial<YouTubeSearchInput>>(
+        extractionPrompt,
+        userInput,
+        youtubeParamsSchema,
+        "YouTubeSearchToolParameters",
+        [], // no history context needed
+        "gpt-4o-mini"
+      );
+      
+      return extractionResult || {};
+    } catch (error) {
+      logger.error("[YouTubeSearchTool] Parameter extraction failed:", error);
+      return {};
+    }
+  }
+  
   private buildYouTubeEmbedUrl(videoId: string): string {
     return `https://www.youtube.com/embed/${videoId}?autoplay=0&modestbranding=1&rel=0`;
   }
@@ -69,6 +152,28 @@ export class YouTubeSearchTool extends BaseTool {
     return `https://www.youtube.com/watch?v=${videoId}`;
   }
   async execute(input: YouTubeSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    // If input is from natural language, extract parameters
+    if (input._rawUserInput && typeof input._rawUserInput === 'string') {
+      const extractedParams = await this.extractYouTubeParameters(input._rawUserInput);
+      
+      // Only use extracted parameters if they're not already specified
+      if (extractedParams.query && !input.query) {
+        input.query = extractedParams.query;
+      }
+      if (extractedParams.category && !input.category) {
+        input.category = extractedParams.category;
+      }
+      if (extractedParams.description_keywords && !input.description_keywords) {
+        input.description_keywords = extractedParams.description_keywords;
+      }
+      if (extractedParams.limit !== undefined && input.limit === undefined) {
+        input.limit = extractedParams.limit;
+      }
+      if (extractedParams.context && (!input.context || Object.keys(input.context).length === 0)) {
+        input.context = extractedParams.context;
+      }
+    }
+    
     const { query } = input;
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 3 : Math.max(1, Math.min(input.limit, 5));
     let userNameForResponse = "friend";

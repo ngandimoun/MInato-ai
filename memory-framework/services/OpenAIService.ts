@@ -16,7 +16,7 @@ import // ResponseApiInputMessage, // No longer directly used here, llm_clients 
 import { safeJsonParse } from "../core/utils";
 import { CacheService } from "./CacheService";
 import { logger, config as frameworkConfigInternal } from "../config";
-import { ENTITY_EXTRACTION_SCHEMA_OPENAI } from "../../lib/prompts";
+import { ENTITY_EXTRACTION_SCHEMA_OPENAI, CORE_MEMORY_SYSTEM_PROMPT } from "../../lib/prompts";
 import { supabaseAdmin } from "../../lib/supabaseClient";
 // Import the refactored LLM client functions
 import {
@@ -25,6 +25,17 @@ import {
   // generateAgentResponse, // Not directly used by OpenAIService methods, but by consumers
   // generateResponseWithIntent, // Not directly used by OpenAIService methods
 } from "../../lib/providers/llm_clients"; // Adjusted path
+
+// Utility to get model names with fallbacks
+function getModelWithFallback(configSetting: string | undefined, defaultValue: string): string {
+  return configSetting && typeof configSetting === 'string' ? configSetting : defaultValue;
+}
+
+// Cache key helpers 
+function createEmbeddingCacheKey(text: string): string {
+  // Use a prefix + first 50 chars + length as a cache key
+  return `embedding:${text.substring(0, 50)}:${text.length}`;
+}
 
 export class OpenAIService {
   private openai: OpenAI; // Still keep the raw client instance if needed for other direct calls not covered by llm_clients
@@ -91,79 +102,55 @@ export class OpenAIService {
     userId: string,
     availableCategories: string[]
   ): Promise<ExtractedInfo | null> {
-    const modelForExtraction = this.config.extractionModel; // Use configured "Fast" model
-    const cachePrefix = `extraction:${modelForExtraction}:${userId}:v5_responses_client`;
-    const cacheInput = {
-      turnContent: conversationTurn.map((m) =>
-        typeof m.content === "string" ? m.content : JSON.stringify(m.content)
-      ),
-      categories: availableCategories.sort().join(","),
-    };
-
-    const cachedExtraction = await this.cacheService.get<ExtractedInfo>(
-      cachePrefix,
-      cacheInput
+    const modelForExtraction = getModelWithFallback(
+      this.config.extractionModel,
+      "gpt-4o-mini" // Default model
     );
-    if (cachedExtraction) {
-      logger.debug(
-        `[OpenAIService extractInfo] Extraction cache HIT for User: ${userId.substring(
-          0,
-          8
-        )}`
-      );
-      return cachedExtraction;
+
+    // Get username for personalization
+    let userName = userId;
+    try {
+      // Try to extract display name from userId if it looks like an email
+      if (userId.includes("@")) {
+        userName = userId.split("@")[0].replace(/[^a-zA-Z0-9]/g, "");
+        if (userName.length < 2) userName = userId; // Fallback if too short
+      }
+    } catch (e) {
+      logger.warn(`[OpenAIService extractInfo] Error extracting username: ${e}`);
     }
-    logger.debug(
-      `[OpenAIService extractInfo] Extraction cache MISS for User: ${userId.substring(
-        0,
-        8
-      )}`
-    );
 
-    const userProfile = await supabaseAdmin.getUserProfile(userId);
-    const userName =
-      userProfile?.first_name ||
-      frameworkConfigInternal.defaultUserName ||
-      "User";
+    // Create cache key and check if we have a cached result
+    const cachePrefix = `extraction:${modelForExtraction}:`;
+    const cacheInput = JSON.stringify(conversationTurn);
+    const cachedResult = await this.cacheService.get<ExtractedInfo>(cachePrefix, cacheInput);
+    if (cachedResult) {
+      logger.info(`[OpenAIService extractInfo] Cache hit for User: ${userId.substring(0, 8)}`);
+      return cachedResult;
+    }
 
-    const contextString =
-      contextMemories.length > 0
-        ? `Referential Context (Past Memories for User ${userName}):\n${contextMemories
-            .slice(0, 3)
-            .map((m) => `- ${m.substring(0, 150)}...`)
-            .join("\n")}\n---\n`
+    // Prepare context and category list
+    const contextString = contextMemories && contextMemories.length > 0
+        ? contextMemories.join("\n\n")
         : "";
     const categoryListString = availableCategories.join(", ");
     const currentDate = new Date().toISOString();
 
-    const systemPromptForExtraction = `You are Minato, an AI expert performing structured data extraction for User '${userName}'. Focus ONLY on the NEW CONVERSATION TURN provided in the user message. Use "Referential Context" ONLY for context (pronouns, entities), NOT for data extraction. Today's date is ${currentDate}.
-TASK: ${ENTITY_EXTRACTION_SCHEMA_OPENAI.description}
-OUTPUT FORMAT: Respond ONLY with a single, valid JSON object matching the schema provided. Ensure all required fields are present. Use null or empty arrays/objects where appropriate. If no relevant information for a field is found in the NEW TURN, use null or an empty array/object.
-My name is Minato. The user's name is ${userName}.
+    // Use the enhanced CORE_MEMORY_SYSTEM_PROMPT with important context variables
+    const systemPromptForExtraction = CORE_MEMORY_SYSTEM_PROMPT + `
 
-JSON Schema for Output is named '${
-      ENTITY_EXTRACTION_SCHEMA_OPENAI.name
-    }' and is defined as:
+Today's date is ${currentDate}.
+User name: ${userName}
+Available categories: [${categoryListString}]
+
+JSON Schema for Output is named '${ENTITY_EXTRACTION_SCHEMA_OPENAI.name}' and is defined as:
 \`\`\`json
 ${JSON.stringify(ENTITY_EXTRACTION_SCHEMA_OPENAI.schema, null, 2)}
 \`\`\`
 
-GUIDELINES (Refer to Schema for exact structure):
-- facts: Key factual statements BY/ABOUT ${userName}. Concise. Max 3-4. From the NEW TURN only.
-- entities: Named entities (PERSON, LOCATION, ORGANIZATION, PRODUCT, CONCEPT, EVENT). From the NEW TURN only.
-- relationships: Explicit relations stated ("${userName} likes X"). From the NEW TURN only.
-- sentiment: ${userName}'S overall sentiment in this turn.
-- topics: 1-3 main topics discussed by ${userName} this turn.
-- categories: 1-3 relevant categories STRICTLY from this list: [${categoryListString}].
-- metadata: Other specific key-values. Includes reminder_details (if requested) and detected_language.
-- summary: Concise single sentence summary of ${userName}'S main point in this turn.
-- detected_language: Primary language of ${userName}'S input (ISO 639-1).
-- reminder_details: Extract reminder if explicitly requested (e.g., "remind me to...") per schema. Infer trigger_datetime (ISO 8601 UTC) based on today (${currentDate}). If no reminder, set metadata.reminder_details.is_reminder to false. If a reminder is detected, set metadata.reminder_details.is_reminder to true.
-
 Referential Context (Use ONLY for understanding, NOT extraction):
 ${contextString}
 ---
-NEW CONVERSATION TURN (Extract ONLY from this):`; // User's actual turn content will be the userPrompt
+NEW CONVERSATION TURN (Extract ONLY from this):`;
 
     // Filter and prepare the actual user input part of the conversation for the userPrompt
     const userTurnMessages = conversationTurn

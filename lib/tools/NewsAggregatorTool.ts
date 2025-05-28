@@ -205,8 +205,107 @@ export class NewsAggregatorTool extends BaseTool {
     }
   }
 
+  private async extractNewsParameters(userInput: string): Promise<Partial<NewsInput>> {
+    // Enhanced extraction prompt for News
+    const extractionPrompt = `
+You are an expert parameter extractor for Minato's NewsAggregatorTool which fetches news headlines and articles.
+
+Given this user query about news: "${userInput.replace(/\"/g, '\\"')}"
+
+COMPREHENSIVE ANALYSIS GUIDELINES:
+
+1. NEWS QUERY EXTRACTION:
+   - Extract specific search terms if the user is looking for news about a particular topic or entity
+   - Focus on the core topic or entity (e.g., "climate change", "Apple", "elections")
+   - Only populate query if user is clearly looking for specific topics
+   - If query is very generic like "latest news", leave query null and rely on category instead
+
+2. NEWS CATEGORY IDENTIFICATION:
+   - Determine if the news falls into one of these specific categories: "business", "entertainment", "general", "health", "science", "sports", "technology"
+   - Map user expressions to these categories (e.g., "financial news" → "business", "celebrity gossip" → "entertainment")
+   - Default to "general" if no clear category is specified or if request spans multiple categories
+
+3. SOURCE SPECIFICATION:
+   - Identify if user mentions specific news sources (e.g., "BBC", "CNN")
+   - Format as comma-separated string without spaces (e.g., "bbc-news,cnn")
+   - Use "all" if no specific sources mentioned
+
+4. COUNTRY PREFERENCE:
+   - Detect if user mentions a specific country for news (use 2-letter ISO code)
+   - Map country names to codes (e.g., "United States" → "us", "UK" → "gb", "Japan" → "jp")
+   - Look for phrases like "news from China" or "French news"
+
+5. RESULT LIMIT DETERMINATION:
+   - Identify how many news items the user wants (1-10)
+   - Map expressions like "a few" to 3, "several" to 5, etc.
+   - Default to 5 if unspecified
+
+OUTPUT FORMAT: JSON object with these fields:
+- "query": (string|null) Search terms for specific topics, or null if browsing categories
+- "category": (string|null) One of: "business", "entertainment", "general", "health", "science", "sports", "technology", or null
+- "sources": (string|null) Comma-separated source IDs or "all", or null if unspecified
+- "country": (string|null) 2-letter country code ("us", "gb", etc.) or null if unspecified
+- "limit": (number|null) Number of articles (1-10) or null if unspecified
+
+If a parameter cannot be confidently extracted, set it to null rather than guessing.
+
+RESPOND ONLY WITH THE JSON OBJECT.`;
+
+    try {
+      // Define the schema for NewsInput
+      const newsParamsSchema = {
+        type: "object",
+        properties: {
+          query: { type: ["string", "null"] },
+          category: { 
+            type: ["string", "null"], 
+            enum: ["business", "entertainment", "general", "health", "science", "sports", "technology", null] 
+          },
+          sources: { type: ["string", "null"] },
+          country: { type: ["string", "null"] },
+          limit: { type: ["number", "null"] }
+        }
+      };
+
+      const extractionResult = await generateStructuredJson<Partial<NewsInput>>(
+        extractionPrompt,
+        userInput,
+        newsParamsSchema,
+        "NewsAggregatorToolParameters",
+        [], // no history context needed
+        "gpt-4o-mini"
+      );
+      
+      return extractionResult || {};
+    } catch (error) {
+      logger.error("[NewsAggregatorTool] Parameter extraction failed:", error);
+      return {};
+    }
+  }
 
   async execute(input: NewsInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    // If input is from natural language, extract parameters
+    if (input._rawUserInput && typeof input._rawUserInput === 'string') {
+      const extractedParams = await this.extractNewsParameters(input._rawUserInput);
+      
+      // Only use extracted parameters if they're not already specified
+      if (extractedParams.query && input.query === undefined) {
+        input.query = extractedParams.query;
+      }
+      if (extractedParams.category && input.category === undefined) {
+        input.category = extractedParams.category;
+      }
+      if (extractedParams.sources && input.sources === undefined) {
+        input.sources = extractedParams.sources;
+      }
+      if (extractedParams.country && input.country === undefined) {
+        input.country = extractedParams.country;
+      }
+      if (extractedParams.limit && input.limit === undefined) {
+        input.limit = extractedParams.limit;
+      }
+    }
+
     const logPrefix = `[NewsAggregatorTool Exec]`;
     let articles: NewsArticle[] = [];
     let sourceUsed: string = "N/A";

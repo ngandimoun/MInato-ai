@@ -18,6 +18,8 @@ const MINATO_REMINDER_READER_EXTRACTION_SCHEMA_NAME = "minato_reminder_reader_ex
 const MINATO_REMINDER_SETTER_EXTRACTION_SCHEMA_NAME = "minato_reminder_setter_extraction_v1";
 const MINATO_DATETIME_PARSE_ADVANCED_SCHEMA_NAME = "minato_datetime_parse_advanced_v2";
 const MINATO_WEBSEARCH_EXTRACTION_SCHEMA_NAME = "minato_websearch_extraction_v1";
+const MINATO_GOOGLE_CALENDAR_EXTRACTION_SCHEMA_NAME = "minato_google_calendar_extraction_v1";
+const MINATO_GOOGLE_GMAIL_EXTRACTION_SCHEMA_NAME = "minato_google_gmail_extraction_v1";
 
 // The schema definition as expected by the test and generateStructuredJson
 const TOOL_ROUTER_SCHEMA_DEFINITION = {
@@ -279,6 +281,68 @@ const SCHEMA_VERSIONS: Record<string, SchemaDefinition> = {
         language: { type: ["string", "null"] }
       },
       required: ["query", "mode"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_GOOGLE_CALENDAR_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_google_calendar_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        action: { 
+          type: "string", 
+          enum: ["get_today_events"],
+          description: "Action to perform on Google Calendar"
+        },
+        maxResults: { 
+          type: "number", 
+          minimum: 1, 
+          maximum: 10,
+          description: "Maximum number of events to return (1-10)" 
+        },
+        calendarId: { 
+          type: ["string", "null"],
+          description: "Optional Calendar ID (default: 'primary')"
+        }
+      },
+      required: ["action", "maxResults"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_GOOGLE_GMAIL_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_google_gmail_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        action: { 
+          type: "string", 
+          enum: ["get_recent_emails"],
+          description: "Action to perform on Gmail"
+        },
+        maxResults: { 
+          type: "number", 
+          minimum: 1, 
+          maximum: 10,
+          description: "Maximum number of emails to return (1-10)" 
+        },
+        query: { 
+          type: "string",
+          description: "Gmail search query (e.g., 'is:unread', 'from:example@gmail.com')"
+        },
+        summarize_body: { 
+          type: "boolean",
+          description: "Whether to summarize email bodies"
+        },
+        summarize_limit: { 
+          type: "number", 
+          minimum: 1, 
+          maximum: 3,
+          description: "Maximum number of email bodies to summarize if summarize_body is true (1-3)"
+        }
+      },
+      required: ["action", "maxResults", "query", "summarize_body", "summarize_limit"],
       additionalProperties: false
     }
   },

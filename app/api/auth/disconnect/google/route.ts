@@ -67,8 +67,8 @@ export async function POST(req: NextRequest) {
     );
   }
   if (
-    !appConfig.apiKey.googleClientId ||
-    !appConfig.apiKey.googleClientSecret
+    !appConfig.toolApiKeys.googleClientId ||
+    !appConfig.toolApiKeys.googleClientSecret
   ) {
     logger.error(`${logPrefix} Google OAuth client config missing.`);
     return NextResponse.json(
@@ -98,8 +98,8 @@ export async function POST(req: NextRequest) {
       if (refreshToken) {
         try {
           const oauth2Client = new OAuth2Client(
-            appConfig.apiKey.googleClientId,
-            appConfig.apiKey.googleClientSecret
+            appConfig.toolApiKeys.googleClientId,
+            appConfig.toolApiKeys.googleClientSecret
           );
           await oauth2Client.revokeToken(refreshToken);
           logger.info(
@@ -142,18 +142,17 @@ export async function POST(req: NextRequest) {
     logger.info(
       `${logPrefix} Updating user state to remove Google consent flags for user ${(userId ?? "unknown").substring(0, 8)}...`
     );
-    const { error: updateError } = await supabaseAdmin
-      .from("user_state")
+    const { error: updateStateError } = await supabaseAdmin
+      .from("user_states")
       .update({
-      googleCalendarEnabled: false,
-      googleEmailEnabled: false,
+        googlecalendarenabled: false,
+        googleemailenabled: false,
+        updated_at: new Date().toISOString(),
       })
       .eq("user_id", userId);
-    if (updateError) {
-      logger.warn(
-        `${logPrefix} Failed to update user state for user ${(userId ?? "unknown").substring(0, 8)}.`,
-        updateError.message
-      );
+    if (updateStateError) {
+      logger.error(`${logPrefix} Failed to update user state: ${updateStateError.message}`);
+      return NextResponse.json({ error: "Failed to update user state but token was revoked" }, { status: 500 });
     }
     return NextResponse.json({
       success: true,

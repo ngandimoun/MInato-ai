@@ -5,6 +5,7 @@ import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { SportsStructuredOutput, SportsTeamData, SportsEventData } from "@/lib/types/index";
 import { format, parseISO } from 'date-fns'; // For better date formatting
+import { generateStructuredJson } from "../providers/llm_clients";
 
 interface SportsInput extends ToolInput {
   teamName: string; // Required
@@ -47,6 +48,82 @@ export class SportsInfoTool extends BaseTool {
     }
   }
 
+  private async extractSportsParameters(userInput: string): Promise<Partial<SportsInput>> {
+    // Enhanced extraction prompt for SportsInfoTool
+    const extractionPrompt = `
+You are an expert parameter extractor for Minato's SportsInfoTool which provides information about sports teams.
+
+Given this user query about sports: "${userInput.replace(/\"/g, '\\"')}"
+
+COMPREHENSIVE ANALYSIS GUIDELINES:
+
+1. TEAM NAME IDENTIFICATION:
+   - Precisely extract the sports team name (e.g., "Manchester United", "Los Angeles Lakers", "New York Yankees")
+   - Handle team nicknames and common abbreviations (e.g., "Man U", "Lakers", "Yankees")
+   - Consider context clues to disambiguate teams with similar names (e.g., "Barcelona" - FC Barcelona vs Barcelona SC)
+   - For queries like "tell me about Barcelona", extract "Barcelona" as the team name
+
+2. QUERY TYPE DETERMINATION:
+   - Analyze what specific information the user wants about the team:
+     a) "team_info" - General information about the team (default if unclear)
+     b) "next_game" - Information about upcoming scheduled games
+     c) "last_game" - Results from most recently completed games
+   - Look for clear indicators like "when is the next game", "last match result", etc.
+   - Default to "team_info" if the user is simply asking about a team with no specific time reference
+
+3. MULTILINGUAL UNDERSTANDING:
+   - Recognize team names and sports terminology in multiple languages
+   - Identify query intent across different language patterns
+
+OUTPUT FORMAT (JSON):
+{
+  "teamName": "Extracted team name",
+  "queryType": "team_info" | "next_game" | "last_game"
+}
+
+If teamName cannot be confidently identified, set it to null.
+If queryType is ambiguous, default to "team_info".
+`;
+
+    const sportsParamSchema = {
+      type: "object",
+      properties: {
+        teamName: { type: ["string", "null"] },
+        queryType: { type: ["string", "null"], enum: ["next_game", "last_game", "team_info", null] }
+      },
+      required: ["teamName", "queryType"],
+      additionalProperties: false
+    };
+
+    try {
+      const result = await generateStructuredJson<{ teamName: string | null; queryType: "next_game" | "last_game" | "team_info" | null; }>(
+        extractionPrompt,
+        userInput,
+        sportsParamSchema,
+        "sports_param_extractor",
+        [],
+        "gpt-4o",
+      );
+
+      // Apply defaults and validation
+      if ('error' in result) {
+        this.log("error", "Failed to extract sports parameters:", result.error);
+        return {}; // Return empty object on error
+      }
+
+      const extractedParams: Partial<SportsInput> = {
+        teamName: result.teamName || undefined,
+        queryType: result.queryType || "team_info"
+      };
+
+      return extractedParams;
+    } catch (error) {
+      this.log("error", "Failed to extract sports parameters:", error);
+      // Return minimal defaults if extraction fails
+      return {};
+    }
+  }
+
   private mapDbTeamToAppTeam(dbTeam: SportsDbTeam): SportsTeamData {
     return {
       id: dbTeam.idTeam, name: dbTeam.strTeam, shortName: dbTeam.strTeamShort || null, sport: dbTeam.strSport,
@@ -62,7 +139,6 @@ export class SportsInfoTool extends BaseTool {
     const homeScore = homeScoreStr ? parseInt(homeScoreStr, 10) : null;
     const awayScore = awayScoreStr ? parseInt(awayScoreStr, 10) : null;
     let dateTimeUtc: string | null = null;
-    let formattedDateTime: string | null = null;
 
     if (dbEvent.strTimestamp) { 
       try { dateTimeUtc = new Date(parseInt(dbEvent.strTimestamp) * 1000).toISOString(); } catch {} 
@@ -74,18 +150,6 @@ export class SportsInfoTool extends BaseTool {
       catch (e) { this.log("warn", `Could not parse date-only event ${dbEvent.idEvent}: ${dbEvent.dateEvent}`); }
     }
 
-    if (dateTimeUtc) {
-      try {
-        // formattedDateTime = format(parseISO(dateTimeUtc), "PPpp", { locale: lang ? require(`date-fns/locale/${lang}`) : undefined });
-        // Supprimé car formattedDateTime n'existe pas dans SportsEventData
-      } catch {
-        try { /* formattedDateTime = new Date(dateTimeUtc).toLocaleString(lang || undefined, { dateStyle: 'medium', timeStyle: 'short' }); */ }
-        catch { /* formattedDateTime = dateTimeUtc; */ }
-      }
-    } else if (dbEvent.dateEvent) {
-      // formattedDateTime = dbEvent.dateEvent; // Fallback to raw date if no time
-    }
-
     return {
       id: dbEvent.idEvent, name: dbEvent.strEvent, sport: dbEvent.strSport, league: dbEvent.strLeague, season: dbEvent.strSeason,
       round: dbEvent.intRound || null, homeTeamId: dbEvent.idHomeTeam, homeTeamName: dbEvent.strHomeTeam,
@@ -94,7 +158,6 @@ export class SportsInfoTool extends BaseTool {
       awayScore: awayScore === null || isNaN(awayScore) ? null : awayScore,
       date: dbEvent.dateEvent, time: dbEvent.strTime ? dbEvent.strTime.substring(0,8) : null, 
       dateTimeUtc: dateTimeUtc,
-      // formattedDateTime: formattedDateTime, // supprimé car non supporté
       venue: dbEvent.strVenue || null, city: dbEvent.strCity || null, country: dbEvent.strCountry || null,
       status: dbEvent.strStatus || null, postponed: dbEvent.strPostponed === "yes",
       thumbnailUrl: dbEvent.strThumb || dbEvent.strSquare || null, videoUrl: dbEvent.strVideo || null,
@@ -105,7 +168,7 @@ export class SportsInfoTool extends BaseTool {
     const url = `${this.API_BASE}${this.API_KEY}/searchteams.php?t=${encodeURIComponent(teamName)}`;
     this.log("debug", `Searching TheSportsDB team: "${teamName}" URL: ${url.replace(this.API_KEY, "***")}`);
     try {
-      const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(5000) });
+      const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(8000) });
       if (abortSignal?.aborted) { this.log("warn", `Team search aborted for "${teamName}"`); return null; }
       if (!response.ok) throw new Error(`Team search API failed: ${response.status} ${response.statusText}`);
       const data = await response.json() as TheSportsDbResponse<SportsDbTeam>;
@@ -113,7 +176,16 @@ export class SportsInfoTool extends BaseTool {
       
       // Prioritize exact match if multiple teams are returned (e.g., "Barcelona" might return FC Barcelona and Barcelona SC)
       const exactMatch = data.teams.find(t => t.strTeam.toLowerCase() === teamName.toLowerCase());
-      const teamToReturn = exactMatch || data.teams[0];
+      // Try fuzzy matches if no exact match
+      let fuzzyMatch = null;
+      if (!exactMatch) {
+        const lowerTeamName = teamName.toLowerCase();
+        // Check for team name contained within full name
+        fuzzyMatch = data.teams.find(t => t.strTeam.toLowerCase().includes(lowerTeamName) || 
+                                    (t.strAlternate && t.strAlternate.toLowerCase().includes(lowerTeamName)));
+      }
+      
+      const teamToReturn = exactMatch || fuzzyMatch || data.teams[0];
       this.log("info", `Found Team: ${teamToReturn.strTeam} (ID: ${teamToReturn.idTeam})`);
       return teamToReturn;
     } catch (error: any) {
@@ -124,9 +196,39 @@ export class SportsInfoTool extends BaseTool {
   }
 
   async execute(input: SportsInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    const { teamName, queryType } = input; 
     const userNameForResponse = input.context?.userName || "friend";
-    const logPrefix = `[SportsTool Team:${teamName.substring(0,15)}..., Type:${queryType}]`;
+    const logPrefix = `[SportsTool Team:${input.teamName?.substring(0,15) || "unknown"}..., Type:${input.queryType || "unknown"}]`;
+    
+    // If teamName is missing, try to extract it from the raw input if available
+    if (!input.teamName && input.rawInput) {
+      try {
+        const extractedParams = await this.extractSportsParameters(input.rawInput);
+        if (extractedParams.teamName) {
+          input.teamName = extractedParams.teamName;
+          if (!input.queryType && extractedParams.queryType) {
+            input.queryType = extractedParams.queryType;
+          }
+          this.log("info", `${logPrefix} Extracted parameters from raw input: teamName=${input.teamName}, queryType=${input.queryType}`);
+        }
+      } catch (error) {
+        this.log("error", `${logPrefix} Failed to extract parameters from raw input:`, error);
+      }
+    }
+    
+    // Validate required inputs
+    if (!input.teamName) {
+      return {
+        error: "Missing required parameter: teamName",
+        result: `Sorry ${userNameForResponse}, I need to know which team you're interested in. Could you please specify a team name?`
+      };
+    }
+    
+    if (!input.queryType) {
+      input.queryType = "team_info"; // Default to team info if not specified
+      this.log("info", `${logPrefix} Defaulting to queryType=team_info`);
+    }
+    
+    const { teamName, queryType } = input;
     const queryInputForStructuredData = { ...input };
 
     if (abortSignal?.aborted) { return { error: "Sports info request cancelled.", result: "Cancelled." }; }
@@ -140,7 +242,7 @@ export class SportsInfoTool extends BaseTool {
     if (abortSignal?.aborted) return { error: "Sports info request cancelled.", result: "Cancelled." };
     if (!team) {
       outputStructuredData.error = `Could not find team "${teamName}".`;
-      return { error: outputStructuredData.error, result: `Sorry, ${userNameForResponse}, Minato couldn't find a team named "${teamName}". Please check the spelling.`, structuredData: outputStructuredData };
+      return { error: outputStructuredData.error, result: `Sorry, ${userNameForResponse}, I couldn't find a team named "${teamName}". Please check the spelling or try a different team name.`, structuredData: outputStructuredData };
     }
     const teamId = team.idTeam;
     const teamDisplayName = team.strTeam;
@@ -151,20 +253,31 @@ export class SportsInfoTool extends BaseTool {
       let resultString = "";
       if (queryType === "team_info") {
         const desc = appTeamInfo.description ? ` A bit about them: ${appTeamInfo.description.substring(0,150)}...` : "";
-        resultString = `Okay ${userNameForResponse}, ${appTeamInfo.name} plays ${appTeamInfo.sport}${appTeamInfo.league ? ` in the ${appTeamInfo.league}` : ""}. They were formed around ${appTeamInfo.formedYear || "an unspecified year"}.${desc}`;
+        resultString = `${appTeamInfo.name} plays ${appTeamInfo.sport}${appTeamInfo.league ? ` in the ${appTeamInfo.league}` : ""}. They were formed around ${appTeamInfo.formedYear || "an unspecified year"}.${desc}`;
         outputStructuredData.event = null; outputStructuredData.eventsList = null;
       } else { 
         const endpoint = queryType === "next_game" ? "eventsnext.php" : "eventslast.php";
         const url = `${this.API_BASE}${this.API_KEY}/${endpoint}?id=${teamId}`;
         this.log("debug", `${logPrefix} Fetching events from ${endpoint} URL: ${url.replace(this.API_KEY, "***")}`);
-        const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(7000) });
-        if (abortSignal?.aborted) { return { error: "Sports info request cancelled.", result: "Cancelled." }; }
-        if (!response.ok) throw new Error(`Event fetch (${endpoint}) failed: ${response.status} ${response.statusText}`);
+        
+        const response = await fetch(url, { 
+          headers: { "User-Agent": this.USER_AGENT }, 
+          signal: abortSignal ?? AbortSignal.timeout(10000) 
+        });
+        
+        if (abortSignal?.aborted) { 
+          return { error: "Sports info request cancelled.", result: "Cancelled." }; 
+        }
+        
+        if (!response.ok) {
+          throw new Error(`Event fetch (${endpoint}) failed: ${response.status} ${response.statusText}`);
+        }
+        
         const data = await response.json() as TheSportsDbResponse<SportsDbEvent>;
         const dbEvents = data.events || data.results || null; 
 
         if (!dbEvents || dbEvents.length === 0) {
-          resultString = `No ${queryType === "next_game" ? "upcoming scheduled games" : "recent completed game results"} found for ${teamDisplayName} for ${userNameForResponse} at the moment.`;
+          resultString = `No ${queryType === "next_game" ? "upcoming scheduled games" : "recent completed game results"} found for ${teamDisplayName} at the moment.`;
           outputStructuredData.event = null; outputStructuredData.eventsList = null;
         } else {
           const userLang = input.context?.locale?.split("-")[0] || input.lang?.split("-")[0] || "en";
@@ -174,16 +287,45 @@ export class SportsInfoTool extends BaseTool {
           const opponent = event.homeTeamName === teamDisplayName ? event.awayTeamName : event.homeTeamName;
           const homeAway = event.homeTeamName === teamDisplayName ? "at home" : "away";
           const venue = event.venue ? ` at ${event.venue}` : "";
-          const dateTimeString = event.dateTimeUtc || event.date || "Date TBD";
+          
+          // Format date in a more user-friendly way
+          let dateTimeString = "Date TBD";
+          if (event.dateTimeUtc) {
+            try {
+              const dateObj = new Date(event.dateTimeUtc);
+              dateTimeString = dateObj.toLocaleDateString(userLang, { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              });
+            } catch (e) {
+              dateTimeString = event.date || "Date TBD";
+            }
+          } else if (event.date) {
+            dateTimeString = event.date;
+          }
 
           if (queryType === "next_game") {
-            resultString = `Alright ${userNameForResponse}, ${teamDisplayName}'s next game is against ${opponent} (${homeAway}) on ${dateTimeString}${venue}. The status is currently: ${event.status || "Scheduled"}.`;
+            resultString = `${teamDisplayName}'s next game is against ${opponent} (${homeAway}) on ${dateTimeString}${venue}. The status is currently: ${event.status || "Scheduled"}.`;
           } else { 
             const scoreAvailable = event.homeScore !== null && event.awayScore !== null;
             const score = scoreAvailable ? `the score was ${event.homeScore} - ${event.awayScore}` : "the score isn't available";
             let outcome = "finished";
-            if(scoreAvailable) { const homeWon = event.homeScore! > event.awayScore!; const awayWon = event.awayScore! > event.homeScore!; const isHomeTeam = event.homeTeamName === teamDisplayName; if (isHomeTeam && homeWon) outcome = "they won"; else if (!isHomeTeam && awayWon) outcome = "they won"; else if (isHomeTeam && awayWon) outcome = "they lost"; else if (!isHomeTeam && homeWon) outcome = "they lost"; else outcome = "it was a draw"; }
-            resultString = `Looking at ${teamDisplayName}'s last game for you, ${userNameForResponse}: they played ${opponent} (${homeAway}) on ${event.date || "a recent date"}. It looks like ${outcome}, and ${score}. The status was: ${event.status || "Finished"}.`;
+            if(scoreAvailable) { 
+              const homeWon = event.homeScore! > event.awayScore!; 
+              const awayWon = event.awayScore! > event.homeScore!; 
+              const isHomeTeam = event.homeTeamName === teamDisplayName; 
+              
+              if (isHomeTeam && homeWon) outcome = "they won"; 
+              else if (!isHomeTeam && awayWon) outcome = "they won"; 
+              else if (isHomeTeam && awayWon) outcome = "they lost"; 
+              else if (!isHomeTeam && homeWon) outcome = "they lost"; 
+              else outcome = "it was a draw"; 
+            }
+            resultString = `${teamDisplayName}'s last game: they played ${opponent} (${homeAway}) on ${dateTimeString}. It looks like ${outcome}, and ${score}. The status was: ${event.status || "Finished"}.`;
           }
         }
       }
@@ -192,9 +334,20 @@ export class SportsInfoTool extends BaseTool {
     } catch (error: any) {
       const errorMsg = `Failed sports info fetch: ${error.message}`;
       outputStructuredData.error = errorMsg;
-      if (error.name === 'AbortError') { outputStructuredData.error = "Request timed out."; return { error: "Sports info request timed out.", result: `Sorry, ${userNameForResponse}, the sports lookup took too long.`, structuredData: outputStructuredData }; }
+      if (error.name === 'AbortError') { 
+        outputStructuredData.error = "Request timed out."; 
+        return { 
+          error: "Sports info request timed out.", 
+          result: `Sorry, the sports lookup took too long. Please try again in a moment.`, 
+          structuredData: outputStructuredData 
+        }; 
+      }
       this.log("error", `${logPrefix} Error:`, error.message);
-      return { error: errorMsg, result: `Sorry, ${userNameForResponse}, an error occurred while getting sports info for "${teamName}".`, structuredData: outputStructuredData };
+      return { 
+        error: errorMsg, 
+        result: `Sorry, an error occurred while getting sports info for "${teamName}". ${error.message}`, 
+        structuredData: outputStructuredData 
+      };
     }
   }
 }
