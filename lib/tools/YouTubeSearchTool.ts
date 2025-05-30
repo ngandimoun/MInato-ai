@@ -8,12 +8,14 @@ import { generateStructuredJson } from "../providers/llm_clients";
 
 interface YouTubeSearchInput extends ToolInput {
   query: string;
+  category?: string | null;
+  description_keywords?: string | null;
   limit?: number | null;
-  category?: string;
-  description_keywords?: string;
+  lang?: string | null;
   context?: {
     previous_query?: string;
     previous_video_title?: string;
+    // Don't define userState here as it's already part of ToolInput context
   };
 }
 interface YouTubeThumbnail { url: string; width?: number; height?: number; }
@@ -39,7 +41,15 @@ export class YouTubeSearchTool extends BaseTool {
         type: "object",
         properties: {
           previous_query: { type: "string" },
-          previous_video_title: { type: "string" }
+          previous_video_title: { type: "string" },
+          userState: {
+            type: "object",
+            properties: {
+              workflow_preferences: { type: "array" },
+            },
+            required: [],
+            additionalProperties: false
+          }
         },
         required: [],
         additionalProperties: false
@@ -123,7 +133,13 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
             type: ["object", "null"],
             properties: {
               previous_query: { type: ["string", "null"] },
-              previous_video_title: { type: ["string", "null"] }
+              previous_video_title: { type: ["string", "null"] },
+              userState: {
+                type: ["object", "null"],
+                properties: {
+                  workflow_preferences: { type: ["array", "null"] }
+                }
+              }
             }
           }
         }
@@ -152,36 +168,66 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     return `https://www.youtube.com/watch?v=${videoId}`;
   }
   async execute(input: YouTubeSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    const logPrefix = `[YouTubeSearchTool]`;
+    
     // If input is from natural language, extract parameters
     if (input._rawUserInput && typeof input._rawUserInput === 'string') {
       const extractedParams = await this.extractYouTubeParameters(input._rawUserInput);
       
       // Only use extracted parameters if they're not already specified
-      if (extractedParams.query && !input.query) {
+      if (extractedParams.query && input.query === undefined) {
         input.query = extractedParams.query;
       }
-      if (extractedParams.category && !input.category) {
+      if (extractedParams.category && input.category === undefined) {
         input.category = extractedParams.category;
       }
-      if (extractedParams.description_keywords && !input.description_keywords) {
-        input.description_keywords = extractedParams.description_keywords;
-      }
-      if (extractedParams.limit !== undefined && input.limit === undefined) {
+      if (extractedParams.limit && input.limit === undefined) {
         input.limit = extractedParams.limit;
       }
-      if (extractedParams.context && (!input.context || Object.keys(input.context).length === 0)) {
-        input.context = extractedParams.context;
+      if (extractedParams.description_keywords && input.description_keywords === undefined) {
+        input.description_keywords = extractedParams.description_keywords;
       }
     }
     
-    const { query } = input;
-    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 3 : Math.max(1, Math.min(input.limit, 5));
-    let userNameForResponse = "friend";
+    // Apply user preferences using the standard API context
+    if (input._context?.userState?.workflow_preferences) {
+      const prefs = input._context.userState.workflow_preferences;
+      
+      // If user has preferred YouTube channels, we can prioritize them in the query
+      if (prefs.youtubePreferredChannels && 
+          prefs.youtubePreferredChannels.length > 0 && 
+          !input.query.toLowerCase().includes('channel:')) {
+        // Add channel name to the query if there's only one preferred channel
+        if (prefs.youtubePreferredChannels.length === 1) {
+          const channel = prefs.youtubePreferredChannels[0];
+          input.query = `${input.query} channel:"${channel}"`;
+          logger.debug(`${logPrefix} Applied user's preferred YouTube channel: ${channel}`);
+        }
+      }
+    }
+    
+    const userNameForResponse = input._context?.userName || "friend";
+    const queryString = input.query || "";
+    const effectiveLimit = Math.min(Math.max(1, input.limit || 5), 10);
+    
+    if (!queryString.trim()) {
+      const errorMsg = "Empty search query.";
+      logger.error(`${logPrefix} ${errorMsg}`);
+      return {
+        error: errorMsg,
+        result: `Minato needs a search term to find YouTube videos for ${userNameForResponse}.`,
+        structuredData: { 
+          result_type: "video_list", 
+          source_api: "youtube", 
+          query: { ...input, limit: effectiveLimit }, 
+          videos: [], 
+          error: "Empty search query." 
+        }
+      };
+    }
+    
     let langCode = "en";
     if (input.context && typeof input.context === 'object') {
-      if ('userName' in input.context && typeof (input.context as any).userName === 'string') {
-        userNameForResponse = (input.context as any).userName;
-      }
       if ('locale' in input.context && typeof (input.context as any).locale === 'string') {
         langCode = (input.context as any).locale.split("-")[0];
       } else if (input.lang && typeof input.lang === 'string') {
@@ -190,17 +236,12 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     } else if (input.lang && typeof input.lang === 'string') {
       langCode = input.lang.split("-")[0];
     }
-    const logPrefix = `[YouTubeTool] Query: "${query.substring(0, 30)}..."`;
-    if (input.category || input.description_keywords || input.context) {
-      this.log("info", `${logPrefix} Extra fields: category=${input.category}, description_keywords=${input.description_keywords}, context=${JSON.stringify(input.context)}`);
-    }
     const queryInputForStructuredData = { ...input, limit: effectiveLimit };
     if (abortSignal?.aborted) { return { error: "YouTube search cancelled.", result: "Cancelled." }; }
     if (!this.API_KEY) { return { error: "YouTube Tool is not configured.", result: `Sorry, ${userNameForResponse}, Minato cannot search YouTube right now.` }; }
-    if (!query?.trim()) { return { error: "Missing search query.", result: `What video should Minato look for on YouTube, ${userNameForResponse}?`, structuredData: { result_type: "video_list", source_api: "youtube", query: queryInputForStructuredData, videos: [], error: "Missing search query." } }; }
 
     const params = new URLSearchParams({
-      key: this.API_KEY, part: "snippet", q: query.trim(), type: "video",
+      key: this.API_KEY, part: "snippet", q: queryString.trim(), type: "video",
       maxResults: String(effectiveLimit),
       relevanceLanguage: langCode,
     });
@@ -225,13 +266,13 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       // --- BEGIN: Post-fetch filtering/ranking and conversational follow-up logic ---
       let filteredVideos = videos;
       // 1. Conversational follow-up: If query is vague and context is present, refine query
-      let effectiveQuery = query;
+      let effectiveQuery = queryString;
       if (
-        (!query || query.trim().length < 4 || /^(show me more|more like that|another|again|similar|like last|like previous|find more|find another|next)$/i.test(query.trim())) &&
+        (!queryString || queryString.trim().length < 4 || /^(show me more|more like that|another|again|similar|like last|like previous|find more|find another|next)$/i.test(queryString.trim())) &&
         input.context && (input.context.previous_video_title || input.context.previous_query)
       ) {
         // Use previous video title or query to refine
-        effectiveQuery = input.context.previous_video_title || input.context.previous_query || query;
+        effectiveQuery = input.context.previous_video_title || input.context.previous_query || queryString;
         this.log("info", `${logPrefix} Using conversational context for vague query. Refined query: ${effectiveQuery}`);
       }
       // 2. Post-fetch filtering/ranking using description_keywords and category
@@ -287,7 +328,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       if (structuredResults.length > 0) {
         const firstVideo = structuredResults[0];
         // If context was used for follow-up, mention it
-        if (effectiveQuery !== query) {
+        if (effectiveQuery !== queryString) {
           textResult = `Based on your previous video, I found "${firstVideo.title}" for you, ${userNameForResponse}. Want to watch it?`;
         } else {
           textResult = `Hey ${userNameForResponse}, I found a great video called "${firstVideo.title}" about "${effectiveQuery}"! It looks interesting. Would you like to watch it together right here?`;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { motion } from "framer-motion";
 import { Bell, Loader2, CheckCircle2, Lightbulb, Clock, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NotificationContext } from "@/components/header";
 
 interface Reminder {
   memory_id: string;
@@ -38,11 +39,17 @@ interface Suggestion {
   read: boolean;
 }
 
-export function NotificationsPanel({ onClose }: { onClose: () => void }) {
+interface NotificationsPanelProps {
+  onClose: () => void;
+  onCountChange?: () => void; // Add callback to notify parent of changes
+}
+
+export function NotificationsPanel({ onClose, onCountChange }: NotificationsPanelProps) {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { decrementCount } = useContext(NotificationContext);
 
   // Poll every 30s (or use SWR for revalidation)
   useEffect(() => {
@@ -69,6 +76,11 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
           
           setReminders(processedReminders);
           setSuggestions(processedSuggestions);
+          
+          // Notify parent of count change
+          if (onCountChange) {
+            onCountChange();
+          }
         }
       } catch (e: any) {
         setError(e.message || "Error loading notifications");
@@ -82,10 +94,13 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [onCountChange]);
 
   const markAsRead = async (type: 'reminder' | 'suggestion', id: string) => {
     try {
+      // Immediately decrement count for faster UI feedback
+      decrementCount();
+      
       // Optimistically update UI
       if (type === 'reminder') {
         setReminders(prev => 
@@ -103,6 +118,11 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, id }),
       });
+      
+      // Notify parent of count change for accuracy after server update
+      if (onCountChange) {
+        onCountChange();
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -114,6 +134,9 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
 
   const snoozeNotification = async (type: 'reminder' | 'suggestion', id: string, duration: number) => {
     try {
+      // Immediately decrement count for faster UI feedback
+      decrementCount();
+      
       // Optimistically update UI by removing the snoozed item
       if (type === 'reminder') {
         setReminders(prev => prev.filter(r => r.memory_id !== id));
@@ -132,6 +155,11 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
         title: "Notification snoozed",
         description: `You'll be reminded again in ${duration} minutes`,
       });
+      
+      // Notify parent of count change
+      if (onCountChange) {
+        onCountChange();
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -143,6 +171,9 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
 
   const dismissNotification = async (type: 'reminder' | 'suggestion', id: string) => {
     try {
+      // Immediately decrement count for faster UI feedback
+      decrementCount();
+      
       // Optimistically update UI
       if (type === 'reminder') {
         setReminders(prev => prev.filter(r => r.memory_id !== id));
@@ -156,6 +187,11 @@ export function NotificationsPanel({ onClose }: { onClose: () => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, id }),
       });
+      
+      // Notify parent of count change
+      if (onCountChange) {
+        onCountChange();
+      }
     } catch (error) {
       toast({
         title: "Error",

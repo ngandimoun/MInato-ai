@@ -1,5 +1,5 @@
 //components/settings/settings-panel.tsx
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
 X, User, Shield, Moon, Palette, Volume2, Calendar, Mail, Laptop, Sun, FileArchive,
@@ -15,6 +15,7 @@ Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { PersonaEditorDialog } from "./persona-editor-dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter,
 } from "@/components/ui/card";
@@ -31,7 +32,7 @@ Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFoote
 } from "@/components/ui/dialog";
 import { useAuth } from "@/context/auth-provider";
 import { logger } from "@/memory-framework/config";
-import { UserPersona as PersonaTypeFromLib, OpenAITtsVoice } from "@/lib/types";
+import { UserPersona as PersonaTypeFromLib, OpenAITtsVoice, UserWorkflowPreferences } from "@/lib/types";
 import { appConfig } from "@/lib/config";
 import { DEFAULT_USER_NAME, DEFAULT_PERSONA_ID } from "@/lib/constants";
 export interface DocumentFile {
@@ -71,17 +72,17 @@ const i = Math.floor(Math.log(bytes) / Math.log(k));
 return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 };
 const ALL_TTS_VOICES_WITH_DESC: { id: OpenAITtsVoice; name: string; description: string }[] = [
-{ id: "alloy", name: "Alloy", description: "Warm, balanced, and professional." },
-{ id: "echo", name: "Echo", description: "Clear, articulate, and slightly formal." },
-{ id: "fable", name: "Fable", description: "Storytelling, expressive, and engaging." },
-{ id: "onyx", name: "Onyx", description: "Deep, resonant, and authoritative." },
-{ id: "nova", name: "Nova", description: "Bright, friendly, and energetic (Default)." },
-{ id: "shimmer", name: "Shimmer", description: "Gentle, soothing, and slightly airy." },
-{ id: "ash", name: "Ash", description: "Calm and composed." },
-{ id: "ballad", name: "Ballad", description: "Smooth and melodic." },
-{ id: "coral", name: "Coral", description: "Friendly and approachable." },
-{ id: "sage", name: "Sage", description: "Wise and mature." },
-{ id: "verse", name: "Verse", description: "Clear and narrative." },
+{ id: "alloy", name: "Naruto", description: "Energetic and determined." },
+{ id: "echo", name: "Sasuke", description: "Cool, composed, and precise." },
+{ id: "fable", name: "Hinata", description: "Gentle storyteller with soft expression." },
+{ id: "onyx", name: "Madara", description: "Deep and authoritative tone." },
+{ id: "nova", name: "Sakura", description: "Bright and friendly personality." },
+{ id: "shimmer", name: "Mikasa", description: "Calm and soothing presence." },
+{ id: "ash", name: "Kakashi", description: "Relaxed and contemplative." },
+{ id: "ballad", name: "Itachi", description: "Smooth and melodic delivery." },
+{ id: "coral", name: "Tsunade", description: "Confident and approachable." },
+{ id: "sage", name: "Jiraiya", description: "Wise mentor with experience." },
+{ id: "verse", name: "Minato", description: "Clear and focused articulation." },
 ];
 type GoogleConnectionScope = 'calendar' | 'email' | 'both' | 'disconnect_all' | null;
 export function SettingsPanel({
@@ -111,6 +112,28 @@ const [isConnectingGoogle, setIsConnectingGoogle] = useState<GoogleConnectionSco
 const [isFetchingPanelData, setIsFetchingPanelData] = useState(false);
 const [personas, setPersonas] = useState<UIPersona[]>([]);
 const [initialLoadDone, setInitialLoadDone] = useState(false);
+const [isPlayingSample, setIsPlayingSample] = useState(false);
+const audioRef = useRef<HTMLAudioElement | null>(null);
+
+// Preferences state
+const [preferences, setPreferences] = useState<UserWorkflowPreferences>({});
+const [isSavingPreferences, setIsSavingPreferences] = useState(false);
+const [newsSources, setNewsSources] = useState<string[]>([]);
+const [newsPreferredCategories, setNewsPreferredCategories] = useState<string[]>([]);
+const [interestCategories, setInterestCategories] = useState<string[]>([]);
+const [redditPreferredSubreddits, setRedditPreferredSubreddits] = useState<string[]>([]);
+const [youtubePreferredChannels, setYoutubePreferredChannels] = useState<string[]>([]);
+const [recipePreferredCuisines, setRecipePreferredCuisines] = useState<string[]>([]);
+const [sportsPreferredLeagues, setSportsPreferredLeagues] = useState<string[]>([]);
+const [dailyBriefingEnabled, setDailyBriefingEnabled] = useState(false);
+const [dailyBriefingTime, setDailyBriefingTime] = useState("08:00");
+const [dailyBriefingOptions, setDailyBriefingOptions] = useState({
+  includeNews: true,
+  includeWeather: true,
+  includeCalendar: true,
+  includeReminders: true
+});
+
 const fetchPersonasFromBackend = useCallback(async () => {
 if (!user?.id) return; // Use user.id from dep array
 setIsFetchingPanelData(true);
@@ -125,11 +148,11 @@ const data = await res.json();
 const allPersonas: UIPersona[] = [
 ...(data.predefined || []).map((p: any) => ({
 id: p.id, name: p.name, description: p.description,
-systemPrompt: p.system_prompt, voice_id: p.voice_id, isCustom: false,
+system_prompt: p.system_prompt, voice_id: p.voice_id, isCustom: false,
 })),
 ...(data.user || []).map((p: any) => ({
 id: p.id, name: p.name, description: p.description,
-systemPrompt: p.system_prompt, voice_id: p.voice_id, isCustom: true,
+system_prompt: p.system_prompt, voice_id: p.voice_id, isCustom: true,
 })),
 ];
 setPersonas(allPersonas);
@@ -176,15 +199,56 @@ setPersonas([]);
 }
 }, [user?.id, fetchAllSettingsPanelData]);
 useEffect(() => {
-if (profile) setUsername(profile.full_name || user?.user_metadata?.full_name || DEFAULT_USER_NAME);
-else if (user) setUsername(user.user_metadata?.full_name || DEFAULT_USER_NAME);
-else setUsername(DEFAULT_USER_NAME); // Fallback if no user/profile
+if (state && state.user_first_name) {
+  setUsername(state.user_first_name);
+} else if (profile) {
+  setUsername(profile.full_name || user?.user_metadata?.full_name || DEFAULT_USER_NAME);
+} else if (user) {
+  setUsername(user.user_metadata?.full_name || DEFAULT_USER_NAME);
+} else {
+  setUsername(DEFAULT_USER_NAME); // Fallback if no user/profile
+}
+
 if (state) {
   setLanguage(state.preferred_locale || appConfig.defaultLocale || "en-US");
   setSelectedPersonaId(state.active_persona_id || DEFAULT_PERSONA_ID);
   setSelectedMinatoVoice((state.chainedvoice as OpenAITtsVoice) || defaultMinatoVoice);
   setGoogleCalendarConnected(!!state.googlecalendarenabled);
   setGoogleGmailConnected(!!state.googleemailenabled);
+  
+  // Set preferences from state
+  if (state.workflow_preferences) {
+    setPreferences(state.workflow_preferences);
+    
+    // News preferences
+    setNewsSources(state.workflow_preferences.newsSources || []);
+    setNewsPreferredCategories(state.workflow_preferences.newsPreferredCategories?.map(String) || []);
+    
+    // Reddit preferences
+    setRedditPreferredSubreddits(state.workflow_preferences.redditPreferredSubreddits || []);
+    
+    // YouTube preferences
+    setYoutubePreferredChannels(state.workflow_preferences.youtubePreferredChannels || []);
+    
+    // Recipe preferences
+    setRecipePreferredCuisines(state.workflow_preferences.recipePreferredCuisines || []);
+    
+    // Sports preferences
+    setSportsPreferredLeagues(state.workflow_preferences.sportsPreferredLeagues || []);
+    
+    // Interest categories
+    setInterestCategories(state.workflow_preferences.interestCategories?.map(String) || []);
+    
+    // Daily briefing preferences
+    setDailyBriefingEnabled(!!state.workflow_preferences.dailyBriefingEnabled);
+    setDailyBriefingTime(state.workflow_preferences.dailyBriefingTime || "08:00");
+    setDailyBriefingOptions({
+      includeNews: !!state.workflow_preferences.dailyBriefingIncludeNews,
+      includeWeather: !!state.workflow_preferences.dailyBriefingIncludeWeather,
+      includeCalendar: !!state.workflow_preferences.dailyBriefingIncludeCalendar,
+      includeReminders: !!state.workflow_preferences.dailyBriefingIncludeReminders
+    });
+  }
 } else {
   setLanguage(appConfig.defaultLocale || "en-US");
   setSelectedPersonaId(DEFAULT_PERSONA_ID);
@@ -204,7 +268,7 @@ const firstName = nameParts[0] || username.trim();
 const success = await updateProfileState({ 
   full_name: username.trim(), 
   first_name: firstName,
-  user_first_name: firstName  // Add user_first_name to ensure it's consistent with first_name
+  user_first_name: username.trim()  // Use the full username as user_first_name to ensure consistency
 });
 
 if (success) toast({ title: "Name saved!" });
@@ -253,10 +317,14 @@ setIsSavingVoice(true);
 const isValidVoice = ALL_TTS_VOICES_WITH_DESC.some(voice => voice.id === newVoice);
 const voiceToUse = isValidVoice ? newVoice : defaultMinatoVoice;
 
+// Get character name for toast message
+const selectedVoiceInfo = ALL_TTS_VOICES_WITH_DESC.find(voice => voice.id === voiceToUse);
+const characterName = selectedVoiceInfo?.name || 'Default';
+
 setSelectedMinatoVoice(voiceToUse);
 const success = await updateProfileState({ chainedvoice: voiceToUse });
 
-if (success) toast({ title: "Minato's voice updated!" });
+if (success) toast({ title: `Voice set to ${characterName}!`, description: `Minato will now speak with the ${characterName} voice.` });
 else {
 toast({ title: "Failed to update voice", variant: "destructive" });
 setSelectedMinatoVoice((state?.chainedvoice as OpenAITtsVoice) || defaultMinatoVoice);
@@ -316,7 +384,6 @@ const handleSavePersonaDialog = async (personaData: Omit<UIPersona, "id" | "isCu
     // Set new/updated as active and save to backend
     setSelectedPersonaId(newOrUpdatedPersona.id);
     await updateProfileState({ active_persona_id: newOrUpdatedPersona.id });
-    
   } catch (e: any) {
     toast({
       title: `Failed to ${editingPersona ? "update" : "create"} persona`,
@@ -388,6 +455,65 @@ toast({ title: "Disconnection Error", description: error.message, variant: "dest
 setIsConnectingGoogle(null);
 }
 };
+const handleSavePreferences = async () => {
+  if (isSavingPreferences || !user) return;
+  setIsSavingPreferences(true);
+  
+  try {
+    // Create the updated preferences object from all the individual state variables
+    const updatedPreferences: UserWorkflowPreferences = {
+      // News preferences
+      newsSources,
+      newsPreferredCategories: newsPreferredCategories as any[],
+      
+      // Reddit preferences
+      redditPreferredSubreddits,
+      
+      // YouTube preferences
+      youtubePreferredChannels,
+      
+      // Recipe preferences
+      recipePreferredCuisines,
+      
+      // Sports preferences
+      sportsPreferredLeagues,
+      
+      // Interest categories
+      interestCategories: interestCategories as any[],
+      
+      // Daily briefing preferences
+      dailyBriefingEnabled,
+      dailyBriefingTime,
+      dailyBriefingIncludeNews: dailyBriefingOptions.includeNews,
+      dailyBriefingIncludeWeather: dailyBriefingOptions.includeWeather,
+      dailyBriefingIncludeCalendar: dailyBriefingOptions.includeCalendar,
+      dailyBriefingIncludeReminders: dailyBriefingOptions.includeReminders
+    };
+    
+    // Preserve any existing preferences not managed in this UI
+    const mergedPreferences = {
+      ...(state?.workflow_preferences || {}),
+      ...updatedPreferences
+    };
+    
+    const success = await updateProfileState({ workflow_preferences: mergedPreferences });
+    
+    if (success) {
+      toast({ title: "Preferences saved!" });
+      setPreferences(mergedPreferences);
+    } else {
+      toast({ title: "Failed to save preferences", variant: "destructive" });
+    }
+  } catch (error: any) {
+    toast({ 
+      title: "Failed to save preferences", 
+      description: error.message, 
+      variant: "destructive" 
+    });
+  } finally {
+    setIsSavingPreferences(false);
+  }
+};
 const handleCreatePersona = () => {
 setEditingPersona(undefined);
 setPersonaEditorOpen(true);
@@ -425,6 +551,31 @@ const colorPalettes: ColorPaletteOption[] = [
 { name: "Electric Blue", value: "electric-blue", primary: "bg-blue-500", secondary: "bg-indigo-200", description: "Vibrant electric blues" },
 { name: "Olive Green", value: "olive-green", primary: "bg-green-600", secondary: "bg-lime-100", description: "Earthy olive greens" },
 { name: "Coral Reef", value: "coral-reef", primary: "bg-rose-500", secondary: "bg-orange-200", description: "Vibrant coral colors" },
+// New color palettes
+{ name: "Velvet Purple", value: "velvet-purple", primary: "bg-purple-700", secondary: "bg-purple-200", description: "Rich velvety purples" },
+{ name: "Cosmic Blue", value: "cosmic-blue", primary: "bg-blue-800", secondary: "bg-blue-400", description: "Cosmic deep blues" },
+{ name: "Rose Gold", value: "rose-gold", primary: "bg-rose-400", secondary: "bg-rose-200", description: "Elegant rose gold tones" },
+{ name: "Mint Fresh", value: "mint-fresh", primary: "bg-emerald-400", secondary: "bg-emerald-100", description: "Refreshing mint greens" },
+{ name: "Cherry Blossom", value: "cherry-blossom", primary: "bg-pink-500", secondary: "bg-pink-200", description: "Delicate cherry pinks" },
+{ name: "Golden Hour", value: "golden-hour", primary: "bg-amber-400", secondary: "bg-orange-100", description: "Warm sunset glow" },
+{ name: "Mystic Violet", value: "mystic-violet", primary: "bg-violet-600", secondary: "bg-violet-200", description: "Mystical violet hues" },
+{ name: "Neon Lime", value: "neon-lime", primary: "bg-lime-500", secondary: "bg-lime-200", description: "Bright neon lime greens" },
+{ name: "Honey Amber", value: "honey-amber", primary: "bg-amber-500", secondary: "bg-yellow-200", description: "Warm honey amber tones" },
+{ name: "Deep Crimson", value: "deep-crimson", primary: "bg-red-800", secondary: "bg-red-300", description: "Dark rich crimsons" },
+{ name: "Aqua Marine", value: "aqua-marine", primary: "bg-cyan-500", secondary: "bg-cyan-100", description: "Fresh aqua marine blues" },
+{ name: "Peach Cream", value: "peach-cream", primary: "bg-orange-300", secondary: "bg-orange-100", description: "Soft peachy creams" },
+{ name: "Steel Blue", value: "steel-blue", primary: "bg-blue-600", secondary: "bg-blue-300", description: "Industrial steel blues" },
+{ name: "Matcha Green", value: "matcha-green", primary: "bg-green-500", secondary: "bg-green-200", description: "Serene matcha greens" },
+{ name: "Silver Moon", value: "silver-moon", primary: "bg-slate-500", secondary: "bg-slate-200", description: "Ethereal silver grays" },
+{ name: "Sunset Pink", value: "sunset-pink", primary: "bg-rose-500", secondary: "bg-rose-300", description: "Warm sunset pinks" },
+{ name: "Ocean Blue", value: "ocean-blue", primary: "bg-blue-600", secondary: "bg-blue-200", description: "Deep ocean blues" },
+{ name: "Morning Mist", value: "morning-mist", primary: "bg-gray-400", secondary: "bg-gray-200", description: "Soft misty grays" },
+{ name: "Twilight Haze", value: "twilight-haze", primary: "bg-purple-500", secondary: "bg-blue-200", description: "Dreamy twilight purples" },
+{ name: "Citrus Lime", value: "citrus-lime", primary: "bg-lime-500", secondary: "bg-yellow-200", description: "Zesty citrus lime greens" },
+{ name: "Berry Punch", value: "berry-punch", primary: "bg-fuchsia-600", secondary: "bg-fuchsia-200", description: "Vibrant berry tones" },
+{ name: "Coffee Mocha", value: "coffee-mocha", primary: "bg-amber-700", secondary: "bg-amber-200", description: "Rich coffee mocha browns" },
+{ name: "Bamboo Green", value: "bamboo-green", primary: "bg-green-600", secondary: "bg-green-200", description: "Natural bamboo greens" },
+{ name: "Flamingo Pink", value: "flamingo-pink", primary: "bg-pink-500", secondary: "bg-pink-300", description: "Bright flamingo pinks" },
 ];
 // Overall loading state for the panel
 const isPanelLoading = (isAuthLoading || isAuthFetchingProfile) && !initialLoadDone;
@@ -436,6 +587,117 @@ return (
 </div>
 )
 }
+
+// Helper function to get voice character name by ID
+const getVoiceCharacterName = (voiceId: OpenAITtsVoice): string => {
+  const voice = ALL_TTS_VOICES_WITH_DESC.find(v => v.id === voiceId);
+  return voice?.name || "Default";
+};
+
+// Helper function to get voice description by ID
+const getVoiceDescription = (voiceId: OpenAITtsVoice): string => {
+  const voice = ALL_TTS_VOICES_WITH_DESC.find(v => v.id === voiceId);
+  return voice?.description || "";
+};
+
+// Simplify voice sample playback without authentication
+const playVoiceSample = async (voiceId: OpenAITtsVoice) => {
+  if (isPlayingSample) {
+    // If already playing, stop current sample
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setIsPlayingSample(false);
+    return;
+  }
+  
+  setIsPlayingSample(true);
+  try {
+    // Create a sample text based on the character name
+    const voice = ALL_TTS_VOICES_WITH_DESC.find(v => v.id === voiceId);
+    const characterName = voice?.name || "Minato";
+    
+    // Select a random greeting phrase for more variety
+    const greetings = [
+      `Hello, I'm ${characterName}. This is how my voice sounds.`,
+      `I'm ${characterName}. This is a sample of my voice.`,
+      `This is ${characterName} speaking. How does my voice sound?`,
+      `My name is ${characterName}, and I'll be your assistant today.`,
+      `${characterName} here! I hope you like the sound of my voice.`
+    ];
+    const sampleText = greetings[Math.floor(Math.random() * greetings.length)];
+    
+    // Show the loading toast
+    const loadingToast = toast({ 
+      title: "Generating voice sample...",
+      description: "Please wait a moment",
+    });
+    
+    // Call the TTS API to generate speech
+    const response = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: sampleText,
+        voice: voiceId
+      })
+    });
+    
+    // Dismiss the loading toast
+    loadingToast.dismiss?.();
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: `Error ${response.status}` }));
+      throw new Error(errorData.error || "Failed to generate voice sample");
+    }
+    
+    // Get audio data and play it
+    const audioBlob = await response.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+    
+    audio.onended = () => {
+      setIsPlayingSample(false);
+      URL.revokeObjectURL(audioUrl);
+      audioRef.current = null;
+    };
+    
+    audio.onerror = (e) => {
+      console.error("Audio playback error:", e);
+      setIsPlayingSample(false);
+      toast({ 
+        title: "Playback failed", 
+        description: "There was an error playing the voice sample.",
+        variant: "destructive" 
+      });
+      URL.revokeObjectURL(audioUrl);
+      audioRef.current = null;
+    };
+    
+    // Start playing
+    await audio.play();
+    
+    // Success toast
+    toast({ 
+      title: `${characterName}'s voice`, 
+      description: "Playing voice sample...",
+      duration: 2000
+    });
+    
+  } catch (error) {
+    console.error("Error playing voice sample:", error);
+    toast({ 
+      title: "Couldn't play voice sample", 
+      description: error instanceof Error ? error.message : "There was an error generating the voice sample.",
+      variant: "destructive" 
+    });
+    setIsPlayingSample(false);
+  }
+};
+
 return (
 <>
 <motion.div
@@ -478,6 +740,7 @@ className="w-full flex flex-col flex-grow overflow-hidden"
 { id: "general", label: "General", icon: <User className="h-4 w-4" /> },
 { id: "appearance", label: "Appearance", icon: <Palette className="h-4 w-4" /> },
 { id: "audio", label: "Audio", icon: <Volume2 className="h-4 w-4" /> },
+{ id: "preferences", label: "Preferences", icon: <Zap className="h-4 w-4" /> },
 { id: "documents", label: "Documents", icon: <FileArchive className="h-4 w-4" /> },
 { id: "privacy", label: "Privacy & Integrations", icon: <Shield className="h-4 w-4" /> },
 ].map((tab) => (
@@ -568,7 +831,7 @@ className="relative h-12 rounded-none border-b-2 border-transparent px-3 py-2 da
               <div className="space-y-2">
                 <Label htmlFor="minato-voice-select">Minato's Voice</Label>
                 <p className="text-xs text-muted-foreground">
-                  Select the voice used for Minato's spoken responses.
+                  Select a voice personality for Minato from these anime-inspired options.
                 </p>
                 <Select
                   value={selectedMinatoVoice}
@@ -581,13 +844,434 @@ className="relative h-12 rounded-none border-b-2 border-transparent px-3 py-2 da
                   <SelectContent>
                     {ALL_TTS_VOICES_WITH_DESC.map(voice => (
                         <SelectItem key={voice.id} value={voice.id}>
-                            {voice.name} 
-                            <span className="text-muted-foreground/70 ml-2 text-xs">({voice.description})</span>
+                            <span className="font-medium">{voice.name}</span> 
+                            <span className="text-muted-foreground/70 ml-2 text-xs">{voice.description}</span>
                         </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                 {isSavingVoice && <p className="text-xs text-muted-foreground mt-1 flex items-center"><Loader2 className="h-3 w-3 animate-spin mr-1"/>Saving voice...</p>}
+                {isSavingVoice && <p className="text-xs text-muted-foreground mt-1 flex items-center"><Loader2 className="h-3 w-3 animate-spin mr-1"/>Saving voice...</p>}
+                
+                {/* Current Voice Display */}
+                <div className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => playVoiceSample(selectedMinatoVoice)}
+                      className={`p-1.5 rounded-full hover:bg-primary/10 ${isPlayingSample ? 'bg-primary/20 text-primary animate-pulse' : 'text-primary/80'}`}
+                      disabled={isSavingVoice}
+                      aria-label="Play voice sample"
+                    >
+                      {isPlayingSample ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Volume2 className="h-4 w-4" />
+                      )}
+                    </button>
+                    <div>
+                      <p className="text-sm font-medium">Current Voice: {getVoiceCharacterName(selectedMinatoVoice)}</p>
+                      <p className="text-xs text-muted-foreground">{getVoiceDescription(selectedMinatoVoice)}</p>
+                      <p className="text-xs text-primary mt-1 cursor-pointer hover:underline" onClick={() => playVoiceSample(selectedMinatoVoice)}>
+                        Click the speaker to hear a sample
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-3 rounded-lg border border-border p-3 bg-muted/30">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    <span className="text-primary">Tip:</span> Click the speaker icon above to hear a sample of the selected voice.
+                  </p>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="preferences" className="mt-0 space-y-6">
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Tool Preferences</h3>
+                <p className="text-sm text-muted-foreground">Customize how Minato's tools work for you.</p>
+                
+                <Tabs defaultValue="news" className="w-full">
+                  <TabsList className="w-full justify-start overflow-auto bg-transparent p-0 h-auto">
+                    <TabsTrigger value="news" className="rounded-md px-3 py-1.5 text-xs">News</TabsTrigger>
+                    <TabsTrigger value="social" className="rounded-md px-3 py-1.5 text-xs">Social Media</TabsTrigger>
+                    <TabsTrigger value="entertainment" className="rounded-md px-3 py-1.5 text-xs">Entertainment</TabsTrigger>
+                    <TabsTrigger value="food" className="rounded-md px-3 py-1.5 text-xs">Food & Recipes</TabsTrigger>
+                    <TabsTrigger value="sports" className="rounded-md px-3 py-1.5 text-xs">Sports</TabsTrigger>
+                    <TabsTrigger value="interests" className="rounded-md px-3 py-1.5 text-xs">Interests</TabsTrigger>
+                    <TabsTrigger value="dailybrief" className="rounded-md px-3 py-1.5 text-xs">Daily Brief</TabsTrigger>
+                  </TabsList>
+                  
+                  <div className="mt-4 space-y-4">
+                    {/* News Preferences */}
+                    <TabsContent value="news" className="space-y-4">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">News Preferences</CardTitle>
+                          <CardDescription>Choose your preferred news sources and categories</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="news-sources">Preferred News Sources</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['bbc-news', 'cnn', 'the-washington-post', 'the-wall-street-journal', 'bloomberg', 'reuters', 'al-jazeera-english', 'associated-press', 'abc-news', 'fox-news'].map(source => (
+                                <Button
+                                  key={source}
+                                  variant={newsSources.includes(source) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (newsSources.includes(source)) {
+                                      setNewsSources(newsSources.filter(s => s !== source));
+                                    } else {
+                                      setNewsSources([...newsSources, source]);
+                                    }
+                                  }}
+                                >
+                                  {source}
+                                </Button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Click to select/deselect sources</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="news-categories">News Categories</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['business', 'entertainment', 'general', 'health', 'science', 'sports', 'technology'].map(category => (
+                                <Button
+                                  key={category}
+                                  variant={newsPreferredCategories.includes(category) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (newsPreferredCategories.includes(category)) {
+                                      setNewsPreferredCategories(newsPreferredCategories.filter(c => c !== category));
+                                    } else {
+                                      setNewsPreferredCategories([...newsPreferredCategories, category]);
+                                    }
+                                  }}
+                                >
+                                  {category}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    
+                    {/* Social Media Preferences */}
+                    <TabsContent value="social" className="space-y-4">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Reddit Preferences</CardTitle>
+                          <CardDescription>Subreddits you're interested in</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>Preferred Subreddits</Label>
+                            <div className="flex flex-col space-y-2">
+                              <div className="flex gap-2">
+                                <Input 
+                                  placeholder="Add subreddit (e.g., worldnews)" 
+                                  className="flex-1"
+                                  id="new-subreddit"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      const input = e.currentTarget;
+                                      const value = input.value.trim();
+                                      if (value && !redditPreferredSubreddits.includes(value)) {
+                                        setRedditPreferredSubreddits([...redditPreferredSubreddits, value]);
+                                        input.value = '';
+                                      }
+                                    }
+                                  }}
+                                />
+                                <Button 
+                                  onClick={() => {
+                                    const input = document.getElementById('new-subreddit') as HTMLInputElement;
+                                    const value = input.value.trim();
+                                    if (value && !redditPreferredSubreddits.includes(value)) {
+                                      setRedditPreferredSubreddits([...redditPreferredSubreddits, value]);
+                                      input.value = '';
+                                    }
+                                  }}
+                                  size="sm"
+                                >
+                                  Add
+                                </Button>
+                              </div>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {redditPreferredSubreddits.map(subreddit => (
+                                  <div key={subreddit} className="bg-primary/10 px-2 py-1 rounded-md flex items-center gap-1">
+                                    <span className="text-xs">{subreddit}</span>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-4 w-4 rounded-full"
+                                      onClick={() => setRedditPreferredSubreddits(redditPreferredSubreddits.filter(s => s !== subreddit))}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">YouTube Preferences</CardTitle>
+                          <CardDescription>Channels you're interested in</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>Preferred YouTube Channels</Label>
+                            <div className="flex flex-col space-y-2">
+                              <div className="flex gap-2">
+                                <Input 
+                                  placeholder="Add channel (e.g., TED)" 
+                                  className="flex-1"
+                                  id="new-channel"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      const input = e.currentTarget;
+                                      const value = input.value.trim();
+                                      if (value && !youtubePreferredChannels.includes(value)) {
+                                        setYoutubePreferredChannels([...youtubePreferredChannels, value]);
+                                        input.value = '';
+                                      }
+                                    }
+                                  }}
+                                />
+                                <Button 
+                                  onClick={() => {
+                                    const input = document.getElementById('new-channel') as HTMLInputElement;
+                                    const value = input.value.trim();
+                                    if (value && !youtubePreferredChannels.includes(value)) {
+                                      setYoutubePreferredChannels([...youtubePreferredChannels, value]);
+                                      input.value = '';
+                                    }
+                                  }}
+                                  size="sm"
+                                >
+                                  Add
+                                </Button>
+                              </div>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {youtubePreferredChannels.map(channel => (
+                                  <div key={channel} className="bg-primary/10 px-2 py-1 rounded-md flex items-center gap-1">
+                                    <span className="text-xs">{channel}</span>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-4 w-4 rounded-full"
+                                      onClick={() => setYoutubePreferredChannels(youtubePreferredChannels.filter(c => c !== channel))}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    <TabsContent value="entertainment" className="space-y-4">
+                      {/* Entertainment preferences will go here */}
+                    </TabsContent>
+                    <TabsContent value="food" className="space-y-4">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Recipe Preferences</CardTitle>
+                          <CardDescription>Cuisines you prefer</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>Preferred Cuisines</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['Italian', 'Mexican', 'Chinese', 'Japanese', 'Indian', 'Thai', 'French', 'Greek', 'Mediterranean', 'American', 'Korean', 'Vietnamese', 'Middle Eastern', 'Spanish', 'Caribbean'].map(cuisine => (
+                                <Button
+                                  key={cuisine}
+                                  variant={recipePreferredCuisines.includes(cuisine) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (recipePreferredCuisines.includes(cuisine)) {
+                                      setRecipePreferredCuisines(recipePreferredCuisines.filter(c => c !== cuisine));
+                                    } else {
+                                      setRecipePreferredCuisines([...recipePreferredCuisines, cuisine]);
+                                    }
+                                  }}
+                                >
+                                  {cuisine}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    <TabsContent value="sports" className="space-y-4">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Sports Preferences</CardTitle>
+                          <CardDescription>Sports and leagues you follow</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>Preferred Leagues</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['NBA', 'NFL', 'MLB', 'NHL', 'Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'MLS', 'UEFA Champions League', 'Formula 1', 'UFC', 'Tennis', 'Golf'].map(league => (
+                                <Button
+                                  key={league}
+                                  variant={sportsPreferredLeagues.includes(league) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (sportsPreferredLeagues.includes(league)) {
+                                      setSportsPreferredLeagues(sportsPreferredLeagues.filter(l => l !== league));
+                                    } else {
+                                      setSportsPreferredLeagues([...sportsPreferredLeagues, league]);
+                                    }
+                                  }}
+                                >
+                                  {league}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    <TabsContent value="interests" className="space-y-4">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Interest Categories</CardTitle>
+                          <CardDescription>Topics you care about (used for daily briefs and recommendations)</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>Your Interests</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['sports', 'cinema', 'tvshows', 'politics', 'tech', 'anime', 'gaming', 'music', 'books', 'science', 'travel', 'cooking', 'fashion', 'finance', 'health', 'art'].map(interest => (
+                                <Button
+                                  key={interest}
+                                  variant={interestCategories.includes(interest) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (interestCategories.includes(interest)) {
+                                      setInterestCategories(interestCategories.filter(i => i !== interest));
+                                    } else {
+                                      setInterestCategories([...interestCategories, interest]);
+                                    }
+                                  }}
+                                >
+                                  {interest}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    <TabsContent value="dailybrief" className="space-y-4">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Daily Briefing</CardTitle>
+                          <CardDescription>Configure your personalized daily summary</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label htmlFor="daily-briefing">Enable Daily Briefing</Label>
+                              <p className="text-xs text-muted-foreground">Receive a personalized summary of your day</p>
+                            </div>
+                            <Switch 
+                              id="daily-briefing" 
+                              checked={dailyBriefingEnabled}
+                              onCheckedChange={setDailyBriefingEnabled}
+                            />
+                          </div>
+                          
+                          {dailyBriefingEnabled && (
+                            <>
+                              <div className="space-y-2">
+                                <Label htmlFor="briefing-time">Preferred Time</Label>
+                                <Input 
+                                  id="briefing-time" 
+                                  type="time" 
+                                  value={dailyBriefingTime}
+                                  onChange={(e) => setDailyBriefingTime(e.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground">Time when you'd like to receive your daily brief</p>
+                              </div>
+                              
+                              <div className="space-y-3">
+                                <Label>Include in Daily Brief</Label>
+                                <div className="space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox 
+                                      id="include-news" 
+                                      checked={dailyBriefingOptions.includeNews}
+                                      onCheckedChange={(checked) => 
+                                        setDailyBriefingOptions({...dailyBriefingOptions, includeNews: !!checked})
+                                      }
+                                    />
+                                    <Label htmlFor="include-news" className="text-sm">News updates</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox 
+                                      id="include-weather" 
+                                      checked={dailyBriefingOptions.includeWeather}
+                                      onCheckedChange={(checked) => 
+                                        setDailyBriefingOptions({...dailyBriefingOptions, includeWeather: !!checked})
+                                      }
+                                    />
+                                    <Label htmlFor="include-weather" className="text-sm">Weather forecast</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox 
+                                      id="include-calendar" 
+                                      checked={dailyBriefingOptions.includeCalendar}
+                                      onCheckedChange={(checked) => 
+                                        setDailyBriefingOptions({...dailyBriefingOptions, includeCalendar: !!checked})
+                                      }
+                                    />
+                                    <Label htmlFor="include-calendar" className="text-sm">Calendar events</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox 
+                                      id="include-reminders" 
+                                      checked={dailyBriefingOptions.includeReminders}
+                                      onCheckedChange={(checked) => 
+                                        setDailyBriefingOptions({...dailyBriefingOptions, includeReminders: !!checked})
+                                      }
+                                    />
+                                    <Label htmlFor="include-reminders" className="text-sm">Reminders</Label>
+                                  </div>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  </div>
+                </Tabs>
+                
+                <Button 
+                  onClick={handleSavePreferences} 
+                  disabled={isSavingPreferences} 
+                  className="w-full"
+                >
+                  {isSavingPreferences ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : null}
+                  Save All Preferences
+                </Button>
               </div>
             </TabsContent>
 
@@ -792,7 +1476,7 @@ className="relative h-12 rounded-none border-b-2 border-transparent px-3 py-2 da
       id: editingPersona.id,
       name: editingPersona.name,
       description: editingPersona.description || "",
-      systemPrompt: editingPersona.system_prompt,
+      system_prompt: editingPersona.system_prompt,
       isCustom: editingPersona.isCustom
     } : undefined}
     onSave={handleSavePersonaDialog as any}

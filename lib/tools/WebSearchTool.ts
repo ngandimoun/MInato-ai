@@ -5,8 +5,8 @@ import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import {
   CachedAnswerBox, CachedKnowledgeGraph, CachedProduct, CachedProductList,
-  CachedRecipe, CachedSingleRecipe, CachedSingleWebResult, CachedTikTokVideo,
-  CachedVideoList, CachedWebSnippet, AnyToolStructuredData, CachedYouTubeVideo,
+  CachedSingleWebResult, CachedTikTokVideo,
+  CachedVideoList, CachedWebSnippet, AnyToolStructuredData,
 } from "@/lib/types/index";
 import Ajv, { ValidateFunction } from "ajv";
 import { SchemaService } from "../services/schemaService";
@@ -26,14 +26,12 @@ interface WebSearchInput extends ToolInput {
 }
 
 interface SerperOrganicResult { price?: any; title?: string; link?: string; snippet?: string; position?: number; imageUrl?: string; attributes?: Record<string, any>; source?: string; }
-interface SerperNewsResult { title?: string; link?: string; snippet?: string; date?: string; source?: string; imageUrl?: string; position?: number; }
 interface SerperVideoResult { title?: string; link?: string; snippet?: string; date?: string; source?: string; imageUrl?: string; duration?: string; position?: number; channel?: string; videoUrl?: string; }
-interface SerperRecipeResult { title?: string; link?: string; source?: string; rating?: number | string; ratingCount?: number | string; ingredients?: string[]; totalTime?: string; imageUrl?: string; position?: number; }
 interface SerperShoppingResult { title?: string; link?: string; source?: string; price?: number; priceString?: string; rating?: number | string; reviews?: number | string; imageUrl?: string; position?: number; delivery?: string; offers?: string; productId?: string; attributes?: Record<string, any>; currency?: string; }
 interface SerperAnswerBox { answer?: string; snippet?: string; snippetHighlighted?: string[]; title?: string; link?: string; }
 interface SerperKnowledgeGraph { title?: string; type?: string; description?: string; imageUrl?: string; attributes?: Record<string, string>; link?: string; source?: string; }
 interface SerperRelatedSearch { query: string; }
-interface SerperResponse { searchParameters?: { q: string; gl?: string; hl?: string; type?: string }; answerBox?: SerperAnswerBox; knowledgeGraph?: SerperKnowledgeGraph; organic?: SerperOrganicResult[]; news?: SerperNewsResult[]; videos?: SerperVideoResult[]; recipes?: SerperRecipeResult[]; shopping?: SerperShoppingResult[]; relatedSearches?: SerperRelatedSearch[]; }
+interface SerperResponse { searchParameters?: { q: string; gl?: string; hl?: string; type?: string }; answerBox?: SerperAnswerBox; knowledgeGraph?: SerperKnowledgeGraph; organic?: SerperOrganicResult[]; videos?: SerperVideoResult[]; shopping?: SerperShoppingResult[]; relatedSearches?: SerperRelatedSearch[]; }
 
 interface SchemaDefinition {
   name: string;
@@ -76,12 +74,12 @@ const SCHEMA_VERSIONS: Record<string, SchemaDefinition> = {
 export class WebSearchTool extends BaseTool {
   name = "WebSearchTool";
   description =
-    "Performs web searches using Serper API. Specialized for TikTok videos (with 'tiktok_search' mode), product shopping (with 'product_search' mode), and general web information (with 'fallback_search' mode). Use this tool specifically for TikTok content, shopping/products, or general web searches when other specialized tools fail.";
+    "Performs web searches using Serper API. Primarily specialized for shopping/products (with 'product_search' mode) and TikTok videos (with 'tiktok_search' mode). Use 'fallback_search' mode ONLY when other specialized tools cannot handle the query. DO NOT use this tool for recipes, YouTube videos, news, Reddit, images, or events as other specialized tools exist for those purposes.";
   argsSchema = {
     type: "object" as const,
     properties: {
       query: { type: "string" as const, description: "The keywords, question, or product name to search for. This is always required." } as OpenAIToolParameterProperties,
-      mode: { type: "string" as const, enum: ["product_search", "tiktok_search", "fallback_search"], description: "The type of search: 'product_search' for products, 'tiktok_search' for TikTok videos, or 'fallback_search' for general web info. This is always required." } as OpenAIToolParameterProperties,
+      mode: { type: "string" as const, enum: ["product_search", "tiktok_search", "fallback_search"], description: "The type of search: 'product_search' for shopping/products (primary use), 'tiktok_search' for TikTok videos, or 'fallback_search' ONLY when other specialized tools cannot handle the query. This is always required." } as OpenAIToolParameterProperties,
       location: { type: ["string", "null"] as const, description: "Optional: Two-letter country code (e.g., 'us', 'gb', 'fr') for search localization. Provide as string or null for global search." } as OpenAIToolParameterProperties,
       language: { type: ["string", "null"] as const, description: "Optional: Two-letter language code (e.g., 'en', 'es', 'fr') for search results. Provide as string or null for default." } as OpenAIToolParameterProperties,
       minPrice: { type: ["number", "null"] as const, description: "Optional: Minimum price filter for 'product_search' mode. Must be a positive number. Provide as number or null." } as OpenAIToolParameterProperties,
@@ -183,7 +181,7 @@ export class WebSearchTool extends BaseTool {
     };
   }
 
-  private extractFallbackAnswer(data: SerperResponse | null, queryText: string): { resultText?: string | null; extractedData?: AnyToolStructuredData | null; resultType?: "web_snippet" | "answerBox" | "knowledgeGraph" | "recipe" | null; sourceApi?: string | null; } {
+  private extractFallbackAnswer(data: SerperResponse | null, queryText: string): { resultText?: string | null; extractedData?: AnyToolStructuredData | null; resultType?: "web_snippet" | "answerBox" | "knowledgeGraph" | null; sourceApi?: string | null; } {
     if (!data) return { resultText: null, extractedData: null, resultType: null, sourceApi: null };
     const query = data.searchParameters?.q || queryText;
     if (data.answerBox && (data.answerBox.answer || data.answerBox.snippet)) {
@@ -197,22 +195,10 @@ export class WebSearchTool extends BaseTool {
       const resultText = `${data.knowledgeGraph.title || "Information"} from ${data.knowledgeGraph.source || "the web"}: ${data.knowledgeGraph.description}`;
       return { resultText: resultText, extractedData: kgData as AnyToolStructuredData, resultType: "knowledgeGraph", sourceApi: "serper_kg" };
     }
-    if (data.recipes && data.recipes.length > 0) {
-      const recipe = data.recipes[0]; const readyInMinutes = recipe.totalTime ? parseInt(recipe.totalTime.replace(/\D/g, ""), 10) || null : null;
-      // Ensure CachedRecipe here matches definition if recipe_detail is now distinct
-      const recipeData: CachedRecipe = { result_type: "recipe_detail", source_api: "serper_recipes", title: recipe.title || "Recipe", sourceName: recipe.source || null, sourceUrl: recipe.link || "#", imageUrl: recipe.imageUrl || null, ingredients: recipe.ingredients, readyInMinutes: readyInMinutes, query: query, error: undefined };
-      const resultText = `Found a recipe for ${recipe.title || query} from ${recipe.source || "a source"}.`;
-      return { resultText: resultText, extractedData: recipeData as AnyToolStructuredData, resultType: "recipe", sourceApi: "serper_recipes" };
-    }
     if (data.organic && data.organic.length > 0 && data.organic[0].snippet) {
       const organic = data.organic[0]; const snippetData: CachedWebSnippet = { result_type: "web_snippet", source_api: "serper_organic", title: organic.title || null, link: organic.link || null, snippet: organic.snippet || "", source: (organic.source && (organic.source === "serper_organic" || organic.source === "serper_news" || organic.source === "other")) ? organic.source : "other" };
       const resultText = `According to a web result from ${organic.source || "the web"}: ${organic.snippet}`;
       return { resultText: resultText, extractedData: snippetData as AnyToolStructuredData, resultType: "web_snippet", sourceApi: "serper_organic" };
-    }
-    if (data.news && data.news.length > 0 && data.news[0].snippet) {
-      const news = data.news[0]; const snippetData: CachedWebSnippet = { result_type: "web_snippet", source_api: "serper_news", title: news.title || null, link: news.link || null, snippet: news.snippet || "", source: (news.source && (news.source === "serper_organic" || news.source === "serper_news" || news.source === "other")) ? news.source : "other" };
-      const resultText = `From a recent news article by ${news.source || "a source"}: ${news.snippet}`;
-      return { resultText: resultText, extractedData: snippetData as AnyToolStructuredData, resultType: "web_snippet", sourceApi: "serper_news" };
     }
     if (data.organic && data.organic.length > 0 && data.organic[0].title && data.organic[0].link) {
       const fallbackOrganic = data.organic[0]; const fallbackSnippet: CachedWebSnippet = { result_type: "web_snippet", source_api: "serper_organic", title: fallbackOrganic.title || null, link: fallbackOrganic.link || null, snippet: "No specific summary found, but this result might be relevant.", source: (fallbackOrganic.source && (fallbackOrganic.source === "serper_organic" || fallbackOrganic.source === "serper_news" || fallbackOrganic.source === "other")) ? fallbackOrganic.source : "other" };
@@ -225,7 +211,6 @@ export class WebSearchTool extends BaseTool {
   private inferSearchMode(queryText: string): "product_search" | "tiktok_search" | "fallback_search" {
     const lowerQuery = queryText.toLowerCase();
     
-    // IMPROVED: Make TikTok detection stronger and more specific
     // Check for explicit TikTok searches first with stronger matching
     if (
       lowerQuery.includes('tiktok') || 
@@ -241,13 +226,29 @@ export class WebSearchTool extends BaseTool {
       return "tiktok_search";
     }
     
-    // Check for shopping/product specific keywords
+    // Check for shopping/product specific keywords - EXPANDED for better product intent detection
     const productKeywords = [
+      // Shopping intent
       'buy', 'purchase', 'shop', 'shopping', 'price', 'cheap', 'expensive',
       'cost', 'order', 'amazon', 'ebay', 'etsy', 'store', 'mall', 'retail',
       'dollar', 'euro', 'pound', '$', '€', '£', 'discount', 'deal', 'sale',
+      'coupon', 'promo', 'promotion', 'offer',
+      
+      // Product categories
       'brand', 'product', 'item', 'wear', 'fashion', 'clothing', 'shoe', 'dress',
-      'furniture', 'electronics', 'phone', 'laptop', 'computer', 'tablet'
+      'furniture', 'electronics', 'phone', 'laptop', 'computer', 'tablet',
+      
+      // Travel/accommodations
+      'hotel', 'flight', 'vacation', 'trip', 'booking', 'reservation',
+      'airbnb', 'stay', 'accommodation', 'resort', 'airline', 'ticket',
+      
+      // E-commerce specific
+      'shipping', 'delivery', 'checkout', 'cart', 'add to cart', 'in stock',
+      'out of stock', 'available', 'sold out', 'marketplace',
+      
+      // Comparison shopping
+      'compare', 'comparison', 'best price', 'cheapest', 'affordable',
+      'alternative', 'vs', 'versus', 'better than'
     ];
     
     for (const keyword of productKeywords) {
@@ -270,21 +271,10 @@ export class WebSearchTool extends BaseTool {
     );
   }
   
-  // NEW: Helper method to check if a query is explicitly about YouTube
-  private isExplicitlyYouTubeQuery(query: string): boolean {
-    const lowerQuery = query.toLowerCase();
-    return (
-      lowerQuery.includes('youtube') ||
-      lowerQuery.includes('you tube') ||
-      lowerQuery.includes('yt ')
-    );
-  }
-  
   // NEW: Helper method to analyze video intent type
-  private analyzeVideoIntent(query: string): 'tiktok' | 'youtube' | 'general' {
+  private analyzeVideoIntent(query: string): 'tiktok' | 'general' {
     // Directly check for platform mentions first
     if (this.isExplicitlyTikTokQuery(query)) return 'tiktok';
-    if (this.isExplicitlyYouTubeQuery(query)) return 'youtube';
     
     const lowerQuery = query.toLowerCase();
     
@@ -335,26 +325,6 @@ export class WebSearchTool extends BaseTool {
       if (pattern.test(lowerQuery)) return 'tiktok';
     }
     
-    // Check for YouTube-specific terms/patterns
-    const youtubePatterns = [
-      /\blong\s+video\b/i,
-      /\byoutube\s+channel\b/i,
-      /\blong\s+form\b/i,
-      /\byoutuber\b/i,
-      /\bsubscribe\b/i,
-      /\bplaylist\b/i,
-      /\bhow\s+to\s+video\b/i,
-      /\bfull\s+documentary\b/i,
-      /\blecture\b/i,
-      /\btutorial\s+video\b/i,
-      /\b(10|20|30)\+?\s+minute\b/i,
-      /\bwatch\s+review\b/i,
-    ];
-    
-    for (const pattern of youtubePatterns) {
-      if (pattern.test(lowerQuery)) return 'youtube';
-    }
-    
     // Enhanced topic-based indicators
     const tiktokTopics = [
       'skincare routine', 'beauty hack', 'dance', 'makeup tutorial short',
@@ -365,18 +335,8 @@ export class WebSearchTool extends BaseTool {
       'storytime', 'duet with', 'pov', 'point of view'
     ];
     
-    const youtubeTopics = [
-      'podcast', 'documentary', 'review', 'walkthrough', 'gameplay',
-      'unboxing', 'analysis', 'tutorial detailed', 'lecture', 'music video official',
-      'cover song', 'interview full', 'recipe full', 'how to make', 'explained',
-      'lesson', 'complete guide', 'full album', 'compilation', 'stream',
-      'live performance', 'concert', 'behind the scenes', 'commentary',
-      'reaction video full', 'review detailed'
-    ];
-    
     // Count topic matches with better matching
     let tiktokScore = 0;
-    let youtubeScore = 0;
     
     // Improve topic matching by checking for whole phrase presence
     for (const topic of tiktokTopics) {
@@ -392,47 +352,14 @@ export class WebSearchTool extends BaseTool {
       }
     }
     
-    for (const topic of youtubeTopics) {
-      if (lowerQuery.includes(topic)) youtubeScore += 2;
-      // Also check for partial matches with word boundaries
-      else {
-        const words = topic.split(' ');
-        for (const word of words) {
-          if (word.length > 3 && new RegExp(`\\b${word}\\b`, 'i').test(lowerQuery)) {
-            youtubeScore += 0.5;
-          }
-        }
-      }
-    }
-    
     // Video length indicators
     if (lowerQuery.match(/\b(short|quick|brief|fast)\b/i)) tiktokScore += 1.5;
-    if (lowerQuery.match(/\b(long|detailed|complete|full|comprehensive)\b/i)) youtubeScore += 1.5;
-    
-    // Check for instructional intent (favors YouTube for detailed tutorials)
-    if (lowerQuery.match(/\b(how\s+to|tutorial|guide|explain|learn)\b/i)) {
-      if (lowerQuery.match(/\b(detailed|step\s+by\s+step|complete)\b/i)) {
-        youtubeScore += 1.5;
-      } else if (lowerQuery.match(/\b(quick|easy|simple|fast)\b/i)) {
-        tiktokScore += 1;
-      }
-    }
     
     // Debug logging for analysis scores
-    this.log("debug", `Video intent analysis - TikTok score: ${tiktokScore}, YouTube score: ${youtubeScore} for query: "${lowerQuery}"`);
+    this.log("debug", `Video intent analysis - TikTok score: ${tiktokScore} for query: "${lowerQuery}"`);
     
     // Decide based on topic scores with stronger threshold
-    if (tiktokScore > youtubeScore && tiktokScore >= 1.5) return 'tiktok';
-    if (youtubeScore > tiktokScore && youtubeScore >= 1.5) return 'youtube';
-    
-    // If the scores are very close, look for additional signals
-    if (Math.abs(tiktokScore - youtubeScore) < 1) {
-      // If query mentions video but no specific platform, check for length indicators
-      if (lowerQuery.includes('video')) {
-        if (lowerQuery.match(/\b(short|clip|snippet|brief)\b/i)) return 'tiktok';
-        if (lowerQuery.match(/\b(full|long|complete|entire)\b/i)) return 'youtube';
-      }
-    }
+    if (tiktokScore >= 1.5) return 'tiktok';
     
     // If no clear signal, return general
     return 'general';
@@ -477,14 +404,11 @@ export class WebSearchTool extends BaseTool {
         mode: "tiktok_search"
       };
     }
-    // If the query seems to be about YouTube content, let the router know
-    else if (videoIntent === 'youtube') {
-      // Don't set mode to fallback explicitly as we want other tools to handle it
-      // But add a hint in the apiContext
+    // If the query seems to be about general content, use fallback search
+    else {
       return {
         query: cleanedInput,
-        mode: "fallback_search",
-        apiContext: { videoIntent: 'youtube' }
+        mode: "fallback_search"
       };
     }
     
@@ -492,18 +416,26 @@ export class WebSearchTool extends BaseTool {
       // The extraction prompt for identifying WebSearchTool parameters
       const extractionPrompt = `
 You are an expert parameter extractor for Minato's WebSearchTool which operates in three distinct modes:
-1. "product_search" - For shopping, finding products to buy, price comparisons, retail information
+1. "product_search" - PRIMARILY for shopping, finding products to buy, price comparisons, travel bookings, hotels, flights, retail information
 2. "tiktok_search" - For finding TikTok-specific content, short-form videos, trends
-3. "fallback_search" - For general information, facts, news, and standard web searches
+3. "fallback_search" - For general information ONLY when other specialized tools cannot handle the query
+
+IMPORTANT: There are OTHER SPECIALIZED TOOLS for:
+- YouTube videos (do not use WebSearchTool for this)
+- News articles (do not use WebSearchTool for this)
+- Reddit content (do not use WebSearchTool for this)
+- Recipes (do not use WebSearchTool for this)
+- Images (do not use WebSearchTool for this)
+- Events (do not use WebSearchTool for this)
 
 Given this user query: "${cleanedInput.replace(/"/g, '\\"')}"
 
 COMPREHENSIVE ANALYSIS GUIDELINES:
 
 1. USER INTENT CLASSIFICATION:
-   - Precisely determine if the user wants to purchase something, find TikTok content, or get general information
-   - Consider implicit shopping intent (comparing products, asking about prices, looking for stores)
-   - Understand nuanced video content requests (short-form vs long-form, platform-specific)
+   - Primarily determine if the user wants to purchase something or find products
+   - Secondarily check if they want TikTok content
+   - Only use fallback search if the query doesn't match other specialized tools
 
 2. SHOPPING PARAMETERS EXTRACTION:
    - Identify price ranges (both explicit "under $50" and implicit "affordable")
@@ -521,18 +453,10 @@ COMPREHENSIVE ANALYSIS GUIDELINES:
    - Maintain key search terms especially for product specifications
    - Preserve quoted phrases exactly as provided
 
-CRITICAL DISTINCTIONS BETWEEN PLATFORMS:
-- TikTok: Short-form videos (15sec-3min), trending content, viral clips, challenges, dances
-- YouTube: Longer-form content (3min+), tutorials, reviews, documentaries, music videos, lectures
-- If the query seems to be requesting YOUTUBE content, DO NOT select tiktok_search mode
-
 MODE SELECTION RULES:
-- "product_search": Select for purchasing intent, shopping, product comparisons, reviews tied to purchase decisions
+- "product_search": Select for purchasing intent, shopping, product comparisons, travel bookings, hotels, flights
 - "tiktok_search": Select ONLY when the user EXPLICITLY requests TikTok content or clearly wants short-form viral videos
-IMPORTANT DISTINCTION BETWEEN TIKTOK AND YOUTUBE:
-- TikTok videos are typically short-form (15sec-3min), trending content, dances, challenges, viral clips
-- YouTube videos are typically longer-form (3min+), tutorials, reviews, music videos, lectures
-- If the query seems to be asking for YOUTUBE content, DO NOT select tiktok_search mode
+- "fallback_search": Use ONLY when query doesn't fit into any specialized tool category
 
 Analyze what the user is looking for and extract these parameters:
 - query: The exact search query (required)
@@ -543,11 +467,6 @@ Analyze what the user is looking for and extract these parameters:
 - brand: Brand preference if mentioned (string or null)
 - location: Location mentioned (country code, city name, or null)
 - language: Language preference if mentioned (language code or null)
-
-MODE SELECTION GUIDELINES:
-- Use "product_search" if the user is looking to buy/shop for items, asking about products, prices, or comparing products
-- Use "tiktok_search" ONLY if the user is explicitly looking for TikTok content (short-form videos, TikTok trends, etc.)
-- Use "fallback_search" for general knowledge, facts, news, or any non-shopping searches
 
 Output as JSON with these exact fields.`;
 
@@ -696,6 +615,25 @@ Output as JSON with these exact fields.`;
       delete toolInput.context;
     }
     
+    // Apply user preferences from user state if available before other processing
+    if (toolInput._context?.userState?.workflow_preferences) {
+      const prefs = toolInput._context.userState.workflow_preferences;
+      
+      // Apply preferred web search sources if available and in fallback mode
+      if (prefs.webSearchPreferredSources && 
+          prefs.webSearchPreferredSources.length > 0 && 
+          toolInput.mode === "fallback_search") {
+        // Add preferred sources as part of the query refinement
+        if (!toolInput.query.includes('site:')) {
+          this.log("debug", `[WebSearchTool] Applying user's preferred search source: ${prefs.webSearchPreferredSources[0]}`);
+          // Just use the first preferred source to avoid overly complex queries
+          if (prefs.webSearchPreferredSources.length === 1) {
+            toolInput.query = `${toolInput.query} site:${prefs.webSearchPreferredSources[0]}`;
+          }
+        }
+      }
+    }
+    
     // NEW: Check if this request should be skipped (conversational response)
     if (toolInput.skipSearch) {
       return { 
@@ -719,6 +657,24 @@ Output as JSON with these exact fields.`;
       };
     }
     
+    const userNameForResponse = toolInput.apiContext?.userName || "friend";
+    const initialLogPrefix = `[WebSearchTool ${toolInput.mode}]`;
+    const effectiveMode = toolInput.mode || this.inferSearchMode(toolInput.query);
+    
+    // Clean query
+    const normalizedQuery = toolInput.query.trim();
+    
+    if (!normalizedQuery) {
+      this.log("warn", `${initialLogPrefix} Empty query`);
+      return {
+        error: "Empty search query",
+        result: `Minato needs a search query to help ${userNameForResponse} find information online.`,
+        structuredData: undefined
+      };
+    }
+    
+    // Cache checking is handled by BaseTool - don't need to manually check
+    
     // Analyze the video intent of the user query
     const videoIntent = this.analyzeVideoIntent(userInput);
     
@@ -737,14 +693,10 @@ Output as JSON with these exact fields.`;
       
       this.log("info", `Forced TikTok search mode based on video intent analysis: "${userInput.substring(0, 50)}..."`);
     }
-    // If the query seems to be about YouTube content, let the router know
-    else if (videoIntent === 'youtube') {
-      // Don't set mode to fallback explicitly as we want other tools to handle it
-      // But add a hint in the apiContext
-      if (!toolInput.apiContext) toolInput.apiContext = {};
-      toolInput.apiContext.videoIntent = 'youtube';
-      
-      this.log("info", `Detected YouTube intent in query: "${userInput.substring(0, 50)}...". Suggesting YouTube tool may be more appropriate.`);
+    // If general intent, use fallback search
+    else if (videoIntent === 'general') {
+      // Use fallback search for general queries
+      this.log("info", `Using fallback search for general query: "${userInput.substring(0, 50)}..."`);
     }
     
     // Extract the base properties
@@ -756,32 +708,7 @@ Output as JSON with these exact fields.`;
     const color = (toolInput.color === null) ? undefined : toolInput.color;
     const brand = (toolInput.brand === null) ? undefined : toolInput.brand;
 
-    const userNameForResponse = webSearchContext.userName || "friend";
-    
-    // If mode is missing, attempt to extract parameters from user input or query
-    if (!mode) {
-      const userInputForExtraction = userInput || query || "";
-      this.log("info", `Mode parameter missing. Attempting to extract from user input: "${userInputForExtraction.substring(0, 50)}..."`);
-      
-      const extractedParams = await this.extractWebSearchParameters(userInputForExtraction, toolInput.userId);
-      
-      // Update parameters with extracted values
-      query = extractedParams.query || query;
-      mode = extractedParams.mode || this.inferSearchMode(userInputForExtraction);
-      
-      // Only update these if they weren't already set
-      if (minPrice === undefined && extractedParams.minPrice !== undefined) toolInput.minPrice = extractedParams.minPrice;
-      if (maxPrice === undefined && extractedParams.maxPrice !== undefined) toolInput.maxPrice = extractedParams.maxPrice;
-      if (color === undefined && extractedParams.color) toolInput.color = extractedParams.color;
-      if (brand === undefined && extractedParams.brand) toolInput.brand = extractedParams.brand;
-      if (location === undefined && extractedParams.location) toolInput.location = extractedParams.location;
-      if (language === undefined && extractedParams.language) toolInput.language = extractedParams.language;
-      
-      this.log("info", `Extracted mode: ${mode}, query: "${query?.substring(0, 50)}..."`);
-    }
-
-    const safeQueryString = String(query || "");
-    const logPrefix = `[WebSearchTool Mode:${mode}] Query:"${safeQueryString.substring(0, 50)}..."`;
+    const executionLogPrefix = `[WebSearchTool Mode:${mode}] Query:"${normalizedQuery.substring(0, 50)}..."`;
 
     if (abortSignal?.aborted) { return { error: "Web Search cancelled.", result: "Cancelled.", structuredData: undefined }; }
     if (!this.API_KEY) { return { error: "Web Search Tool is not configured.", result: `Sorry, ${userNameForResponse}, Minato cannot perform web searches right now.`, structuredData: undefined }; }
@@ -795,7 +722,7 @@ Output as JSON with these exact fields.`;
     const langCode = language?.split("-")[0].toLowerCase() || webSearchContext.locale?.split("-")[0] || "en";
     const countryCode = location?.toUpperCase() || webSearchContext.countryCode?.toUpperCase() || "us";
     requestBody.hl = langCode; requestBody.gl = countryCode;
-    this.log("info", `${logPrefix} Using lang:${langCode}, country:${countryCode}`);
+    this.log("info", `${executionLogPrefix} Using lang:${langCode}, country:${countryCode}`);
 
     let refinedQuery = query.trim();
     if (mode === "product_search") {
@@ -807,15 +734,15 @@ Output as JSON with these exact fields.`;
       requestBody.q = refinedQuery.replace(/\s+/g, " ").trim();
       requestBody.tbs = `mr:1,price:1,ppr_min:${minPrice || ""},ppr_max:${maxPrice || ""}`; // Serper specific shopping filters
       requestBody.type = "shopping"; // Ensure Serper uses shopping search type
-      this.log("info", `${logPrefix} Product search refined query: "${requestBody.q.substring(0, 70)}..."`);
+      this.log("info", `${executionLogPrefix} Product search refined query: "${requestBody.q.substring(0, 70)}..."`);
     } else if (mode === "tiktok_search") {
       refinedQuery = `${query.trim()} site:tiktok.com`;
       requestBody.q = refinedQuery.replace(/\s+/g, " ").trim(); requestBody.type = "videos";
-      this.log("info", `${logPrefix} TikTok search query: "${requestBody.q.substring(0, 70)}..."`);
-    } else { this.log("info", `${logPrefix} Executing general fallback search.`); }
+      this.log("info", `${executionLogPrefix} TikTok search query: "${requestBody.q.substring(0, 70)}..."`);
+    } else { this.log("info", `${executionLogPrefix} Executing general fallback search.`); }
 
     try {
-      this.log("debug", `${logPrefix} Sending request to Serper API: ${this.SERPER_API_URL} with body: ${JSON.stringify(requestBody).substring(0, 100)}`);
+      this.log("debug", `${executionLogPrefix} Sending request to Serper API: ${this.SERPER_API_URL} with body: ${JSON.stringify(requestBody).substring(0, 100)}`);
       const timeoutMs = (appConfig as any).toolTimeoutMs || ((appConfig as any).toolApiKeys?.serperSearchTimeoutMs) || 10000;
       const response = await fetch(this.SERPER_API_URL, {
         method: "POST", headers: { "X-API-KEY": this.API_KEY, "Content-Type": "application/json", "User-Agent": this.USER_AGENT },
@@ -828,7 +755,7 @@ Output as JSON with these exact fields.`;
         let errorBodyText = await response.text();
         try { const errorBody = JSON.parse(errorBodyText); errorDetail += ` Message: ${String(errorBody?.message || JSON.stringify(errorBody))}`; }
         catch { errorDetail += ` Raw Body: ${errorBodyText.substring(0, 200)}`; }
-        this.log("error", `${logPrefix} ${errorDetail}`);
+        this.log("error", `${executionLogPrefix} ${errorDetail}`);
         let userResultMessage = `Sorry, ${userNameForResponse}, the web search encountered an error.`;
         if (response.status === 401 || response.status === 403) userResultMessage = `Sorry, ${userNameForResponse}, Minato cannot perform web searches due to an authorization issue.`;
         else if (response.status === 429) userResultMessage = `Sorry, ${userNameForResponse}, the web search service is temporarily unavailable (rate limit).`;
@@ -836,17 +763,17 @@ Output as JSON with these exact fields.`;
         return { error: errorDetail, result: userResultMessage, structuredData: undefined };
       }
       const data: SerperResponse = (await response.json()) as SerperResponse;
-      this.log("debug", `${logPrefix} Received ${response.status} response from Serper API. Organic count: ${data.organic?.length}, Shopping: ${data.shopping?.length}, Videos: ${data.videos?.length}`);
+      this.log("debug", `${executionLogPrefix} Received ${response.status} response from Serper API. Organic count: ${data.organic?.length}, Shopping: ${data.shopping?.length}, Videos: ${data.videos?.length}`);
 
       if (mode === "product_search") {
         const products = data.shopping; const organicProducts = data.organic?.filter(p => p.price || p.attributes?.price);
         let allProductResults: SerperShoppingResult[] = products || [];
-        if (allProductResults.length === 0 && organicProducts && organicProducts.length > 0) { this.log("info", `${logPrefix} No direct shopping results, adapting ${organicProducts.length} organic results into product format.`); allProductResults = organicProducts.map(o => ({ title: o.title, link: o.link, source: o.source || (o.link ? new URL(o.link).hostname : "Unknown"), priceString: o.attributes?.price || o.price?.toString(), imageUrl: o.imageUrl, position: o.position } as SerperShoppingResult)); }
+        if (allProductResults.length === 0 && organicProducts && organicProducts.length > 0) { this.log("info", `${executionLogPrefix} No direct shopping results, adapting ${organicProducts.length} organic results into product format.`); allProductResults = organicProducts.map(o => ({ title: o.title, link: o.link, source: o.source || (o.link ? new URL(o.link).hostname : "Unknown"), priceString: o.attributes?.price || o.price?.toString(), imageUrl: o.imageUrl, position: o.position } as SerperShoppingResult)); }
 
         let outputData: CachedProductList = { result_type: "product_list", source_api: "serper_shopping", query: toolInput, products: [], error: undefined };
         if (allProductResults.length === 0) { return { result: `I couldn't find products matching "${query}" for ${userNameForResponse} with those criteria. How about a different search?`, structuredData: outputData }; }
 
-        this.log("info", `${logPrefix} Found ${allProductResults.length} potential product results.`);
+        this.log("info", `${executionLogPrefix} Found ${allProductResults.length} potential product results.`);
         const extractedProducts: CachedProduct[] = allProductResults.map((p) => this.extractProductData(p, query)).filter((p): p is CachedProduct => !!(p.title && p.link));
         if (extractedProducts.length === 0) { outputData.error = "Failed to process product details from results"; return { result: `I found matches for "${query}" for ${userNameForResponse}, but had trouble extracting the details.`, structuredData: outputData }; }
 
@@ -864,8 +791,8 @@ Output as JSON with these exact fields.`;
         let outputData: CachedVideoList = { result_type: "video_list", source_api: "serper_tiktok", query: toolInput, videos: [], error: undefined };
         if (!videos || videos.length === 0) { return { result: `I couldn't find TikTok videos for "${query}" for ${userNameForResponse}. Maybe try a different search term?`, structuredData: outputData }; }
 
-        this.log("info", `${logPrefix} Found ${videos.length} potential TikTok videos.`);
-        const extractedVideos: (CachedTikTokVideo | CachedYouTubeVideo)[] = videos.map((v) => this.extractTikTokVideoData(v, query)).filter((v): v is CachedTikTokVideo => !!v.videoId || !!v.videoUrl);
+        this.log("info", `${executionLogPrefix} Found ${videos.length} potential TikTok videos.`);
+        const extractedVideos: CachedTikTokVideo[] = videos.map((v) => this.extractTikTokVideoData(v, query)).filter((v): v is CachedTikTokVideo => !!v.videoId || !!v.videoUrl);
         if (extractedVideos.length === 0) { outputData.error = "Failed to process TikTok video details"; return { result: `I found some TikToks related to "${query}" for ${userNameForResponse}, but couldn't get the details right now.`, structuredData: outputData }; }
 
         outputData.videos = extractedVideos; outputData.error = undefined;
@@ -881,12 +808,12 @@ Output as JSON with these exact fields.`;
       } else { // fallback_search
         const { resultText, extractedData, resultType, sourceApi } = this.extractFallbackAnswer(data, query);
         if (!resultText || !extractedData || !resultType) {
-          this.log("info", `${logPrefix} No direct answer or relevant snippet found.`);
+          this.log("info", `${executionLogPrefix} No direct answer or relevant snippet found.`);
           const related = data.relatedSearches?.map((r) => r.query).slice(0, 3).join(", ");
           const fallbackMsg = `I searched for "${query}" for ${userNameForResponse} but couldn't find a direct answer or summary.${related ? ` Perhaps you'd be interested in these related searches: ${related}?` : ""}`;
           return { result: fallbackMsg, structuredData: undefined };
         }
-        this.log("info", `${logPrefix} Found fallback answer/snippet. Type: ${resultType}`);
+        this.log("info", `${executionLogPrefix} Found fallback answer/snippet. Type: ${resultType}`);
         let finalStructuredOutput: AnyToolStructuredData = extractedData;
         if (typeof finalStructuredOutput === 'object' && finalStructuredOutput !== null) {
           (finalStructuredOutput as any).query = toolInput; // Add original input to structured data
@@ -900,15 +827,13 @@ Output as JSON with these exact fields.`;
           conversationalResult = `Here's some info on "${kg && kg.title ? kg.title : query}" for you, ${userNameForResponse}: ${kg.description ? kg.description.substring(0, 150) : ""}...`;
         } else if (resultType === "web_snippet" && (extractedData as CachedWebSnippet).snippet) {
           conversationalResult = `I found a snippet from ${(extractedData as CachedWebSnippet).source || "the web"} about "${query}", ${userNameForResponse}: "${(extractedData as CachedWebSnippet).snippet.substring(0, 150)}..."`;
-        } else if (resultType === "recipe" && (extractedData as CachedRecipe).title) {
-          conversationalResult = `Looks like I found a recipe for "${(extractedData as CachedRecipe).title || query}" for you, ${userNameForResponse}! Sounds tasty!`;
         }
         return { result: conversationalResult, structuredData: finalStructuredOutput };
       }
     } catch (error: any) {
       const originalErrorMessage = String(error?.message || (typeof error === 'string' ? error : "Unknown web search error"));
       const errorMessage = `Web search failed: ${originalErrorMessage}`;
-      this.log("error", `${logPrefix} Search failed: ${originalErrorMessage}`, { error });
+      this.log("error", `${executionLogPrefix} Search failed: ${originalErrorMessage}`, { error });
       let responseStructuredData: AnyToolStructuredData | undefined;
       const baseErrorData = { query: toolInput, error: errorMessage };
       switch (mode) {
@@ -917,11 +842,18 @@ Output as JSON with these exact fields.`;
         default: responseStructuredData = { result_type: "web_snippet", source_api: "serper_general", data: null, ...baseErrorData } as CachedSingleWebResult;
       }
       if (error.name === "AbortError" || error.name === 'TimeoutError') {
-        this.log("warn", `${logPrefix} Request timed out.`);
+        this.log("warn", `${executionLogPrefix} Request timed out.`);
         if (responseStructuredData) (responseStructuredData as any).error = "Request timed out.";
         return { error: "Web search timed out.", result: `Sorry, ${userNameForResponse}, the web search took too long to respond. Please try again in a moment.`, structuredData: responseStructuredData };
       }
       return { error: errorMessage, result: `Sorry, ${userNameForResponse}, Minato encountered an unexpected problem while searching the web. It might be a temporary issue.`, structuredData: responseStructuredData };
     }
+    
+    // Make sure to add a return statement at the end to satisfy TypeScript
+    return { 
+      error: "Execution not implemented", 
+      result: "Web search implementation not complete", 
+      structuredData: undefined 
+    };
   }
 }

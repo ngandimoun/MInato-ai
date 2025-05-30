@@ -196,39 +196,53 @@ If queryType is ambiguous, default to "team_info".
   }
 
   async execute(input: SportsInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    const userNameForResponse = input.context?.userName || "friend";
-    const logPrefix = `[SportsTool Team:${input.teamName?.substring(0,15) || "unknown"}..., Type:${input.queryType || "unknown"}]`;
-    
-    // If teamName is missing, try to extract it from the raw input if available
-    if (!input.teamName && input.rawInput) {
-      try {
-        const extractedParams = await this.extractSportsParameters(input.rawInput);
-        if (extractedParams.teamName) {
-          input.teamName = extractedParams.teamName;
-          if (!input.queryType && extractedParams.queryType) {
-            input.queryType = extractedParams.queryType;
-          }
-          this.log("info", `${logPrefix} Extracted parameters from raw input: teamName=${input.teamName}, queryType=${input.queryType}`);
-        }
-      } catch (error) {
-        this.log("error", `${logPrefix} Failed to extract parameters from raw input:`, error);
+    // If input is from natural language, extract parameters
+    if (input._rawUserInput && typeof input._rawUserInput === 'string') {
+      const extractedParams = await this.extractSportsParameters(input._rawUserInput);
+      
+      // Only use extracted parameters if they're not already specified
+      if (extractedParams.teamName && !input.teamName) {
+        input.teamName = extractedParams.teamName;
+      }
+      if (extractedParams.queryType && !input.queryType) {
+        input.queryType = extractedParams.queryType;
       }
     }
     
-    // Validate required inputs
-    if (!input.teamName) {
+    // Apply user preferences if available
+    if (input._context?.userState?.workflow_preferences) {
+      const prefs = input._context.userState.workflow_preferences;
+      
+      // If user hasn't specified a team but has preferred leagues,
+      // we can suggest a team from their preferred league
+      if (!input.teamName && prefs.sportsPreferredLeagues && prefs.sportsPreferredLeagues.length > 0) {
+        // This is just a suggestion - in a full implementation, we'd need to map leagues to teams
+        logger.debug(`[SportsInfoTool] User has preferred leagues: ${prefs.sportsPreferredLeagues.join(', ')}`);
+      }
+    }
+    
+    const userNameForResponse = input._context?.userName || "friend";
+    const teamNameInput = input.teamName || "";
+    const queryType = input.queryType || "team_info";
+    
+    if (!teamNameInput.trim()) {
+      const errorMsg = "Missing team name.";
+      logger.error(`[SportsInfoTool] ${errorMsg}`);
       return {
-        error: "Missing required parameter: teamName",
-        result: `Sorry ${userNameForResponse}, I need to know which team you're interested in. Could you please specify a team name?`
+        error: errorMsg,
+        result: `Minato needs a team name to find sports information for ${userNameForResponse}.`,
+        structuredData: {
+          result_type: "sports_info",
+          source_api: "sports-api",
+          query: input,
+          data: null,
+          error: errorMsg
+        }
       };
     }
     
-    if (!input.queryType) {
-      input.queryType = "team_info"; // Default to team info if not specified
-      this.log("info", `${logPrefix} Defaulting to queryType=team_info`);
-    }
+    const logPrefix = `[SportsTool Team:${teamNameInput.substring(0,15) || "unknown"}..., Type:${queryType || "unknown"}]`;
     
-    const { teamName, queryType } = input;
     const queryInputForStructuredData = { ...input };
 
     if (abortSignal?.aborted) { return { error: "Sports info request cancelled.", result: "Cancelled." }; }
@@ -238,11 +252,11 @@ If queryType is ambiguous, default to "team_info".
     
     this.log("info", `${logPrefix} Executing...`);
 
-    const team = await this.findTeam(teamName.trim(), abortSignal);
+    const team = await this.findTeam(teamNameInput.trim(), abortSignal);
     if (abortSignal?.aborted) return { error: "Sports info request cancelled.", result: "Cancelled." };
     if (!team) {
-      outputStructuredData.error = `Could not find team "${teamName}".`;
-      return { error: outputStructuredData.error, result: `Sorry, ${userNameForResponse}, I couldn't find a team named "${teamName}". Please check the spelling or try a different team name.`, structuredData: outputStructuredData };
+      outputStructuredData.error = `Could not find team "${teamNameInput}".`;
+      return { error: outputStructuredData.error, result: `Sorry, ${userNameForResponse}, I couldn't find a team named "${teamNameInput}". Please check the spelling or try a different team name.`, structuredData: outputStructuredData };
     }
     const teamId = team.idTeam;
     const teamDisplayName = team.strTeam;
@@ -345,7 +359,7 @@ If queryType is ambiguous, default to "team_info".
       this.log("error", `${logPrefix} Error:`, error.message);
       return { 
         error: errorMsg, 
-        result: `Sorry, an error occurred while getting sports info for "${teamName}". ${error.message}`, 
+        result: `Sorry, an error occurred while getting sports info for "${teamNameInput}". ${error.message}`, 
         structuredData: outputStructuredData 
       };
     }

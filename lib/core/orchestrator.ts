@@ -339,7 +339,7 @@ export class Orchestrator {
         let actualToolArgs = JSON.parse(JSON.stringify(routedToolCall.arguments || {}));
         // Move userInputForFallback up so it's always available
         // Use the new currentTurnUserInput as the primary source
-        let userInputForFallback = currentTurnUserInput;
+        let userInputForFallback = stripSystemPrefixes(currentTurnUserInput);
         if (!userInputForFallback) {
           // Try to extract from history if currentTurnUserInput was somehow empty
           const lastUserMsg = Array.isArray(history) ? history.slice().reverse().find(m => m.role === 'user' && m.content && (typeof m.content === 'string' || (Array.isArray(m.content) && m.content.some(p => p.type === 'text')))) : null;
@@ -558,6 +558,11 @@ Example 2 JSON:
           // Extract and validate mode and query parameters
           actualToolArgs = JSON.parse(JSON.stringify(routedToolCall.arguments || {}));
           
+          // Apply stripSystemPrefixes to any existing query first
+          if (actualToolArgs.query && typeof actualToolArgs.query === 'string') {
+            actualToolArgs.query = stripSystemPrefixes(actualToolArgs.query);
+          }
+          
           // If any required parameters are missing, provide default values
           if (!actualToolArgs.mode || !actualToolArgs.query || actualToolArgs.location === undefined || 
               actualToolArgs.language === undefined || actualToolArgs.minPrice === undefined || 
@@ -580,7 +585,8 @@ Example 2 JSON:
                 .replace(/^please\s+/i, '')
                 .trim();
                 
-              actualToolArgs.query = cleanedInput;
+              // Strip system prefixes from the cleaned input
+              actualToolArgs.query = stripSystemPrefixes(cleanedInput);
             }
             
             // Set default mode based on query content if missing
@@ -588,7 +594,13 @@ Example 2 JSON:
               let defaultMode = "fallback_search"; // Default to general search
               
               // Check if this looks like a product search
-              const productKeywords = ['buy', 'purchase', 'shop', 'price', 'cost', 'cheap', 'expensive', 'amazon', 'ebay', 'dollar', 'euro', 'find me', 'shopping'];
+              const productKeywords = [
+                'buy', 'purchase', 'shop', 'price', 'cost', 'cheap', 'expensive', 
+                'amazon', 'ebay', 'dollar', 'euro', 'find me', 'shopping',
+                'book', 'reservation', 'ticket', 'hotel', 'flight', 'vacation',
+                'deal', 'discount', 'sale', 'offer', 'promotion', 'coupon',
+                'brand', 'product', 'item', 'online store', 'marketplace'
+              ];
               const userQuery = (actualToolArgs.query || userInputForFallback || "").toLowerCase();
               
               for (const keyword of productKeywords) {
@@ -599,7 +611,10 @@ Example 2 JSON:
               }
               
               // Check if this looks like a TikTok search
-              if (userQuery.includes("tiktok") || userQuery.includes("tik tok") || userQuery.includes("video")) {
+              if (userQuery.includes("tiktok") || userQuery.includes("tik tok") || 
+                  (userQuery.includes("video") && !userQuery.includes("youtube") && !userQuery.includes("recipe")) ||
+                  userQuery.includes("dance") || userQuery.includes("trend") || userQuery.includes("viral") ||
+                  userQuery.includes("challenge")) {
                 defaultMode = "tiktok_search";
               }
               
@@ -2169,53 +2184,106 @@ Respond in STRICT JSON format:
           textQueryForRouter += (textQueryForRouter ? "\n" : "") + "[Video analysis attempted but failed to produce summary.]";
         }
       }
-      const toolRouterPrompt = injectPromptVariables(TOOL_ROUTER_PROMPT_TEMPLATE, {
-        userName, userQuery: textQueryForRouter,
-        conversationHistorySummary: summarizeChatHistory(history),
-        userStateSummary: summarizeUserStateForWorkflow(userState),
-        available_tools_for_planning: this.availableToolsForRouter.map(t => `- ${t.function.name}: ${t.function.description?.substring(0, 100)}...`).join("\n"),
-        language: lang, userPersona: personaNameForPrompt,
-      });
-      logger.info(`[${turnIdentifier}] Invoking Tool Router (${PLANNING_MODEL_NAME_ORCH})... Query for router: "${textQueryForRouter.substring(0, 70)}"`);
-      const routerSchema = {
-        type: "object" as const,
-        properties: {
-          planned_tools: {
-            type: "array" as const,
-            items: {
-              type: "object" as const,
-              properties: {
-                tool_name: { type: "string" as const },
-                arguments: {
-                  type: "object" as const,
-                  additionalProperties: false,
-                  properties: {}
-                },
-                reason: { type: "string" as const }
-              },
-              required: ["tool_name", "reason", "arguments"],
-              additionalProperties: false
-            }
-          }
-        },
-        required: ["planned_tools"],
-        additionalProperties: false
-      };
-      const routerResult = await generateStructuredJson<ToolRouterPlan>(
-        toolRouterPrompt, textQueryForRouter,
-        routerSchema,
-        "tool_router_v1_1",
-        history.filter(m => typeof m.content === 'string'),
-        PLANNING_MODEL_NAME_ORCH, userId
+      
+      // Determine if this is a media-only upload with minimal text
+      const isMediaOnlyMessage = Boolean(
+        (initialAttachments?.some(att => att.type === 'video' || att.type === 'image')) &&
+        (typeof userInput === 'string' && userInput.trim().length <= 10)
       );
-      if ("error" in routerResult) {
-        logger.error(`[${turnIdentifier}] Tool Router (${PLANNING_MODEL_NAME_ORCH}) failed: ${routerResult.error}. Proceeding without tools.`);
-        finalFlowType = "direct_llm_after_router_fail";
+      
+      // If the user is just uploading media without asking a specific question
+      // modify the query to focus on having a conversation about the media
+      if (isMediaOnlyMessage && (textQueryForRouter.includes("[Video Content Summary:") || textQueryForRouter.includes("[Visual QA:"))) {
+        // This is a media upload without much user text - make it clear in the prompt
+        textQueryForRouter = `[MEDIA UPLOAD: The user has shared media content. Please respond to the content directly in conversation, don't use tools.] ` + textQueryForRouter;
+      }
+      
+      // Check if this is an audio message conversation
+      const isAudioMessage = Boolean(
+        apiContext?.isAudioMessage === true || 
+        apiContext?.transcription || 
+        (history.length > 0 && history.some(msg => (msg as any).isAudioMessage === true))
+      );
+      
+      // If this is from a voice/audio message, add a hint to prefer direct conversation
+      if (isAudioMessage) {
+        logger.info(`[${turnIdentifier}] Audio/voice message detected. Will be more conservative with tool usage.`);
+        textQueryForRouter = `[VOICE CONVERSATION: This is a spoken conversation. Respond naturally and avoid using tools unless explicitly requested.] ` + textQueryForRouter;
+      }
+      
+      // Determine if this is any kind of media upload (with or without text)
+      const isMediaUpload = Boolean(
+        initialAttachments?.some(att => att.type === 'video' || att.type === 'image') ||
+        textQueryForRouter.includes("[Video Content Summary:") ||
+        textQueryForRouter.includes("[Visual QA:")
+      );
+      
+      // Initialize routedTools - will be populated only if appropriate conditions are met
+      let routedTools: ToolRouterPlan = { planned_tools: [] };
+      
+      // Determine if tool routing should be bypassed
+      const bypassToolRouter = isMediaUpload || 
+                              (isAudioMessage && textQueryForRouter.trim().split(/\s+/).length < 6) || // Short audio messages
+                              (typeof userInput === 'string' && userInput.trim().length < 4 && !userInput.includes("?"));
+      
+      if (!bypassToolRouter) {
+        // Only invoke tool router if conditions are met
+        const toolRouterPrompt = injectPromptVariables(TOOL_ROUTER_PROMPT_TEMPLATE, {
+          userName, userQuery: textQueryForRouter,
+          conversationHistorySummary: summarizeChatHistory(history),
+          userStateSummary: summarizeUserStateForWorkflow(userState),
+          available_tools_for_planning: this.availableToolsForRouter.map(t => `- ${t.function.name}: ${t.function.description?.substring(0, 100)}...`).join("\n"),
+          language: lang, userPersona: personaNameForPrompt,
+        });
+        
+        logger.info(`[${turnIdentifier}] Invoking Tool Router (${PLANNING_MODEL_NAME_ORCH})... Query for router: "${textQueryForRouter.substring(0, 70)}"`);
+        
+        const routerSchema = {
+          type: "object" as const,
+          properties: {
+            planned_tools: {
+              type: "array" as const,
+              items: {
+                type: "object" as const,
+                properties: {
+                  tool_name: { type: "string" as const },
+                  arguments: {
+                    type: "object" as const,
+                    additionalProperties: false,
+                    properties: {}
+                  },
+                  reason: { type: "string" as const }
+                },
+                required: ["tool_name", "reason", "arguments"],
+                additionalProperties: false
+              }
+            }
+          },
+          required: ["planned_tools"],
+          additionalProperties: false
+        };
+        
+        const routerResult = await generateStructuredJson<ToolRouterPlan>(
+          toolRouterPrompt, textQueryForRouter,
+          routerSchema,
+          "tool_router_v1_1",
+          history.filter(m => typeof m.content === 'string'),
+          PLANNING_MODEL_NAME_ORCH, userId
+        );
+        
+        if ("error" in routerResult) {
+          logger.error(`[${turnIdentifier}] Tool Router (${PLANNING_MODEL_NAME_ORCH}) failed: ${routerResult.error}. Proceeding without tools.`);
+          finalFlowType = "direct_llm_after_router_fail";
+        } else {
+          routedTools = routerResult;
+          finalToolCallsLogged = routedTools.planned_tools.map(rt => ({ toolName: rt.tool_name, args: rt.arguments, reason: rt.reason }));
+          logger.info(`[${turnIdentifier}] Tool Router selected ${routedTools.planned_tools.length} tools: ${routedTools.planned_tools.map(t => t.tool_name).join(', ')}`);
+          finalFlowType = routedTools.planned_tools.length > 0 ? "workflow_routed" : "direct_llm_no_tools_routed";
+        }
       } else {
-        routedTools = routerResult; // Assignation à la variable routedTools de la portée supérieure
-        finalToolCallsLogged = routedTools.planned_tools.map(rt => ({ toolName: rt.tool_name, args: rt.arguments, reason: rt.reason }));
-        logger.info(`[${turnIdentifier}] Tool Router selected ${routedTools.planned_tools.length} tools: ${routedTools.planned_tools.map(t => t.tool_name).join(', ')}`);
-        finalFlowType = routedTools.planned_tools.length > 0 ? "workflow_routed" : "direct_llm_no_tools_routed";
+        // Log that we're skipping tool router for media uploads
+        logger.info(`[${turnIdentifier}] Skipping Tool Router for media upload. Proceeding with direct conversation.`);
+        finalFlowType = "direct_media_conversation";
       }
       // toolExecutionMessages est déjà initialisé à [] au début de la fonction
       if (routedTools.planned_tools.length > 0) {
@@ -2310,9 +2378,21 @@ Respond in STRICT JSON format:
     if (visualQaMatch && visualQaMatch[1]) {
       videoContextParts.push(`VISUAL QA: ${visualQaMatch[1]}`);
     }
+    
+    // Enhanced media handling - make it more prominent for synthesis
+    const isMediaPresent = initialAttachments?.some(att => att.type === 'video' || att.type === 'image') || 
+                           Boolean(videoSummaryForContext) || 
+                           Boolean(visualQaMatch);
+    
     const videoContextString = videoContextParts.length
       ? `YOU MUST BASE YOUR RESPONSE ON THE FOLLOWING VIDEO ANALYSIS. Do NOT ignore this.\n${videoContextParts.join('\n')}`
       : null;
+      
+    // Special instruction for media content
+    const mediaInstruction = isMediaPresent 
+      ? `\n\nIMPORTANT: The user has shared media content (video/image). Make your response focused primarily on discussing this media. Reference specific details from the analysis, acknowledge what they've shared, and make it feel like a natural conversation about their content.`
+      : '';
+      
     const synthesisSystemPrompt = injectPromptVariables(RESPONSE_SYNTHESIS_PROMPT_TEMPLATE, {
       userName,
       originalQuery: textQueryForRouter,
@@ -2329,7 +2409,7 @@ IMPORTANT ADDITIONAL GUIDANCE:
 1. If any tool provided a summary of its findings (news, search results, etc.), INCLUDE that summary in your response.
 2. Make the summary engaging and conversational, fully integrated with your persona.
 3. NEVER mention tool names, APIs, or implementation details.
-4. If video context was provided, incorporate insights from it naturally.
+4. If video context was provided, incorporate insights from it naturally.${mediaInstruction}
 ${videoContextString ? `\n${videoContextString}` : ''}`;
     logger.info(`[${turnIdentifier}] Synthesizing final response (${CHAT_VISION_MODEL_NAME_ORCH})...`);
     const synthesisResult = await generateStructuredJson<{ responseText: string; intentType: string }>(
@@ -2550,13 +2630,14 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
       const startTime = Date.now();
       let transcribedText: string | null = null;
       let detectedLang: string | null = null;
-      let audioFetchDuration: number | undefined = undefined; // Will be part of overall unless fetchAudioBuffer measures it
+      let audioFetchDuration: number | undefined = undefined;
       let sttDuration: number | undefined = undefined;
       let ttsDuration: number | undefined = undefined;
       let orchResultRaw: OrchestratorResponse | OrchestratorResponse[] | null = null;
       let orchResult: OrchestratorResponse | null = null;
       let userName: string = apiContext?.userName || DEFAULT_USER_NAME;
       const turnIdentifier = `Req[Audio] User:${userId.substring(0, 8)} Sess:${currentSessionId.substring(0, 6)}`;
+
       try {
         userName = apiContext?.userName || await this.getUserFirstName(userId) || DEFAULT_USER_NAME;
         const sttStart = Date.now();
@@ -2617,16 +2698,18 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
           ttsInstructions: orchResult?.ttsInstructions || getDynamicInstructions(orchResult?.intentType),
           clarificationQuestion: orchResult?.clarificationQuestion || null,
           error: orchResult?.error || null,
-          lang: effectiveApiContext.lang, // Use the determined lang
-          transcription: transcribedText, // If transcription was successful before error
-          audioUrl: orchResult?.audioUrl || null, // Updated audioUrl
-          structuredData: orchResult?.structuredData || null, // Ensure structuredData is included for UI cards
+          lang: effectiveApiContext.lang,
+          transcription: transcribedText,
+          audioUrl: orchResult?.audioUrl || null,
+          structuredData: orchResult?.structuredData || null,
           workflowFeedback: orchResult?.workflowFeedback || null,
           debugInfo: finalDebugInfo,
           llmUsage: orchResult?.llmUsage || null,
-          attachments: orchResult?.attachments || []
+          attachments: orchResult?.attachments || [],
+          isAudioMessage: true // Always mark AI response to audio as audio message
         };
-      } catch (error: any) {
+      }
+      catch (error: any) {
         const duration = Date.now() - startTime;
         const errorMessageString = String(error?.message || error || `Failed processing audio for ${userName}.`);
         logger.error(`--- ${turnIdentifier} Error (${duration}ms): ${errorMessageString}`, error.stack);
@@ -2666,7 +2749,8 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
           structuredData: null,
           clarificationQuestion: null,
           llmUsage: null,
-          attachments: []
+          attachments: [],
+          isAudioMessage: true // Mark error response as audio message too
         };
       }
     } catch (error: any) {
@@ -2777,4 +2861,17 @@ export { TTS_INSTRUCTION_MAP };
 // Helper to always get a single OrchestratorResponse from possibly-array result
 function getFirstOrchResponse(res: OrchestratorResponse | OrchestratorResponse[]): OrchestratorResponse {
   return Array.isArray(res) ? res[0] : res;
+}
+
+// Helper function to remove system prefixes from user inputs
+function stripSystemPrefixes(input: string): string {
+  if (typeof input !== 'string') return input;
+  
+  // Remove voice conversation prefix
+  input = input.replace(/^\[VOICE CONVERSATION: This is a spoken conversation\. Respond naturally and avoid using tools unless explicitly requested\.\]\s*/i, '');
+  
+  // Remove media upload prefix
+  input = input.replace(/^\[MEDIA UPLOAD: The user has shared media content\. Please respond to the content directly in conversation, don't use tools\.\]\s*/i, '');
+  
+  return input;
 }

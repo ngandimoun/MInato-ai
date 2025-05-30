@@ -427,7 +427,8 @@ audioUrl: audioUrl,
 attachments: [audioAttachment],
 timestamp: new Date().toISOString(),
 structured_data: null, debugInfo: null, workflowFeedback: null,
-intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined
+intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined,
+isAudioMessage: true
 };
 setMessages(prev => [...prev, audioMessage]);
 let assistantMessageId = `asst-temp-${generateId()}`;
@@ -453,7 +454,8 @@ messagesForFormData.push({
 id: optimisticId, role: "user",
 content: "[User sent an audio message]",
 timestamp: audioMessage.timestamp,
-attachments: []
+attachments: [],
+isAudioMessage: true
 });
 formData.append("messages", JSON.stringify(messagesForFormData));
 const response = await fetch("/api/audio", { method: "POST", body: formData, signal });

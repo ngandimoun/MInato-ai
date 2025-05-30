@@ -312,6 +312,26 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     let primaryError: string | null = null;
     let fallbackError: string | null = null;
     const userNameForResponse = input.context?.userName || "friend";
+    
+    // Apply user preferences if available
+    if (input.context?.userState?.workflow_preferences) {
+      const prefs = input.context.userState.workflow_preferences;
+      
+      // Apply preferred news sources if user didn't specify any
+      if (prefs.newsSources && prefs.newsSources.length > 0 && !input.sources) {
+        input.sources = prefs.newsSources.join(',');
+        logger.debug(`${logPrefix} Applied user's preferred news sources: ${input.sources}`);
+      }
+      
+      // Apply preferred news category if user didn't specify
+      if (prefs.newsPreferredCategories && 
+          prefs.newsPreferredCategories.length > 0 && 
+          !input.category) {
+        // Use the first preferred category
+        input.category = prefs.newsPreferredCategories[0] as any;
+        logger.debug(`${logPrefix} Applied user's preferred news category: ${input.category}`);
+      }
+    }
 
     const effectiveQuery = (typeof input.query === "string" && input.query.trim() !== "") ? input.query : undefined;
     const effectiveSources = (typeof input.sources === "string" && input.sources.trim() !== "") ? input.sources : undefined;
@@ -320,7 +340,6 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));
     const userLocaleKey = (input.context?.locale || 'en-US').split('-')[0].toLowerCase();
     const dateFnsLocale = dateFnsLocalesMap[userLocaleKey] || enUS;
-
 
     const defaultedInput: NewsInput = {
         ...input,
@@ -331,7 +350,6 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
         limit: effectiveLimit,
     };
     const queryInputForStructuredData = { ...defaultedInput };
-
 
     if (this.GNEWS_API_KEY) {
       logger.debug(`${logPrefix} Attempting GNews...`);

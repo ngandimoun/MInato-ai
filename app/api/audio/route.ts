@@ -7,7 +7,7 @@ import { ChatMessage } from "@/lib/types/index";
 import { checkRateLimit } from "@/lib/rate-limiter";
 import {
   RATE_LIMIT_ID_AUDIO_INPUT,
-  MEDIA_UPLOAD_BUCKET, // Changed to generic media bucket
+  MEDIA_UPLOAD_BUCKET,
   MAX_AUDIO_SIZE_BYTES,
   ALLOWED_AUDIO_TYPES,
   SIGNED_URL_EXPIRY_SECONDS,
@@ -16,8 +16,28 @@ import { logger } from "../../../memory-framework/config";
 import { randomUUID } from "crypto";
 import { appConfig } from "@/lib/config";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/server";
+import { v4 as uuidv4 } from "uuid";
 
 let orchestratorInstance: Orchestrator | null = null;
+
+interface UserAudioMessage {
+  content?: string;
+  timestamp?: string;
+  attachments?: any[];
+  audioUrl?: string;
+  isAudioMessage?: boolean;
+}
+
+interface AssistantResponse {
+  response?: string | null;
+  structuredData?: any;
+  audioUrl?: string | null;
+  intentType?: string | null;
+  ttsInstructions?: string | null;
+  debugInfo?: any;
+  error?: any;
+  transcription?: string | null;
+}
 
 function getOrchestrator(): Orchestrator {
   if (!orchestratorInstance) {
@@ -35,6 +55,92 @@ function getOrchestrator(): Orchestrator {
     }
   }
   return orchestratorInstance;
+}
+
+async function saveMessageToDatabase(
+  userMessage: UserAudioMessage, 
+  assistantResponse: AssistantResponse, 
+  userId: string, 
+  conversationId?: string
+): Promise<boolean> {
+  const logPrefix = "[API Audio]";
+  try {
+    // Get the conversation ID if not provided
+    if (!conversationId) {
+      const supabase = getSupabaseAdminClient();
+      if (!supabase) {
+        logger.error(`${logPrefix} Supabase admin client unavailable`);
+        return false;
+      }
+      
+      const { data: convoData } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+      
+      if (!convoData) {
+        // Create a new conversation
+        const { data: newConvo } = await supabase
+          .from('conversations')
+          .insert([{ user_id: userId }])
+          .select('id')
+          .single();
+        
+        if (!newConvo) {
+          logger.error(`${logPrefix} Failed to create new conversation`);
+          return false;
+        }
+        
+        conversationId = newConvo.id;
+      } else {
+        conversationId = convoData.id;
+      }
+    }
+
+    const supabase = getSupabaseAdminClient();
+    if (!supabase) {
+      logger.error(`${logPrefix} Supabase admin client unavailable`);
+      return false;
+    }
+    
+    // Save the user audio message
+    await supabase
+      .from('chat_messages')
+      .insert([{
+        conversation_id: conversationId,
+        user_id: userId,
+        role: 'user',
+        content: userMessage.content || "[Audio Message]",
+        timestamp: userMessage.timestamp || new Date().toISOString(),
+        attachments: userMessage.attachments || [],
+        audio_url: userMessage.audioUrl || null,
+        is_audio_message: true
+      }]);
+    
+    // Save the assistant response
+    await supabase
+      .from('chat_messages')
+      .insert([{
+        conversation_id: conversationId,
+        role: 'assistant',
+        content: assistantResponse.response || null,
+        timestamp: new Date().toISOString(),
+        structured_data: assistantResponse.structuredData || null,
+        audio_url: assistantResponse.audioUrl || null,
+        intent_type: assistantResponse.intentType || null,
+        tts_instructions: assistantResponse.ttsInstructions || null,
+        debug_info: assistantResponse.debugInfo || null,
+        error: !!assistantResponse.error
+      }]);
+    
+    logger.info(`${logPrefix} Messages saved to database for conversation: ${conversationId}`);
+    return true;
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`${logPrefix} Error saving messages to database: ${errorMessage}`);
+    return false;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -56,7 +162,7 @@ export async function POST(req: NextRequest) {
       } = await supabase.auth.getSession();
       if (sessionError) throw sessionError;
       if (!session?.user?.id) {
-        logger.warn(`${logPrefix} Auth] No active Supabase session found.`);
+        logger.warn(`${logPrefix} No active Supabase session found.`);
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
       userId = session.user.id;
@@ -120,7 +226,6 @@ export async function POST(req: NextRequest) {
       }
       const audioFile = audioFileFromForm; // Rename for clarity after check
 
-
       const historyParam = formData.get("history");
       const sessionIdParam = formData.get("sessionId");
       if (historyParam && typeof historyParam === "string") {
@@ -142,7 +247,41 @@ export async function POST(req: NextRequest) {
       if (sessionIdParam && typeof sessionIdParam === "string")
         sessionId = sessionIdParam;
       
-      // File size and type checks (remain the same)
+      const messagesParam = formData.get("messages");
+      if (messagesParam && typeof messagesParam === "string") {
+        try {
+          const parsedMessages = JSON.parse(messagesParam);
+          if (Array.isArray(parsedMessages)) {
+            // Find the user's audio message
+            const userAudioMessage = parsedMessages.find(m => 
+              m.role === "user" && m.isAudioMessage === true
+            );
+            
+            if (userAudioMessage) {
+              // Convert to ChatMessage format for history
+              history = parsedMessages.map(m => ({
+                id: m.id,
+                role: m.role,
+                content: m.content,
+                timestamp: m.timestamp,
+                attachments: m.attachments || [],
+                isAudioMessage: m.isAudioMessage // Pass the audio message flag
+              }));
+              
+              logger.debug(`${logPrefix} Found user audio message in history, isAudioMessage flag set.`);
+            } else {
+              history = parsedMessages;
+            }
+          }
+        } catch (e: any) {
+          logger.error(
+            `${logPrefix} Invalid messages JSON provided by user ${userId.substring(0, 8)}:`,
+            e.message
+          );
+        }
+      }
+      
+      // File size and type checks
       if (audioFile.size > MAX_AUDIO_SIZE_BYTES)
         return NextResponse.json(
           {
@@ -192,7 +331,7 @@ export async function POST(req: NextRequest) {
 
     supabaseAdminForStorage = getSupabaseAdminClient(); // Initialize here as it's needed
     if (!supabaseAdminForStorage || !supabaseAdminForStorage.storage) {
-      logger.error("[API Audio] supabaseAdmin or supabaseAdmin.storage is undefined!");
+      logger.error(`${logPrefix} supabaseAdmin or supabaseAdmin.storage is undefined!`);
       return NextResponse.json({ error: "Storage admin client not available." }, { status: 500 });
     }
 
@@ -271,16 +410,32 @@ export async function POST(req: NextRequest) {
           ? "Error processing audio."
           : response.error;
       logger.error(
-        `[API Audio] Orchestrator error processing audio for user ${userId}: ${response.error}`
+        `${logPrefix} Orchestrator error processing audio for user ${userId}: ${response.error}`
       );
       return NextResponse.json({ error: userError }, { status: 500 });
     }
     
+    // Save messages to database
+    const userAudioMessage: UserAudioMessage = {
+      content: response.transcription || "[Audio Message]",
+      timestamp: new Date().toISOString(),
+      attachments: [{
+        id: uuidv4(),
+        type: 'audio',
+        url: signedUrl,
+        name: originalFilename || 'audio_message.webm'
+      }],
+      audioUrl: signedUrl,
+      isAudioMessage: true
+    };
+
+    await saveMessageToDatabase(userAudioMessage, response, userId);
+
     return NextResponse.json(response);
   } catch (error: any) {
     const userIdSuffix = userId ? userId.substring(0, 8) + "..." : "UNKNOWN";
     logger.error(
-      `[API Audio] Unhandled exception for user ${userIdSuffix}:`,
+      `${logPrefix} Unhandled exception for user ${userIdSuffix}:`,
       error
     );
     return NextResponse.json(
@@ -299,17 +454,17 @@ export async function POST(req: NextRequest) {
         .then(({ data, error: removeError }: any) => {
           if (removeError)
             logger.warn(
-              `[API Audio] Failed to clean up ${finalUploadPath}:`,
+              `${logPrefix} Failed to clean up ${finalUploadPath}:`,
               removeError
             );
           else
             logger.debug(
-              `[API Audio] Successfully cleaned up ${finalUploadPath}. Items removed: ${data?.length}`
+              `${logPrefix} Successfully cleaned up ${finalUploadPath}. Items removed: ${data?.length}`
             );
         })
         .catch((err: any) =>
           logger.warn(
-            `[API Audio] Exception during background cleanup of ${finalUploadPath}:`,
+            `${logPrefix} Exception during background cleanup of ${finalUploadPath}:`,
             err
           )
         );
