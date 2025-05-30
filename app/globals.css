@@ -360,6 +360,318 @@
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 355 70% 70%;
   }
+
+  /* Velvet Purple palette */
+  .palette-velvet-purple {
+    --primary: 270 70% 45%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 270 70% 45%;
+  }
+
+  .dark.palette-velvet-purple {
+    --primary: 270 70% 55%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 270 70% 55%;
+  }
+
+  /* Cosmic Blue palette */
+  .palette-cosmic-blue {
+    --primary: 230 80% 40%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 230 80% 40%;
+  }
+
+  .dark.palette-cosmic-blue {
+    --primary: 230 80% 50%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 230 80% 50%;
+  }
+
+  /* Rose Gold palette */
+  .palette-rose-gold {
+    --primary: 340 60% 65%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 340 60% 65%;
+  }
+
+  .dark.palette-rose-gold {
+    --primary: 340 60% 75%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 340 60% 75%;
+  }
+
+  /* Mint Fresh palette */
+  .palette-mint-fresh {
+    --primary: 150 60% 50%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 150 60% 50%;
+  }
+
+  .dark.palette-mint-fresh {
+    --primary: 150 60% 60%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 150 60% 60%;
+  }
+
+  /* Cherry Blossom palette */
+  .palette-cherry-blossom {
+    --primary: 345 80% 70%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 345 80% 70%;
+  }
+
+  .dark.palette-cherry-blossom {
+    --primary: 345 80% 80%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 345 80% 80%;
+  }
+
+  /* Golden Hour palette */
+  .palette-golden-hour {
+    --primary: 40 90% 55%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 40 90% 55%;
+  }
+
+  .dark.palette-golden-hour {
+    --primary: 40 90% 65%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 40 90% 65%;
+  }
+
+  /* Mystic Violet palette */
+  .palette-mystic-violet {
+    --primary: 265 75% 55%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 265 75% 55%;
+  }
+
+  .dark.palette-mystic-violet {
+    --primary: 265 75% 65%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 265 75% 65%;
+  }
+
+  /* Neon Lime palette */
+  .palette-neon-lime {
+    --primary: 75 90% 50%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 75 90% 50%;
+  }
+
+  .dark.palette-neon-lime {
+    --primary: 75 90% 60%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 75 90% 60%;
+  }
+
+  /* Honey Amber palette */
+  .palette-honey-amber {
+    --primary: 45 80% 50%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 45 80% 50%;
+  }
+
+  .dark.palette-honey-amber {
+    --primary: 45 80% 60%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 45 80% 60%;
+  }
+
+  /* Deep Crimson palette */
+  .palette-deep-crimson {
+    --primary: 350 85% 35%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 350 85% 35%;
+  }
+
+  .dark.palette-deep-crimson {
+    --primary: 350 85% 45%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 350 85% 45%;
+  }
+
+  /* Aqua Marine palette */
+  .palette-aqua-marine {
+    --primary: 180 70% 50%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 180 70% 50%;
+  }
+
+  .dark.palette-aqua-marine {
+    --primary: 180 70% 60%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 180 70% 60%;
+  }
+
+  /* Peach Cream palette */
+  .palette-peach-cream {
+    --primary: 25 80% 70%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 25 80% 70%;
+  }
+
+  .dark.palette-peach-cream {
+    --primary: 25 80% 80%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 25 80% 80%;
+  }
+
+  /* Steel Blue palette */
+  .palette-steel-blue {
+    --primary: 215 60% 45%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 215 60% 45%;
+  }
+
+  .dark.palette-steel-blue {
+    --primary: 215 60% 55%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 215 60% 55%;
+  }
+
+  /* Matcha Green palette */
+  .palette-matcha-green {
+    --primary: 100 50% 40%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 100 50% 40%;
+  }
+
+  .dark.palette-matcha-green {
+    --primary: 100 50% 50%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 100 50% 50%;
+  }
+
+  /* Silver Moon palette */
+  .palette-silver-moon {
+    --primary: 220 15% 60%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 220 15% 60%;
+  }
+
+  .dark.palette-silver-moon {
+    --primary: 220 15% 70%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 220 15% 70%;
+  }
+
+  /* Sunset Pink palette */
+  .palette-sunset-pink {
+    --primary: 330 90% 65%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 330 90% 65%;
+  }
+
+  .dark.palette-sunset-pink {
+    --primary: 330 90% 75%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 330 90% 75%;
+  }
+
+  /* Ocean Blue palette */
+  .palette-ocean-blue {
+    --primary: 205 80% 45%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 205 80% 45%;
+  }
+
+  .dark.palette-ocean-blue {
+    --primary: 205 80% 55%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 205 80% 55%;
+  }
+
+  /* Morning Mist palette */
+  .palette-morning-mist {
+    --primary: 210 20% 60%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 210 20% 60%;
+  }
+
+  .dark.palette-morning-mist {
+    --primary: 210 20% 70%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 210 20% 70%;
+  }
+
+  /* Twilight Haze palette */
+  .palette-twilight-haze {
+    --primary: 260 50% 50%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 260 50% 50%;
+  }
+
+  .dark.palette-twilight-haze {
+    --primary: 260 50% 60%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 260 50% 60%;
+  }
+
+  /* Citrus Lime palette */
+  .palette-citrus-lime {
+    --primary: 85 80% 45%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 85 80% 45%;
+  }
+
+  .dark.palette-citrus-lime {
+    --primary: 85 80% 55%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 85 80% 55%;
+  }
+
+  /* Berry Punch palette */
+  .palette-berry-punch {
+    --primary: 320 70% 50%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 320 70% 50%;
+  }
+
+  .dark.palette-berry-punch {
+    --primary: 320 70% 60%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 320 70% 60%;
+  }
+
+  /* Coffee Mocha palette */
+  .palette-coffee-mocha {
+    --primary: 30 60% 30%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 30 60% 30%;
+  }
+
+  .dark.palette-coffee-mocha {
+    --primary: 30 60% 40%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 30 60% 40%;
+  }
+
+  /* Bamboo Green palette */
+  .palette-bamboo-green {
+    --primary: 120 40% 40%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 120 40% 40%;
+  }
+
+  .dark.palette-bamboo-green {
+    --primary: 120 40% 50%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 120 40% 50%;
+  }
+
+  /* Flamingo Pink palette */
+  .palette-flamingo-pink {
+    --primary: 335 80% 65%;
+    --primary-foreground: 210 40% 98%;
+    --ring: 335 80% 65%;
+  }
+
+  .dark.palette-flamingo-pink {
+    --primary: 335 80% 75%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --ring: 335 80% 75%;
+  }
 }
 
 @layer base {

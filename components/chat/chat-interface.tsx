@@ -286,8 +286,16 @@ const rawEvents = value.split("\n\n");
             } else if (eventName === "ui-component" && eventData.data) {
                 const cardMessageId = `asst-card-${generateId()}`;
                 setMessages(prev => {
-                    // Prevent duplicate cards by checking for existing structured_data (deep equality)
-                    if (prev.some(msg => msg.structured_data && JSON.stringify(msg.structured_data) === JSON.stringify(eventData.data))) return prev;
+                    // Prevent duplicate cards by checking for existing structured_data with same content
+                    if (prev.some(msg => 
+                        msg.structured_data && 
+                        ((msg.structured_data as any).type === (eventData.data as any).type && 
+                         ((eventData.data as any).id && (msg.structured_data as any).id === (eventData.data as any).id)) || 
+                         JSON.stringify(msg.structured_data) === JSON.stringify(eventData.data)
+                    )) {
+                        return prev;
+                    }
+                    
                     return [
                         ...prev,
                         {
@@ -419,7 +427,8 @@ audioUrl: audioUrl,
 attachments: [audioAttachment],
 timestamp: new Date().toISOString(),
 structured_data: null, debugInfo: null, workflowFeedback: null,
-intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined
+intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined,
+isAudioMessage: true
 };
 setMessages(prev => [...prev, audioMessage]);
 let assistantMessageId = `asst-temp-${generateId()}`;
@@ -445,7 +454,8 @@ messagesForFormData.push({
 id: optimisticId, role: "user",
 content: "[User sent an audio message]",
 timestamp: audioMessage.timestamp,
-attachments: []
+attachments: [],
+isAudioMessage: true
 });
 formData.append("messages", JSON.stringify(messagesForFormData));
 const response = await fetch("/api/audio", { method: "POST", body: formData, signal });
@@ -499,24 +509,40 @@ setMessages(prev => prev.map(msg => {
 
 // If there is a second response (the card), add it as a new message
 if (responses.length > 1 && responses[1].structuredData) {
-  setMessages(prev => [
-    ...prev,
-    {
-      id: `asst-card-${generateId()}`,
-      role: "assistant",
-      content: null,
-      timestamp: new Date().toISOString(),
-      attachments: [],
-      audioUrl: undefined,
-      structured_data: responses[1].structuredData,
-      debugInfo: responses[1].debugInfo || null,
-      workflowFeedback: responses[1].workflowFeedback || null,
-      intentType: responses[1].intentType || null,
-      ttsInstructions: responses[1].ttsInstructions || null,
-      clarificationQuestion: responses[1].clarificationQuestion || null,
-      error: !!responses[1].error,
-    }
-  ]);
+  const structuredData = responses[1].structuredData;
+  
+  // Check if we already have this structured data to avoid duplicates
+  const alreadyExists = (prevMessages: Message[]) => 
+    prevMessages.some(msg => 
+      msg.structured_data && 
+      (((msg.structured_data as any).type === (structuredData as any).type && 
+       ((structuredData as any).id && (msg.structured_data as any).id === (structuredData as any).id)) || 
+       JSON.stringify(msg.structured_data) === JSON.stringify(structuredData))
+    );
+  
+  setMessages(prev => {
+    // Skip adding if already exists
+    if (alreadyExists(prev)) return prev;
+    
+    return [
+      ...prev,
+      {
+        id: `asst-card-${generateId()}`,
+        role: "assistant",
+        content: null,
+        timestamp: new Date().toISOString(),
+        attachments: [],
+        audioUrl: undefined,
+        structured_data: structuredData,
+        debugInfo: responses[1].debugInfo || null,
+        workflowFeedback: responses[1].workflowFeedback || null,
+        intentType: responses[1].intentType || null,
+        ttsInstructions: responses[1].ttsInstructions || null,
+        clarificationQuestion: responses[1].clarificationQuestion || null,
+        error: !!responses[1].error,
+      }
+    ];
+  });
 }
 
 playSound("receive");

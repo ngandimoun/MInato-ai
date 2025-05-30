@@ -5,6 +5,7 @@ import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { CachedImage, CachedImageList } from "@/lib/types/index";
 import nodeFetch from "node-fetch"; // Ensure node-fetch is correctly imported
+import { generateStructuredJson } from "../providers/llm_clients";
 
 interface PexelsSearchInput extends ToolInput {
   query: string;
@@ -64,7 +65,93 @@ export class PexelsSearchTool extends BaseTool {
     }
   }
 
+  private async extractPexelsParameters(userInput: string): Promise<Partial<PexelsSearchInput>> {
+    // Enhanced extraction prompt for Pexels
+    const extractionPrompt = `
+You are an expert parameter extractor for Minato's PexelsSearchTool which searches for high-quality images on Pexels.
+
+Given this user query about images: "${userInput.replace(/\"/g, '\\"')}"
+
+COMPREHENSIVE ANALYSIS GUIDELINES:
+
+1. IMAGE QUERY IDENTIFICATION:
+   - Extract the core subject or theme the user wants images of (e.g., "mountains", "happy people", "city at night")
+   - Focus on the visual content desired, not incidental phrases
+   - For complex requests, identify the main visual subject
+
+2. ORIENTATION PREFERENCE DETECTION:
+   - Determine if user explicitly or implicitly wants "landscape", "portrait", or "square" images
+   - Look for clues like "horizontal", "vertical", "wide", "tall", etc.
+   - Default to null (any orientation) if not specified
+
+3. SIZE PREFERENCE ANALYSIS:
+   - Identify if user has a preference for "large", "medium", or "small" images
+   - Map expressions like "high-resolution" to "large", "medium-sized" to "medium", etc.
+   - Default to null (any size) if not specified
+
+4. RESULT LIMIT DETERMINATION:
+   - Identify how many images the user wants (1-5)
+   - Map expressions like "a couple" to 2, "a few" to 3, "several" to 4, etc.
+   - Default to 3 if unspecified
+
+OUTPUT FORMAT: JSON object with these fields:
+- "query": (string) The core visual subject to search for
+- "orientation": (string|null) One of: "landscape", "portrait", "square", or null if unspecified
+- "size": (string|null) One of: "large", "medium", "small", or null if unspecified
+- "limit": (number|null) Number of images (1-5) or null if unspecified
+
+If a parameter cannot be confidently extracted, set it to null rather than guessing.
+
+RESPOND ONLY WITH THE JSON OBJECT.`;
+
+    try {
+      // Define the schema for PexelsSearchInput
+      const pexelsParamsSchema = {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          orientation: { type: ["string", "null"], enum: ["landscape", "portrait", "square", null] },
+          size: { type: ["string", "null"], enum: ["large", "medium", "small", null] },
+          limit: { type: ["number", "null"] }
+        }
+      };
+
+      const extractionResult = await generateStructuredJson<Partial<PexelsSearchInput>>(
+        extractionPrompt,
+        userInput,
+        pexelsParamsSchema,
+        "PexelsSearchToolParameters",
+        [], // no history context needed
+        "gpt-4o-mini"
+      );
+      
+      return extractionResult || {};
+    } catch (error) {
+      logger.error("[PexelsSearchTool] Parameter extraction failed:", error);
+      return {};
+    }
+  }
+
   async execute(input: PexelsSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    // If input is from natural language, extract parameters
+    if (input._rawUserInput && typeof input._rawUserInput === 'string') {
+      const extractedParams = await this.extractPexelsParameters(input._rawUserInput);
+      
+      // Only use extracted parameters if they're not already specified
+      if (extractedParams.query && !input.query) {
+        input.query = extractedParams.query;
+      }
+      if (extractedParams.orientation !== undefined && input.orientation === undefined) {
+        input.orientation = extractedParams.orientation;
+      }
+      if (extractedParams.size !== undefined && input.size === undefined) {
+        input.size = extractedParams.size;
+      }
+      if (extractedParams.limit !== undefined && input.limit === undefined) {
+        input.limit = extractedParams.limit;
+      }
+    }
+    
     const { query } = input;
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 3 : Math.max(1, Math.min(input.limit, 5));
     const orientation = (input.orientation === null) ? undefined : input.orientation;

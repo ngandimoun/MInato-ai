@@ -205,8 +205,18 @@ attractions?: Array<{ name: string }>;
 export interface UserWorkflowPreferences {
 newsKeywords?: string[];
 newsSources?: string[];
+newsPreferredCategories?: ("business" | "entertainment" | "general" | "health" | "science" | "sports" | "technology")[];
 contentRadarSubreddits?: string[];
 contentRadarRssUrls?: string[];
+redditPreferredSubreddits?: string[];
+youtubePreferredChannels?: string[];
+hackernewsPreferredTopics?: string[];
+recipePreferredCuisines?: string[];
+recipePreferredDiets?: string[];
+sportsPreferredTeams?: string[];
+sportsPreferredLeagues?: string[];
+webSearchPreferredSources?: string[];
+interestCategories?: ("sports" | "cinema" | "tvshows" | "politics" | "tech" | "anime" | "gaming" | "music" | "books" | "science" | "travel" | "cooking" | "fashion" | "finance" | "health" | "art")[];
 trackedMarketAssets?: {
 id: string;
 type: "crypto" | "stock" | "nft";
@@ -227,6 +237,12 @@ genres: string[];
 }[];
 sleepGoalHours?: number;
 activityGoalSteps?: number;
+dailyBriefingTime?: string; // format: "HH:MM"
+dailyBriefingEnabled?: boolean;
+dailyBriefingIncludeNews?: boolean;
+dailyBriefingIncludeWeather?: boolean;
+dailyBriefingIncludeCalendar?: boolean;
+dailyBriefingIncludeReminders?: boolean;
 }
 // --- Data Analysis Types ---
 export interface DataAnalysisInput {
@@ -412,6 +428,7 @@ export type ChatMessage = {
   annotations?: any[] | null; // Consider defining a more specific type if used consistently
   clarificationQuestion?: string | null;
   error?: boolean;
+  isAudioMessage?: boolean; // Flag to identify if this is an audio message
 } & ( // Role-specific properties
   | { role: "assistant"; tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] | null; }
   | { role: "tool"; tool_call_id: string; } // `tool_call_id` is required for role 'tool'
@@ -718,8 +735,9 @@ query?: Record<string, any>;
 error?: string;
 }
 export interface DateTimeStructuredOutput {
-result_type: "datetime_info";
-source_api: "datetime_tool";
+result_type: string;
+source_api: string;
+query: any;
 processedTimeUTC: string;
 isContextBased: boolean;
 primaryLocation: {
@@ -729,6 +747,7 @@ currentTime: string | null;
 currentDate: string | null;
 dayOfWeek: string | null;
 utcOffset: string | null;
+isNighttime?: boolean;
 error: string | null;
 };
 allRequestedLocations?: Array<{
@@ -738,10 +757,12 @@ currentTime: string | null;
 currentDate: string | null;
 dayOfWeek: string | null;
 utcOffset: string | null;
+isNighttime?: boolean;
 error: string | null;
 }>;
-query?: Record<string, any>;
 error?: string;
+format?: string;
+isAudioResponse?: boolean;
 }
 // export interface GeolocationStructuredOutput {
 // result_type: "geolocation";
@@ -1182,6 +1203,7 @@ export type OrchestratorResponse = {
     transcription?: string | null;
     llmUsage?: CompletionUsage | null;
     attachments?: MessageAttachment[];
+    isAudioMessage?: boolean; // Flag to identify if this is an audio message
 };
 // --- Realtime API Types (aligned with OpenAI documentation) ---
 export type RealtimeInputAudioTranscriptionConfig = {

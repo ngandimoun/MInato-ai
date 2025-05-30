@@ -11,13 +11,23 @@ export type ColorPalette =
   | "autumn-harvest" | "spring-meadow" | "royal-purple" | "tropical-paradise" | "ruby-red"
   | "midnight-blue" | "forest-green" | "sunset-orange" | "slate-gray" | "turquoise-sea"
   | "chocolate-brown" | "electric-blue" | "olive-green" | "coral-reef"
+  | "velvet-purple" | "cosmic-blue" | "rose-gold" | "mint-fresh" | "cherry-blossom"
+  | "golden-hour" | "mystic-violet" | "neon-lime" | "honey-amber" | "deep-crimson"
+  | "aqua-marine" | "peach-cream" | "steel-blue" | "matcha-green" | "silver-moon"
+  | "sunset-pink" | "ocean-blue" | "morning-mist" | "twilight-haze" | "citrus-lime"
+  | "berry-punch" | "coffee-mocha" | "bamboo-green" | "flamingo-pink"
 
 const PALETTE_CLASSES = [
   "palette-arctic-dawn", "palette-sakura-blossom", "palette-emerald-forest", "palette-cyber-neon", "palette-monochrome-ink",
   "palette-sunset-gold", "palette-lavender-mist", "palette-ocean-depths", "palette-desert-sand", "palette-midnight-galaxy",
   "palette-autumn-harvest", "palette-spring-meadow", "palette-royal-purple", "palette-tropical-paradise", "palette-ruby-red",
   "palette-midnight-blue", "palette-forest-green", "palette-sunset-orange", "palette-slate-gray", "palette-turquoise-sea",
-  "palette-chocolate-brown", "palette-electric-blue", "palette-olive-green", "palette-coral-reef"
+  "palette-chocolate-brown", "palette-electric-blue", "palette-olive-green", "palette-coral-reef",
+  "palette-velvet-purple", "palette-cosmic-blue", "palette-rose-gold", "palette-mint-fresh", "palette-cherry-blossom",
+  "palette-golden-hour", "palette-mystic-violet", "palette-neon-lime", "palette-honey-amber", "palette-deep-crimson",
+  "palette-aqua-marine", "palette-peach-cream", "palette-steel-blue", "palette-matcha-green", "palette-silver-moon",
+  "palette-sunset-pink", "palette-ocean-blue", "palette-morning-mist", "palette-twilight-haze", "palette-citrus-lime",
+  "palette-berry-punch", "palette-coffee-mocha", "palette-bamboo-green", "palette-flamingo-pink"
 ];
 
 interface ThemeProviderProps {

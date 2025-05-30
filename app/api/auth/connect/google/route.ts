@@ -88,9 +88,12 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Log configuration values to diagnose potential issues
+  logger.info(`${logPrefix} Google OAuth configuration check - ClientID exists: ${!!appConfig.toolApiKeys.googleClientId}, ClientSecret exists: ${!!appConfig.toolApiKeys.googleClientSecret}, RedirectURI: ${process.env.GOOGLE_REDIRECT_URI}`);
+
   if (
-    !appConfig.apiKey.googleClientId ||
-    !appConfig.apiKey.googleClientSecret ||
+    !appConfig.toolApiKeys.googleClientId ||
+    !appConfig.toolApiKeys.googleClientSecret ||
     !process.env.GOOGLE_REDIRECT_URI // Assurez-vous que GOOGLE_REDIRECT_URI est bien dans votre .env
   ) {
     logger.error(
@@ -107,8 +110,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const oauth2Client = new OAuth2Client(
-      appConfig.apiKey.googleClientId,
-      appConfig.apiKey.googleClientSecret,
+      appConfig.toolApiKeys.googleClientId,
+      appConfig.toolApiKeys.googleClientSecret,
       process.env.GOOGLE_REDIRECT_URI // Doit correspondre à ce qui est configuré dans Google Cloud Console
     );
 
@@ -123,6 +126,7 @@ export async function GET(req: NextRequest) {
       scope: scopes,
       prompt: "consent", // Recommande de demander le consentement pour s'assurer que l'utilisateur voit les scopes
       state: state, // Pour la protection CSRF
+      include_granted_scopes: true // Include previously granted scopes
     });
 
     // Stocker l'état dans un cookie HttpOnly, Secure
@@ -135,7 +139,7 @@ export async function GET(req: NextRequest) {
     });
 
     logger.info(
-      `${logPrefix} Generated Google Auth URL with state and scopes [${scopes.join(
+      `${logPrefix} Generated Google Auth URL with state='${state.substring(0, 6)}...' and scopes=[${scopes.join(
         ", "
       )}] for user ${(userId ?? "unknown").substring(0, 8)}. Redirecting user.`
     );

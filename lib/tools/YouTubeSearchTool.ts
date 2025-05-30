@@ -4,14 +4,18 @@ import fetch from "node-fetch";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { CachedVideoList, CachedYouTubeVideo } from "@/lib/types/index";
+import { generateStructuredJson } from "../providers/llm_clients";
+
 interface YouTubeSearchInput extends ToolInput {
   query: string;
+  category?: string | null;
+  description_keywords?: string | null;
   limit?: number | null;
-  category?: string;
-  description_keywords?: string;
+  lang?: string | null;
   context?: {
     previous_query?: string;
     previous_video_title?: string;
+    // Don't define userState here as it's already part of ToolInput context
   };
 }
 interface YouTubeThumbnail { url: string; width?: number; height?: number; }
@@ -37,7 +41,15 @@ export class YouTubeSearchTool extends BaseTool {
         type: "object",
         properties: {
           previous_query: { type: "string" },
-          previous_video_title: { type: "string" }
+          previous_video_title: { type: "string" },
+          userState: {
+            type: "object",
+            properties: {
+              workflow_preferences: { type: "array" },
+            },
+            required: [],
+            additionalProperties: false
+          }
         },
         required: [],
         additionalProperties: false
@@ -62,6 +74,93 @@ export class YouTubeSearchTool extends BaseTool {
       this.log("warn", "Update YouTubeSearchTool USER_AGENT contact info with actual details.");
     }
   }
+  
+  private async extractYouTubeParameters(userInput: string): Promise<Partial<YouTubeSearchInput>> {
+    // Enhanced extraction prompt for YouTube
+    const extractionPrompt = `
+You are an expert parameter extractor for Minato's YouTubeSearchTool which searches for videos on YouTube.
+
+Given this user query about YouTube videos: "${userInput.replace(/\"/g, '\\"')}"
+
+COMPREHENSIVE ANALYSIS GUIDELINES:
+
+1. VIDEO QUERY IDENTIFICATION:
+   - Extract the core topic, keywords, or content the user is looking for
+   - Focus on what type of video content they want to see (e.g., "how to make pasta", "drone footage", "latest SpaceX launch")
+   - For complex requests, identify the main subject
+   - If query references a previous video like "show me more like that", extract that context
+
+2. CATEGORY SPECIFICATION:
+   - Identify the general category or topic area (e.g., "music", "gaming", "education", "comedy", "science")
+   - Use broad, standard YouTube categories
+   - Leave empty if no clear category is evident
+
+3. DESCRIPTION KEYWORDS EXTRACTION:
+   - Identify specific keywords that should appear in video descriptions
+   - Format as comma-separated terms for filtering
+   - Focus on qualifying terms beyond the main query (e.g., "tutorial", "official", "4K", "2023")
+
+4. RESULT LIMIT DETERMINATION:
+   - Identify how many videos the user wants (1-5)
+   - Map expressions like "a couple" to 2, "a few" to 3, etc.
+   - Default to 3 if unspecified
+
+5. CONTEXT ANALYSIS:
+   - If query references previous videos or searches (e.g., "more like that", "similar videos")
+   - Set appropriate context values if they can be inferred
+
+OUTPUT FORMAT: JSON object with these fields:
+- "query": (string) The core video search terms
+- "category": (string|null) General video category or null if unspecified
+- "description_keywords": (string|null) Comma-separated keywords for filtering or null if unspecified
+- "limit": (number|null) Number of videos (1-5) or null if unspecified
+- "context": (object|null) Contains previous_query and/or previous_video_title if applicable
+
+If a parameter cannot be confidently extracted, set it to null rather than guessing.
+
+RESPOND ONLY WITH THE JSON OBJECT.`;
+
+    try {
+      // Define the schema for YouTubeSearchInput
+      const youtubeParamsSchema = {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          category: { type: ["string", "null"] },
+          description_keywords: { type: ["string", "null"] },
+          limit: { type: ["number", "null"] },
+          context: {
+            type: ["object", "null"],
+            properties: {
+              previous_query: { type: ["string", "null"] },
+              previous_video_title: { type: ["string", "null"] },
+              userState: {
+                type: ["object", "null"],
+                properties: {
+                  workflow_preferences: { type: ["array", "null"] }
+                }
+              }
+            }
+          }
+        }
+      };
+
+      const extractionResult = await generateStructuredJson<Partial<YouTubeSearchInput>>(
+        extractionPrompt,
+        userInput,
+        youtubeParamsSchema,
+        "YouTubeSearchToolParameters",
+        [], // no history context needed
+        "gpt-4o-mini"
+      );
+      
+      return extractionResult || {};
+    } catch (error) {
+      logger.error("[YouTubeSearchTool] Parameter extraction failed:", error);
+      return {};
+    }
+  }
+  
   private buildYouTubeEmbedUrl(videoId: string): string {
     return `https://www.youtube.com/embed/${videoId}?autoplay=0&modestbranding=1&rel=0`;
   }
@@ -69,14 +168,66 @@ export class YouTubeSearchTool extends BaseTool {
     return `https://www.youtube.com/watch?v=${videoId}`;
   }
   async execute(input: YouTubeSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    const { query } = input;
-    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 3 : Math.max(1, Math.min(input.limit, 5));
-    let userNameForResponse = "friend";
+    const logPrefix = `[YouTubeSearchTool]`;
+    
+    // If input is from natural language, extract parameters
+    if (input._rawUserInput && typeof input._rawUserInput === 'string') {
+      const extractedParams = await this.extractYouTubeParameters(input._rawUserInput);
+      
+      // Only use extracted parameters if they're not already specified
+      if (extractedParams.query && input.query === undefined) {
+        input.query = extractedParams.query;
+      }
+      if (extractedParams.category && input.category === undefined) {
+        input.category = extractedParams.category;
+      }
+      if (extractedParams.limit && input.limit === undefined) {
+        input.limit = extractedParams.limit;
+      }
+      if (extractedParams.description_keywords && input.description_keywords === undefined) {
+        input.description_keywords = extractedParams.description_keywords;
+      }
+    }
+    
+    // Apply user preferences using the standard API context
+    if (input._context?.userState?.workflow_preferences) {
+      const prefs = input._context.userState.workflow_preferences;
+      
+      // If user has preferred YouTube channels, we can prioritize them in the query
+      if (prefs.youtubePreferredChannels && 
+          prefs.youtubePreferredChannels.length > 0 && 
+          !input.query.toLowerCase().includes('channel:')) {
+        // Add channel name to the query if there's only one preferred channel
+        if (prefs.youtubePreferredChannels.length === 1) {
+          const channel = prefs.youtubePreferredChannels[0];
+          input.query = `${input.query} channel:"${channel}"`;
+          logger.debug(`${logPrefix} Applied user's preferred YouTube channel: ${channel}`);
+        }
+      }
+    }
+    
+    const userNameForResponse = input._context?.userName || "friend";
+    const queryString = input.query || "";
+    const effectiveLimit = Math.min(Math.max(1, input.limit || 5), 10);
+    
+    if (!queryString.trim()) {
+      const errorMsg = "Empty search query.";
+      logger.error(`${logPrefix} ${errorMsg}`);
+      return {
+        error: errorMsg,
+        result: `Minato needs a search term to find YouTube videos for ${userNameForResponse}.`,
+        structuredData: { 
+          result_type: "video_list", 
+          source_api: "youtube", 
+          query: { ...input, limit: effectiveLimit }, 
+          videos: [], 
+          error: "Empty search query." 
+        }
+      };
+    }
+    
     let langCode = "en";
     if (input.context && typeof input.context === 'object') {
-      if ('userName' in input.context && typeof (input.context as any).userName === 'string') {
-        userNameForResponse = (input.context as any).userName;
-      }
       if ('locale' in input.context && typeof (input.context as any).locale === 'string') {
         langCode = (input.context as any).locale.split("-")[0];
       } else if (input.lang && typeof input.lang === 'string') {
@@ -85,17 +236,12 @@ export class YouTubeSearchTool extends BaseTool {
     } else if (input.lang && typeof input.lang === 'string') {
       langCode = input.lang.split("-")[0];
     }
-    const logPrefix = `[YouTubeTool] Query: "${query.substring(0, 30)}..."`;
-    if (input.category || input.description_keywords || input.context) {
-      this.log("info", `${logPrefix} Extra fields: category=${input.category}, description_keywords=${input.description_keywords}, context=${JSON.stringify(input.context)}`);
-    }
     const queryInputForStructuredData = { ...input, limit: effectiveLimit };
     if (abortSignal?.aborted) { return { error: "YouTube search cancelled.", result: "Cancelled." }; }
     if (!this.API_KEY) { return { error: "YouTube Tool is not configured.", result: `Sorry, ${userNameForResponse}, Minato cannot search YouTube right now.` }; }
-    if (!query?.trim()) { return { error: "Missing search query.", result: `What video should Minato look for on YouTube, ${userNameForResponse}?`, structuredData: { result_type: "video_list", source_api: "youtube", query: queryInputForStructuredData, videos: [], error: "Missing search query." } }; }
 
     const params = new URLSearchParams({
-      key: this.API_KEY, part: "snippet", q: query.trim(), type: "video",
+      key: this.API_KEY, part: "snippet", q: queryString.trim(), type: "video",
       maxResults: String(effectiveLimit),
       relevanceLanguage: langCode,
     });
@@ -120,13 +266,13 @@ export class YouTubeSearchTool extends BaseTool {
       // --- BEGIN: Post-fetch filtering/ranking and conversational follow-up logic ---
       let filteredVideos = videos;
       // 1. Conversational follow-up: If query is vague and context is present, refine query
-      let effectiveQuery = query;
+      let effectiveQuery = queryString;
       if (
-        (!query || query.trim().length < 4 || /^(show me more|more like that|another|again|similar|like last|like previous|find more|find another|next)$/i.test(query.trim())) &&
+        (!queryString || queryString.trim().length < 4 || /^(show me more|more like that|another|again|similar|like last|like previous|find more|find another|next)$/i.test(queryString.trim())) &&
         input.context && (input.context.previous_video_title || input.context.previous_query)
       ) {
         // Use previous video title or query to refine
-        effectiveQuery = input.context.previous_video_title || input.context.previous_query || query;
+        effectiveQuery = input.context.previous_video_title || input.context.previous_query || queryString;
         this.log("info", `${logPrefix} Using conversational context for vague query. Refined query: ${effectiveQuery}`);
       }
       // 2. Post-fetch filtering/ranking using description_keywords and category
@@ -182,7 +328,7 @@ export class YouTubeSearchTool extends BaseTool {
       if (structuredResults.length > 0) {
         const firstVideo = structuredResults[0];
         // If context was used for follow-up, mention it
-        if (effectiveQuery !== query) {
+        if (effectiveQuery !== queryString) {
           textResult = `Based on your previous video, I found "${firstVideo.title}" for you, ${userNameForResponse}. Want to watch it?`;
         } else {
           textResult = `Hey ${userNameForResponse}, I found a great video called "${firstVideo.title}" about "${effectiveQuery}"! It looks interesting. Would you like to watch it together right here?`;

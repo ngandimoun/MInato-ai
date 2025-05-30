@@ -1,6 +1,6 @@
 // FILE: app/api/chat/history/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient, getSupabaseAdminClient } from "@/lib/supabase/server"; // Use getSupabaseAdminClient
+import { createServerSupabaseClient, getSupabaseAdminClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { logger } from "@/memory-framework/config";
 import { ChatMessage } from "@/lib/types";
@@ -17,108 +17,94 @@ export async function GET(req: NextRequest) {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
-      logger.warn(`${logPrefix} Unauthorized access attempt. UserError: ${userError?.message}`);
+      logger.warn(`${logPrefix} No active Supabase session found.`);
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    
     userId = user.id;
-  } catch (authError: any) {
-    logger.error(`${logPrefix} Auth Error:`, authError);
-    return NextResponse.json({ error: "Authentication error" }, { status: 500 });
-  }
+    logger.info(`${logPrefix} Request from authenticated user: ${userId.substring(0, 8)}...`);
 
-  const { searchParams } = new URL(req.url);
-  const pageParam = searchParams.get("page");
-  const limitParam = searchParams.get("limit");
+    // Get pagination parameters
+    const url = new URL(req.url);
+    const page = parseInt(url.searchParams.get("page") || "1");
+    const limit = parseInt(url.searchParams.get("limit") || MESSAGES_PER_PAGE_DEFAULT.toString());
+    const offset = (page - 1) * limit;
 
-  const page = pageParam ? parseInt(pageParam, 10) : 1;
-  const limit = limitParam ? parseInt(limitParam, 10) : MESSAGES_PER_PAGE_DEFAULT;
-
-  if (isNaN(page) || page < 1) {
-    return NextResponse.json({ error: "Invalid 'page' parameter." }, { status: 400 });
-  }
-  if (isNaN(limit) || limit < 1 || limit > 100) { // Add a max limit for safety
-    return NextResponse.json({ error: "Invalid 'limit' parameter (must be 1-100)." }, { status: 400 });
-  }
-
-  const offset = (page - 1) * limit;
-
-  logger.info(`${logPrefix} User: ${userId.substring(0,8)}, Fetching page: ${page}, limit: ${limit}, offset: ${offset}`);
-
-  try {
-    const supabaseDB = getSupabaseAdminClient(); // Use the admin client for direct DB access
-    if (!supabaseDB) {
-        logger.error(`${logPrefix} Supabase admin client unavailable.`);
-        throw new Error("Database client error.");
+    // Validate pagination
+    if (isNaN(page) || page < 1 || isNaN(limit) || limit < 1 || limit > 100) {
+      return NextResponse.json({ error: "Invalid pagination parameters" }, { status: 400 });
     }
-    
-    const { data: convoData, error: convoError } = await supabaseDB
+
+    const { data: conversationData, error: conversationError } = await supabase
       .from("conversations")
       .select("id")
       .eq("user_id", userId)
-      .order('created_at', { ascending: false }) // Get the latest conversation
-      .limit(1)
       .single();
 
-    if (convoError && convoError.code !== 'PGRST116') { // PGRST116: No rows found
-      logger.error(`${logPrefix} Error fetching conversation ID for user ${userId.substring(0,8)}:`, convoError);
-      throw convoError;
+    if (conversationError && conversationError.code !== "PGRST116") {
+      logger.error(`${logPrefix} Error fetching conversation: ${conversationError.message}`);
+      return NextResponse.json({ error: "Error fetching conversation" }, { status: 500 });
     }
 
-    if (!convoData) {
-      logger.info(`${logPrefix} No conversation found for user ${userId.substring(0,8)}. Returning empty history.`);
-      return NextResponse.json([]); // Return empty array if no conversation exists
+    let conversationId = conversationData?.id;
+
+    // If no conversation exists, create one
+    if (!conversationId) {
+      logger.info(`${logPrefix} Creating new conversation for user: ${userId.substring(0, 8)}...`);
+      const { data: newConversation, error: createError } = await supabase
+        .from("conversations")
+        .insert([{ user_id: userId }])
+        .select("id")
+        .single();
+
+      if (createError) {
+        logger.error(`${logPrefix} Error creating conversation: ${createError.message}`);
+        return NextResponse.json({ error: "Error creating conversation" }, { status: 500 });
+      }
+      conversationId = newConversation.id;
     }
 
-    const conversationId = convoData.id;
-    logger.debug(`${logPrefix} Using conversation ID: ${conversationId} for user ${userId.substring(0,8)}.`);
-
-    const { data: messages, error: messagesError } = await supabaseDB
+    // Fetch messages from the conversation with proper pagination - newest first
+    const { data: messagesData, error: messagesError } = await supabase
       .from("chat_messages")
-      .select("id, role, content, timestamp, attachments, tool_calls, structured_data, audio_url, intent_type, tts_instructions, error")
+      .select("*")
       .eq("conversation_id", conversationId)
-      .order("timestamp", { ascending: false }) // Fetch newest first for pagination
+      .order("timestamp", { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (messagesError) {
-      logger.error(`${logPrefix} Error fetching messages for user ${userId.substring(0,8)}, convo ${conversationId}:`, messagesError);
-      throw messagesError;
+      logger.error(`${logPrefix} Error fetching messages: ${messagesError.message}`);
+      return NextResponse.json({ error: "Error fetching messages" }, { status: 500 });
     }
 
-    interface DBMessage {
-      id: string;
-      role: string;
-      content: any; // More flexible for DB schema
-      timestamp: string;
-      attachments: any[] | null;
-      tool_calls: any[] | null;
-      structured_data: any | null;
-      audio_url?: string | null;
-      intent_type?: string | null;
-      tts_instructions?: string | null;
-      error?: boolean | null;
-    }
+    // Transform database messages to ChatMessage format
+    const messages: ChatMessage[] = messagesData.map(message => {
+      // Check for audio messages using multiple methods
+      const isAudioMessage = 
+        message.is_audio_message === true || 
+        !!message.audio_url ||
+        (typeof message.content === 'object' && message.content?.isAudioMessage === true);
+      
+      return {
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        timestamp: message.timestamp,
+        attachments: message.attachments || [],
+        audioUrl: message.audio_url,
+        structured_data: message.structured_data,
+        debugInfo: message.debug_info,
+        intentType: message.intent_type,
+        ttsInstructions: message.tts_instructions,
+        error: message.error,
+        isAudioMessage: isAudioMessage
+      };
+    });
 
-    // Messages are fetched in descending order, so reverse them for chronological display
-    const chronologicalMessages = (messages || []).map((msg: DBMessage) => ({
-      id: msg.id,
-      role: msg.role,
-      content: msg.content, // Keep as is from DB, frontend MessageItem handles parsing
-      timestamp: msg.timestamp,
-      attachments: msg.attachments || [],
-      tool_calls: msg.tool_calls || null,
-      structured_data: msg.structured_data || null,
-      audioUrl: msg.audio_url || undefined,
-      intentType: msg.intent_type || undefined,
-      ttsInstructions: msg.tts_instructions || undefined,
-      error: msg.error || undefined,
-    })).reverse() as ChatMessage[];
-
-    logger.info(`${logPrefix} Fetched ${chronologicalMessages.length} messages for user ${userId.substring(0,8)}.`);
-    return NextResponse.json(chronologicalMessages);
-
+    logger.info(`${logPrefix} Returning ${messages.length} messages for user ${userId.substring(0, 8)}...`);
+    return NextResponse.json(messages);
+    
   } catch (error: any) {
-    logger.error(`${logPrefix} Error fetching chat history for user ${userId.substring(0,8)}:`, error);
-    return NextResponse.json({ error: `Failed to load chat history: ${error.message}` }, { status: 500 });
+    logger.error(`${logPrefix} Unhandled exception: ${error.message}`);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
