@@ -1,6 +1,7 @@
 // components/chat/structured-data-renderer.tsx
 "use client";
 
+import React from 'react';
 import { motion } from "framer-motion";
 import { logger } from "@/memory-framework/config";
 import type { 
@@ -37,8 +38,8 @@ import { GenericToolCard } from "../tool-cards/GenericToolCard";
 import { NewsAggregatorCard } from "../tool-cards/NewsAggregatorCard"; 
 import { HackerNewsCard } from "../tool-cards/HackerNewsCard";
 
-
-
+import ReminderConfirmationCard from "../tool-cards/ReminderConfirmationCard";
+import { TikTokCard } from '../tool-cards/TikTokCard';
 
 interface StructuredDataRendererProps {
   data: string | AnyToolStructuredData | null | undefined;
@@ -74,6 +75,50 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
   if (!parsedData) {
     // logger.debug("[StructDataRender] No valid parsed data to render.");
     return null;
+  }
+
+  // Check if this is a video list of TikTok videos for specialized rendering
+  const isTikTokVideoList = 
+    parsedData && 
+    typeof parsedData === 'object' && 
+    'result_type' in parsedData && 
+    parsedData.result_type === 'video_list' &&
+    'source_api' in parsedData && 
+    parsedData.source_api === 'serper_tiktok';
+
+  // General web search results
+  const isWebSearchResult = 
+    parsedData &&
+    typeof parsedData === 'object' &&
+    'result_type' in parsedData &&
+    ['product_list', 'video_list', 'web_snippet', 'answerBox', 'knowledgeGraph', 'recipe', 'recipe_detail'].includes(parsedData.result_type as string);
+
+  if (isTikTokVideoList) {
+    return <TikTokCard data={parsedData as CachedVideoList} />;
+  }
+  
+  if (isWebSearchResult) {
+    return <WebSearchCard data={parsedData as AnyToolStructuredData} />;
+  }
+
+  // Fallback: If parsedData does not have result_type but matches ReminderConfirmationCard shape, render it
+  if (
+    typeof parsedData === 'object' &&
+    parsedData !== null &&
+    'content' in parsedData && typeof (parsedData as any).content === 'string' &&
+    'trigger_datetime_utc' in parsedData && typeof (parsedData as any).trigger_datetime_utc === 'string' &&
+    'confirmation_message' in parsedData && typeof (parsedData as any).confirmation_message === 'string'
+  ) {
+    return (
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="mt-2"
+      >
+        <ReminderConfirmationCard data={parsedData as any} />
+      </motion.div>
+    );
   }
 
   let contentToRender;
@@ -112,6 +157,8 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
     case "video_list":
       if (parsedData.source_api === "youtube") {
         contentToRender = <YouTubeSearchCard data={parsedData as CachedVideoList} />;
+      } else if (parsedData.source_api === "serper_tiktok") {
+        contentToRender = <TikTokCard data={parsedData as CachedVideoList} />;
       } else {
         contentToRender = <GenericToolCard data={parsedData} />;
       }
@@ -139,6 +186,9 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
           <p className="text-xs opacity-70">Source: {parsedData.source_api}</p>
         </div>
       );
+      break;
+    case "reminder_set_confirmation":
+      contentToRender = <ReminderConfirmationCard data={parsedData as any} />;
       break;
     default:
       logger.warn(`[StructDataRender] No specific card for result_type: '${parsedData.result_type}'. Using GenericToolCard.`);

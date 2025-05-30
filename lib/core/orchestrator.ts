@@ -46,7 +46,7 @@ generateStructuredJson,
 generateVisionCompletion,
 resolveToolNameWithLLM,
 } from "../providers/llm_clients";
-import { TOOL_ROUTER_PROMPT_TEMPLATE } from "../prompts";
+import { TOOL_ROUTER_PROMPT_TEMPLATE, RESPONSE_SYNTHESIS_PROMPT_TEMPLATE } from "../prompts";
 import { logger } from "../../memory-framework/config";
 import { safeJsonParse } from "../../memory-framework/core/utils";
 import { CompletionUsage } from "openai/resources";
@@ -339,7 +339,7 @@ export class Orchestrator {
         let actualToolArgs = JSON.parse(JSON.stringify(routedToolCall.arguments || {}));
         // Move userInputForFallback up so it's always available
         // Use the new currentTurnUserInput as the primary source
-        let userInputForFallback = currentTurnUserInput;
+        let userInputForFallback = stripSystemPrefixes(currentTurnUserInput);
         if (!userInputForFallback) {
           // Try to extract from history if currentTurnUserInput was somehow empty
           const lastUserMsg = Array.isArray(history) ? history.slice().reverse().find(m => m.role === 'user' && m.content && (typeof m.content === 'string' || (Array.isArray(m.content) && m.content.some(p => p.type === 'text')))) : null;
@@ -552,6 +552,134 @@ Example 2 JSON:
           logger.info(`[NewsAggregatorTool] Final actualToolArgs: ${JSON.stringify(actualToolArgs)}`);
         }
         // --- END: NewsAggregatorTool-specific fallback for required arguments ---
+
+        // --- BEGIN: WebSearchTool-specific fallback for required arguments ---
+        if (canonicalToolName === "WebSearchTool") {
+          // Extract and validate mode and query parameters
+          actualToolArgs = JSON.parse(JSON.stringify(routedToolCall.arguments || {}));
+          
+          // Apply stripSystemPrefixes to any existing query first
+          if (actualToolArgs.query && typeof actualToolArgs.query === 'string') {
+            actualToolArgs.query = stripSystemPrefixes(actualToolArgs.query);
+          }
+          
+          // If any required parameters are missing, provide default values
+          if (!actualToolArgs.mode || !actualToolArgs.query || actualToolArgs.location === undefined || 
+              actualToolArgs.language === undefined || actualToolArgs.minPrice === undefined || 
+              actualToolArgs.maxPrice === undefined || actualToolArgs.color === undefined || 
+              actualToolArgs.brand === undefined) {
+            
+            logger.warn(`${logPrefix} Tool 'WebSearchTool' called with missing required parameters. Using cleaned fallback user input: "${userInputForFallback?.substring(0, 50)}..."`);
+            
+            // Save the original user input via apiContext instead of in the args
+            if (!apiContext.webSearchContext) apiContext.webSearchContext = {};
+            apiContext.webSearchContext.userInput = userInputForFallback;
+            apiContext.webSearchContext.userName = await this.getUserFirstName(userId);
+            
+            // Set query if missing
+            if (!actualToolArgs.query && userInputForFallback) {
+              const cleanedInput = userInputForFallback
+                .replace(/^use\s+web(\s*search)?\s*(tool)?\s*to\s*/i, '')
+                .replace(/^(hey|hi|hello|ok|okay)\s+(minato|there)\s*/i, '')
+                .replace(/^can\s+you\s+/i, '')
+                .replace(/^please\s+/i, '')
+                .trim();
+                
+              // Strip system prefixes from the cleaned input
+              actualToolArgs.query = stripSystemPrefixes(cleanedInput);
+            }
+            
+            // Set default mode based on query content if missing
+            if (!actualToolArgs.mode) {
+              let defaultMode = "fallback_search"; // Default to general search
+              
+              // Check if this looks like a product search
+              const productKeywords = [
+                'buy', 'purchase', 'shop', 'price', 'cost', 'cheap', 'expensive', 
+                'amazon', 'ebay', 'dollar', 'euro', 'find me', 'shopping',
+                'book', 'reservation', 'ticket', 'hotel', 'flight', 'vacation',
+                'deal', 'discount', 'sale', 'offer', 'promotion', 'coupon',
+                'brand', 'product', 'item', 'online store', 'marketplace'
+              ];
+              const userQuery = (actualToolArgs.query || userInputForFallback || "").toLowerCase();
+              
+              for (const keyword of productKeywords) {
+                if (userQuery.includes(keyword)) {
+                  defaultMode = "product_search";
+                  break;
+                }
+              }
+              
+              // Check if this looks like a TikTok search
+              if (userQuery.includes("tiktok") || userQuery.includes("tik tok") || 
+                  (userQuery.includes("video") && !userQuery.includes("youtube") && !userQuery.includes("recipe")) ||
+                  userQuery.includes("dance") || userQuery.includes("trend") || userQuery.includes("viral") ||
+                  userQuery.includes("challenge")) {
+                defaultMode = "tiktok_search";
+              }
+              
+              // Apply the default mode
+              actualToolArgs.mode = defaultMode;
+              logger.info(`${logPrefix} Set default mode '${defaultMode}' for WebSearchTool based on query content`);
+            }
+            
+            // Set other required parameters with null values if they're missing
+            if (actualToolArgs.location === undefined) actualToolArgs.location = null;
+            if (actualToolArgs.language === undefined) actualToolArgs.language = null;
+            if (actualToolArgs.minPrice === undefined) actualToolArgs.minPrice = null;
+            if (actualToolArgs.maxPrice === undefined) actualToolArgs.maxPrice = null;
+            if (actualToolArgs.color === undefined) actualToolArgs.color = null;
+            if (actualToolArgs.brand === undefined) actualToolArgs.brand = null;
+            
+            // Try to extract location from query if possible
+            const locationRegex = /\b(?:in|at|from|for)\s+([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)?)\b/i;
+            const userQuery = actualToolArgs.query || "";
+            const locationMatch = userQuery.match(locationRegex);
+            if (locationMatch && locationMatch[1]) {
+              actualToolArgs.location = locationMatch[1].trim();
+            }
+            
+            // Try to extract price range if product_search mode
+            if (actualToolArgs.mode === "product_search") {
+              const minPriceRegex = /\b(?:min|minimum|from|over|above)\s+(?:price\s+)?[$€£¥]?(\d+(?:\.\d+)?)/i;
+              const maxPriceRegex = /\b(?:max|maximum|under|below|less than)\s+(?:price\s+)?[$€£¥]?(\d+(?:\.\d+)?)/i;
+              
+              const minMatch = userQuery.match(minPriceRegex);
+              const maxMatch = userQuery.match(maxPriceRegex);
+              
+              if (minMatch && minMatch[1]) {
+                actualToolArgs.minPrice = parseFloat(minMatch[1]);
+              }
+              
+              if (maxMatch && maxMatch[1]) {
+                actualToolArgs.maxPrice = parseFloat(maxMatch[1]);
+              }
+              
+              // Extract color if mentioned
+              const colorRegex = /\b(?:color|colour)\s+(?:is\s+)?([a-z]+)\b|\b([a-z]+)\s+(?:color|colour)\b/i;
+              const colorMatch = userQuery.match(colorRegex);
+              if (colorMatch && (colorMatch[1] || colorMatch[2])) {
+                actualToolArgs.color = (colorMatch[1] || colorMatch[2]).toLowerCase();
+              }
+              
+              // Extract brand if mentioned
+              const brandRegex = /\b(?:brand|make|by)\s+([A-Za-z0-9\s]+)\b|\b([A-Za-z]+)\s+brand\b/i;
+              const brandMatch = userQuery.match(brandRegex);
+              if (brandMatch && (brandMatch[1] || brandMatch[2])) {
+                actualToolArgs.brand = (brandMatch[1] || brandMatch[2]).trim();
+              }
+            }
+            
+            // Remove any context field if it exists to avoid validation failures
+            if ('context' in actualToolArgs) {
+              delete actualToolArgs.context;
+            }
+            
+            logger.info(`${logPrefix} WebSearchTool parameters after fallback: ${JSON.stringify(actualToolArgs)}`);
+          }
+        }
+        // --- END: WebSearchTool-specific fallback for required arguments ---
+
         // --- BEGIN: SportsInfoTool-specific fallback for required arguments ---
         if (canonicalToolName === "SportsInfoTool") {
           // If either teamName or queryType is missing, try to infer using LLM or fallback
@@ -992,6 +1120,86 @@ JSON: { "query": "", "random": true }
           if (typeof actualToolArgs.random !== "boolean") actualToolArgs.random = false;
         }
         // --- END: RecipeSearchTool-specific fallback for required arguments ---
+        
+        // --- BEGIN: GoogleCalendarReaderTool-specific fallback for required arguments ---
+        if (canonicalToolName === "GoogleCalendarReaderTool") {
+          const missingAction = !actualToolArgs.action || typeof actualToolArgs.action !== 'string';
+          const missingMaxResults = actualToolArgs.maxResults === undefined || actualToolArgs.maxResults === null;
+          const missingCalendarId = actualToolArgs.calendarId === undefined || actualToolArgs.calendarId === null;
+          
+          if (missingAction || missingMaxResults || missingCalendarId) {
+            logger.warn(`${logPrefix} GoogleCalendarReaderTool missing required parameters. Adding defaults.`);
+            
+            // Default action
+            if (missingAction) {
+              actualToolArgs.action = "get_today_events";
+            }
+            
+            // Default max results
+            if (missingMaxResults) {
+              actualToolArgs.maxResults = 5;
+            } else {
+              // Ensure it's within bounds
+              actualToolArgs.maxResults = Math.max(1, Math.min(actualToolArgs.maxResults, 10));
+            }
+            
+            // Default calendar ID
+            if (missingCalendarId) {
+              actualToolArgs.calendarId = "primary";
+            }
+            
+            logger.info(`${logPrefix} GoogleCalendarReaderTool parameters after fallback: ${JSON.stringify(actualToolArgs)}`);
+          }
+        }
+        // --- END: GoogleCalendarReaderTool-specific fallback for required arguments ---
+        
+        // --- BEGIN: GoogleGmailReaderTool-specific fallback for required arguments ---
+        if (canonicalToolName === "GoogleGmailReaderTool") {
+          const missingAction = !actualToolArgs.action || typeof actualToolArgs.action !== 'string';
+          const missingMaxResults = actualToolArgs.maxResults === undefined || actualToolArgs.maxResults === null;
+          const missingQuery = !actualToolArgs.query || typeof actualToolArgs.query !== 'string';
+          const missingSummarizeBody = actualToolArgs.summarize_body === undefined || actualToolArgs.summarize_body === null;
+          const missingSummarizeLimit = actualToolArgs.summarize_limit === undefined || actualToolArgs.summarize_limit === null;
+          
+          if (missingAction || missingMaxResults || missingQuery || missingSummarizeBody || missingSummarizeLimit) {
+            logger.warn(`${logPrefix} GoogleGmailReaderTool missing required parameters. Adding defaults.`);
+            
+            // Default action
+            if (missingAction) {
+              actualToolArgs.action = "get_recent_emails";
+            }
+            
+            // Default max results
+            if (missingMaxResults) {
+              actualToolArgs.maxResults = 5;
+            } else {
+              // Ensure it's within bounds
+              actualToolArgs.maxResults = Math.max(1, Math.min(actualToolArgs.maxResults, 10));
+            }
+            
+            // Default query
+            if (missingQuery) {
+              actualToolArgs.query = "is:unread category:primary";
+            }
+            
+            // Default summarize_body
+            if (missingSummarizeBody) {
+              actualToolArgs.summarize_body = false;
+            }
+            
+            // Default summarize_limit
+            if (missingSummarizeLimit) {
+              actualToolArgs.summarize_limit = 1;
+            } else {
+              // Ensure it's within bounds
+              actualToolArgs.summarize_limit = Math.max(1, Math.min(actualToolArgs.summarize_limit, 3));
+            }
+            
+            logger.info(`${logPrefix} GoogleGmailReaderTool parameters after fallback: ${JSON.stringify(actualToolArgs)}`);
+          }
+        }
+        // --- END: GoogleGmailReaderTool-specific fallback for required arguments ---
+        
         // --- BEGIN: HackerNewsTool-specific fallback for required arguments ---
         if (canonicalToolName === "HackerNewsTool") {
           const missingQuery = !actualToolArgs.query || typeof actualToolArgs.query !== 'string' || actualToolArgs.query.trim() === "";
@@ -1377,6 +1585,182 @@ If a specific date is mentioned (e.g., "July 4th events"), "relativeDateDescript
           logger.info(`[EventFinderTool] Final actualToolArgs before validation: ${JSON.stringify(actualToolArgs)}`);
         } // Closing brace for if (canonicalToolName === "EventFinderTool")
         // --- END: EventFinderTool-specific fallback for required arguments ---
+
+        // --- BEGIN: ReminderReaderTool-specific fallback for required arguments ---
+        if (canonicalToolName === "ReminderReaderTool") {
+          // All arguments are optional, but we can improve the experience with LLM extraction
+          if (userInputForFallback && typeof userInputForFallback === 'string' && userInputForFallback.trim()) {
+            // Clean the user input
+            let cleanedUserInputForReminder = userInputForFallback;
+            cleanedUserInputForReminder = cleanedUserInputForReminder.replace(/^(hey |ok |hi |hello )?minato[,:]?\s*/i, "");
+            cleanedUserInputForReminder = cleanedUserInputForReminder.replace(/^(show|get|give|tell|list|check|read) (me )?(my |the )?(reminders?|todos?|tasks?)?\s*/i, "");
+            cleanedUserInputForReminder = cleanedUserInputForReminder.replace(/^(what are|what's|whats) (my )?(reminders?|todos?|tasks?)?\s*/i, "");
+            cleanedUserInputForReminder = cleanedUserInputForReminder.trim();
+            
+            try {
+              const extractionPrompt = `You are an expert reminder query parser. Given the user query: "${cleanedUserInputForReminder.replace(/"/g, '\"')}"
+
+Your tasks are:
+1. Determine the action type: "get_pending" (default), "get_overdue", "get_today", or "get_all"
+2. Extract the time range if specified (e.g., "next 3 days" → daysAhead: 3)
+3. Extract the limit if specified (e.g., "show me 5 reminders" → limit: 5)
+
+Common patterns:
+- "my reminders" → action: "get_pending", daysAhead: 7
+- "overdue reminders" → action: "get_overdue"
+- "today's reminders" → action: "get_today"
+- "reminders for next week" → action: "get_pending", daysAhead: 7
+- "all my reminders" → action: "get_all", daysAhead: 30
+- "next 3 reminders" → limit: 3
+
+Respond in STRICT JSON format:
+{
+  "action": "get_pending | get_overdue | get_today | get_all",
+  "daysAhead": "number (0-30)",
+  "limit": "number (1-20)"
+}`;
+
+              const llmResult = await generateStructuredJson<{ action: string; daysAhead: number; limit: number } | { error: string }>(
+                extractionPrompt,
+                cleanedUserInputForReminder,
+                {
+                  type: "object",
+                  properties: {
+                    action: { type: "string", enum: ["get_pending", "get_overdue", "get_today", "get_all"] },
+                    daysAhead: { type: "number", minimum: 0, maximum: 30 },
+                    limit: { type: "number", minimum: 1, maximum: 20 }
+                  },
+                  required: ["action", "daysAhead", "limit"],
+                  additionalProperties: false
+                },
+                "minato_reminder_reader_extraction_v1",
+                [],
+                (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
+                userId
+              );
+              
+              logger.info(`[ReminderReaderTool] LLM extraction result: ${JSON.stringify(llmResult)}`);
+              
+              if (llmResult && typeof llmResult === "object" && !llmResult.hasOwnProperty("error")) {
+                actualToolArgs.action = (llmResult as { action: string }).action;
+                actualToolArgs.daysAhead = (llmResult as { daysAhead: number }).daysAhead;
+                actualToolArgs.limit = (llmResult as { limit: number }).limit;
+              }
+            } catch (e) {
+              logger.warn(`${logPrefix} LLM reminder reader extraction failed: ${((e as any).message) || e}`);
+            }
+          }
+          
+          // Apply defaults if not set
+          if (!actualToolArgs.action) actualToolArgs.action = "get_pending";
+          if (actualToolArgs.daysAhead === undefined) actualToolArgs.daysAhead = 7;
+          if (actualToolArgs.limit === undefined) actualToolArgs.limit = 10;
+        }
+        // --- END: ReminderReaderTool-specific fallback for required arguments ---
+
+        // --- BEGIN: ReminderSetterTool-specific fallback for required arguments ---
+        if (canonicalToolName === "ReminderSetterTool") {
+          const missingContent = !actualToolArgs.content || typeof actualToolArgs.content !== 'string' || actualToolArgs.content.trim() === "";
+          const missingTime = !actualToolArgs.trigger_datetime_description || typeof actualToolArgs.trigger_datetime_description !== 'string' || actualToolArgs.trigger_datetime_description.trim() === "";
+          
+          if ((missingContent || missingTime) && userInputForFallback && typeof userInputForFallback === 'string' && userInputForFallback.trim()) {
+            // Clean the user input
+            let cleanedUserInputForSetter = userInputForFallback;
+            cleanedUserInputForSetter = cleanedUserInputForSetter.replace(/^(hey |ok |hi |hello )?minato[,:]?\s*/i, "");
+            cleanedUserInputForSetter = cleanedUserInputForSetter.replace(/^(remind|set a reminder|create a reminder|add a reminder) (me )?(to |about |for )?\s*/i, "");
+            cleanedUserInputForSetter = cleanedUserInputForSetter.trim();
+            
+            try {
+              const extractionPrompt = `You are an expert reminder parsing assistant. Given the user request: "${cleanedUserInputForSetter.replace(/"/g, '\"')}"
+
+Your tasks are:
+1. Extract what the user wants to be reminded about (content)
+2. Extract when they want to be reminded (trigger_datetime_description)
+3. Determine if it's recurring (daily, weekly, monthly, yearly)
+4. Categorize the reminder (task, habit, medication, appointment, goal)
+5. Assign priority (low, medium, high)
+
+Common patterns:
+- "remind me to call mom tomorrow" → content: "call mom", trigger_datetime_description: "tomorrow"
+- "remind me about the meeting at 3pm" → content: "meeting", trigger_datetime_description: "at 3pm"
+- "remind me to take medication every morning at 8am" → content: "take medication", trigger_datetime_description: "tomorrow at 8am", recurrence: "daily"
+- "exam tomorrow" → content: "exam", trigger_datetime_description: "tomorrow"
+- "workout every day at 6pm" → content: "workout", trigger_datetime_description: "today at 6pm", recurrence: "daily", category: "habit"
+- "doctor appointment next Monday at 2pm" → content: "doctor appointment", trigger_datetime_description: "next Monday at 2pm", category: "appointment"
+
+Respond in STRICT JSON format:
+{
+  "content": "string (what to remind about)",
+  "trigger_datetime_description": "string (when to remind)",
+  "recurrence_rule": "daily | weekly | monthly | yearly | null",
+  "category": "task | habit | medication | appointment | goal",
+  "priority": "low | medium | high"
+}`;
+
+              const llmResult = await generateStructuredJson<{ 
+                content: string; 
+                trigger_datetime_description: string; 
+                recurrence_rule: string | null;
+                category: string;
+                priority: string;
+              } | { error: string }>(
+                extractionPrompt,
+                cleanedUserInputForSetter,
+                {
+                  type: "object",
+                  properties: {
+                    content: { type: "string" },
+                    trigger_datetime_description: { type: "string" },
+                    recurrence_rule: { type: ["string", "null"], enum: ["daily", "weekly", "monthly", "yearly", null] },
+                    category: { type: "string", enum: ["task", "habit", "medication", "appointment", "goal"] },
+                    priority: { type: "string", enum: ["low", "medium", "high"] }
+                  },
+                  required: ["content", "trigger_datetime_description", "recurrence_rule", "category", "priority"],
+                  additionalProperties: false
+                },
+                "minato_reminder_setter_extraction_v1",
+                [],
+                (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
+                userId
+              );
+              
+              logger.info(`[ReminderSetterTool] LLM extraction result: ${JSON.stringify(llmResult)}`);
+              
+              if (llmResult && typeof llmResult === "object" && !llmResult.hasOwnProperty("error")) {
+                const extracted = llmResult as { 
+                  content: string; 
+                  trigger_datetime_description: string; 
+                  recurrence_rule: string | null;
+                  category: string;
+                  priority: string;
+                };
+                
+                if (extracted.content) actualToolArgs.content = extracted.content;
+                if (extracted.trigger_datetime_description) actualToolArgs.trigger_datetime_description = extracted.trigger_datetime_description;
+                if (extracted.recurrence_rule) actualToolArgs.recurrence_rule = extracted.recurrence_rule;
+                if (extracted.category) actualToolArgs.category = extracted.category;
+                if (extracted.priority) actualToolArgs.priority = extracted.priority;
+              }
+            } catch (e) {
+              logger.warn(`${logPrefix} LLM reminder setter extraction failed: ${((e as any).message) || e}`);
+            }
+            
+            // Final fallback
+            if (!actualToolArgs.content && cleanedUserInputForSetter) {
+              // Try to split by common time indicators
+              const timeIndicators = /\b(tomorrow|today|tonight|at \d|in \d|next|this|every)\b/i;
+              const match = cleanedUserInputForSetter.match(timeIndicators);
+              if (match) {
+                const splitIndex = cleanedUserInputForSetter.indexOf(match[0]);
+                if (splitIndex > 0) {
+                  actualToolArgs.content = cleanedUserInputForSetter.substring(0, splitIndex).trim();
+                  actualToolArgs.trigger_datetime_description = cleanedUserInputForSetter.substring(splitIndex).trim();
+                }
+              }
+            }
+          }
+        }
+        // --- END: ReminderSetterTool-specific fallback for required arguments ---
 
         // The following searchToolsRequiringQuery, YouTubeSearchTool, SportsInfoTool, RedditTool blocks should be OUTSIDE and AFTER the EventFinderTool block.
 
@@ -1800,53 +2184,106 @@ If a specific date is mentioned (e.g., "July 4th events"), "relativeDateDescript
           textQueryForRouter += (textQueryForRouter ? "\n" : "") + "[Video analysis attempted but failed to produce summary.]";
         }
       }
-      const toolRouterPrompt = injectPromptVariables(TOOL_ROUTER_PROMPT_TEMPLATE, {
-        userName, userQuery: textQueryForRouter,
-        conversationHistorySummary: summarizeChatHistory(history),
-        userStateSummary: summarizeUserStateForWorkflow(userState),
-        available_tools_for_planning: this.availableToolsForRouter.map(t => `- ${t.function.name}: ${t.function.description?.substring(0, 100)}...`).join("\n"),
-        language: lang, userPersona: personaNameForPrompt,
-      });
-      logger.info(`[${turnIdentifier}] Invoking Tool Router (${PLANNING_MODEL_NAME_ORCH})... Query for router: "${textQueryForRouter.substring(0, 70)}"`);
-      const routerSchema = {
-        type: "object" as const,
-        properties: {
-          planned_tools: {
-            type: "array" as const,
-            items: {
-              type: "object" as const,
-              properties: {
-                tool_name: { type: "string" as const },
-                arguments: {
-                  type: "object" as const,
-                  additionalProperties: false,
-                  properties: {}
-                },
-                reason: { type: "string" as const }
-              },
-              required: ["tool_name", "reason", "arguments"],
-              additionalProperties: false
-            }
-          }
-        },
-        required: ["planned_tools"],
-        additionalProperties: false
-      };
-      const routerResult = await generateStructuredJson<ToolRouterPlan>(
-        toolRouterPrompt, textQueryForRouter,
-        routerSchema,
-        "tool_router_v1_1",
-        history.filter(m => typeof m.content === 'string'),
-        PLANNING_MODEL_NAME_ORCH, userId
+      
+      // Determine if this is a media-only upload with minimal text
+      const isMediaOnlyMessage = Boolean(
+        (initialAttachments?.some(att => att.type === 'video' || att.type === 'image')) &&
+        (typeof userInput === 'string' && userInput.trim().length <= 10)
       );
-      if ("error" in routerResult) {
-        logger.error(`[${turnIdentifier}] Tool Router (${PLANNING_MODEL_NAME_ORCH}) failed: ${routerResult.error}. Proceeding without tools.`);
-        finalFlowType = "direct_llm_after_router_fail";
+      
+      // If the user is just uploading media without asking a specific question
+      // modify the query to focus on having a conversation about the media
+      if (isMediaOnlyMessage && (textQueryForRouter.includes("[Video Content Summary:") || textQueryForRouter.includes("[Visual QA:"))) {
+        // This is a media upload without much user text - make it clear in the prompt
+        textQueryForRouter = `[MEDIA UPLOAD: The user has shared media content. Please respond to the content directly in conversation, don't use tools.] ` + textQueryForRouter;
+      }
+      
+      // Check if this is an audio message conversation
+      const isAudioMessage = Boolean(
+        apiContext?.isAudioMessage === true || 
+        apiContext?.transcription || 
+        (history.length > 0 && history.some(msg => (msg as any).isAudioMessage === true))
+      );
+      
+      // If this is from a voice/audio message, add a hint to prefer direct conversation
+      if (isAudioMessage) {
+        logger.info(`[${turnIdentifier}] Audio/voice message detected. Will be more conservative with tool usage.`);
+        textQueryForRouter = `[VOICE CONVERSATION: This is a spoken conversation. Respond naturally and avoid using tools unless explicitly requested.] ` + textQueryForRouter;
+      }
+      
+      // Determine if this is any kind of media upload (with or without text)
+      const isMediaUpload = Boolean(
+        initialAttachments?.some(att => att.type === 'video' || att.type === 'image') ||
+        textQueryForRouter.includes("[Video Content Summary:") ||
+        textQueryForRouter.includes("[Visual QA:")
+      );
+      
+      // Initialize routedTools - will be populated only if appropriate conditions are met
+      let routedTools: ToolRouterPlan = { planned_tools: [] };
+      
+      // Determine if tool routing should be bypassed
+      const bypassToolRouter = isMediaUpload || 
+                              (isAudioMessage && textQueryForRouter.trim().split(/\s+/).length < 6) || // Short audio messages
+                              (typeof userInput === 'string' && userInput.trim().length < 4 && !userInput.includes("?"));
+      
+      if (!bypassToolRouter) {
+        // Only invoke tool router if conditions are met
+        const toolRouterPrompt = injectPromptVariables(TOOL_ROUTER_PROMPT_TEMPLATE, {
+          userName, userQuery: textQueryForRouter,
+          conversationHistorySummary: summarizeChatHistory(history),
+          userStateSummary: summarizeUserStateForWorkflow(userState),
+          available_tools_for_planning: this.availableToolsForRouter.map(t => `- ${t.function.name}: ${t.function.description?.substring(0, 100)}...`).join("\n"),
+          language: lang, userPersona: personaNameForPrompt,
+        });
+        
+        logger.info(`[${turnIdentifier}] Invoking Tool Router (${PLANNING_MODEL_NAME_ORCH})... Query for router: "${textQueryForRouter.substring(0, 70)}"`);
+        
+        const routerSchema = {
+          type: "object" as const,
+          properties: {
+            planned_tools: {
+              type: "array" as const,
+              items: {
+                type: "object" as const,
+                properties: {
+                  tool_name: { type: "string" as const },
+                  arguments: {
+                    type: "object" as const,
+                    additionalProperties: false,
+                    properties: {}
+                  },
+                  reason: { type: "string" as const }
+                },
+                required: ["tool_name", "reason", "arguments"],
+                additionalProperties: false
+              }
+            }
+          },
+          required: ["planned_tools"],
+          additionalProperties: false
+        };
+        
+        const routerResult = await generateStructuredJson<ToolRouterPlan>(
+          toolRouterPrompt, textQueryForRouter,
+          routerSchema,
+          "tool_router_v1_1",
+          history.filter(m => typeof m.content === 'string'),
+          PLANNING_MODEL_NAME_ORCH, userId
+        );
+        
+        if ("error" in routerResult) {
+          logger.error(`[${turnIdentifier}] Tool Router (${PLANNING_MODEL_NAME_ORCH}) failed: ${routerResult.error}. Proceeding without tools.`);
+          finalFlowType = "direct_llm_after_router_fail";
+        } else {
+          routedTools = routerResult;
+          finalToolCallsLogged = routedTools.planned_tools.map(rt => ({ toolName: rt.tool_name, args: rt.arguments, reason: rt.reason }));
+          logger.info(`[${turnIdentifier}] Tool Router selected ${routedTools.planned_tools.length} tools: ${routedTools.planned_tools.map(t => t.tool_name).join(', ')}`);
+          finalFlowType = routedTools.planned_tools.length > 0 ? "workflow_routed" : "direct_llm_no_tools_routed";
+        }
       } else {
-        routedTools = routerResult; // Assignation à la variable routedTools de la portée supérieure
-        finalToolCallsLogged = routedTools.planned_tools.map(rt => ({ toolName: rt.tool_name, args: rt.arguments, reason: rt.reason }));
-        logger.info(`[${turnIdentifier}] Tool Router selected ${routedTools.planned_tools.length} tools: ${routedTools.planned_tools.map(t => t.tool_name).join(', ')}`);
-        finalFlowType = routedTools.planned_tools.length > 0 ? "workflow_routed" : "direct_llm_no_tools_routed";
+        // Log that we're skipping tool router for media uploads
+        logger.info(`[${turnIdentifier}] Skipping Tool Router for media upload. Proceeding with direct conversation.`);
+        finalFlowType = "direct_media_conversation";
       }
       // toolExecutionMessages est déjà initialisé à [] au début de la fonction
       if (routedTools.planned_tools.length > 0) {
@@ -1941,22 +2378,39 @@ If a specific date is mentioned (e.g., "July 4th events"), "relativeDateDescript
     if (visualQaMatch && visualQaMatch[1]) {
       videoContextParts.push(`VISUAL QA: ${visualQaMatch[1]}`);
     }
+    
+    // Enhanced media handling - make it more prominent for synthesis
+    const isMediaPresent = initialAttachments?.some(att => att.type === 'video' || att.type === 'image') || 
+                           Boolean(videoSummaryForContext) || 
+                           Boolean(visualQaMatch);
+    
     const videoContextString = videoContextParts.length
       ? `YOU MUST BASE YOUR RESPONSE ON THE FOLLOWING VIDEO ANALYSIS. Do NOT ignore this.\n${videoContextParts.join('\n')}`
       : null;
-    const synthesisSystemPrompt = injectPromptVariables(TOOL_ROUTER_PROMPT_TEMPLATE, {
-      userName, personaName: personaNameForPrompt, personaInstructions: personaSpecificInstructions, language: lang,
-      retrieved_memory_context: retrievedMemoryContext,
-      tool_results_summary: currentTurnToolResultsSummary || "No tools were executed by Minato this turn, or their results are directly integrated.",
-      original_query: textQueryForRouter,
-      tool_router_follow_up_suggestion: toolRouterFollowUpSuggestion || `Is there anything else Minato can help you with today, ${userName}?`,
-      videoContextFallback: videoContextString
+      
+    // Special instruction for media content
+    const mediaInstruction = isMediaPresent 
+      ? `\n\nIMPORTANT: The user has shared media content (video/image). Make your response focused primarily on discussing this media. Reference specific details from the analysis, acknowledge what they've shared, and make it feel like a natural conversation about their content.`
+      : '';
+      
+    const synthesisSystemPrompt = injectPromptVariables(RESPONSE_SYNTHESIS_PROMPT_TEMPLATE, {
+      userName,
+      originalQuery: textQueryForRouter,
+      toolResultsSummary: currentTurnToolResultsSummary || "No tools were executed by Minato this turn, or their results are directly integrated.",
+      language: lang,
+      personaCustomization: personaSpecificInstructions || `Minato is a helpful, supportive AI companion for ${userName}.`
     });
+    
     // Add explicit instruction for LLM to always include tool-provided summaries in the chat response
     const synthesisSystemPromptWithSummaryInstruction =
       `${synthesisSystemPrompt}
 
-IMPORTANT: Never mention tool names, APIs, or implementation details in your response. Always respond as Minato, the user's AI companion, in a natural, conversational way. If any tool provided a summary of its findings (such as a news summary, search summary, or result summary), ALWAYS include that summary in your chat response before any card or detailed list. Make the summary engaging and conversational. Do not reference the tool or implementation in your response.`;
+IMPORTANT ADDITIONAL GUIDANCE:
+1. If any tool provided a summary of its findings (news, search results, etc.), INCLUDE that summary in your response.
+2. Make the summary engaging and conversational, fully integrated with your persona.
+3. NEVER mention tool names, APIs, or implementation details.
+4. If video context was provided, incorporate insights from it naturally.${mediaInstruction}
+${videoContextString ? `\n${videoContextString}` : ''}`;
     logger.info(`[${turnIdentifier}] Synthesizing final response (${CHAT_VISION_MODEL_NAME_ORCH})...`);
     const synthesisResult = await generateStructuredJson<{ responseText: string; intentType: string }>(
       synthesisSystemPromptWithSummaryInstruction, textQueryForRouter, // textQueryForRouter for user message context in synthesis
@@ -2176,13 +2630,14 @@ IMPORTANT: Never mention tool names, APIs, or implementation details in your res
       const startTime = Date.now();
       let transcribedText: string | null = null;
       let detectedLang: string | null = null;
-      let audioFetchDuration: number | undefined = undefined; // Will be part of overall unless fetchAudioBuffer measures it
+      let audioFetchDuration: number | undefined = undefined;
       let sttDuration: number | undefined = undefined;
       let ttsDuration: number | undefined = undefined;
       let orchResultRaw: OrchestratorResponse | OrchestratorResponse[] | null = null;
       let orchResult: OrchestratorResponse | null = null;
       let userName: string = apiContext?.userName || DEFAULT_USER_NAME;
       const turnIdentifier = `Req[Audio] User:${userId.substring(0, 8)} Sess:${currentSessionId.substring(0, 6)}`;
+
       try {
         userName = apiContext?.userName || await this.getUserFirstName(userId) || DEFAULT_USER_NAME;
         const sttStart = Date.now();
@@ -2243,16 +2698,18 @@ IMPORTANT: Never mention tool names, APIs, or implementation details in your res
           ttsInstructions: orchResult?.ttsInstructions || getDynamicInstructions(orchResult?.intentType),
           clarificationQuestion: orchResult?.clarificationQuestion || null,
           error: orchResult?.error || null,
-          lang: effectiveApiContext.lang, // Use the determined lang
-          transcription: transcribedText, // If transcription was successful before error
-          audioUrl: orchResult?.audioUrl || null, // Updated audioUrl
-          structuredData: orchResult?.structuredData || null, // Ensure structuredData is included for UI cards
+          lang: effectiveApiContext.lang,
+          transcription: transcribedText,
+          audioUrl: orchResult?.audioUrl || null,
+          structuredData: orchResult?.structuredData || null,
           workflowFeedback: orchResult?.workflowFeedback || null,
           debugInfo: finalDebugInfo,
           llmUsage: orchResult?.llmUsage || null,
-          attachments: orchResult?.attachments || []
+          attachments: orchResult?.attachments || [],
+          isAudioMessage: true // Always mark AI response to audio as audio message
         };
-      } catch (error: any) {
+      }
+      catch (error: any) {
         const duration = Date.now() - startTime;
         const errorMessageString = String(error?.message || error || `Failed processing audio for ${userName}.`);
         logger.error(`--- ${turnIdentifier} Error (${duration}ms): ${errorMessageString}`, error.stack);
@@ -2292,7 +2749,8 @@ IMPORTANT: Never mention tool names, APIs, or implementation details in your res
           structuredData: null,
           clarificationQuestion: null,
           llmUsage: null,
-          attachments: []
+          attachments: [],
+          isAudioMessage: true // Mark error response as audio message too
         };
       }
     } catch (error: any) {
@@ -2403,4 +2861,17 @@ export { TTS_INSTRUCTION_MAP };
 // Helper to always get a single OrchestratorResponse from possibly-array result
 function getFirstOrchResponse(res: OrchestratorResponse | OrchestratorResponse[]): OrchestratorResponse {
   return Array.isArray(res) ? res[0] : res;
+}
+
+// Helper function to remove system prefixes from user inputs
+function stripSystemPrefixes(input: string): string {
+  if (typeof input !== 'string') return input;
+  
+  // Remove voice conversation prefix
+  input = input.replace(/^\[VOICE CONVERSATION: This is a spoken conversation\. Respond naturally and avoid using tools unless explicitly requested\.\]\s*/i, '');
+  
+  // Remove media upload prefix
+  input = input.replace(/^\[MEDIA UPLOAD: The user has shared media content\. Please respond to the content directly in conversation, don't use tools\.\]\s*/i, '');
+  
+  return input;
 }

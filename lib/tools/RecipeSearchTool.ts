@@ -4,6 +4,7 @@ import fetch from "node-fetch"; // Ensure node-fetch is imported
 import { logger } from "../../memory-framework/config";
 import { CachedRecipe, CachedSingleRecipe } from "@/lib/types/index";
 import { appConfig } from "../config";
+import { generateStructuredJson } from "../providers/llm_clients";
 
 interface RecipeSearchInput extends ToolInput {
   query: string; // Required
@@ -97,7 +98,74 @@ export class RecipeSearchTool extends BaseTool {
     };
   }
 
+  private async extractRecipeParameters(userInput: string): Promise<Partial<RecipeSearchInput>> {
+    // Enhanced extraction prompt for Recipes
+    const extractionPrompt = `
+You are an expert parameter extractor for Minato's RecipeSearchTool which searches for cooking recipes.
+
+Given this user query about recipes: "${userInput.replace(/\"/g, '\\"')}"
+
+COMPREHENSIVE ANALYSIS GUIDELINES:
+
+1. RECIPE QUERY IDENTIFICATION:
+   - Extract the core dish, ingredient, or cuisine the user wants a recipe for
+   - Focus on the food item or meal type they're looking for (e.g., "chicken parmesan", "vegan dessert", "quick breakfast")
+   - For complex requests, identify the main dish or ingredient
+   - If user just wants any recipe with no preference, set random to true instead of a query
+
+2. RANDOM RECIPE DETECTION:
+   - Determine if user specifically wants a random/surprise recipe
+   - Look for indicators like "any recipe", "surprise me", "random dish", "whatever", etc.
+   - Set random to true if these indicators are present, otherwise false
+
+OUTPUT FORMAT: JSON object with these fields:
+- "query": (string) The core dish, ingredient, or cuisine to search for, or empty string if random is true
+- "random": (boolean) Whether user wants a random recipe suggestion
+
+If a parameter cannot be confidently extracted, use a default value instead of guessing.
+
+RESPOND ONLY WITH THE JSON OBJECT.`;
+
+    try {
+      // Define the schema for RecipeSearchInput
+      const recipeParamsSchema = {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          random: { type: "boolean" }
+        }
+      };
+
+      const extractionResult = await generateStructuredJson<Partial<RecipeSearchInput>>(
+        extractionPrompt,
+        userInput,
+        recipeParamsSchema,
+        "RecipeSearchToolParameters",
+        [], // no history context needed
+        "gpt-4o-mini"
+      );
+      
+      return extractionResult || {};
+    } catch (error) {
+      logger.error("[RecipeSearchTool] Parameter extraction failed:", error);
+      return {};
+    }
+  }
+
   async execute(input: RecipeSearchInput & { random?: boolean }, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    // If input is from natural language, extract parameters
+    if (input._rawUserInput && typeof input._rawUserInput === 'string') {
+      const extractedParams = await this.extractRecipeParameters(input._rawUserInput);
+      
+      // Only use extracted parameters if they're not already specified
+      if (extractedParams.query && !input.query) {
+        input.query = extractedParams.query;
+      }
+      if (extractedParams.random !== undefined && input.random === undefined) {
+        input.random = extractedParams.random;
+      }
+    }
+    
     const { query, random } = input;
     const userNameForResponse = input.context?.userName || "friend";
     const logPrefix = `[RecipeTool] Query:"${query ? query.substring(0, 30) : ''}..." Random:${!!random}`;

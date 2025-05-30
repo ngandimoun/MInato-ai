@@ -24,7 +24,7 @@ interface Persona {
   id: string;
   name: string;
   description: string;
-  systemPrompt: string;
+  system_prompt: string;
   isCustom: boolean;
 }
 
@@ -38,10 +38,16 @@ interface PersonaEditorDialogProps {
 // Predefined character suggestions
 const characterSuggestions = [
   "Supportive Friend 🤗",
+  "Encouraging Boyfriend 💕",
+  "Lovely Girlfriend 💖",
+  "My Sidechick 😏",
   "Sarcastic Sidekick 😏",
+  "Business Companion 💼",
+  "Entrepreneur Buddy 📈",
   "Wise Mentor 🦉",
   "Playful Companion 🎮",
   "Efficient Assistant 🚀",
+  "Minato Namikaze ⚡",
 ];
 
 // Mood options
@@ -49,11 +55,17 @@ const moodOptions = [
   { emoji: "😂", label: "Playful" },
   { emoji: "🤩", label: "Enthusiastic" },
   { emoji: "🙂", label: "Balanced" },
+  { emoji: "❤️", label: "Affectionate" },
+  { emoji: "💪", label: "Motivational" },
+  { emoji: "🤔", label: "Thoughtful" },
+  { emoji: "😌", label: "Calming" },
   { emoji: "🔥", label: "Roast Master" },
   { emoji: "😏", label: "Sarcastic" },
   { emoji: "😔", label: "Melancholic" },
   { emoji: "🧐", label: "Analytical" },
   { emoji: "😠", label: "Grumpy" },
+  { emoji: "🥰", label: "Loving" },
+  { emoji: "😤", label: "Passionate" },
 ];
 
 // Communication style options
@@ -63,7 +75,13 @@ const communicationOptions = [
   { emoji: "📜", label: "Detailed Explanations" },
   { emoji: "🎤", label: "Storyteller Mode" },
   { emoji: "❓", label: "Always Asking Questions" },
+  { emoji: "💕", label: "Sweet Compliments" },
+  { emoji: "💯", label: "Straight Facts" },
+  { emoji: "📊", label: "Data-Driven" },
+  { emoji: "🧠", label: "Deep Thinker" },
   { emoji: "🎵", label: "Song Lyrics Only" },
+  { emoji: "🤫", label: "Secretive Whispers" },
+  { emoji: "💼", label: "Professional Speak" },
 ];
 
 // Vibe options
@@ -72,8 +90,15 @@ const vibeOptions = [
   { emoji: "😎", label: "Cool & Trendy" },
   { emoji: "✅", label: "Friendly & Clear" },
   { emoji: "💡", label: "Creative & Quirky" },
+  { emoji: "💖", label: "Romantic & Sweet" },
+  { emoji: "🤝", label: "Supportive Partner" },
+  { emoji: "💼", label: "Business Professional" },
+  { emoji: "🔮", label: "Mystical Advisor" },
+  { emoji: "🎓", label: "Academic Mentor" },
+  { emoji: "🏋️", label: "Fitness Coach" },
   { emoji: "🎩", label: "Professional & Polished" },
   { emoji: "👑", label: "Regal & Formal" },
+  { emoji: "🦊", label: "Flirty & Playful" },
 ];
 
 // Special skills options
@@ -81,9 +106,18 @@ const specialSkillsOptions = [
   { id: "memes", label: "Meme Expert" },
   { id: "history", label: "History Buff" },
   { id: "relationships", label: "Relationship Advice Guru" },
+  { id: "business", label: "Business Strategy Coach" },
+  { id: "motivation", label: "Motivational Speaker" },
+  { id: "love", label: "Romance Expert" },
+  { id: "fitness", label: "Fitness & Wellness Coach" },
   { id: "sarcasm", label: "Fluent in Sarcasm" },
   { id: "tech", label: "Tech Wizard" },
   { id: "poetry", label: "Poetry Master" },
+  { id: "anime", label: "Anime Knowledge" },
+  { id: "naruto", label: "Naruto Universe Expert" },
+  { id: "flirting", label: "Master Flirter" },
+  { id: "entrepreneur", label: "Startup Mindset" },
+  { id: "therapy", label: "Therapy-Like Support" },
 ];
 
 export function PersonaEditorDialog({
@@ -108,12 +142,17 @@ export function PersonaEditorDialog({
   const [avoidance, setAvoidance] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [quirk, setQuirk] = useState("");
+  const [voiceStyle, setVoiceStyle] = useState("");
+  const [insideJokes, setInsideJokes] = useState("");
+  const [languagePreference, setLanguagePreference] = useState("");
+  const [relationshipDynamic, setRelationshipDynamic] = useState("");
+  const [personalizedKnowledge, setPersonalizedKnowledge] = useState("");
 
   // Advanced mode state
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [titleClickCount, setTitleClickCount] = useState(0);
-  const [systemPrompt, setSystemPrompt] = useState(
-    initialPersona?.systemPrompt ||
+  const [system_prompt, setSystem_prompt] = useState(
+    initialPersona?.system_prompt ||
       "You are a helpful, friendly, and knowledgeable AI assistant named Minato."
   );
 
@@ -178,6 +217,21 @@ export function PersonaEditorDialog({
         newPrompt += ` Your overall vibe is ${vibe.label.toLowerCase()}.`;
       }
     }
+    
+    // Add relationship dynamic
+    if (relationshipDynamic) {
+      newPrompt += ` Our relationship dynamic is that ${relationshipDynamic}.`;
+    }
+    
+    // Add voice style
+    if (voiceStyle) {
+      newPrompt += ` Your voice sounds ${voiceStyle}.`;
+    }
+    
+    // Add language preferences
+    if (languagePreference) {
+      newPrompt += ` When speaking, you ${languagePreference}.`;
+    }
 
     // Add skills
     if (selectedSkills.length > 0) {
@@ -194,6 +248,11 @@ export function PersonaEditorDialog({
       newPrompt += ".";
     }
 
+    // Add inside jokes
+    if (insideJokes) {
+      newPrompt += ` We have inside jokes about ${insideJokes}, which you can reference occasionally.`;
+    }
+
     // Add catchphrase
     if (catchphrase) {
       newPrompt += ` You occasionally say "${catchphrase}".`;
@@ -208,10 +267,15 @@ export function PersonaEditorDialog({
     if (quirk) {
       newPrompt += ` You have a quirk where you ${quirk}.`;
     }
+    
+    // Add personalized knowledge
+    if (personalizedKnowledge) {
+      newPrompt += ` Important information about me: ${personalizedKnowledge}`;
+    }
 
     // Only update if not in advanced mode or if it's the initial setup
     if (!showAdvanced || !initialPersona) {
-      setSystemPrompt(newPrompt);
+      setSystem_prompt(newPrompt);
     }
   }, [
     coreCharacter,
@@ -222,6 +286,11 @@ export function PersonaEditorDialog({
     catchphrase,
     avoidance,
     quirk,
+    voiceStyle,
+    insideJokes,
+    languagePreference,
+    relationshipDynamic,
+    personalizedKnowledge,
     showAdvanced,
     initialPersona,
   ]);
@@ -234,18 +303,57 @@ export function PersonaEditorDialog({
 
   // Handle save
   const handleSave = () => {
+    // Create a concise but informative description of the persona
+    let description = "";
+    
+    if (selectedMood) {
+      description += `${selectedMood} `;
+    }
+    
+    if (selectedCommunication) {
+      description += `${selectedCommunication} `;
+    }
+    
+    if (selectedVibe) {
+      description += `${selectedVibe} `;
+    }
+    
+    // Add key relationship information if available
+    if (relationshipDynamic) {
+      description += `| ${relationshipDynamic} `;
+    }
+    
+    // Add skills summary if available
+    if (selectedSkills.length > 0) {
+      description += "| Expert in: ";
+      selectedSkills.slice(0, 2).forEach((skillId, index) => {
+        const skill = specialSkillsOptions.find((s) => s.id === skillId);
+        if (skill) {
+          description += skill.label;
+          if (index < Math.min(selectedSkills.length, 2) - 1) {
+            description += ", ";
+          }
+        }
+      });
+      
+      if (selectedSkills.length > 2) {
+        description += ` +${selectedSkills.length - 2} more`;
+      }
+    }
+    
+    // Trim and clean up description
+    description = description.trim();
+    
     onSave({
       name: coreCharacter,
-      description: `${selectedMood || ""} ${selectedCommunication || ""} ${
-        selectedVibe || ""
-      }`.trim(),
-      systemPrompt,
+      description: description,
+      system_prompt: system_prompt,
       isCustom: true,
     });
     onOpenChange(false);
   };
 
-  const isValid = coreCharacter.trim() !== "" && systemPrompt.trim() !== "";
+  const isValid = coreCharacter.trim() !== "" && system_prompt.trim() !== "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -434,6 +542,49 @@ export function PersonaEditorDialog({
                   />
                 </div>
 
+                {/* Voice Style */}
+                <div className="space-y-2">
+                  <Label className="text-sm">🗣️ Voice Style:</Label>
+                  <Input
+                    placeholder="e.g., deep and calm, high-pitched anime voice, seductive whisper..."
+                    value={voiceStyle}
+                    onChange={(e) => setVoiceStyle(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Describes how Minato's voice would sound if spoken aloud
+                  </p>
+                </div>
+
+                {/* Inside Jokes */}
+                <div className="space-y-2">
+                  <Label className="text-sm">😂 Our Inside Jokes:</Label>
+                  <Input
+                    placeholder="e.g., We always joke about..."
+                    value={insideJokes}
+                    onChange={(e) => setInsideJokes(e.target.value)}
+                  />
+                </div>
+
+                {/* Language Preferences */}
+                <div className="space-y-2">
+                  <Label className="text-sm">🌐 Language Preferences:</Label>
+                  <Input
+                    placeholder="e.g., occasional French phrases, speak like a pirate..."
+                    value={languagePreference}
+                    onChange={(e) => setLanguagePreference(e.target.value)}
+                  />
+                </div>
+
+                {/* Relationship Dynamic */}
+                <div className="space-y-2">
+                  <Label className="text-sm">👫 Relationship Dynamic:</Label>
+                  <Input
+                    placeholder="e.g., we're old friends, secret lovers, mentor/student..."
+                    value={relationshipDynamic}
+                    onChange={(e) => setRelationshipDynamic(e.target.value)}
+                  />
+                </div>
+
                 {/* Things to Avoid */}
                 <div className="space-y-2">
                   <Label className="text-sm">🚫 Things to NEVER Do/Say:</Label>
@@ -480,6 +631,20 @@ export function PersonaEditorDialog({
                     onChange={(e) => setQuirk(e.target.value)}
                   />
                 </div>
+
+                {/* Personalized Knowledge */}
+                <div className="space-y-2">
+                  <Label className="text-sm">📚 Personalized Knowledge:</Label>
+                  <Textarea
+                    placeholder="Key facts Minato should know about you or your interests..."
+                    value={personalizedKnowledge}
+                    onChange={(e) => setPersonalizedKnowledge(e.target.value)}
+                    rows={3}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This helps Minato reference specific details about your life or interests
+                  </p>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -498,12 +663,12 @@ export function PersonaEditorDialog({
                     ✍️ Minato's Deepest Secrets (Advanced)
                   </Label>
                   <div className="ml-auto text-xs text-muted-foreground">
-                    {systemPrompt.length} characters
+                    {system_prompt.length} characters
                   </div>
                 </div>
                 <Textarea
-                  value={systemPrompt}
-                  onChange={(e) => setSystemPrompt(e.target.value)}
+                  value={system_prompt}
+                  onChange={(e) => setSystem_prompt(e.target.value)}
                   rows={4}
                   className="font-mono text-xs"
                   placeholder="Add any final, crucial details about Minato's personality, memories, or how they should always behave."

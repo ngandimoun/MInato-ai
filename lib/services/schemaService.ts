@@ -14,6 +14,12 @@ const MINATO_REDDIT_QUERY_EXTRACTION_SCHEMA_NAME = "minato_reddit_query_extracti
 const MINATO_RECIPE_QUERY_EXTRACTION_SCHEMA_NAME = "minato_recipe_query_extraction_v1";
 const MINATO_PEXELS_QUERY_EXTRACTION_SCHEMA_NAME = "minato_pexels_query_extraction_v1";
 const EVENTFINDER_ARG_EXTRACTION_SCHEMA_NAME = "eventfinder_arg_extraction";
+const MINATO_REMINDER_READER_EXTRACTION_SCHEMA_NAME = "minato_reminder_reader_extraction_v1";
+const MINATO_REMINDER_SETTER_EXTRACTION_SCHEMA_NAME = "minato_reminder_setter_extraction_v1";
+const MINATO_DATETIME_PARSE_ADVANCED_SCHEMA_NAME = "minato_datetime_parse_advanced_v2";
+const MINATO_WEBSEARCH_EXTRACTION_SCHEMA_NAME = "minato_websearch_extraction_v1";
+const MINATO_GOOGLE_CALENDAR_EXTRACTION_SCHEMA_NAME = "minato_google_calendar_extraction_v1";
+const MINATO_GOOGLE_GMAIL_EXTRACTION_SCHEMA_NAME = "minato_google_gmail_extraction_v1";
 
 // The schema definition as expected by the test and generateStructuredJson
 const TOOL_ROUTER_SCHEMA_DEFINITION = {
@@ -212,6 +218,131 @@ const SCHEMA_VERSIONS: Record<string, SchemaDefinition> = {
         "relativeDateDescription",
         "classificationName"
       ],
+      additionalProperties: false
+    }
+  },
+  [MINATO_REMINDER_READER_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_reminder_reader_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["get_pending", "get_overdue", "get_today", "get_all"] },
+        daysAhead: { type: "number", minimum: 0, maximum: 30 },
+        limit: { type: "number", minimum: 1, maximum: 20 }
+      },
+      required: ["action", "daysAhead", "limit"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_REMINDER_SETTER_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_reminder_setter_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        content: { type: "string" },
+        trigger_datetime_description: { type: "string" },
+        recurrence_rule: { type: ["string", "null"], enum: ["daily", "weekly", "monthly", "yearly", null] },
+        category: { type: "string", enum: ["task", "habit", "medication", "appointment", "goal"] },
+        priority: { type: "string", enum: ["low", "medium", "high"] }
+      },
+      required: ["content", "trigger_datetime_description", "recurrence_rule", "category", "priority"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_DATETIME_PARSE_ADVANCED_SCHEMA_NAME]: {
+    name: 'minato_datetime_parse_advanced',
+    version: '2',
+    schema: {
+      type: "object",
+      properties: {
+        iso_datetime_utc: { type: ["string", "null"] },
+        detected_recurrence: { type: ["string", "null"], enum: ["daily", "weekly", "monthly", "yearly", null] },
+        confidence: { type: "string", enum: ["high", "medium", "low"] }
+      },
+      required: ["iso_datetime_utc", "detected_recurrence", "confidence"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_WEBSEARCH_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_websearch_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        query: { type: "string" },
+        mode: { type: "string", enum: ["product_search", "tiktok_search", "fallback_search"] },
+        minPrice: { type: ["number", "null"] },
+        maxPrice: { type: ["number", "null"] },
+        color: { type: ["string", "null"] },
+        brand: { type: ["string", "null"] },
+        location: { type: ["string", "null"] },
+        language: { type: ["string", "null"] }
+      },
+      required: ["query", "mode"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_GOOGLE_CALENDAR_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_google_calendar_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        action: { 
+          type: "string", 
+          enum: ["get_today_events"],
+          description: "Action to perform on Google Calendar"
+        },
+        maxResults: { 
+          type: "number", 
+          minimum: 1, 
+          maximum: 10,
+          description: "Maximum number of events to return (1-10)" 
+        },
+        calendarId: { 
+          type: ["string", "null"],
+          description: "Optional Calendar ID (default: 'primary')"
+        }
+      },
+      required: ["action", "maxResults"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_GOOGLE_GMAIL_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_google_gmail_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        action: { 
+          type: "string", 
+          enum: ["get_recent_emails"],
+          description: "Action to perform on Gmail"
+        },
+        maxResults: { 
+          type: "number", 
+          minimum: 1, 
+          maximum: 10,
+          description: "Maximum number of emails to return (1-10)" 
+        },
+        query: { 
+          type: "string",
+          description: "Gmail search query (e.g., 'is:unread', 'from:example@gmail.com')"
+        },
+        summarize_body: { 
+          type: "boolean",
+          description: "Whether to summarize email bodies"
+        },
+        summarize_limit: { 
+          type: "number", 
+          minimum: 1, 
+          maximum: 3,
+          description: "Maximum number of email bodies to summarize if summarize_body is true (1-3)"
+        }
+      },
+      required: ["action", "maxResults", "query", "summarize_body", "summarize_limit"],
       additionalProperties: false
     }
   },

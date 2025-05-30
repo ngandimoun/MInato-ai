@@ -18,6 +18,8 @@ import { GoogleCalendarReaderTool } from "./GoogleCalendarReaderTool";
 import { GoogleGmailReaderTool } from "./GoogleGmailReaderTool";
 import { NewsAggregatorTool } from "./NewsAggregatorTool";
 import { ReminderReaderTool } from "./ReminderReaderTool";
+import { ReminderSetterTool } from "./ReminderSetterTool";
+import { ProactiveReminderTool } from "./ProactiveReminderTool";
 // MemoryTool and InternalTaskTool would also be imported if they were in separate files
 // For example: import { MemoryTool } from "./MemoryTool";
 
@@ -37,6 +39,8 @@ export const tools: { [key: string]: BaseTool } = {
   GoogleCalendarReaderTool: new GoogleCalendarReaderTool(),
   GoogleGmailReaderTool: new GoogleGmailReaderTool(),
   ReminderReaderTool: new ReminderReaderTool(),
+  ReminderSetterTool: new ReminderSetterTool(),
+  ProactiveReminderTool: new ProactiveReminderTool(),
   MemoryTool: new MemoryTool(getGlobalMemoryFramework()),
   // MemoryTool and InternalTaskTool will be added to orchestrator's instance of the registry
   // Example: MemoryTool: new MemoryTool(),
@@ -298,6 +302,26 @@ export const toolAliases: { [key: string]: string } = {
   "getreminders": "ReminderReaderTool",
   "listreminders": "ReminderReaderTool",
   "showreminders": "ReminderReaderTool",
+  
+  // ReminderSetterTool Aliases
+  "setreminder": "ReminderSetterTool",
+  "createreminder": "ReminderSetterTool",
+  "addreminder": "ReminderSetterTool",
+  "remindme": "ReminderSetterTool",
+  "remindmeto": "ReminderSetterTool",
+  "schedulereminder": "ReminderSetterTool",
+  "newreminder": "ReminderSetterTool",
+  "makereminder": "ReminderSetterTool",
+  "reminder_setter": "ReminderSetterTool",
+  "savereminder": "ReminderSetterTool",
+  
+  // ProactiveReminderTool Aliases
+  "proactivereminder": "ProactiveReminderTool",
+  "checkduereminders": "ProactiveReminderTool",
+  "duereminders": "ProactiveReminderTool",
+  "upcomingreminders": "ProactiveReminderTool",
+  "remindercheck": "ProactiveReminderTool",
+  "proactive_reminder": "ProactiveReminderTool",
 
   // MemoryTool Aliases (Assuming MemoryTool is a registered tool)
   "memory": "MemoryTool",
