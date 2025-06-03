@@ -20,6 +20,7 @@ const MINATO_DATETIME_PARSE_ADVANCED_SCHEMA_NAME = "minato_datetime_parse_advanc
 const MINATO_WEBSEARCH_EXTRACTION_SCHEMA_NAME = "minato_websearch_extraction_v1";
 const MINATO_GOOGLE_CALENDAR_EXTRACTION_SCHEMA_NAME = "minato_google_calendar_extraction_v1";
 const MINATO_GOOGLE_GMAIL_EXTRACTION_SCHEMA_NAME = "minato_google_gmail_extraction_v1";
+const MINATO_SPORTS_QUERY_EXTRACTION_SCHEMA_NAME = "minato_sports_query_extraction_v1";
 
 // The schema definition as expected by the test and generateStructuredJson
 const TOOL_ROUTER_SCHEMA_DEFINITION = {
@@ -33,25 +34,38 @@ const TOOL_ROUTER_SCHEMA_DEFINITION = {
           tool_name: { type: "string" as const },
           arguments: {
             type: "object" as const,
-            // Note: the orchestrator.ts was changed to make this false for the *routerSchema* definition used in generateStructuredJson
-            // However, the SchemaService's own definition of TOOL_ROUTER_SCHEMA_DEFINITION still had it as true.
-            // Let's align this with what the orchestrator now expects if this is the canonical source.
-            // For now, keeping it as `true` as per the original file content for arguments, assuming the LLM might add diverse args.
-            // The critical `additionalProperties: false` is on the item itself and the root.
-            additionalProperties: true, 
-            properties: {}, 
+            additionalProperties: true, // Allow additional parameters that might be needed for specific tools
+            properties: {
+              product_name: { type: ["string", "null"] },
+              price: { type: ["number", "null"] },
+              currency: { type: ["string", "null"] },
+              description: { type: ["string", "null"] },
+              step: { type: ["string", "null"] },
+              intent: { type: ["string", "null"] },
+              country: { type: ["string", "null"] },
+              entity_type: { type: ["string", "null"] },
+              business_description: { type: ["string", "null"] }
+            }
           },
-          reason: { type: "string" as const },
+          reason: { type: "string" as const }
         },
-        // This was also updated in orchestrator.ts to include "arguments"
-        // Aligning it here for consistency if SchemaService is the source of truth for validation.
-        required: ["tool_name", "reason", "arguments"], 
-        additionalProperties: false, 
-      },
+        required: ["tool_name", "reason", "arguments"],
+        additionalProperties: false
+      }
     },
+    // Include tool aliases to redirect to proper tools
+    tool_aliases: {
+      type: "object" as const,
+      additionalProperties: true,
+      properties: {
+        "StripeSellerOnboardingTool": { type: "string" as const },
+        "StripeAccountSetupTool": { type: "string" as const },
+        "StripeOnboardingTool": { type: "string" as const }
+      }
+    }
   },
   required: ["planned_tools"],
-  additionalProperties: false, 
+  additionalProperties: false
 };
 
 // Ajout de l'interface SchemaDefinition
@@ -197,6 +211,46 @@ const SCHEMA_VERSIONS: Record<string, SchemaDefinition> = {
       additionalProperties: false
     }
   },
+  // Add StripePaymentLinkParameters schema
+  ["StripePaymentLinkParameters"]: {
+    name: 'StripePaymentLinkParameters',
+    version: '2',
+    schema: {
+      type: "object",
+      properties: {
+        product_name: { type: ["string", "null"] },
+        price: { type: ["number", "null"] },
+        currency: { type: ["string", "null"] },
+        description: { type: ["string", "null"] },
+        image_url: { type: ["string", "null"] },
+        step: { type: ["string", "null"] },
+        quantity_adjustable: { type: ["boolean", "null"] },
+        allow_promotion_codes: { type: ["boolean", "null"] },
+        enable_pdf_invoices: { type: ["boolean", "null"] },
+        inventory_quantity: { type: ["number", "null"] },
+        max_quantity: { type: ["number", "null"] },
+        min_quantity: { type: ["number", "null"] },
+        // Advanced parameters
+        is_subscription: { type: ["boolean", "null"] },
+        interval_type: { type: ["string", "null"] },
+        interval_count: { type: ["number", "null"] },
+        trial_days: { type: ["number", "null"] },
+        collect_shipping: { type: ["boolean", "null"] },
+        collect_billing: { type: ["boolean", "null"] },
+        collect_phone: { type: ["boolean", "null"] },
+        shipping_countries: { 
+          type: ["array", "null"],
+          items: { type: "string" }
+        },
+        after_completion_type: { type: ["string", "null"] },
+        after_completion_url: { type: ["string", "null"] },
+        save_payment_method: { type: ["boolean", "null"] },
+        enable_tax_collection: { type: ["boolean", "null"] }
+      },
+      required: ["product_name", "price", "currency", "description", "step"],
+      additionalProperties: true
+    }
+  },
   [EVENTFINDER_ARG_EXTRACTION_SCHEMA_NAME]: {
     name: 'eventfinder_arg_extraction',
     version: '1',
@@ -248,20 +302,6 @@ const SCHEMA_VERSIONS: Record<string, SchemaDefinition> = {
         priority: { type: "string", enum: ["low", "medium", "high"] }
       },
       required: ["content", "trigger_datetime_description", "recurrence_rule", "category", "priority"],
-      additionalProperties: false
-    }
-  },
-  [MINATO_DATETIME_PARSE_ADVANCED_SCHEMA_NAME]: {
-    name: 'minato_datetime_parse_advanced',
-    version: '2',
-    schema: {
-      type: "object",
-      properties: {
-        iso_datetime_utc: { type: ["string", "null"] },
-        detected_recurrence: { type: ["string", "null"], enum: ["daily", "weekly", "monthly", "yearly", null] },
-        confidence: { type: "string", enum: ["high", "medium", "low"] }
-      },
-      required: ["iso_datetime_utc", "detected_recurrence", "confidence"],
       additionalProperties: false
     }
   },
@@ -343,6 +383,33 @@ const SCHEMA_VERSIONS: Record<string, SchemaDefinition> = {
         }
       },
       required: ["action", "maxResults", "query", "summarize_body", "summarize_limit"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_SPORTS_QUERY_EXTRACTION_SCHEMA_NAME]: {
+    name: 'minato_sports_query_extraction',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        teamName: { type: "string" },
+        queryType: { type: "string", enum: ["next_game", "last_game", "team_info"] }
+      },
+      required: ["teamName", "queryType"],
+      additionalProperties: false
+    }
+  },
+  [MINATO_DATETIME_PARSE_ADVANCED_SCHEMA_NAME]: {
+    name: 'minato_datetime_parse_advanced',
+    version: '2',
+    schema: {
+      type: "object",
+      properties: {
+        iso_datetime_utc: { type: ["string", "null"] },
+        detected_recurrence: { type: ["string", "null"], enum: ["daily", "weekly", "monthly", "yearly", null] },
+        confidence: { type: "string", enum: ["high", "medium", "low"] }
+      },
+      required: ["iso_datetime_utc", "detected_recurrence", "confidence"],
       additionalProperties: false
     }
   },
@@ -554,4 +621,85 @@ export class SchemaService {
     
     return versions.length > 0 ? versions[0] : null;
   }
+}
+
+// Add these types first before the AnyToolStructuredData type definition
+export interface DateTimeStructuredOutput {
+  result_type: "datetime";
+  source_api: "datetime_parse";
+  query: string;
+  parsed_datetime: string | null;
+  confidence: "high" | "medium" | "low";
+  normalized_query?: string;
+  detected_recurrence?: "daily" | "weekly" | "monthly" | "yearly" | null;
+}
+
+export interface GenericStructuredOutput {
+  result_type: string;
+  source_api: string;
+  query: any;
+  [key: string]: any;
+}
+
+// Find the AnyToolStructuredData type definition and add these types:
+export type AnyToolStructuredData = 
+  DateTimeStructuredOutput | 
+  GenericStructuredOutput | 
+  StripePaymentLinkOutput |
+  StripeSellerOnboardingOutput;
+
+// And add these interfaces below the existing ones:
+export interface StripePaymentLinkOutput {
+  result_type: "payment_link";
+  source_api: "stripe";
+  query: any;
+  payment_link: {
+    id: string;
+    url: string;
+    product: {
+      id: string;
+      name: string;
+      description?: string;
+    };
+    price: {
+      id: string;
+      unit_amount: number;
+      currency: string;
+    };
+    created: number;
+    active: boolean;
+    features: {
+      tax_collection: boolean;
+      promotion_codes: boolean;
+      pdf_invoices: boolean;
+      shipping_required: boolean;
+      quantity_adjustable: boolean;
+      inventory_tracking: boolean;
+      is_subscription?: boolean;
+    };
+  } | null;
+  error?: string;
+  next_step?: string;
+  needs_onboarding?: boolean;
+  saved_product_details?: any;
+  ui_action?: "show_review_modal" | "upload_images" | "none";
+}
+
+export interface StripeSellerOnboardingOutput {
+  result_type: "seller_onboarding";
+  source_api: "stripe_connect";
+  query: any;
+  onboarding_step: string;
+  onboarding_data?: {
+    country?: string;
+    entity_type?: string;
+    requires_embedded_component?: boolean;
+    client_secret?: string;
+    connected_account_id?: string;
+  };
+  conversational_response: string;
+  next_action?: "collect_country_entity" | "trigger_embedded_component" | "complete" | "error";
+  error?: string;
+  saved_product_details?: any;
+  return_to_payment_link_after?: boolean;
 }

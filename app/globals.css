@@ -24,6 +24,11 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.75rem;
+    
+    /* Minato brand colors */
+    --minato-cyan: 175 87% 50%; /* #13EEE3 */
+    --minato-cyan-light: 175 87% 93%; /* #C2FEF9 */
+    --minato-cyan-dark: 175 87% 32%; /* #0A9E99 */
   }
 
   .dark {
@@ -680,5 +685,87 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* ===== Minato UI Component Styles ===== */
+
+@layer components {
+  /* Glass card effects */
+  .glass-card {
+    @apply bg-white/70 dark:bg-neutral-800/70 backdrop-blur-md border-border/40;
+    box-shadow: 0 0 1px rgba(0, 0, 0, 0.05), 0 0 5px rgba(0, 0, 0, 0.025);
+  }
+  
+  .dark .glass-card {
+    box-shadow: 0 0 1px rgba(255, 255, 255, 0.05), 0 0 5px rgba(255, 255, 255, 0.015);
+  }
+  
+  /* Custom scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(120, 120, 120, 0.2);
+    border-radius: 9999px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(120, 120, 120, 0.3);
+  }
+  
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(180, 180, 180, 0.2);
+  }
+  
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(180, 180, 180, 0.3);
+  }
+  
+  /* Accent glow */
+  .minato-glow {
+    box-shadow: 0 0 10px rgba(19, 238, 227, 0.2);
+    transition: box-shadow 0.3s ease;
+  }
+  
+  .minato-glow:hover {
+    box-shadow: 0 0 15px rgba(19, 238, 227, 0.3);
+  }
+  
+  /* Chip styling for memory tags */
+  .memory-chip {
+    @apply rounded-full px-2 py-0.5 text-xs inline-flex items-center gap-1;
+  }
+  
+  /* Status labels */
+  .status-latest {
+    @apply bg-green-500/10 text-green-600 dark:text-green-400;
+  }
+  
+  .status-outdated {
+    @apply bg-amber-500/10 text-amber-600 dark:text-amber-400;
+  }
+  
+  .status-current {
+    @apply bg-blue-500/10 text-blue-600 dark:text-blue-400;
+  }
+  
+  .status-overdue {
+    @apply bg-red-500/10 text-red-600 dark:text-red-400;
+  }
+  
+  /* Card accent lines */
+  .card-accent-left {
+    @apply hidden md:block absolute left-0 top-0 h-full w-1 rounded-l-xl bg-gradient-to-b from-transparent via-cyan-400/40 to-transparent;
+  }
+  
+  .card-accent-top {
+    @apply md:hidden absolute left-0 top-0 w-full h-0.5 rounded-t-xl bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent;
   }
 }

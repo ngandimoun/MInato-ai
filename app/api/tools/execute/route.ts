@@ -144,6 +144,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Check if the tool is enabled
+  if (tool.enabled === false) {
+    logger.warn(
+      `${logPrefix} Attempted to use disabled tool: ${toolName} for user ${userId.substring(
+        0,
+        8
+      )}`
+    );
+    return NextResponse.json(
+      {
+        status: "error",
+        error: `Tool '${toolName}' is currently disabled.`,
+        message: "This feature is currently unavailable. It will be available in a future upgrade."
+      } as ToolExecutionResponse,
+      { status: 403 }
+    );
+  }
+
   // Validate arguments
   const ajv = new Ajv({ allErrors: true, strict: false });
   const validate = ajv.compile(tool.argsSchema);

@@ -20,6 +20,7 @@ import { NewsAggregatorTool } from "./NewsAggregatorTool";
 import { ReminderReaderTool } from "./ReminderReaderTool";
 import { ReminderSetterTool } from "./ReminderSetterTool";
 import { ProactiveReminderTool } from "./ProactiveReminderTool";
+import { StripePaymentLinkTool } from "./StripePaymentLinkTool";
 // MemoryTool and InternalTaskTool would also be imported if they were in separate files
 // For example: import { MemoryTool } from "./MemoryTool";
 
@@ -36,11 +37,12 @@ export const tools: { [key: string]: BaseTool } = {
   RedditTool: new RedditTool(),
   SportsInfoTool: new SportsInfoTool(),
   EventFinderTool: new EventFinderTool(),
-  GoogleCalendarReaderTool: new GoogleCalendarReaderTool(),
-  GoogleGmailReaderTool: new GoogleGmailReaderTool(),
+  GoogleCalendarReaderTool: Object.assign(new GoogleCalendarReaderTool(), { enabled: false }),
+  GoogleGmailReaderTool: Object.assign(new GoogleGmailReaderTool(), { enabled: false }),
   ReminderReaderTool: new ReminderReaderTool(),
   ReminderSetterTool: new ReminderSetterTool(),
   ProactiveReminderTool: new ProactiveReminderTool(),
+  StripePaymentLinkTool: Object.assign(new StripePaymentLinkTool(), { enabled: false, timeoutMs: 10000, maxCallsPerSession: 5, rateLimits: { perMinute: 5, perHour: 20 } }),
   MemoryTool: new MemoryTool(getGlobalMemoryFramework()),
   // MemoryTool and InternalTaskTool will be added to orchestrator's instance of the registry
   // Example: MemoryTool: new MemoryTool(),
@@ -339,6 +341,18 @@ export const toolAliases: { [key: string]: string } = {
   "recallinfo": "MemoryTool",
   "searchmemory": "MemoryTool",
   "whatdidisay": "MemoryTool",
+
+  // StripePaymentLinkTool Aliases
+  "stripe": "StripePaymentLinkTool",
+  "paymentlink": "StripePaymentLinkTool",
+  "payment": "StripePaymentLinkTool",
+  "createpayment": "StripePaymentLinkTool",
+  "sellproduct": "StripePaymentLinkTool",
+  "sell": "StripePaymentLinkTool",
+  "checkout": "StripePaymentLinkTool",
+  "paymentlinks": "StripePaymentLinkTool",
+  "stripepayment": "StripePaymentLinkTool",
+  "createstripe": "StripePaymentLinkTool",
 };
 
 // Function to map tool name variations to the correct tool instance

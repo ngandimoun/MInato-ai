@@ -20,10 +20,10 @@ ChatMessageContentPartText,
 ChatMessageContentPartInputImage,
 } from "@/lib/types/index";
 interface ChatInterfaceProps {
-onDocumentsSubmit: (documents: DocumentFile[]) => void;
+// Removed onDocumentsSubmit prop
 }
 const MESSAGES_PER_PAGE_HISTORY = 30;
-export function ChatInterface({ onDocumentsSubmit }: ChatInterfaceProps) {
+export function ChatInterface({}: ChatInterfaceProps) {
 const [messages, setMessages] = useState<Message[]>([]);
 const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 const [hasMoreHistory, setHasMoreHistory] = useState(true);
@@ -113,19 +113,19 @@ const playSound = (soundType: "send" | "receive" | "error") => {
 logger.debug(`[ChatInterface] Sound: ${soundType}`);
 };
 const addOptimisticMessage = (
-userMessageContent: string | ChatMessageContentPart[],
-attachmentsForMessage: MessageAttachment[]
+  userMessageContent: string,
+  attachmentsForMessage: MessageAttachment[]
 ): string => {
-const optimisticId = `user-temp-${generateId()}`;
-const newMessage: Message = {
-id: optimisticId, role: "user", content: userMessageContent,
-attachments: attachmentsForMessage.filter(att => att.type !== 'image' || !att.url?.startsWith('data:') && !att.url?.startsWith('blob:')),
-timestamp: new Date().toISOString(),
-audioUrl: undefined, structured_data: null, debugInfo: null, workflowFeedback: null,
-intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined,
-};
-setMessages((prev) => [...prev, newMessage]);
-return optimisticId;
+  const optimisticId = `user-temp-${generateId()}`;
+  const newMessage: Message = {
+    id: optimisticId, role: "user", content: userMessageContent,
+    attachments: attachmentsForMessage,
+    timestamp: new Date().toISOString(),
+    audioUrl: undefined, structured_data: null, debugInfo: null, workflowFeedback: null,
+    intentType: null, ttsInstructions: null, clarificationQuestion: null, error: undefined,
+  };
+  setMessages((prev) => [...prev, newMessage]);
+  return optimisticId;
 };
 const handleSendMessage = useCallback(
 async (text: string, attachmentsFromInputArea?: MessageAttachment[]) => {
@@ -136,27 +136,19 @@ const currentAttachments: MessageAttachment[] = (attachmentsFromInputArea || [])
 file: att.file,
 storagePath: att.storagePath ?? undefined
 }));
-if (!currentText && currentAttachments.length === 0) {
+// Only allow non-image/document attachments
+const filteredAttachments = currentAttachments.filter(att => att.type !== 'image' && att.type !== 'document');
+
+if (!currentText && filteredAttachments.length === 0) {
 toast({ title: "Empty message", description: "Please type something or add an attachment." });
 return;
 }
 setInputDisabled(true); setIsTyping(true); playSound("send");
-let userMessageContentForState: string | ChatMessageContentPart[];
-const imageContentPartsForState: ChatMessageContentPartInputImage[] = [];
-const nonImageAttachmentsForMessageState: MessageAttachment[] = [];
-currentAttachments.forEach(att => {
-if (att.type === 'image' && att.url && (att.url.startsWith('data:') || att.url.startsWith('blob:'))) {
-imageContentPartsForState.push({ type: "input_image", image_url: att.url });
-} else {
-nonImageAttachmentsForMessageState.push(att);
-}
-});
-if (imageContentPartsForState.length > 0) {
-userMessageContentForState = [{ type: "text", text: currentText }, ...imageContentPartsForState];
-} else {
-userMessageContentForState = currentText;
-}
-const optimisticId = addOptimisticMessage(userMessageContentForState, nonImageAttachmentsForMessageState);
+
+// Only use text content since we're removing image/document support
+const userMessageContentForState: string = currentText;
+
+const optimisticId = addOptimisticMessage(userMessageContentForState, filteredAttachments);
 abortControllerRef.current = new AbortController();
 const signal = abortControllerRef.current.signal;
 let assistantMessageId = `asst-temp-${generateId()}`;
@@ -170,22 +162,17 @@ setMessages((prev) => [...prev, currentAssistantPlaceholder]);
 let streamProcessingError: Error | null = null;
 try {
 const historyForApi = messagesRef.current.filter((m) => m.id !== optimisticId && m.id !== assistantMessageId);
+
+// Use text-only content for API
 const apiUserMessageContentParts: ChatMessageContentPart[] = [];
 if (currentText) {
 apiUserMessageContentParts.push({ type: "text", text: currentText });
 }
-const apiAttachments: MessageAttachment[] = [];
-currentAttachments.forEach(att => {
-if (att.type === 'image' && att.url && (att.url.startsWith('data:') || att.url.startsWith('blob:'))) {
-apiUserMessageContentParts.push({ type: 'input_image', image_url: att.url });
-} else {
-apiAttachments.push(att);
-}
-});
+
 const currentUserMessageForApi: Message = {
 id: optimisticId, role: "user",
 content: apiUserMessageContentParts.length > 0 ? apiUserMessageContentParts : (currentText || null),
-attachments: apiAttachments,
+attachments: filteredAttachments,
 timestamp: new Date().toISOString(),
 };
 const requestBodyMessages = historyForApi.map(m => {
@@ -210,8 +197,8 @@ requestBodyMessages.push(currentUserMessageForApi);
 const requestBody: { messages: Partial<Message>[]; id?: string; data?: any } = {
 messages: requestBodyMessages,
 };
-const hasFileObjects = apiAttachments.some(att => att.file instanceof File || att.file instanceof Blob);
-logger.info(`[ChatInterface] Sending to /api/chat. Attachments needing upload by API: ${apiAttachments.filter(a=>a.file).length}. Has File objects for API: ${hasFileObjects}`);
+const hasFileObjects = filteredAttachments.some(att => att.file instanceof File || att.file instanceof Blob);
+logger.info(`[ChatInterface] Sending to /api/chat. Attachments needing upload by API: ${filteredAttachments.filter(a=>a.file).length}. Has File objects for API: ${hasFileObjects}`);
 let response: Response;
 if (hasFileObjects) {
 const formData = new FormData();
@@ -224,7 +211,7 @@ return {...m, attachments: m.attachments?.map((a: any) => ({...a, file: undefine
 formData.append("messages", JSON.stringify(messagesForFormData));
 if(requestBody.id) formData.append("id", requestBody.id);
 if(requestBody.data) formData.append("data", JSON.stringify(requestBody.data));
-apiAttachments.forEach((att, idx) => { if (att.file instanceof File || att.file instanceof Blob) { formData.append(`attachment_${idx}`, att.file, att.name); }});
+filteredAttachments.forEach((att, idx) => { if (att.file instanceof File || att.file instanceof Blob) { formData.append(`attachment_${idx}`, att.file, att.name); }});
 response = await fetch("/api/chat", { method: "POST", body: formData, signal });
 } else {
 response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), signal });
@@ -400,7 +387,7 @@ abortControllerRef.current = null;
 if (inputAreaRef.current) inputAreaRef.current.focusTextarea();
 }
 },
-[inputDisabled, onDocumentsSubmit, messagesRef]
+[inputDisabled, messagesRef]
 );
 const handleSendAudio = useCallback(
 async (audioBlob: Blob) => {
@@ -625,7 +612,6 @@ className="mt-2 flex-shrink-0">
 ref={inputAreaRef}
 onSendMessage={handleSendMessage}
 onSendAudio={handleSendAudio}
-onDocumentsSubmit={onDocumentsSubmit}
 disabled={inputDisabled || isVideoAnalyzing}
 onVideoAnalysisStatusChange={setIsVideoAnalyzing}
 />
