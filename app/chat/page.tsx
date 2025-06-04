@@ -4,22 +4,28 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChatInterface } from "@/components/chat/chat-interface";
-// CallInterface is removed
-import { DocumentFile, SettingsPanel } from "@/components/settings/settings-panel";
+import { SettingsPanel } from "@/components/settings/settings-panel";
 import { MemoryPanel } from "@/components/memory/memory-panel";
 import { Header } from "@/components/header";
 import { useAuth } from "@/context/auth-provider"; 
 import { logger } from "@/memory-framework/config";
-import { Loader2 } from "lucide-react"; 
-import { toast } from "@/components/ui/use-toast"; 
-// SplashCursor can be kept if desired
+import { useRouter, useSearchParams } from "next/navigation";
 
-type View = "chat" | "settings" | "memory"; // "call" view is removed
+type View = "chat" | "settings" | "memory" | "dashboard"; // Added dashboard view
 
 export default function ChatPage() { 
   const [currentView, setCurrentView] = useState<View>("chat");
-  const [uploadedDocuments, setUploadedDocuments] = useState<DocumentFile[]>([]);
   const { user, isLoading: isAuthLoading } = useAuth(); 
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Handle initial view based on query parameters
+  useEffect(() => {
+    const viewParam = searchParams.get('view');
+    if (viewParam && ['chat', 'settings', 'memory'].includes(viewParam)) {
+      setCurrentView(viewParam as View);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
      if (!isAuthLoading && !user) {
@@ -28,17 +34,12 @@ export default function ChatPage() {
      }
   }, [user, isAuthLoading]);
 
-  const handleDocumentsSubmit = (documents: DocumentFile[]) => {
-    setUploadedDocuments((prevDocs) => [...prevDocs, ...documents]);
-    logger.info("[ChatPage] Documents submitted (local state):", documents.map(d => d.name));
-    toast({ title: "Documents Received", description: `${documents.length} document(s) ready for discussion.` });
-  };
-
-  const handleDeleteDocument = (idToDelete: string) => {
-     setUploadedDocuments((prevDocs) => prevDocs.filter(doc => doc.id !== idToDelete));
-     logger.info("[ChatPage] Document deleted (local state):", idToDelete);
-     toast({ title: "Document Removed", description: "The document has been removed from this session's view." });
-  };
+  // Handle navigation to dashboard page when the dashboard view is selected
+  useEffect(() => {
+     if (currentView === "dashboard") {
+        router.push("/dashboard");
+     }
+  }, [currentView, router]);
 
   if (!user) { // This check is more of a fallback; middleware should handle unauth access
      logger.warn("[ChatPage] Reached ChatPage component without authenticated user (should have been redirected).");
@@ -52,7 +53,6 @@ export default function ChatPage() {
   return (
     <main className="flex min-h-screen flex-col bg-background">
       <div className="fixed inset-0 bg-gradient-to-br from-background via-muted/10 to-background z-[-1]" />
-      {/* <SplashCursor /> */}
 
       <Header currentView={currentView} onViewChange={setCurrentView} />
 
@@ -67,11 +67,9 @@ export default function ChatPage() {
               transition={{ duration: 0.3, ease: "easeInOut" }}
               className="h-full" 
             >
-              <ChatInterface onDocumentsSubmit={handleDocumentsSubmit} />
+              <ChatInterface />
             </motion.div>
           )}
-
-          {/* "call" view and CallInterface component are removed */}
 
           {currentView === "settings" && (
             <motion.div
@@ -84,8 +82,6 @@ export default function ChatPage() {
             >
               <SettingsPanel
                 onClose={() => setCurrentView("chat")}
-                uploadedDocuments={uploadedDocuments}
-                onDeleteDocument={handleDeleteDocument}
               />
             </motion.div>
           )}

@@ -35,7 +35,10 @@ export interface AppConfig {
   nodeEnv: string;
   emailFromAddress: string;
   app: any;
-  toolApiKeys: any;
+  toolApiKeys: {
+    stripe?: string;
+    [key: string]: string | undefined;
+  };
   supabase: {
     storageUrl: string;
     // Add other Supabase config properties if needed
@@ -82,6 +85,12 @@ export const appConfig: AppConfig = {
     storageUrl: process.env.SUPABASE_STORAGE_URL || "https://auzkjkliwlycclkpjlbl.supabase.co/storage/v1",
   },
   defaultLocale: process.env.DEFAULT_LOCALE || "en-US",
+  
+  // Add the Stripe API key to the toolApiKeys object
+  toolApiKeys: {
+    ...(frameworkConfigUnified.toolApiKeys || {}),
+    stripe: getEnvVar("STRIPE_SECRET_KEY", "") as string,
+  },
   
   openai: {
     apiKey: getEnvVar("OPENAI_API_KEY", "") as string,

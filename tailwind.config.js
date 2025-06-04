@@ -51,6 +51,11 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        minato: {
+          DEFAULT: "#13EEE3", // Minato's electric-cyan
+          light: "#C2FEF9",
+          dark: "#0A9E99",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -66,13 +71,82 @@ module.exports = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: 0 },
         },
+        "pulse": {
+          "0%, 100%": { opacity: 1 },
+          "50%": { opacity: 0.5 },
+        },
+        "ping": {
+          "75%, 100%": { 
+            transform: "scale(1.1)",
+            opacity: 0 
+          },
+        },
+        "fade-in-up": {
+          "0%": {
+            opacity: "0",
+            transform: "translateY(10px)",
+          },
+          "100%": {
+            opacity: "1",
+            transform: "translateY(0)",
+          },
+        },
+        "fade-in": {
+          "0%": {
+            opacity: "0",
+          },
+          "100%": {
+            opacity: "1",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse": "pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "ping": "ping 1s cubic-bezier(0, 0, 0.2, 1) infinite",
+        "fade-in-up": "fade-in-up 0.3s ease-out",
+        "fade-in": "fade-in 0.3s ease-out",
+      },
+      backgroundImage: {
+        'glass-gradient': 'linear-gradient(to bottom right, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05))',
+        'glass-gradient-dark': 'linear-gradient(to bottom right, rgba(20, 20, 20, 0.2), rgba(20, 20, 20, 0.05))',
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    function({ addUtilities }) {
+      const newUtilities = {
+        '.custom-scrollbar': {
+          '&::-webkit-scrollbar': {
+            width: '4px',
+            height: '4px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'transparent',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: 'rgba(120, 120, 120, 0.2)',
+            borderRadius: '9999px',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            background: 'rgba(120, 120, 120, 0.3)',
+          },
+          '&.dark::-webkit-scrollbar-thumb': {
+            background: 'rgba(180, 180, 180, 0.2)',
+          },
+          '&.dark::-webkit-scrollbar-thumb:hover': {
+            background: 'rgba(180, 180, 180, 0.3)',
+          },
+        },
+        '.backdrop-blur-card': {
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+        },
+      };
+      addUtilities(newUtilities, ['responsive', 'hover']);
+    },
+  ],
 }
 

@@ -45,8 +45,8 @@ uploadedAt: Date;
 }
 interface SettingsPanelProps {
 onClose: () => void;
-uploadedDocuments: DocumentFile[];
-onDeleteDocument: (id: string) => void;
+uploadedDocuments?: DocumentFile[];
+onDeleteDocument?: (id: string) => void;
 }
 interface UIPersona extends Omit<PersonaTypeFromLib, 'user_id' | 'created_at' | 'updated_at'> {
 isCustom: boolean;
@@ -63,6 +63,8 @@ primary: string;
 secondary: string;
 description: string;
 }
+
+type GoogleConnectionScope = 'calendar' | 'email' | 'both' | 'disconnect_all' | null;
 const formatFileSize = (bytes: number, decimals = 2): string => {
 if (bytes === 0) return "0 Bytes";
 const k = 1024;
@@ -84,11 +86,10 @@ const ALL_TTS_VOICES_WITH_DESC: { id: OpenAITtsVoice; name: string; description:
 { id: "sage", name: "Jiraiya", description: "Wise mentor with experience." },
 { id: "verse", name: "Minato", description: "Clear and focused articulation." },
 ];
-type GoogleConnectionScope = 'calendar' | 'email' | 'both' | 'disconnect_all' | null;
 export function SettingsPanel({
 onClose,
-uploadedDocuments,
-onDeleteDocument,
+uploadedDocuments = [],
+onDeleteDocument = () => {},
 }: SettingsPanelProps) {
 const { theme, colorPalette, setTheme, setColorPalette } = useTheme();
 const { user, profile, state, fetchUserProfileAndState, updateProfileState, isLoading: isAuthLoading, isFetchingProfile: isAuthFetchingProfile } = useAuth();
@@ -123,8 +124,37 @@ const [newsPreferredCategories, setNewsPreferredCategories] = useState<string[]>
 const [interestCategories, setInterestCategories] = useState<string[]>([]);
 const [redditPreferredSubreddits, setRedditPreferredSubreddits] = useState<string[]>([]);
 const [youtubePreferredChannels, setYoutubePreferredChannels] = useState<string[]>([]);
+const [youtubePreferredCategories, setYoutubePreferredCategories] = useState<string[]>([]);
+const [youtubeVideoLengthPreference, setYoutubeVideoLengthPreference] = useState<string>("any");
+const [hackernewsPreferredTopics, setHackernewsPreferredTopics] = useState<string[]>([]);
 const [recipePreferredCuisines, setRecipePreferredCuisines] = useState<string[]>([]);
+const [recipeSkillLevel, setRecipeSkillLevel] = useState<string>("any");
+const [recipeMaxCookingTime, setRecipeMaxCookingTime] = useState<number>(60);
 const [sportsPreferredLeagues, setSportsPreferredLeagues] = useState<string[]>([]);
+
+// WebSearch Shopping Preferences
+const [webSearchShoppingPreferredRetailers, setWebSearchShoppingPreferredRetailers] = useState<string[]>([]);
+const [webSearchShoppingPriceMin, setWebSearchShoppingPriceMin] = useState<number | undefined>(undefined);
+const [webSearchShoppingPriceMax, setWebSearchShoppingPriceMax] = useState<number | undefined>(undefined);
+const [webSearchShoppingPreferredBrands, setWebSearchShoppingPreferredBrands] = useState<string[]>([]);
+const [webSearchShoppingShippingPreference, setWebSearchShoppingShippingPreference] = useState<string>("any");
+const [webSearchShoppingReviewThreshold, setWebSearchShoppingReviewThreshold] = useState<number>(3);
+
+// WebSearch TikTok Preferences
+const [webSearchTikTokPreferredCreators, setWebSearchTikTokPreferredCreators] = useState<string[]>([]);
+const [webSearchTikTokPreferredHashtags, setWebSearchTikTokPreferredHashtags] = useState<string[]>([]);
+const [webSearchTikTokContentTypes, setWebSearchTikTokContentTypes] = useState<string[]>([]);
+const [webSearchTikTokVideoLengthPreference, setWebSearchTikTokVideoLengthPreference] = useState<string>("any");
+
+// Event Finder Preferences
+const [eventFinderPreferredVenues, setEventFinderPreferredVenues] = useState<string[]>([]);
+const [eventFinderEventTypes, setEventFinderEventTypes] = useState<string[]>([]);
+const [eventFinderPriceMin, setEventFinderPriceMin] = useState<number | undefined>(undefined);
+const [eventFinderPriceMax, setEventFinderPriceMax] = useState<number | undefined>(undefined);
+const [eventFinderDistanceRadius, setEventFinderDistanceRadius] = useState<number>(25);
+const [eventFinderPreferredDaysOfWeek, setEventFinderPreferredDaysOfWeek] = useState<string[]>([]);
+const [eventFinderTimePreference, setEventFinderTimePreference] = useState<string>("any");
+
 const [dailyBriefingEnabled, setDailyBriefingEnabled] = useState(false);
 const [dailyBriefingTime, setDailyBriefingTime] = useState("08:00");
 const [dailyBriefingOptions, setDailyBriefingOptions] = useState({
@@ -229,12 +259,51 @@ if (state) {
     
     // YouTube preferences
     setYoutubePreferredChannels(state.workflow_preferences.youtubePreferredChannels || []);
+    setYoutubePreferredCategories(state.workflow_preferences.youtubePreferredCategories || []);
+    setYoutubeVideoLengthPreference(state.workflow_preferences.youtubeVideoLengthPreference || "any");
+    
+    // HackerNews preferences
+    setHackernewsPreferredTopics(state.workflow_preferences.hackernewsPreferredTopics || []);
     
     // Recipe preferences
     setRecipePreferredCuisines(state.workflow_preferences.recipePreferredCuisines || []);
+    setRecipeSkillLevel(state.workflow_preferences.recipeSkillLevel || "any");
+    setRecipeMaxCookingTime(state.workflow_preferences.recipeMaxCookingTime || 60);
     
     // Sports preferences
     setSportsPreferredLeagues(state.workflow_preferences.sportsPreferredLeagues || []);
+    
+    // WebSearch Shopping Preferences
+    const shoppingPrefs = state.workflow_preferences.webSearchShoppingPreferences;
+    if (shoppingPrefs) {
+      setWebSearchShoppingPreferredRetailers(shoppingPrefs.preferredRetailers || []);
+      setWebSearchShoppingPriceMin(shoppingPrefs.priceRange?.min);
+      setWebSearchShoppingPriceMax(shoppingPrefs.priceRange?.max);
+      setWebSearchShoppingPreferredBrands(shoppingPrefs.preferredBrands || []);
+      setWebSearchShoppingShippingPreference(shoppingPrefs.shippingPreference || "any");
+      setWebSearchShoppingReviewThreshold(shoppingPrefs.reviewThreshold || 3);
+    }
+    
+    // WebSearch TikTok Preferences
+    const tiktokPrefs = state.workflow_preferences.webSearchTikTokPreferences;
+    if (tiktokPrefs) {
+      setWebSearchTikTokPreferredCreators(tiktokPrefs.preferredCreators || []);
+      setWebSearchTikTokPreferredHashtags(tiktokPrefs.preferredHashtags || []);
+      setWebSearchTikTokContentTypes(tiktokPrefs.contentTypes || []);
+      setWebSearchTikTokVideoLengthPreference(tiktokPrefs.videoLengthPreference || "any");
+    }
+    
+    // Event Finder Preferences
+    const eventPrefs = state.workflow_preferences.eventFinderPreferences;
+    if (eventPrefs) {
+      setEventFinderPreferredVenues(eventPrefs.preferredVenues || []);
+      setEventFinderEventTypes(eventPrefs.eventTypes || []);
+      setEventFinderPriceMin(eventPrefs.priceRange?.min);
+      setEventFinderPriceMax(eventPrefs.priceRange?.max);
+      setEventFinderDistanceRadius(eventPrefs.distanceRadius || 25);
+      setEventFinderPreferredDaysOfWeek(eventPrefs.preferredDaysOfWeek || []);
+      setEventFinderTimePreference(eventPrefs.timePreference || "any");
+    }
     
     // Interest categories
     setInterestCategories(state.workflow_preferences.interestCategories?.map(String) || []);
@@ -422,37 +491,33 @@ const handleGoogleConnect = async (scope: Exclude<GoogleConnectionScope, 'discon
 if (!user) return;
 setIsConnectingGoogle(scope);
 try {
-const res = await fetch(`/api/auth/connect/google?scope=${scope}`);
-if (!res.ok) {
-const errorData = await res.json().catch(() => ({}));
-throw new Error(errorData.error || `Failed to initiate Google connection (${res.status})`);
-}
-const { authorizeUrl } = await res.json();
-if (authorizeUrl) {
-window.location.href = authorizeUrl;
-} else {
-throw new Error("Could not get Google authorization URL.");
-}
+  // Instead of connecting to Google, just show a message that this will be available in a future upgrade
+  toast({ 
+    title: "Coming Soon", 
+    description: "Google integration will be available in a future Minato upgrade. Stay tuned!", 
+    variant: "default" 
+  });
+  setIsConnectingGoogle(null);
 } catch (error: any) {
-toast({ title: "Google Connection Error", description: error.message, variant: "destructive" });
-setIsConnectingGoogle(null);
+  toast({ title: "Google Connection Error", description: error.message, variant: "destructive" });
+  setIsConnectingGoogle(null);
 }
 };
 const handleGoogleDisconnect = async () => {
 if (!user) return;
 setIsConnectingGoogle('disconnect_all');
 try {
-const res = await fetch(`/api/auth/disconnect/google`, { method: 'POST' });
-if (!res.ok) {
-const errorData = await res.json().catch(() => ({}));
-throw new Error(errorData.error || `Failed to disconnect Google services (${res.status})`);
-}
-toast({ title: "Google Services Disconnected", description: "Calendar and Email access has been revoked." });
-await fetchUserProfileAndState(true); // Refresh profile/state after disconnect
+  // Instead of disconnecting from Google, just show a message that this will be available in a future upgrade
+  toast({ 
+    title: "Coming Soon", 
+    description: "Google integration will be available in a future Minato upgrade. Stay tuned!", 
+    variant: "default" 
+  });
+  setIsConnectingGoogle(null);
 } catch (error: any) {
-toast({ title: "Disconnection Error", description: error.message, variant: "destructive" });
+  toast({ title: "Disconnection Error", description: error.message, variant: "destructive" });
 } finally {
-setIsConnectingGoogle(null);
+  setIsConnectingGoogle(null);
 }
 };
 const handleSavePreferences = async () => {
@@ -471,12 +536,52 @@ const handleSavePreferences = async () => {
       
       // YouTube preferences
       youtubePreferredChannels,
+      youtubePreferredCategories: youtubePreferredCategories as any[],
+      youtubeVideoLengthPreference: youtubeVideoLengthPreference as any,
+      
+      // HackerNews preferences
+      hackernewsPreferredTopics,
       
       // Recipe preferences
       recipePreferredCuisines,
+      recipeSkillLevel: recipeSkillLevel as any,
+      recipeMaxCookingTime,
       
       // Sports preferences
       sportsPreferredLeagues,
+      
+      // WebSearch Shopping Preferences
+      webSearchShoppingPreferences: {
+        preferredRetailers: webSearchShoppingPreferredRetailers,
+        priceRange: {
+          min: webSearchShoppingPriceMin,
+          max: webSearchShoppingPriceMax
+        },
+        preferredBrands: webSearchShoppingPreferredBrands,
+        shippingPreference: webSearchShoppingShippingPreference as any,
+        reviewThreshold: webSearchShoppingReviewThreshold
+      },
+      
+      // WebSearch TikTok Preferences
+      webSearchTikTokPreferences: {
+        preferredCreators: webSearchTikTokPreferredCreators,
+        preferredHashtags: webSearchTikTokPreferredHashtags,
+        contentTypes: webSearchTikTokContentTypes as any[],
+        videoLengthPreference: webSearchTikTokVideoLengthPreference as any
+      },
+      
+      // Event Finder Preferences
+      eventFinderPreferences: {
+        preferredVenues: eventFinderPreferredVenues,
+        eventTypes: eventFinderEventTypes as any[],
+        priceRange: {
+          min: eventFinderPriceMin,
+          max: eventFinderPriceMax
+        },
+        distanceRadius: eventFinderDistanceRadius,
+        preferredDaysOfWeek: eventFinderPreferredDaysOfWeek as any[],
+        timePreference: eventFinderTimePreference as any
+      },
       
       // Interest categories
       interestCategories: interestCategories as any[],
@@ -895,8 +1000,12 @@ className="relative h-12 rounded-none border-b-2 border-transparent px-3 py-2 da
                     <TabsTrigger value="news" className="rounded-md px-3 py-1.5 text-xs">News</TabsTrigger>
                     <TabsTrigger value="social" className="rounded-md px-3 py-1.5 text-xs">Social Media</TabsTrigger>
                     <TabsTrigger value="entertainment" className="rounded-md px-3 py-1.5 text-xs">Entertainment</TabsTrigger>
+                    <TabsTrigger value="shopping" className="rounded-md px-3 py-1.5 text-xs">Shopping</TabsTrigger>
+                    <TabsTrigger value="tiktok" className="rounded-md px-3 py-1.5 text-xs">TikTok</TabsTrigger>
+                    <TabsTrigger value="events" className="rounded-md px-3 py-1.5 text-xs">Events</TabsTrigger>
                     <TabsTrigger value="food" className="rounded-md px-3 py-1.5 text-xs">Food & Recipes</TabsTrigger>
                     <TabsTrigger value="sports" className="rounded-md px-3 py-1.5 text-xs">Sports</TabsTrigger>
+                    <TabsTrigger value="hackernews" className="rounded-md px-3 py-1.5 text-xs">Tech News</TabsTrigger>
                     <TabsTrigger value="interests" className="rounded-md px-3 py-1.5 text-xs">Interests</TabsTrigger>
                     <TabsTrigger value="dailybrief" className="rounded-md px-3 py-1.5 text-xs">Daily Brief</TabsTrigger>
                   </TabsList>
@@ -1083,6 +1192,350 @@ className="relative h-12 rounded-none border-b-2 border-transparent px-3 py-2 da
                     <TabsContent value="entertainment" className="space-y-4">
                       {/* Entertainment preferences will go here */}
                     </TabsContent>
+                    <TabsContent value="shopping" className="space-y-4">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Shopping Preferences</CardTitle>
+                          <CardDescription>Preferred retailers and brands</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="shopping-retailers">Preferred Retailers</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['amazon', 'ebay', 'walmart', 'target', 'bestbuy', 'costco', 'macys', 'nordstrom', 'zappos', 'macys'].map(retailer => (
+                                <Button
+                                  key={retailer}
+                                  variant={webSearchShoppingPreferredRetailers.includes(retailer) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (webSearchShoppingPreferredRetailers.includes(retailer)) {
+                                      setWebSearchShoppingPreferredRetailers(webSearchShoppingPreferredRetailers.filter(r => r !== retailer));
+                                    } else {
+                                      setWebSearchShoppingPreferredRetailers([...webSearchShoppingPreferredRetailers, retailer]);
+                                    }
+                                  }}
+                                >
+                                  {retailer}
+                                </Button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Click to select/deselect retailers</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="shopping-price-range">Price Range</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                type="number"
+                                id="shopping-price-min"
+                                placeholder="Min"
+                                value={webSearchShoppingPriceMin}
+                                onChange={(e) => setWebSearchShoppingPriceMin(e.target.value ? Number(e.target.value) : undefined)}
+                              />
+                              <Input
+                                type="number"
+                                id="shopping-price-max"
+                                placeholder="Max"
+                                value={webSearchShoppingPriceMax}
+                                onChange={(e) => setWebSearchShoppingPriceMax(e.target.value ? Number(e.target.value) : undefined)}
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Enter your preferred price range</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="shopping-preferred-brands">Preferred Brands</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['apple', 'samsung', 'nike', 'adidas', 'amazon', 'dell', 'hp', 'lenovo', 'microsoft', 'sony'].map(brand => (
+                                <Button
+                                  key={brand}
+                                  variant={webSearchShoppingPreferredBrands.includes(brand) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (webSearchShoppingPreferredBrands.includes(brand)) {
+                                      setWebSearchShoppingPreferredBrands(webSearchShoppingPreferredBrands.filter(b => b !== brand));
+                                    } else {
+                                      setWebSearchShoppingPreferredBrands([...webSearchShoppingPreferredBrands, brand]);
+                                    }
+                                  }}
+                                >
+                                  {brand}
+                                </Button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Click to select/deselect brands</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="shopping-shipping-preference">Shipping Preference</Label>
+                            <Select
+                              value={webSearchShoppingShippingPreference}
+                              onValueChange={(value) => setWebSearchShoppingShippingPreference(value)}
+                            >
+                              <SelectTrigger id="shopping-shipping-preference">
+                                <SelectValue placeholder="Select shipping preference" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="any">Any</SelectItem>
+                                <SelectItem value="free">Free Shipping</SelectItem>
+                                <SelectItem value="fast">Fast Shipping</SelectItem>
+                                <SelectItem value="premium">Premium Shipping</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground mt-1">Select your preferred shipping preference</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="shopping-review-threshold">Review Threshold</Label>
+                            <Input
+                              type="number"
+                              id="shopping-review-threshold"
+                              placeholder="3"
+                              value={webSearchShoppingReviewThreshold}
+                              onChange={(e) => setWebSearchShoppingReviewThreshold(Number(e.target.value))}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Enter the minimum number of reviews for a product to be considered</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    <TabsContent value="tiktok" className="space-y-4">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">TikTok Preferences</CardTitle>
+                          <CardDescription>Preferred creators and hashtags</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="tiktok-creators">Preferred Creators</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['tiktok-user1', 'tiktok-user2', 'tiktok-user3', 'tiktok-user4', 'tiktok-user5'].map(creator => (
+                                <Button
+                                  key={creator}
+                                  variant={webSearchTikTokPreferredCreators.includes(creator) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (webSearchTikTokPreferredCreators.includes(creator)) {
+                                      setWebSearchTikTokPreferredCreators(webSearchTikTokPreferredCreators.filter(c => c !== creator));
+                                    } else {
+                                      setWebSearchTikTokPreferredCreators([...webSearchTikTokPreferredCreators, creator]);
+                                    }
+                                  }}
+                                >
+                                  {creator}
+                                </Button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Click to select/deselect creators</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="tiktok-hashtags">Preferred Hashtags</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['#tiktok-trending', '#tiktok-funny', '#tiktok-beauty', '#tiktok-travel', '#tiktok-food'].map(hashtag => (
+                                <Button
+                                  key={hashtag}
+                                  variant={webSearchTikTokPreferredHashtags.includes(hashtag) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (webSearchTikTokPreferredHashtags.includes(hashtag)) {
+                                      setWebSearchTikTokPreferredHashtags(webSearchTikTokPreferredHashtags.filter(h => h !== hashtag));
+                                    } else {
+                                      setWebSearchTikTokPreferredHashtags([...webSearchTikTokPreferredHashtags, hashtag]);
+                                    }
+                                  }}
+                                >
+                                  {hashtag}
+                                </Button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Click to select/deselect hashtags</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="tiktok-content-types">Content Types</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['videos', 'reels', 'short-form', 'long-form', 'live-stream'].map(contentType => (
+                                <Button
+                                  key={contentType}
+                                  variant={webSearchTikTokContentTypes.includes(contentType) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (webSearchTikTokContentTypes.includes(contentType)) {
+                                      setWebSearchTikTokContentTypes(webSearchTikTokContentTypes.filter(c => c !== contentType));
+                                    } else {
+                                      setWebSearchTikTokContentTypes([...webSearchTikTokContentTypes, contentType]);
+                                    }
+                                  }}
+                                >
+                                  {contentType}
+                                </Button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Click to select/deselect content types</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="tiktok-video-length-preference">Video Length Preference</Label>
+                            <Select
+                              value={webSearchTikTokVideoLengthPreference}
+                              onValueChange={(value) => setWebSearchTikTokVideoLengthPreference(value)}
+                            >
+                              <SelectTrigger id="tiktok-video-length-preference">
+                                <SelectValue placeholder="Select video length preference" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="any">Any</SelectItem>
+                                <SelectItem value="short">Short</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="long">Long</SelectItem>
+                                <SelectItem value="live">Live</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground mt-1">Select your preferred video length</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    <TabsContent value="events" className="space-y-4">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Event Finder Preferences</CardTitle>
+                          <CardDescription>Preferred venues and event types</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="event-venues">Preferred Venues</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['concert', 'theater', 'sports-event', 'festival', 'conference', 'workshop', 'seminar', 'party', 'networking-event', 'charity-event'].map(venue => (
+                                <Button
+                                  key={venue}
+                                  variant={eventFinderPreferredVenues.includes(venue) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (eventFinderPreferredVenues.includes(venue)) {
+                                      setEventFinderPreferredVenues(eventFinderPreferredVenues.filter(v => v !== venue));
+                                    } else {
+                                      setEventFinderPreferredVenues([...eventFinderPreferredVenues, venue]);
+                                    }
+                                  }}
+                                >
+                                  {venue}
+                                </Button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Click to select/deselect venues</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="event-types">Event Types</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['music', 'art', 'sports', 'tech', 'fashion', 'food', 'travel', 'health', 'business', 'education', 'entertainment', 'film', 'gaming', 'literature', 'lifestyle', 'politics'].map(eventType => (
+                                <Button
+                                  key={eventType}
+                                  variant={eventFinderEventTypes.includes(eventType) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (eventFinderEventTypes.includes(eventType)) {
+                                      setEventFinderEventTypes(eventFinderEventTypes.filter(e => e !== eventType));
+                                    } else {
+                                      setEventFinderEventTypes([...eventFinderEventTypes, eventType]);
+                                    }
+                                  }}
+                                >
+                                  {eventType}
+                                </Button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Click to select/deselect event types</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="event-price-range">Price Range</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                type="number"
+                                id="event-price-min"
+                                placeholder="Min"
+                                value={eventFinderPriceMin}
+                                onChange={(e) => setEventFinderPriceMin(e.target.value ? Number(e.target.value) : undefined)}
+                              />
+                              <Input
+                                type="number"
+                                id="event-price-max"
+                                placeholder="Max"
+                                value={eventFinderPriceMax}
+                                onChange={(e) => setEventFinderPriceMax(e.target.value ? Number(e.target.value) : undefined)}
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Enter your preferred price range</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="event-distance-radius">Distance Radius</Label>
+                            <Input
+                              type="number"
+                              id="event-distance-radius"
+                              placeholder="25"
+                              value={eventFinderDistanceRadius}
+                              onChange={(e) => setEventFinderDistanceRadius(Number(e.target.value))}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Enter the maximum distance (in miles) for events</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="event-preferred-days-of-week">Preferred Days of Week</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                                <Button
+                                  key={day}
+                                  variant={eventFinderPreferredDaysOfWeek.includes(day) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (eventFinderPreferredDaysOfWeek.includes(day)) {
+                                      setEventFinderPreferredDaysOfWeek(eventFinderPreferredDaysOfWeek.filter(d => d !== day));
+                                    } else {
+                                      setEventFinderPreferredDaysOfWeek([...eventFinderPreferredDaysOfWeek, day]);
+                                    }
+                                  }}
+                                >
+                                  {day}
+                                </Button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Click to select/deselect days of the week</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="event-time-preference">Time Preference</Label>
+                            <Select
+                              value={eventFinderTimePreference}
+                              onValueChange={(value) => setEventFinderTimePreference(value)}
+                            >
+                              <SelectTrigger id="event-time-preference">
+                                <SelectValue placeholder="Select time preference" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="any">Any Time</SelectItem>
+                                <SelectItem value="morning">Morning</SelectItem>
+                                <SelectItem value="afternoon">Afternoon</SelectItem>
+                                <SelectItem value="evening">Evening</SelectItem>
+                                <SelectItem value="night">Night</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground mt-1">Select your preferred time of day for events</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
                     <TabsContent value="food" className="space-y-4">
                       <Card>
                         <CardHeader className="pb-2">
@@ -1143,6 +1596,63 @@ className="relative h-12 rounded-none border-b-2 border-transparent px-3 py-2 da
                                 </Button>
                               ))}
                             </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    <TabsContent value="hackernews" className="space-y-4">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Tech News Preferences</CardTitle>
+                          <CardDescription>Preferred topics and categories</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="hackernews-topics">Preferred Topics</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['tech-trends', 'startup-stories', 'machine-learning', 'cybersecurity', 'blockchain', 'artificial-intelligence', 'software-development', 'tech-culture', 'tech-hardware', 'tech-software', 'tech-hardware', 'tech-software'].map(topic => (
+                                <Button
+                                  key={topic}
+                                  variant={hackernewsPreferredTopics.includes(topic) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (hackernewsPreferredTopics.includes(topic)) {
+                                      setHackernewsPreferredTopics(hackernewsPreferredTopics.filter(t => t !== topic));
+                                    } else {
+                                      setHackernewsPreferredTopics([...hackernewsPreferredTopics, topic]);
+                                    }
+                                  }}
+                                >
+                                  {topic}
+                                </Button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Click to select/deselect topics</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="hackernews-categories">Preferred Categories</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {['technology', 'business', 'science', 'health', 'entertainment', 'sports', 'gaming', 'lifestyle', 'politics', 'education'].map(category => (
+                                <Button
+                                  key={category}
+                                  variant={interestCategories.includes(category) ? "default" : "outline"}
+                                  size="sm"
+                                  className="text-xs h-7"
+                                  onClick={() => {
+                                    if (interestCategories.includes(category)) {
+                                      setInterestCategories(interestCategories.filter(c => c !== category));
+                                    } else {
+                                      setInterestCategories([...interestCategories, category]);
+                                    }
+                                  }}
+                                >
+                                  {category}
+                                </Button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Click to select/deselect categories</p>
                           </div>
                         </CardContent>
                       </Card>

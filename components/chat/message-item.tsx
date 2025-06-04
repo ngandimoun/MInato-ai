@@ -112,9 +112,9 @@ return (
 </div>
 );
 }
-if (hasDedicatedStructuredData && message.structured_data) {
-return <StructuredDataRenderer data={message.structured_data} />;
-}
+// if (hasDedicatedStructuredData && message.structured_data) {
+// return <StructuredDataRenderer data={message.structured_data} />;
+// }
 if (contentIsStructuredJsonString && typeof message.content === "string") {
 return <StructuredDataRenderer data={message.content} />;
 }
@@ -191,7 +191,7 @@ initial={{ opacity: 0, y: 10, scale: 0.98 }}
 animate={isVisible ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 10, scale: 0.98 }}
 transition={{ duration: 0.25, ease: "circOut" }}
 className={cn("max-w-[85%] sm:max-w-[75%] rounded-2xl px-3.5 py-2.5 shadow-md",
-isUser ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-card text-card-foreground rounded-tl-sm border border-border/80"
+isUser ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-card text-card-foreground rounded-tl-sm border border-primary/80"
 )}
 >
 {message.error && (
