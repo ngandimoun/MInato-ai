@@ -115,7 +115,7 @@ export function RecipeCard({ data }: RecipeCardProps) {
   const recipe = data.recipe;
 
   return (
-    <Card className="w-full overflow-hidden glass-card">
+    <Card className="w- overflow-hidden glass-card">
       {/* Card accent */}
       <span className="card-accent-left from-cyan-500/20 to-cyan-400/10" />
       <span className="card-accent-top from-cyan-500/20 to-cyan-400/10" />

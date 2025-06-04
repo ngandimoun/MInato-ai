@@ -261,7 +261,7 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
       initial={{ scale: 0.95, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      className="mt-2" // Add some margin for spacing from the message bubble
+      className="mt-2 w-[330px] sm:w-[740px]" // Add some margin for spacing from the message bubble
     >
       {contentToRender}
     </motion.div>

@@ -145,7 +145,7 @@ export function YouTubeSearchCard({ data }: YouTubeSearchCardProps) {
               >
                 {validVideos.length > 0 ? (
                   <ScrollArea className={cn("w-full", validVideos.length > 3 ? "h-[450px]" : "h-auto")}>
-                    <div className="space-y-3 pr-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pr-4">
                       {validVideos.map((video, index) => (
                         <motion.div
                           key={video.videoId}
@@ -166,10 +166,10 @@ export function YouTubeSearchCard({ data }: YouTubeSearchCardProps) {
                               hoveredVideo === video.videoId && "scale-[1.02]"
                             )}
                           >
-                            <div className="flex gap-4">
+                            <div className="flex flex-col gap-2">
                               {/* Thumbnail */}
                               <div className="relative flex-shrink-0 group">
-                                <div className="relative w-32 h-20 md:w-40 md:h-24 rounded-lg overflow-hidden bg-muted">
+                                <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-muted">
                                   {video.thumbnailUrl && (
                                     <img 
                                       src={video.thumbnailUrl} 
@@ -210,22 +210,30 @@ export function YouTubeSearchCard({ data }: YouTubeSearchCardProps) {
                                   {video.channelTitle && (
                                     <span className="truncate max-w-[120px]">{video.channelTitle}</span>
                                   )}
-                                  
+                                </div>
+
+                                {video.description && (
+                                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                                    {video.description}
+                                  </p>
+                                )}
+
+                                <div className="flex items-center gap-2 mt-1">
                                   {video.publishedAt && (
-                                    <span className="flex items-center gap-1 whitespace-nowrap">
+                                    <span className="flex items-center gap-1 whitespace-nowrap text-xs text-muted-foreground">
                                       <Clock className="w-3 h-3" />
                                       {new Date(video.publishedAt).toLocaleDateString()}
                                     </span>
                                   )}
-                                </div>
 
-                                {/* AI insight badge */}
-                                {index === 0 && (
-                                  <Badge variant="secondary" className="mt-1 text-xs bg-gradient-to-r from-red-500/10 to-pink-500/10 border-0">
-                                    <TrendingUp className="w-3 h-3 mr-1" />
-                                    Most Relevant
-                                  </Badge>
-                                )}
+                                  {/* AI insight badge */}
+                                  {index === 0 && (
+                                    <Badge variant="secondary" className="text-xs bg-gradient-to-r from-red-500/10 to-pink-500/10 border-0">
+                                      <TrendingUp className="w-3 h-3 mr-1" />
+                                      Most Relevant
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>

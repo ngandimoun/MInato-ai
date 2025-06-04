@@ -10,6 +10,7 @@ import { Image as ImageIconLucide, User, ExternalLink, Palette, Maximize2, Chevr
 import { AnimatePresence, motion } from 'framer-motion';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'; // For lightbox
 import { cn } from '@/lib/utils';
+import { HighQualityImage } from '@/components/ui/high-quality-image';
 
 interface PexelsCardProps { data: CachedImageList; }
 
@@ -122,10 +123,11 @@ export function PexelsCard({ data }: PexelsCardProps) {
               className="aspect-video relative w-full bg-muted rounded-lg overflow-hidden border border-border/40 minato-glow"
               style={selectedImage.avgColor ? { backgroundColor: selectedImage.avgColor } : {}}
             >
-              <img 
+              <HighQualityImage
                 src={selectedImage.imageUrlRegular} 
-                alt={selectedImage.title || `Pexels Image ${selectedImage.id}`} 
-                className="w-full h-full object-contain"
+                alt={selectedImage.title || `Pexels Image ${selectedImage.id}`}
+                objectFit="contain"
+                containerClassName="w-full h-full"
               />
               <Button 
                 variant="ghost" 
@@ -154,7 +156,7 @@ export function PexelsCard({ data }: PexelsCardProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="flex gap-2 pb-1"
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 pb-1"
             >
               {data.images.map((img, index) => (
                 <motion.button
@@ -164,13 +166,18 @@ export function PexelsCard({ data }: PexelsCardProps) {
                   key={img.id}
                   onClick={() => handleSelectImage(img)}
                   className={cn(
-                    "flex-shrink-0 w-16 h-16 rounded-md border-2 overflow-hidden transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+                    "aspect-square rounded-md border-2 overflow-hidden transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
                     selectedImage?.id === img.id ? "border-cyan-400 ring-1 ring-cyan-400" : "border-border hover:border-cyan-400/50 opacity-70 hover:opacity-100"
                   )}
                   style={img.avgColor ? { backgroundColor: img.avgColor } : {}}
                   title={img.title || `Pexels Photo ${img.id}`}
                 >
-                  <img src={img.imageUrlSmall} alt={img.title || `Thumbnail ${img.id}`} className="w-full h-full object-cover" />
+                  <HighQualityImage
+                    src={img.imageUrlSmall} 
+                    alt={img.title || `Thumbnail ${img.id}`} 
+                    objectFit="cover"
+                    containerClassName="w-full h-full"
+                  />
                 </motion.button>
               ))}
             </motion.div>
@@ -195,7 +202,13 @@ export function PexelsCard({ data }: PexelsCardProps) {
       {selectedImage && (
         <Dialog open={isLightboxOpen} onOpenChange={setIsLightboxOpen}>
             <DialogContent className="max-w-4xl p-2 sm:p-4 aspect-video flex items-center justify-center bg-black/90 border-none">
-                <img src={selectedImage.imageUrlFull || selectedImage.imageUrlRegular} alt={selectedImage.title || `Pexels Image ${selectedImage.id}`} className="max-w-full max-h-[90vh] object-contain rounded-md"/>
+                <HighQualityImage 
+                  src={selectedImage.imageUrlFull || selectedImage.imageUrlRegular} 
+                  alt={selectedImage.title || `Pexels Image ${selectedImage.id}`} 
+                  containerClassName="max-w-full max-h-[90vh]"
+                  objectFit="contain"
+                  className="rounded-md"
+                />
                 {data.images.length > 1 && (
                     <>
                         <Button variant="ghost" size="icon" onClick={() => navigateLightbox('prev')} className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 text-white bg-black/30 hover:bg-black/50"> <ChevronLeft/> </Button>

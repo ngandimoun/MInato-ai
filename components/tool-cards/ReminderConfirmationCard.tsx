@@ -1,3 +1,6 @@
+//components/tool-cards/ReminderConfirmationCard.tsx
+'use client';
+
 import React from 'react';
 import { CheckCircle, Clock, Calendar, Tag, Flag, RefreshCw, Bell, Sparkles } from 'lucide-react';
 import { format, parseISO } from 'date-fns';

@@ -361,7 +361,7 @@ setMessages(prev => prev.map(msg => {
             ...msg,
             id: definitiveId,
             content: newContent,
-            structured_data: msg.structured_data, 
+            structured_data: structured_data || msg.structured_data, 
             attachments: finalAttachmentsFromAssistant.length > 0 ? finalAttachmentsFromAssistant : msg.attachments,
             ...relevantAnnotations, 
             timestamp: new Date().toISOString(),
@@ -441,8 +441,7 @@ messagesForFormData.push({
 id: optimisticId, role: "user",
 content: "[User sent an audio message]",
 timestamp: audioMessage.timestamp,
-attachments: [],
-isAudioMessage: true
+attachments: []
 });
 formData.append("messages", JSON.stringify(messagesForFormData));
 const response = await fetch("/api/audio", { method: "POST", body: formData, signal });
@@ -477,7 +476,7 @@ setMessages(prev => prev.map(msg => {
     const first = responses[0];
     return {
       ...msg,
-      id: finalAssistantMessageIdFromServer!,
+      id: finalAssistantMessageIdFromServer || assistantMessageId,
       content: first.response || (first.structuredData ? "[Structured Data]" : "[Audio processed]"),
       structured_data: first.structuredData || null,
       attachments: first.attachments || [],
@@ -569,7 +568,7 @@ if (hasMoreHistory && !isFetchingMoreHistoryRef.current) {
 const nextPageToFetch = Math.floor(messages.length / MESSAGES_PER_PAGE_HISTORY) + 1;
 fetchChatHistory(nextPageToFetch);
 }
-}
+};
 return (
 <div className="flex flex-col h-[calc(100vh-6.5rem)]">
 {isLoadingHistory && messages.length === 0 && (

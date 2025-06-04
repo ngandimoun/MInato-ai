@@ -15,6 +15,17 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
+    domains: ['*'], // Allow all domains for image sources
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
+        hostname: '**',
+      }
+    ],
   },
   experimental: {
     webpackBuildWorker: true,

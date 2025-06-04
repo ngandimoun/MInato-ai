@@ -329,7 +329,7 @@ export function HackerNewsCard({ data }: HackerNewsCardProps) {
                 
                 {!data.error && data.stories && data.stories.length > 0 ? (
                     <ScrollArea className="max-h-[600px] px-6">
-                        <ul className="space-y-4 pb-6">
+                        <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-6">
                             {data.stories.map((story, index) => (
                                 <StoryItem key={story.id} story={story} index={index} />
                             ))}
