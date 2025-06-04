@@ -632,6 +632,90 @@ Output as JSON with these exact fields.`;
           }
         }
       }
+      
+      // Apply shopping preferences for product searches
+      if (toolInput.mode === "product_search" && prefs.webSearchShoppingPreferences) {
+        const shoppingPrefs = prefs.webSearchShoppingPreferences;
+        
+        // Apply preferred retailers to the query
+        if (shoppingPrefs.preferredRetailers && shoppingPrefs.preferredRetailers.length > 0) {
+          const retailerSites = shoppingPrefs.preferredRetailers.map((retailer: string) => `site:${retailer}.com`).join(' OR ');
+          toolInput.query = `(${retailerSites}) ${toolInput.query}`;
+          this.log("debug", `[WebSearchTool] Applied shopping retailers: ${shoppingPrefs.preferredRetailers.join(', ')}`);
+        }
+        
+        // Apply preferred brands to the query
+        if (shoppingPrefs.preferredBrands && shoppingPrefs.preferredBrands.length > 0) {
+          const brandQuery = shoppingPrefs.preferredBrands.join(' OR ');
+          toolInput.query = `${toolInput.query} (${brandQuery})`;
+          this.log("debug", `[WebSearchTool] Applied preferred brands: ${shoppingPrefs.preferredBrands.join(', ')}`);
+        }
+        
+        // Apply price range to the query
+        if (shoppingPrefs.priceRange) {
+          if (shoppingPrefs.priceRange.min !== undefined) {
+            toolInput.query = `${toolInput.query} price:>${shoppingPrefs.priceRange.min}`;
+          }
+          if (shoppingPrefs.priceRange.max !== undefined) {
+            toolInput.query = `${toolInput.query} price:<${shoppingPrefs.priceRange.max}`;
+          }
+          this.log("debug", `[WebSearchTool] Applied price range filter: ${shoppingPrefs.priceRange.min || 'any'} - ${shoppingPrefs.priceRange.max || 'any'}`);
+        }
+        
+        // Apply shipping preference to the query
+        if (shoppingPrefs.shippingPreference && shoppingPrefs.shippingPreference !== "any") {
+          if (shoppingPrefs.shippingPreference === "free") {
+            toolInput.query = `${toolInput.query} "free shipping"`;
+          } else if (shoppingPrefs.shippingPreference === "fast") {
+            toolInput.query = `${toolInput.query} "fast shipping" OR "next day delivery"`;
+          }
+          this.log("debug", `[WebSearchTool] Applied shipping preference: ${shoppingPrefs.shippingPreference}`);
+        }
+        
+        // Apply review threshold to the query
+        if (shoppingPrefs.reviewThreshold && shoppingPrefs.reviewThreshold > 0) {
+          toolInput.query = `${toolInput.query} reviews:>${shoppingPrefs.reviewThreshold}`;
+          this.log("debug", `[WebSearchTool] Applied review threshold: >${shoppingPrefs.reviewThreshold}`);
+        }
+      }
+      
+      // Apply TikTok preferences for TikTok searches
+      if (toolInput.query.toLowerCase().includes('tiktok') && prefs.webSearchTikTokPreferences) {
+        const tiktokPrefs = prefs.webSearchTikTokPreferences;
+        
+        // Apply preferred creators to the query
+        if (tiktokPrefs.preferredCreators && tiktokPrefs.preferredCreators.length > 0) {
+          const creatorQuery = tiktokPrefs.preferredCreators.map((creator: string) => `@${creator}`).join(' OR ');
+          toolInput.query = `${toolInput.query} (${creatorQuery})`;
+          this.log("debug", `[WebSearchTool] Applied TikTok creators: ${tiktokPrefs.preferredCreators.join(', ')}`);
+        }
+        
+        // Apply preferred hashtags to the query
+        if (tiktokPrefs.preferredHashtags && tiktokPrefs.preferredHashtags.length > 0) {
+          const hashtagQuery = tiktokPrefs.preferredHashtags.join(' OR ');
+          toolInput.query = `${toolInput.query} (${hashtagQuery})`;
+          this.log("debug", `[WebSearchTool] Applied TikTok hashtags: ${tiktokPrefs.preferredHashtags.join(', ')}`);
+        }
+        
+        // Apply content types to the query
+        if (tiktokPrefs.contentTypes && tiktokPrefs.contentTypes.length > 0) {
+          const contentTypeQuery = tiktokPrefs.contentTypes.join(' OR ');
+          toolInput.query = `${toolInput.query} (${contentTypeQuery})`;
+          this.log("debug", `[WebSearchTool] Applied TikTok content types: ${tiktokPrefs.contentTypes.join(', ')}`);
+        }
+        
+        // Apply video length preference to the query
+        if (tiktokPrefs.videoLengthPreference && tiktokPrefs.videoLengthPreference !== "any") {
+          if (tiktokPrefs.videoLengthPreference === "short") {
+            toolInput.query = `${toolInput.query} "short video" OR "quick clip"`;
+          } else if (tiktokPrefs.videoLengthPreference === "medium") {
+            toolInput.query = `${toolInput.query} "medium length"`;
+          } else if (tiktokPrefs.videoLengthPreference === "long") {
+            toolInput.query = `${toolInput.query} "long video" OR "extended"`;
+          }
+          this.log("debug", `[WebSearchTool] Applied TikTok video length preference: ${tiktokPrefs.videoLengthPreference}`);
+        }
+      }
     }
     
     // NEW: Check if this request should be skipped (conversational response)

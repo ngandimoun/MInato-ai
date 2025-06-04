@@ -58,20 +58,20 @@ export function MessageList({ messages, messagesEndRef }: MessageListProps) {
   const groupedMessages: { [dateKey: string]: Message[] } = {};
   messages.forEach((message) => {
     if (message.timestamp === undefined || message.timestamp === null) {
-        logger.warn(`[MessageList] Message ID ${message.id || 'unknown'} has invalid timestamp. Skipping grouping.`);
-        return;
+      logger.warn(`[MessageList] Message ID ${message.id || 'unknown'} has invalid timestamp. Skipping grouping.`);
+      return;
     }
     try {
-        const dateObj = new Date(message.timestamp);
-        if (isNaN(dateObj.getTime())) {
-            logger.warn(`[MessageList] Message ID ${message.id || 'unknown'} has unparseable timestamp: ${message.timestamp}. Skipping.`);
-            return;
-        }
-        const dateKey = dateObj.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
-        if (!groupedMessages[dateKey]) groupedMessages[dateKey] = [];
-        groupedMessages[dateKey].push(message);
+      const dateObj = new Date(message.timestamp);
+      if (isNaN(dateObj.getTime())) {
+        logger.warn(`[MessageList] Message ID ${message.id || 'unknown'} has unparseable timestamp: ${message.timestamp}. Skipping.`);
+        return;
+      }
+      const dateKey = dateObj.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+      if (!groupedMessages[dateKey]) groupedMessages[dateKey] = [];
+      groupedMessages[dateKey].push(message);
     } catch (e) {
-        logger.error(`[MessageList] Error processing timestamp for message ID ${message.id || 'unknown'}: "${message.timestamp}"`, e);
+      logger.error(`[MessageList] Error processing timestamp for message ID ${message.id || 'unknown'}: "${message.timestamp}"`, e);
     }
   });
 
@@ -89,34 +89,34 @@ export function MessageList({ messages, messagesEndRef }: MessageListProps) {
         Radix `ScrollArea.Viewport` can take a ref.
       */}
       <ScrollArea className="h-full">
-        <div ref={scrollAreaRef} className="h-full w-full [&>div]:h-full"> {/* Ensure viewport div takes full height */}
-            <div className="space-y-3 px-1 py-4 pb-8"> {/* Added more padding bottom */}
+        <div ref={scrollAreaRef} className="h-full  [&>div]:h-full"> {/* Ensure viewport div takes full height */}
+          <div className="space-y-3 px-1 py-4 pb-8"> {/* Added more padding bottom */}
             {sortedDateKeys.map((dateKey) => (
-                <div key={dateKey} className="space-y-3">
+              <div key={dateKey} className="space-y-3">
                 <DateSeparator date={dateKey} />
                 <div className="space-y-2.5"> {/* Slightly reduced space between messages */}
-                    <AnimatePresence initial={false}>
+                  <AnimatePresence initial={false}>
                     {groupedMessages[dateKey].map((message) => (
-                        <motion.div
-                            key={message.id || `msg-${Math.random()}`}
-                            layout
-                            initial={{ opacity: 0, y: 15 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10, transition: {duration: 0.15} }}
-                            transition={{ type: "spring", stiffness: 350, damping: 30, duration: 0.25 }}
-                        >
-                            <MessageItem message={message} />
-                            {message.structured_data && (
-                              <StructuredDataRenderer data={message.structured_data} />
-                            )}
-                        </motion.div>
+                      <motion.div
+                        key={message.id || `msg-${Math.random()}`}
+                        layout
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10, transition: { duration: 0.15 } }}
+                        transition={{ type: "spring", stiffness: 350, damping: 30, duration: 0.25 }}
+                      >
+                        <MessageItem message={message} />
+                        {message.structured_data && (
+                          <StructuredDataRenderer data={message.structured_data} />
+                        )}
+                      </motion.div>
                     ))}
-                    </AnimatePresence>
+                  </AnimatePresence>
                 </div>
-                </div>
+              </div>
             ))}
             <div ref={messagesEndRef} className="h-px" />
-            </div>
+          </div>
         </div>
       </ScrollArea>
       <AnimatePresence>

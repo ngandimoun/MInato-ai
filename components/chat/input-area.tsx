@@ -4,7 +4,7 @@
 import React, { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import TextareaAutosize from "react-textarea-autosize";
-import { Mic, SendHorizonal, Plus, X, ImageIcon, Video, Camera, FileText, Trash, Play, Pause, RotateCcw } from "lucide-react";
+import { Mic, SendHorizonal, Plus, X, Video, Camera, Trash, Play, Pause, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -18,12 +18,11 @@ import { logger } from "@/memory-framework/config";
 
 const generateId = () => globalThis.crypto.randomUUID();
 
-type LocalAttachmentType = "image" | "video" | "document";
+type LocalAttachmentType = "video";
 interface LocalAttachment { id: string; type: LocalAttachmentType; name: string; url?: string; file: File; size: number; mimeType: string; }
 export interface InputAreaProps {
   onSendMessage: (content: string, attachments?: MessageAttachment[]) => void;
   onSendAudio?: (audioBlob: Blob) => void;
-  onDocumentsSubmit: (documents: DocumentFile[]) => void; 
   disabled?: boolean;
   onVideoAnalysisStatusChange?: (isAnalyzing: boolean) => void; 
 }
@@ -39,16 +38,14 @@ const formatDuration = (seconds: number): string => {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 };
 
-const ACCEPTED_IMG_TYPES = "image/jpeg,image/png,image/webp,image/gif";
 const ACCEPTED_VID_TYPES = "video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska,video/avi,video/mov";
-const ACCEPTED_DOC_TYPES = ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,text/plain,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv";
 const MAX_AUDIO_RECORDING_MS = 60 * 1000;
 
 function AttachmentPreview({ attachment, onRemove }: { attachment: LocalAttachment; onRemove: (id: string) => void; }) {
     const [isPlaying, setIsPlaying] = useState(false);
     const videoPreviewRef = useRef<HTMLVideoElement>(null);
     const toggleVideoPlayback = () => { if (!videoPreviewRef.current) return; if (isPlaying) videoPreviewRef.current.pause(); else videoPreviewRef.current.play().catch(e => logger.error("Error playing attachment preview:", e)); setIsPlaying(!isPlaying); };
-    return ( <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.2 }} className="relative group w-16 h-16 shrink-0"> <div className="w-full h-full rounded-lg overflow-hidden bg-muted flex items-center justify-center border border-border"> {attachment.type === "image" && attachment.url && (<img src={attachment.url} alt={attachment.name} className="w-full h-full object-cover" />)} {attachment.type === "video" && attachment.url && (<div className="relative w-full h-full"> <video ref={videoPreviewRef} src={attachment.url} className="w-full h-full object-cover" onEnded={() => setIsPlaying(false)} muted loop/> <button onClick={toggleVideoPlayback} className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors text-white" aria-label={isPlaying ? "Pause preview" : "Play preview"}>{isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}</button> </div>)} {attachment.type === "document" && (<div className="flex flex-col items-center justify-center p-1 text-center"> <FileText className="h-6 w-6 text-muted-foreground mb-1" /> <span className="text-[10px] leading-tight text-muted-foreground truncate w-full px-0.5" title={attachment.name}>{attachment.name.split(".").pop()?.toUpperCase() || "FILE"}</span> </div>)} </div> <Button type="button" size="icon" variant="destructive" className="h-5 w-5 rounded-full absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md" onClick={() => onRemove(attachment.id)} aria-label={`Remove ${attachment.name}`}><X className="h-3 w-3" /></Button> </motion.div> );
+    return ( <motion.div layout initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.2 }} className="relative group w-16 h-16 shrink-0"> <div className="w-full h-full rounded-lg overflow-hidden bg-muted flex items-center justify-center border border-border"> {attachment.type === "video" && attachment.url && (<div className="relative w-full h-full"> <video ref={videoPreviewRef} src={attachment.url} className="w-full h-full object-cover" onEnded={() => setIsPlaying(false)} muted loop/> <button onClick={toggleVideoPlayback} className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors text-white" aria-label={isPlaying ? "Pause preview" : "Play preview"}>{isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}</button> </div>)} </div> <Button type="button" size="icon" variant="destructive" className="h-5 w-5 rounded-full absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md" onClick={() => onRemove(attachment.id)} aria-label={`Remove ${attachment.name}`}><X className="h-3 w-3" /></Button> </motion.div> );
 }
 function RecordingInProgressUI({ duration, formatDuration: formatTime, onCancel }: { duration: number; formatDuration: (seconds: number) => string; onCancel: () => void; }) {
     return ( <motion.div key="recordingInProgress" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} transition={{ duration: 0.2 }} className="flex items-center justify-between rounded-2xl border border-destructive bg-background p-3 shadow-sm"> <div className="flex items-center gap-3"> <div className="relative"><div className="h-3 w-3 rounded-full bg-destructive" /><motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }} className="absolute inset-0 rounded-full bg-destructive/30" /></div> <span className="text-sm font-medium text-destructive tabular-nums">{formatTime(duration)}</span> <span className="text-sm text-muted-foreground">Recording... (Max 60s)</span> </div> <Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-full text-destructive hover:bg-destructive/10" onClick={onCancel} aria-label="Cancel recording"><X className="h-5 w-5" /></Button> </motion.div> );
@@ -64,7 +61,7 @@ function RecordingPreviewUI({ blob, duration, formatDuration: formatTime, onDele
 
 
 export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
-  ({ onSendMessage, onSendAudio, onDocumentsSubmit, disabled, onVideoAnalysisStatusChange }, ref) => {
+  ({ onSendMessage, onSendAudio, disabled, onVideoAnalysisStatusChange }, ref) => {
     const [message, setMessage] = useState("");
     const [isRecording, setIsRecording] = useState(false);
     const [recordingPreview, setRecordingPreview] = useState<{ blob: Blob; duration: number } | null>(null);
@@ -74,16 +71,13 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
     const [cameraMode, setCameraMode] = useState<"photo" | "video">("photo");
     const [isCameraFront, setIsCameraFront] = useState(true);
     const [isCapturing, setIsCapturing] = useState(false);
-    const [capturedImage, setCapturedImage] = useState<string | null>(null);
     const [isRecordingVideo, setIsRecordingVideo] = useState(false);
     const [videoRecordingDuration, setVideoRecordingDuration] = useState(0);
     const [capturedVideo, setCapturedVideo] = useState<{ blob: Blob; url: string } | null>(null);
     const [recordingDuration, setRecordingDuration] = useState(0);
 
     const textareaAutosizeRef = useRef<HTMLTextAreaElement>(null);
-    const imageInputRef = useRef<HTMLInputElement>(null);
     const videoInputRef = useRef<HTMLInputElement>(null);
-    const docInputRef = useRef<HTMLInputElement>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const videoElementRef = useRef<HTMLVideoElement>(null);
@@ -112,18 +106,8 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
         return;
       }
       onSendMessage(textToSend, attachmentsToSend);
-      const documentAttachmentsForSubmit = attachments
-        .filter(att => att.type === "document")
-        .map(docAtt => ({
-          id: docAtt.id, name: docAtt.name, file: docAtt.file,
-          type: docAtt.file.type || "application/octet-stream",
-          size: docAtt.file.size, uploadedAt: new Date(),
-        }));
-      if (documentAttachmentsForSubmit.length > 0) {
-        onDocumentsSubmit(documentAttachmentsForSubmit);
-      }
       setMessage(""); setAttachments([]); playSound("send");
-    }, [message, attachments, onSendMessage, onDocumentsSubmit, disabled]);
+    }, [message, attachments, onSendMessage, disabled]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Enter" && !e.shiftKey && !disabled) { e.preventDefault(); handleSend(); } }, [handleSend, disabled]);
     const startDurationTimer = (setter: React.Dispatch<React.SetStateAction<number>>, timerRef: React.MutableRefObject<NodeJS.Timeout | null>) => { if (timerRef.current) clearInterval(timerRef.current); setter(0); timerRef.current = setInterval(() => setter(prev => prev + 1), 1000); };
@@ -185,14 +169,13 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
     const cancelRecording = useCallback(() => { if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop(); if (audioRecordingTimeoutIdRef.current) clearTimeout(audioRecordingTimeoutIdRef.current); setIsRecording(false); stopDurationTimer(audioRecordingTimerRef); setRecordingPreview(null); mediaRecorderRef.current?.stream?.getTracks().forEach(track => track.stop()); playSound("recordCancel"); }, [audioRecordingTimerRef]);
     const sendRecording = useCallback(() => { if (recordingPreview?.blob && onSendAudio) { onSendAudio(recordingPreview.blob); setRecordingPreview(null); playSound("send"); } }, [recordingPreview, onSendAudio]);
     const deleteRecording = useCallback(() => { setRecordingPreview(null); playSound("recordDelete"); }, []);
-    const handleFileSelectType = (type: LocalAttachmentType) => { setAttachmentMenuOpen(false); if (disabled) return; if (type === "image" && imageInputRef.current) imageInputRef.current.click(); else if (type === "video" && videoInputRef.current) videoInputRef.current.click(); else if (type === "document" && docInputRef.current) docInputRef.current.click(); };
-    const initializeCamera = useCallback(async () => { try { if (localCameraStreamRef.current) { localCameraStreamRef.current.getTracks().forEach(track => track.stop()); } const constraints: MediaStreamConstraints = { video: { facingMode: isCameraFront ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 } } }; const stream = await navigator.mediaDevices.getUserMedia(constraints); localCameraStreamRef.current = stream; if (videoElementRef.current) videoElementRef.current.srcObject = stream; setCapturedImage(null); setCapturedVideo(null); setIsCapturing(false); setIsRecordingVideo(false); setVideoRecordingDuration(0); } catch (error: any) { console.error("Error accessing camera:", error); toast({ title: "Camera Access Error", description: error.message || "Please check permissions.", variant: "destructive" }); setCameraOpen(false); } }, [isCameraFront]);
-    const handleCameraOpen = () => { if (disabled) return; setCameraOpen(true); setCameraMode("photo"); setAttachmentMenuOpen(false); };
+    const handleFileSelectType = (type: LocalAttachmentType) => { setAttachmentMenuOpen(false); if (disabled) return; if (type === "video" && videoInputRef.current) videoInputRef.current.click(); };
+    const initializeCamera = useCallback(async () => { try { if (localCameraStreamRef.current) { localCameraStreamRef.current.getTracks().forEach(track => track.stop()); } const constraints: MediaStreamConstraints = { video: { facingMode: isCameraFront ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 } } }; const stream = await navigator.mediaDevices.getUserMedia(constraints); localCameraStreamRef.current = stream; if (videoElementRef.current) videoElementRef.current.srcObject = stream; setCapturedVideo(null); setIsCapturing(false); setIsRecordingVideo(false); setVideoRecordingDuration(0); } catch (error: any) { console.error("Error accessing camera:", error); toast({ title: "Camera Access Error", description: error.message || "Please check permissions.", variant: "destructive" }); setCameraOpen(false); } }, [isCameraFront]);
+    const handleCameraOpen = () => { if (disabled) return; setCameraOpen(true); setCameraMode("video"); setAttachmentMenuOpen(false); };
     const switchCamera = () => { setIsCameraFront(prev => !prev); };
-    const capturePhoto = () => { if (!videoElementRef.current || !localCameraStreamRef.current || isCapturing) return; setIsCapturing(true); const canvas = document.createElement("canvas"); const video = videoElementRef.current; if (video.videoWidth === 0 || video.videoHeight === 0) { logger.warn("[InputArea Camera] Video dimensions zero."); setIsCapturing(false); toast({ title: "Capture Error", description: "Camera not ready.", variant: "destructive" }); return; } canvas.width = video.videoWidth; canvas.height = video.videoHeight; const ctx = canvas.getContext("2d"); if (!ctx) { setIsCapturing(false); return; } ctx.drawImage(video, 0, 0, canvas.width, canvas.height); const dataUrl = canvas.toDataURL("image/jpeg", 0.9); setCapturedImage(dataUrl); setIsCapturing(false); playSound("attachmentAdd"); };
     const startVideoRecording = () => { if (!localCameraStreamRef.current || isRecordingVideo) return; videoChunksForRecordingRef.current = []; try { const options = { mimeType: "video/webm;codecs=vp8,opus" }; let recorder; if (MediaRecorder.isTypeSupported(options.mimeType)) { recorder = new MediaRecorder(localCameraStreamRef.current, options); } else { recorder = new MediaRecorder(localCameraStreamRef.current); } videoMediaRecorderRef.current = recorder; recorder.ondataavailable = event => { if (event.data.size > 0) videoChunksForRecordingRef.current.push(event.data); }; recorder.onstop = () => { stopDurationTimer(videoRecordingTimerRef); const videoBlob = new Blob(videoChunksForRecordingRef.current, { type: recorder.mimeType || "video/webm" }); const videoUrl = URL.createObjectURL(videoBlob); setCapturedVideo({ blob: videoBlob, url: videoUrl }); setIsRecordingVideo(false); playSound("recordStop"); }; recorder.start(); setIsRecordingVideo(true); startDurationTimer(setVideoRecordingDuration, videoRecordingTimerRef); playSound("recordStart"); setTimeout(() => { if (videoMediaRecorderRef.current?.state === "recording") videoMediaRecorderRef.current.stop(); }, 300000); } catch (error: any) { logger.error("[InputArea Camera] Error starting video rec:", error); toast({ title: "Recording Error", description: error.message || "Could not start video rec.", variant: "destructive" }); setIsRecordingVideo(false); } };
     const stopVideoRecording = () => { if (videoMediaRecorderRef.current?.state === "recording") videoMediaRecorderRef.current.stop(); };
-    const retakeMedia = () => { setCapturedImage(null); setCapturedVideo(null); if (cameraOpen) initializeCamera(); };
+    const retakeMedia = () => { setCapturedVideo(null); if (cameraOpen) initializeCamera(); };
     
     const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>, type: LocalAttachmentType) => {
         const files = e.target.files;
@@ -200,7 +183,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
         logger.debug(`[InputArea] File selected: type=${type}, count=${files.length}`);
         const newLocalAttachments: LocalAttachment[] = Array.from(files).map(file => {
             const id = `${Date.now()}-${generateId().substring(0,8)}`;
-            const url = (type === "image" || type === "video") ? URL.createObjectURL(file) : undefined;
+            const url = (type === "video") ? URL.createObjectURL(file) : undefined;
             return { id, type, name: file.name, url, file, size: file.size, mimeType: file.type };
         });
 
@@ -214,16 +197,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
     const useMedia = useCallback(() => {
         const id = `${Date.now()}-${generateId().substring(0,8)}`;
         let newAttachment: LocalAttachment | null = null;
-        if (capturedImage) {
-            fetch(capturedImage).then(res => res.blob()).then(blob => {
-                if (!blob) throw new Error("Failed to convert data URL to blob for image.");
-                const file = new File([blob], `captured_photo_${id}.jpg`, { type: "image/jpeg" });
-                newAttachment = { id, type: "image", name: file.name, url: URL.createObjectURL(blob), file, size: file.size, mimeType: file.type };
-                setAttachments(prev => [...prev, newAttachment!]);
-                triggerUploadIndicator(); playSound("attachmentAdd");
-            }).catch(e => { logger.error("Error processing captured image:", e); toast({ title: "Image Error", description: "Could not use captured photo.", variant: "destructive" });
-            }).finally(() => { setCapturedImage(null); setCameraOpen(false); });
-        } else if (capturedVideo) {
+        if (capturedVideo) {
             logger.debug(`[InputArea] Using captured video: type=${capturedVideo.blob.type}, size=${capturedVideo.blob.size}`);
             const file = new File([capturedVideo.blob], `captured_video_${id}.${capturedVideo.blob.type.split('/')[1] || 'webm'}`, { type: capturedVideo.blob.type || "video/webm" });
             newAttachment = { id, type: "video", name: file.name, url: capturedVideo.url, file, size: file.size, mimeType: file.type };
@@ -231,7 +205,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
             triggerUploadIndicator(); playSound("attachmentAdd");
             setCapturedVideo(null); setCameraOpen(false);
         }
-     }, [capturedImage, capturedVideo, triggerUploadIndicator]);
+     }, [capturedVideo, triggerUploadIndicator]);
 
     const removeAttachment = useCallback((idToRemove: string) => { setAttachments(prev => prev.filter(att => { if (att.id === idToRemove && att.url) URL.revokeObjectURL(att.url); return att.id !== idToRemove; })); playSound("attachmentRemove"); }, []);
     useEffect(() => { return () => { stopDurationTimer(audioRecordingTimerRef); stopDurationTimer(videoRecordingTimerRef); if (audioRecordingTimeoutIdRef.current) clearTimeout(audioRecordingTimeoutIdRef.current); }; }, []);
@@ -263,10 +237,8 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
                       <motion.div animate={{ rotate: attachmentMenuOpen ? 45 : 0 }} transition={{ duration: 0.2 }}><Plus className="h-5 w-5" /></motion.div><span className="sr-only">Add attachment</span>
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent side="top" align="start" className="w-auto p-2 grid grid-cols-2 sm:grid-cols-4 gap-1">
-                    <Button variant="ghost" className="h-auto flex flex-col items-center justify-center py-3 px-2 rounded-lg gap-1 hover:bg-muted" onClick={() => handleFileSelectType("image")} disabled={disabled}><div className="h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center"><ImageIcon className="h-5 w-5 text-primary" /></div><span className="text-xs">Images</span></Button>
+                  <PopoverContent side="top" align="start" className="w-auto p-2 grid grid-cols-2 sm:grid-cols-2 gap-1">
                     <Button variant="ghost" className="h-auto flex flex-col items-center justify-center py-3 px-2 rounded-lg gap-1 hover:bg-muted" onClick={() => handleFileSelectType("video")} disabled={disabled}><div className="h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center"><Video className="h-5 w-5 text-primary" /></div><span className="text-xs">Video</span></Button>
-                    <Button variant="ghost" className="h-auto flex flex-col items-center justify-center py-3 px-2 rounded-lg gap-1 hover:bg-muted" onClick={() => handleFileSelectType("document")} disabled={disabled}><div className="h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center"><FileText className="h-5 w-5 text-primary" /></div><span className="text-xs">Document</span></Button>
                     <Button variant="ghost" className="h-auto flex flex-col items-center justify-center py-3 px-2 rounded-lg gap-1 hover:bg-muted" onClick={handleCameraOpen} disabled={disabled}><div className="h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center"><Camera className="h-5 w-5 text-primary" /></div><span className="text-xs">Camera</span></Button>
                   </PopoverContent>
                 </Popover>
@@ -279,9 +251,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
             </motion.div>
           )}
         </AnimatePresence>
-        <input ref={imageInputRef} type="file" accept={ACCEPTED_IMG_TYPES} multiple className="hidden" onChange={e => handleFileChange(e, "image")}/>
         <input ref={videoInputRef} type="file" accept={ACCEPTED_VID_TYPES} className="hidden" onChange={e => handleFileChange(e, "video")}/>
-        <input ref={docInputRef} type="file" accept={ACCEPTED_DOC_TYPES} multiple className="hidden" onChange={e => handleFileChange(e, "document")}/>
         
         <Dialog open={cameraOpen} onOpenChange={openState => { if (!openState && localCameraStreamRef.current) { localCameraStreamRef.current.getTracks().forEach(track => track.stop()); localCameraStreamRef.current = null; } setCameraOpen(openState); }}>
           <DialogContent className="sm:max-w-lg p-0 overflow-hidden aspect-video">
@@ -290,24 +260,21 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
                 <DialogDescription>Use your camera to capture a photo or video.</DialogDescription>
             </DialogHeader>
             <div className="relative bg-black w-full h-full">
-              {!capturedImage && !capturedVideo && (<video ref={videoElementRef} autoPlay playsInline muted className={`w-full h-full object-contain ${cameraMode === "photo" && isCameraFront ? "transform scale-x-[-1]" : ""}`} />)}
-              {capturedImage && (<img src={capturedImage} alt="Captured" className="w-full h-full object-contain" />)}
+              {!capturedVideo && (<video ref={videoElementRef} autoPlay playsInline muted className={`w-full h-full object-contain ${isCameraFront ? "transform scale-x-[-1]" : ""}`} />)}
               {capturedVideo && (<video src={capturedVideo.url} className="w-full h-full object-contain" controls autoPlay loop muted />)}
-              {!videoElementRef.current && !capturedImage && !capturedVideo && (<div className="absolute inset-0 flex items-center justify-center text-white bg-black/80 text-center px-4"><span>Camera not available. Check permissions.</span></div>)}
-              {!capturedImage && !capturedVideo && !isRecordingVideo && (
+              {!videoElementRef.current && !capturedVideo && (<div className="absolute inset-0 flex items-center justify-center text-white bg-black/80 text-center px-4"><span>Camera not available. Check permissions.</span></div>)}
+              {!capturedVideo && !isRecordingVideo && (
                 <div className="absolute top-2 right-2 flex flex-col space-y-2 z-10">
                   <Button variant="outline" size="icon" className="h-12 w-12 bg-black/50 text-white hover:bg-black/70 border-white/30" onClick={switchCamera} aria-label="Switch camera"><RotateCcw className="h-5 w-5" /></Button>
-                  <Button variant="outline" size="icon" className="h-12 w-12 bg-black/50 text-white hover:bg-black/70 border-white/30" onClick={() => setCameraMode(cameraMode === "photo" ? "video" : "photo")} aria-label={cameraMode === "photo" ? "Switch to video" : "Switch to photo"}>{cameraMode === "photo" ? <Video className="h-5 w-5" /> : <Camera className="h-5 w-5" />}</Button>
                 </div>
               )}
               {isRecordingVideo && (<div className="absolute top-2 left-2 flex items-center gap-2 bg-red-600/90 text-white px-3 py-1 rounded-full text-sm font-medium z-10"><div className="h-2 w-2 rounded-full bg-white animate-pulse" /> REC {formatDuration(videoRecordingDuration)}</div>)}
               <div className="absolute bottom-0 left-0 w-full flex justify-center items-center gap-4 pb-6 z-10">
-                {capturedImage || capturedVideo ? (
-                  <> <Button variant="outline" size="lg" className="text-base px-6 py-2" onClick={retakeMedia} aria-label="Retake">Retake</Button> <Button variant="default" size="lg" onClick={useMedia} className="bg-primary hover:bg-primary/90 text-base px-6 py-2" aria-label={`Use ${capturedImage ? "Photo" : "Video"}`}>Use {capturedImage ? "Photo" : "Video"}</Button> </>
+                {capturedVideo ? (
+                  <> <Button variant="outline" size="lg" className="text-base px-6 py-2" onClick={retakeMedia} aria-label="Retake">Retake</Button> <Button variant="default" size="lg" onClick={useMedia} className="bg-primary hover:bg-primary/90 text-base px-6 py-2" aria-label="Use Video">Use Video</Button> </>
                 ) : (
                   <> <Button variant="outline" size="lg" className="text-base px-6 py-2" onClick={() => setCameraOpen(false)} aria-label="Cancel">Cancel</Button>
-                  {cameraMode === "photo" ? ( <Button variant="default" size="lg" onClick={capturePhoto} disabled={isCapturing} className="bg-primary hover:bg-primary/90 text-base px-8 py-3 rounded-full shadow-lg border-4 border-white/30" aria-label="Capture Photo">{isCapturing ? "Capturing..." : "Capture Photo"}</Button>
-                  ) : ( <Button variant={isRecordingVideo ? "destructive" : "default"} size="lg" onClick={isRecordingVideo ? stopVideoRecording : startVideoRecording} className={`text-base px-8 py-3 rounded-full shadow-lg border-4 border-white/30 ${isRecordingVideo ? "bg-red-600 hover:bg-red-700" : "bg-primary hover:bg-primary/90"}`} aria-label={isRecordingVideo ? "Stop Recording" : "Start Recording"}>{isRecordingVideo ? "Stop Recording" : "Start Recording"}</Button> )} </>
+                  <Button variant={isRecordingVideo ? "destructive" : "default"} size="lg" onClick={isRecordingVideo ? stopVideoRecording : startVideoRecording} className={`text-base px-8 py-3 rounded-full shadow-lg border-4 border-white/30 ${isRecordingVideo ? "bg-red-600 hover:bg-red-700" : "bg-primary hover:bg-primary/90"}`} aria-label={isRecordingVideo ? "Stop Recording" : "Start Recording"}>{isRecordingVideo ? "Stop Recording" : "Start Recording"}</Button> </>
                 )}
               </div>
             </div>

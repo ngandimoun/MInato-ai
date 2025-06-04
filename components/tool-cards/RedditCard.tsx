@@ -5,14 +5,16 @@ import React, { useState } from "react";
 import { RedditStructuredOutput, RedditPost } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, ThumbsUp, ExternalLink, CalendarClock, Image as ImageIcon, Link as LinkIcon, FileText, AlertCircle } from "lucide-react";
+import { MessageSquare, ThumbsUp, ExternalLink, CalendarClock, Image as ImageIcon, Link as LinkIcon, FileText, AlertCircle, Eye, TrendingUp, Flame, Award, ArrowUp, ChevronDown, ChevronUp, Bookmark, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNowStrict, fromUnixTime } from 'date-fns';
+import { motion, AnimatePresence } from "motion/react";
 
 interface RedditCardProps { data: RedditStructuredOutput; }
 
-// Utilitaire pour déduire le type de post
+// Utility to deduce post type
 function getPostType(post: RedditPost): 'image' | 'video' | 'self' | 'link' {
     if (post.isSelf) return 'self';
     if (post.url && post.url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return 'image';
@@ -20,7 +22,7 @@ function getPostType(post: RedditPost): 'image' | 'video' | 'self' | 'link' {
     return 'link';
 }
 
-// Utilitaire pour la date relative
+// Utility for relative date
 function getRelativeDate(post: RedditPost): string | undefined {
     if (post.createdUtc) {
         try {
@@ -32,55 +34,242 @@ function getRelativeDate(post: RedditPost): string | undefined {
     return undefined;
 }
 
-const RedditPostItem: React.FC<{post: RedditPost, isExpanded: boolean, onToggleExpand: () => void}> = ({ post, isExpanded, onToggleExpand }) => {
+const RedditPostItem: React.FC<{post: RedditPost, isExpanded: boolean, onToggleExpand: () => void, index: number}> = ({ post, isExpanded, onToggleExpand, index }) => {
+    const [isHovered, setIsHovered] = useState(false);
+
     const getPostIcon = () => {
         switch(getPostType(post)) {
-            case 'image': return <ImageIcon size={14} className="text-sky-500"/>;
+            case 'image': return <ImageIcon size={14} className="text-purple-500"/>;
             case 'video': return <LinkIcon size={14} className="text-red-500"/>;
             case 'self': return <FileText size={14} className="text-green-500"/>;
             case 'link': default: return <ExternalLink size={14} className="text-blue-500"/>;
         }
     };
 
+    const getScoreColor = (score: number) => {
+        if (score > 1000) return "from-red-500 to-pink-500";
+        if (score > 500) return "from-orange-500 to-red-500";
+        if (score > 100) return "from-amber-500 to-orange-500";
+        if (score > 50) return "from-blue-500 to-indigo-500";
+        return "from-gray-500 to-gray-600";
+    };
+
+    const score = post.score || 0;
+
     return (
-        <li className="p-2.5 border rounded-lg hover:bg-muted/30 transition-colors">
-            <div className="flex gap-2 items-start">
-                {post.thumbnailUrl && (
-                    <a href={post.url || post.permalink} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 w-16 h-16 block">
-                        <img src={post.thumbnailUrl} alt="Post thumbnail" className="w-full h-full object-cover rounded-md border"/>
-                    </a>
-                )}
-                <div className="flex-1 min-w-0">
-                    <a href={post.permalink} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline text-sm line-clamp-2" title={post.title}>
-                        {post.title}
-                    </a>
-                    <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 items-center">
-                        {post.author && <span>u/{post.author}</span>}
-                        {post.score !== null && <span className="flex items-center gap-0.5"><ThumbsUp size={11}/> {post.score}</span>}
-                        {post.numComments !== null && <span className="flex items-center gap-0.5"><MessageSquare size={11}/> {post.numComments}</span>}
-                        {getRelativeDate(post) && <span className="flex items-center gap-0.5"><CalendarClock size={11}/>{getRelativeDate(post)}</span>}
-                        <span className="flex items-center gap-0.5 capitalize">{getPostIcon()} {getPostType(post)}</span>
+        <motion.li 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1, duration: 0.3 }}
+            className="group relative"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
+            <div className={cn(
+                "relative p-4 rounded-xl border backdrop-blur-sm transition-all duration-300",
+                "bg-gradient-to-br from-background/80 to-background/40 dark:from-background/90 dark:to-background/60",
+                "hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20",
+                "hover:scale-[1.01] hover:-translate-y-1"
+            )}>
+                {/* Gradient background overlay on hover */}
+                <motion.div
+                    className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 transition-opacity duration-300"
+                    animate={{ opacity: isHovered ? 1 : 0 }}
+                />
+                
+                <div className="relative z-10">
+                    <div className="flex gap-4 items-start">
+                        {/* Enhanced score display */}
+                        <motion.div 
+                            className="flex-shrink-0"
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.95 }}
+                        >
+                            <div className={cn(
+                                "relative w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm",
+                                "bg-gradient-to-br shadow-lg",
+                                getScoreColor(score)
+                            )}>
+                                <div className="absolute inset-0 rounded-xl bg-white/20 backdrop-blur-sm" />
+                                <span className="relative z-10 flex flex-col items-center">
+                                    <ArrowUp size={10} />
+                                    <span className="text-xs">{score}</span>
+                                </span>
+                            </div>
+                        </motion.div>
+
+                        {/* Enhanced thumbnail */}
+                        {post.thumbnailUrl && (
+                            <motion.div
+                                className="flex-shrink-0 relative overflow-hidden rounded-lg"
+                                whileHover={{ scale: 1.05 }}
+                                transition={{ duration: 0.2 }}
+                            >
+                                <a href={post.url || post.permalink} target="_blank" rel="noopener noreferrer" className="block w-20 h-20 md:w-24 md:h-24">
+                                    <img 
+                                        src={post.thumbnailUrl} 
+                                        alt="Post thumbnail" 
+                                        className="w-full h-full object-cover transition-all duration-300 group-hover:brightness-110"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                </a>
+                            </motion.div>
+                        )}
+                        
+                        {/* Content section */}
+                        <div className="flex-1 min-w-0 space-y-2">
+                            <div>
+                                <motion.a 
+                                    href={post.permalink} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="font-semibold text-base text-foreground hover:text-primary transition-colors line-clamp-3 leading-snug"
+                                    title={post.title}
+                                    whileHover={{ x: 2 }}
+                                >
+                                    {post.title}
+                                </motion.a>
+
+                                {/* Enhanced metadata */}
+                                <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
+                                    {post.author && (
+                                        <motion.span 
+                                            className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer font-medium"
+                                            whileHover={{ scale: 1.05 }}
+                                        >
+                                            u/{post.author}
+                                        </motion.span>
+                                    )}
+                                    {post.numComments !== null && (
+                                        <motion.span 
+                                            className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
+                                            whileHover={{ scale: 1.05 }}
+                                        >
+                                            <MessageSquare size={12}/> 
+                                            <span className="font-medium">{post.numComments} comments</span>
+                                        </motion.span>
+                                    )}
+                                    {getRelativeDate(post) && (
+                                        <span className="flex items-center gap-1">
+                                            <CalendarClock size={12}/>
+                                            {getRelativeDate(post)}
+                                        </span>
+                                    )}
+                                    <span className="flex items-center gap-1 capitalize">
+                                        {getPostIcon()} 
+                                        <span className="font-medium">{getPostType(post)}</span>
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Enhanced expandable text */}
+                            <AnimatePresence>
+                                {post.isSelf && post.selfText && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        className="space-y-2"
+                                    >
+                                        <motion.p 
+                                            className={cn(
+                                                "text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg border",
+                                                !isExpanded && "line-clamp-2"
+                                            )}
+                                            layout
+                                        >
+                                            {post.selfText}
+                                        </motion.p>
+                                        {post.selfText.length > 100 && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={onToggleExpand}
+                                                className="h-8 text-xs text-primary hover:text-primary/80"
+                                            >
+                                                {isExpanded ? (
+                                                    <>
+                                                        <ChevronUp size={14} className="mr-1" />
+                                                        Show Less
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <ChevronDown size={14} className="mr-1" />
+                                                        Read More
+                                                    </>
+                                                )}
+                                            </Button>
+                                        )}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* External link */}
+                            {!post.isSelf && post.url && !post.url.includes(post.permalink) && (
+                                <motion.a 
+                                    href={post.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="text-xs text-blue-500 hover:underline flex items-center gap-1 hover:text-blue-600 transition-colors"
+                                    whileHover={{ x: 2 }}
+                                >
+                                    <ExternalLink size={12}/> 
+                                    View Linked Content
+                                </motion.a>
+                            )}
+                        </div>
+
+                        {/* Action buttons */}
+                        <motion.div 
+                            className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                            initial={{ x: 20 }}
+                            animate={{ x: isHovered ? 0 : 20 }}
+                        >
+                            <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                className="p-2 rounded-lg bg-background/80 hover:bg-primary/10 border hover:border-primary/20 transition-colors"
+                                title="Bookmark post"
+                            >
+                                <Bookmark size={16} className="text-muted-foreground hover:text-primary transition-colors" />
+                            </motion.button>
+                            <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                className="p-2 rounded-lg bg-background/80 hover:bg-primary/10 border hover:border-primary/20 transition-colors"
+                                title="Share post"
+                            >
+                                <Share2 size={16} className="text-muted-foreground hover:text-primary transition-colors" />
+                            </motion.button>
+                        </motion.div>
+                    </div>
+
+                    {/* Footer with badges */}
+                    <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/50">
+                        <div className="flex items-center gap-2">
+                            {score > 500 && (
+                                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-orange-500/10 to-red-500/10">
+                                    <Flame size={10} className="mr-1" />
+                                    Hot
+                                </Badge>
+                            )}
+                            {(post.numComments || 0) > 50 && (
+                                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-green-500/10 to-emerald-500/10">
+                                    <MessageSquare size={10} className="mr-1" />
+                                    Active
+                                </Badge>
+                            )}
+                            {index === 0 && (
+                                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-primary/10 to-accent/10">
+                                    <TrendingUp size={10} className="mr-1" />
+                                    Top
+                                </Badge>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
-            {post.isSelf && post.selfText && (
-                <div className="mt-1.5 text-xs">
-                    <p className={cn("text-muted-foreground", !isExpanded && "line-clamp-2")}>
-                        {post.selfText}
-                    </p>
-                    {post.selfText.length > 100 && (
-                        <Button variant="link" size="sm" onClick={onToggleExpand} className="p-0 h-auto text-primary/80">
-                            {isExpanded ? "Show Less" : "Show More"}
-                        </Button>
-                    )}
-                </div>
-            )}
-            {!post.isSelf && post.url && !post.url.includes(post.permalink) && (
-                <a href={post.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-0.5 mt-1">
-                    <ExternalLink size={12}/> View Linked Content
-                </a>
-            )}
-        </li>
+        </motion.li>
     );
 };
 
@@ -94,57 +283,146 @@ export function RedditCard({ data }: RedditCardProps) {
   };
   
   const redditIcon = (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-      <circle cx="12" cy="12" r="10"></circle>
-      <circle cx="12" cy="10" r="3"></circle>
-      <path d="M7 20.662V17.5a2.5 2.5 0 0 1 2.5-2.5h5A2.5 2.5 0 0 1 17 17.5v3.162"></path>
-    </svg>
+    <motion.svg 
+        xmlns="http://www.w3.org/2000/svg" 
+        width="24" 
+        height="24" 
+        viewBox="0 0 24 24" 
+        fill="none" 
+        stroke="currentColor" 
+        strokeWidth="2" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+        className="text-orange-500"
+        whileHover={{ rotate: 5, scale: 1.1 }}
+        transition={{ type: "spring", stiffness: 300 }}
+    >
+        <circle cx="12" cy="12" r="10"></circle>
+        <circle cx="12" cy="10" r="3"></circle>
+        <path d="M7 20.662V17.5a2.5 2.5 0 0 1 2.5-2.5h5A2.5 2.5 0 0 1 17 17.5v3.162"></path>
+    </motion.svg>
   );
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-            {redditIcon}
-            Reddit: r/{data.subreddit} <span className="text-sm font-normal text-muted-foreground">({data.filter}{data.time ? ` / ${data.time}` : ""})</span>
-        </CardTitle>
-        <CardDescription>
-            {data.count > 0 ? `Found ${data.count} post(s).` : "No posts found."}
-            {data.query?.query && ` For query: "${data.query.query}"`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {data.error && (
-             <div className="flex items-center gap-2 text-destructive text-sm p-3 bg-destructive/10 rounded-md">
-                <AlertCircle size={18}/> 
-                <div>
-                    <p className="font-medium">Error Fetching Reddit Posts</p>
-                    <p className="text-xs">{data.error}</p>
-                </div>
-            </div>
-        )}
-        {!data.error && data.posts && data.posts.length > 0 ? (
-          <ScrollArea className={cn("max-h-80", data.posts.length > 3 ? "pr-2" : "")}>
-            <ul className="space-y-2.5">
-              {data.posts.map(post => (
-                <RedditPostItem 
-                    key={post.id} 
-                    post={post}
-                    isExpanded={expandedPostId === post.id}
-                    onToggleExpand={() => toggleExpand(post.id)}
+    <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+    >
+        <Card className={cn(
+            "w-full relative overflow-hidden",
+            "bg-gradient-to-br from-background to-background/80",
+            "backdrop-blur-sm border-border/50",
+            "shadow-lg dark:shadow-primary/5"
+        )}>
+            {/* Header with enhanced styling */}
+            <CardHeader className="relative">
+                <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-orange-500/5 via-transparent to-accent/5"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.6 }}
                 />
-              ))}
-            </ul>
-          </ScrollArea>
-        ) : (
-          !data.error && <p className="text-sm text-muted-foreground text-center py-4">No posts to display based on current filters.</p>
-        )}
-      </CardContent>
-      {data.posts && data.posts.length > 0 && (
-         <CardFooter className="text-xs text-muted-foreground justify-center pt-3 border-t">
-            Showing {data.posts.length} post(s) from r/{data.subreddit}.
-        </CardFooter>
-      )}
-    </Card>
+                <div className="relative z-10">
+                    <CardTitle className="flex items-center gap-3 text-xl">
+                        {redditIcon}
+                        <span className="bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+                            Reddit: r/{data.subreddit}
+                        </span>
+                        <div className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
+                            <Badge variant="outline" className="text-xs">
+                                {data.filter}
+                            </Badge>
+                            {data.time && (
+                                <Badge variant="secondary" className="text-xs bg-orange-500/10 text-orange-600">
+                                    {data.time}
+                                </Badge>
+                            )}
+                        </div>
+                    </CardTitle>
+                    <CardDescription className="text-base mt-2">
+                        {data.count > 0 ? (
+                            <span className="flex items-center gap-2">
+                                <Eye size={16} className="text-primary" />
+                                Found {data.count} post{data.count > 1 ? 's' : ''}
+                                {data.query?.query && (
+                                    <Badge variant="outline" className="ml-2">
+                                        "{data.query.query}"
+                                    </Badge>
+                                )}
+                            </span>
+                        ) : (
+                            "No posts found."
+                        )}
+                    </CardDescription>
+                </div>
+            </CardHeader>
+
+            <CardContent className="p-0">
+                {data.error && (
+                    <motion.div 
+                        className="flex items-center gap-3 text-destructive text-sm p-4 mx-6 mb-4 bg-destructive/10 rounded-xl border border-destructive/20"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                    >
+                        <AlertCircle size={20}/> 
+                        <div>
+                            <p className="font-semibold">Error Fetching Reddit Posts</p>
+                            <p className="text-xs opacity-80">{data.error}</p>
+                        </div>
+                    </motion.div>
+                )}
+                
+                {!data.error && data.posts && data.posts.length > 0 ? (
+                    <ScrollArea className="max-h-[600px] px-6">
+                        <ul className="space-y-4 pb-6">
+                            {data.posts.map((post, index) => (
+                                <RedditPostItem 
+                                    key={post.id} 
+                                    post={post}
+                                    isExpanded={expandedPostId === post.id}
+                                    onToggleExpand={() => toggleExpand(post.id)}
+                                    index={index}
+                                />
+                            ))}
+                        </ul>
+                    </ScrollArea>
+                ) : (
+                    !data.error && (
+                        <div className="text-center py-12 px-6">
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="space-y-3"
+                            >
+                                <div className="mx-auto text-muted-foreground/50 w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <circle cx="12" cy="10" r="3"></circle>
+                                        <path d="M7 20.662V17.5a2.5 2.5 0 0 1 2.5-2.5h5A2.5 2.5 0 0 1 17 17.5v3.162"></path>
+                                    </svg>
+                                </div>
+                                <p className="text-muted-foreground">No posts to display based on current filters</p>
+                            </motion.div>
+                        </div>
+                    )
+                )}
+            </CardContent>
+
+            {data.posts && data.posts.length > 0 && (
+                <CardFooter className="text-xs text-muted-foreground justify-center pt-4 border-t border-border/50 bg-muted/30">
+                    <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                        className="flex items-center gap-2"
+                    >
+                        <Award size={12} />
+                        Showing {data.posts.length} post{data.posts.length > 1 ? 's' : ''} from r/{data.subreddit}
+                    </motion.p>
+                </CardFooter>
+            )}
+        </Card>
+    </motion.div>
   );
 }

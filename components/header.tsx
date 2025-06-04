@@ -3,14 +3,14 @@
 
 import React, { createContext, useContext, useState } from "react";
 import { motion } from "framer-motion";
-import { MessageSquare, Settings, Brain, Bell } from "lucide-react"; // Removed Phone icon
+import { MessageSquare, Settings, Brain, Bell, ShoppingBag } from "lucide-react"; // Added ShoppingBag icon
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button"; 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { NotificationsPanel } from "@/components/ui/notifications-panel";
 import { useAuth } from "@/context/auth-provider"; // Optional for user info
 
-type View = "chat" | "settings" | "memory"; // "call" view is removed
+type View = "chat" | "settings" | "memory" | "dashboard"; // Added dashboard view
 
 interface HeaderProps {
   currentView: View;
@@ -71,8 +71,8 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
 
   const navItems: { id: View; icon: React.ReactNode; label: string }[] = [
     { id: "chat", icon: <MessageSquare size={20} />, label: "Chat" },
-    // { id: "call", icon: <Phone size={20} />, label: "Call" }, // REMOVED
     { id: "memory", icon: <Brain size={20} />, label: "Memory" },
+    { id: "dashboard", icon: <ShoppingBag size={20} />, label: "Dashboard" }, // Added Dashboard nav item
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },
   ];
 

@@ -90,55 +90,28 @@ export function GoogleGmailCard({ data }: GoogleGmailCardProps) {
 const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
 const userLocale = data.query?.context?.locale?.split("-")[0];
 if (!data) return <p className="text-sm text-muted-foreground">No email data available.</p>;
-const toggleExpand = (emailId: string) => {
-setExpandedEmailId(prevId => (prevId === emailId ? null : emailId));
-};
-const queryDisplay = data.query?.query === "is:unread category:primary"
-  ? "your primary unread emails"
-  : (data.query?.query ? `emails matching "${data.query.query}"` : "recent emails");
+
+// Return a placeholder card with coming soon message
 return (
 <Card className="w-full">
 <CardHeader>
 <CardTitle className="flex items-center gap-2">
 <Mail className="h-5 w-5 text-primary"/>
-Recent Emails
+Email Integration
 </CardTitle>
 <CardDescription>
-  {data.emails.length > 0 ? `Showing ${data.emails.length} of ${queryDisplay}.` : `No ${queryDisplay} found.`}
+  Gmail integration will be available in a future Minato upgrade.
 </CardDescription>
 </CardHeader>
 <CardContent>
-{data.error && (
-<div className="flex items-center gap-2 text-destructive text-sm p-3 bg-destructive/10 rounded-md">
-<AlertCircle size={18}/>
-<div>
-<p className="font-medium">Gmail Access Error</p>
-<p className="text-xs">{data.error}</p>
-</div>
-</div>
-)}
-{!data.error && data.emails && data.emails.length > 0 ? (
-<ScrollArea className={cn("max-h-80", data.emails.length > 3 ? "pr-2" : "")}>
-<ul className="space-y-2.5">
-{data.emails.map(email => (
-<EmailItem
-key={email.id}
-email={email}
-isExpanded={expandedEmailId === email.id}
-onToggleExpand={() => toggleExpand(email.id)}
-userLocale={userLocale}
-/>
-))}
-</ul>
-</ScrollArea>
-) : (
-!data.error &&
 <div className="text-center py-6 text-muted-foreground">
 <Inbox size={24} className="mx-auto mb-2 opacity-50"/>
-<p className="text-sm">Your inbox is clear for this search.</p>
+<p className="text-sm">This feature is coming soon! Stay tuned for updates.</p>
 </div>
-)}
 </CardContent>
+<CardFooter className="text-xs text-muted-foreground justify-center pt-3 border-t">
+Connect to see your recent emails in Minato.
+</CardFooter>
 </Card>
 );
 }
