@@ -166,6 +166,65 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       }
     }
     
+    // Apply user recipe preferences if available
+    if (input.context?.userState?.workflow_preferences) {
+      const prefs = input.context.userState.workflow_preferences;
+      
+      // Apply preferred cuisines to the query if user hasn't specified a specific dish
+      if (prefs.recipePreferredCuisines && 
+          prefs.recipePreferredCuisines.length > 0 && 
+          !input.random && 
+          input.query) {
+        // Check if the query doesn't already include cuisine-specific terms
+        const hasSpecificCuisine = prefs.recipePreferredCuisines.some(cuisine => 
+          input.query.toLowerCase().includes(cuisine.toLowerCase())
+        );
+        
+        if (!hasSpecificCuisine) {
+          // Add the first preferred cuisine to the query to bias results
+          const preferredCuisine = prefs.recipePreferredCuisines[0];
+          input.query = `${preferredCuisine} ${input.query}`;
+          this.log("debug", `[RecipeSearchTool] Applied preferred cuisine: ${preferredCuisine}`);
+        }
+      }
+      
+      // Apply skill level preference to the query
+      if (prefs.recipeSkillLevel && 
+          prefs.recipeSkillLevel !== "any" && 
+          !input.random && 
+          input.query) {
+        switch (prefs.recipeSkillLevel) {
+          case "beginner":
+            input.query = `${input.query} easy simple quick`;
+            this.log("debug", `[RecipeSearchTool] Applied skill level: beginner (easy recipes)`);
+            break;
+          case "intermediate":
+            input.query = `${input.query} moderate`;
+            this.log("debug", `[RecipeSearchTool] Applied skill level: intermediate`);
+            break;
+          case "advanced":
+            input.query = `${input.query} gourmet complex chef`;
+            this.log("debug", `[RecipeSearchTool] Applied skill level: advanced`);
+            break;
+        }
+      }
+      
+      // Apply max cooking time preference to the query
+      if (prefs.recipeMaxCookingTime && 
+          prefs.recipeMaxCookingTime > 0 && 
+          !input.random && 
+          input.query) {
+        if (prefs.recipeMaxCookingTime <= 30) {
+          input.query = `${input.query} quick fast 30 minutes`;
+          this.log("debug", `[RecipeSearchTool] Applied max cooking time: ≤30 minutes (quick recipes)`);
+        } else if (prefs.recipeMaxCookingTime <= 60) {
+          input.query = `${input.query} one hour`;
+          this.log("debug", `[RecipeSearchTool] Applied max cooking time: ≤60 minutes`);
+        }
+        // For longer times, don't add specific modifiers to avoid limiting results
+      }
+    }
+    
     const { query, random } = input;
     const userNameForResponse = input.context?.userName || "friend";
     const logPrefix = `[RecipeTool] Query:"${query ? query.substring(0, 30) : ''}..." Random:${!!random}`;

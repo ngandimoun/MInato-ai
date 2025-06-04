@@ -18,6 +18,17 @@ export async function POST(req: NextRequest) {
         return { toolName, error: `Tool '${toolName}' not found.`, result: null, structuredData: null };
       }
       const tool = tools[canonicalName];
+      
+      // Check if the tool is enabled
+      if (tool.enabled === false) {
+        return { 
+          toolName, 
+          error: `Tool '${toolName}' is currently disabled.`, 
+          result: "This feature is currently unavailable. It will be available in a future upgrade.", 
+          structuredData: null 
+        };
+      }
+      
       const validate = ajv.compile(tool.argsSchema);
       const valid = validate(toolArgs || {});
       if (!valid) {

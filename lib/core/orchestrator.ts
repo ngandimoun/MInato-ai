@@ -132,15 +132,52 @@ if (!voice) return false;
 return (appConfig as any).openai.ttsVoices.includes(voice);
 }
 function sanitizeToolParameterSchemaForOpenAI(originalSchema: BaseTool['argsSchema']): OpenAI.FunctionDefinition["parameters"] {
-if (!originalSchema || originalSchema.type !== 'object' || !originalSchema.properties) {
-return { type: "object", properties: {} };
-}
-return {
-type: "object",
-properties: originalSchema.properties as any,
-required: originalSchema.required,
-additionalProperties: originalSchema.additionalProperties,
-};
+  if (!originalSchema || originalSchema.type !== 'object' || !originalSchema.properties) {
+    return { type: "object", properties: {}, additionalProperties: false };
+  }
+  
+  // Ensure all properties can be null to handle OpenAI's schema validation
+  const properties: Record<string, any> = {};
+  for (const [key, prop] of Object.entries(originalSchema.properties)) {
+    if (typeof prop === 'object') {
+      if (prop.type === 'string') {
+        // Convert string type to accept both string and null
+        properties[key] = {
+          ...prop,
+          type: ["string", "null"]
+        };
+      } else if (prop.type === 'number') {
+        // Convert number type to accept both number and null
+        properties[key] = {
+          ...prop,
+          type: ["number", "null"]
+        };
+      } else if (prop.type === 'boolean') {
+        // Convert boolean type to accept both boolean and null
+        properties[key] = {
+          ...prop,
+          type: ["boolean", "null"]
+        };
+      } else if (prop.type === 'array') {
+        // Convert array type to accept both array and null
+        properties[key] = {
+          ...prop,
+          type: ["array", "null"]
+        };
+      } else {
+        properties[key] = prop;
+      }
+    } else {
+      properties[key] = prop;
+    }
+  }
+  
+  return {
+    type: "object",
+    properties: properties,
+    required: originalSchema.required || [],
+    additionalProperties: false, // Always set to false for OpenAI
+  };
 }
 const PLANNING_MODEL_NAME_ORCH = (appConfig as any).openai.planningModel;
 const CHAT_VISION_MODEL_NAME_ORCH = (appConfig as any).openai.chatModel;
@@ -337,6 +374,22 @@ export class Orchestrator {
         const canonicalToolName = tool.name;
         // PATCH/FALLBACK LOGIC FOR MISSING REQUIRED ARGUMENTS (e.g., 'query')
         let actualToolArgs = JSON.parse(JSON.stringify(routedToolCall.arguments || {}));
+        
+        // Filter arguments to only include properties defined in this tool's schema
+        if (tool.argsSchema && tool.argsSchema.properties) {
+          const validProps = Object.keys(tool.argsSchema.properties);
+          const filteredArgs: Record<string, any> = {};
+          
+          // Only include properties that are defined in this tool's schema
+          for (const prop of validProps) {
+            if (prop in actualToolArgs) {
+              filteredArgs[prop] = actualToolArgs[prop];
+            }
+          }
+          
+          actualToolArgs = filteredArgs;
+        }
+        
         // Move userInputForFallback up so it's always available
         // Use the new currentTurnUserInput as the primary source
         let userInputForFallback = stripSystemPrefixes(currentTurnUserInput);
@@ -365,6 +418,25 @@ export class Orchestrator {
         }
         // --- BEGIN: NewsAggregatorTool-specific fallback for required arguments ---
         if (canonicalToolName === "NewsAggregatorTool") {
+          // Filter arguments to only include properties defined in NewsAggregatorTool's schema FIRST
+          if (tool.argsSchema && tool.argsSchema.properties) {
+            const validProps = Object.keys(tool.argsSchema.properties);
+            const filteredOriginalArgs: Record<string, any> = {};
+            
+            // Only include properties that are defined in NewsAggregatorTool's schema
+            for (const prop of validProps) {
+              if (prop in routedToolCall.arguments) {
+                filteredOriginalArgs[prop] = routedToolCall.arguments[prop];
+              }
+            }
+            
+            // Use filtered arguments as the base
+            actualToolArgs = JSON.parse(JSON.stringify(filteredOriginalArgs));
+          } else {
+            // Fallback if no schema properties
+            actualToolArgs = JSON.parse(JSON.stringify(routedToolCall.arguments || {}));
+          }
+
           // Category-to-sources mapping for both prompt and post-processing
           const defaultCategorySources: Record<string, string[]> = {
             business: ["bloomberg", "business-insider", "financial-post", "fortune", "the-wall-street-journal", "cnbc", "forbes", "axios"],
@@ -393,12 +465,11 @@ export class Orchestrator {
             return "general";
           }
 
-          let userQuery = (typeof routedToolCall.arguments?.query === 'string' && routedToolCall.arguments.query.trim())
-            ? routedToolCall.arguments.query.trim()
+          let userQuery = (typeof actualToolArgs?.query === 'string' && actualToolArgs.query.trim())
+            ? actualToolArgs.query.trim()
             : (userInputForFallback || "");
 
           let llmExtraction: { keywords: string; sources: string; category: string } | null = null;
-          actualToolArgs = JSON.parse(JSON.stringify(routedToolCall.arguments || {}));
           const cleanUserQueryForExtraction = (userInputForFallback || "").replace(/^use\s+newstool\s*/i, '').trim();
           logger.info(`[NewsAggregatorTool] LLM extraction input: "${cleanUserQueryForExtraction}"`);
 
@@ -555,8 +626,24 @@ Example 2 JSON:
 
         // --- BEGIN: WebSearchTool-specific fallback for required arguments ---
         if (canonicalToolName === "WebSearchTool") {
-          // Extract and validate mode and query parameters
-          actualToolArgs = JSON.parse(JSON.stringify(routedToolCall.arguments || {}));
+          // Filter arguments to only include properties defined in WebSearchTool's schema FIRST
+          if (tool.argsSchema && tool.argsSchema.properties) {
+            const validProps = Object.keys(tool.argsSchema.properties);
+            const filteredOriginalArgs: Record<string, any> = {};
+            
+            // Only include properties that are defined in WebSearchTool's schema
+            for (const prop of validProps) {
+              if (prop in routedToolCall.arguments) {
+                filteredOriginalArgs[prop] = routedToolCall.arguments[prop];
+              }
+            }
+            
+            // Use filtered arguments as the base
+            actualToolArgs = JSON.parse(JSON.stringify(filteredOriginalArgs));
+          } else {
+            // Fallback if no schema properties
+            actualToolArgs = JSON.parse(JSON.stringify(routedToolCall.arguments || {}));
+          }
           
           // Apply stripSystemPrefixes to any existing query first
           if (actualToolArgs.query && typeof actualToolArgs.query === 'string') {
@@ -668,11 +755,6 @@ Example 2 JSON:
               if (brandMatch && (brandMatch[1] || brandMatch[2])) {
                 actualToolArgs.brand = (brandMatch[1] || brandMatch[2]).trim();
               }
-            }
-            
-            // Remove any context field if it exists to avoid validation failures
-            if ('context' in actualToolArgs) {
-              delete actualToolArgs.context;
             }
             
             logger.info(`${logPrefix} WebSearchTool parameters after fallback: ${JSON.stringify(actualToolArgs)}`);
@@ -1199,6 +1281,31 @@ JSON: { "query": "", "random": true }
           }
         }
         // --- END: GoogleGmailReaderTool-specific fallback for required arguments ---
+        
+        // --- BEGIN: StripePaymentLinkTool-specific fallback for required arguments ---
+        if (canonicalToolName === "StripePaymentLinkTool" as string) {
+          const missingProductName = !actualToolArgs.product_name || typeof actualToolArgs.product_name !== 'string' || actualToolArgs.product_name.trim() === "";
+          const missingPrice = actualToolArgs.price === undefined || actualToolArgs.price === null || isNaN(Number(actualToolArgs.price)) || Number(actualToolArgs.price) <= 0;
+          
+          // For StripePaymentLinkTool, we want to let the tool handle conversational flow internally
+          // Only provide the raw user input for the tool to process
+          if (missingProductName || missingPrice) {
+            logger.warn(`${logPrefix} StripePaymentLinkTool missing required parameters. Letting tool handle conversational flow.`);
+            
+            // Just pass the raw user input to let the tool handle the conversation
+            if (!actualToolArgs._rawUserInput && userInputForFallback) {
+              actualToolArgs._rawUserInput = userInputForFallback;
+            }
+            
+            // Set step to initial if not provided to trigger conversational flow
+            if (!actualToolArgs.step) {
+              actualToolArgs.step = "initial";
+            }
+            
+            logger.info(`${logPrefix} StripePaymentLinkTool parameters after fallback: ${JSON.stringify(actualToolArgs)}`);
+          }
+        }
+        // --- END: StripePaymentLinkTool-specific fallback for required arguments ---
         
         // --- BEGIN: HackerNewsTool-specific fallback for required arguments ---
         if (canonicalToolName === "HackerNewsTool") {
@@ -1906,6 +2013,12 @@ Respond in STRICT JSON format:
     });
     const settledResults = await Promise.allSettled(executionPromises);
     let lastSuccessfulStructuredData: AnyToolStructuredData | null = null;
+    // Track tools that need special transition handling
+    let needsStripeOnboarding = false;
+    let savedProductDetails: any = null;
+    let returnToPaymentLinkAfterOnboarding = false;
+    let previousToolName = "";
+    
     for (let i = 0; i < settledResults.length; i++) {
       const result = settledResults[i];
       const originalRoutedCall = toolCallsFromRouter[i]; // Assuming toolCallsFromRouter matches the order of executionPromises
@@ -1913,6 +2026,51 @@ Respond in STRICT JSON format:
         const toolMessage = result.value as ChatMessage; // Type assertion
         toolResultsMessages.push(toolMessage);
         const callId = (typeof (toolMessage as any).tool_call_id === 'string' && (toolMessage as any).tool_call_id) ? (toolMessage as any).tool_call_id : `fallback_id_${i}`;
+        
+        // Check for special StripePaymentLinkTool to StripeSellerOnboardingTool transition
+        if (
+          structuredDataMap.has(callId) && 
+          originalRoutedCall.tool_name === "StripePaymentLinkTool"
+        ) {
+          const data = structuredDataMap.get(callId);
+          if (
+            data && 
+            data.result_type === "payment_link" && 
+            'next_step' in data && 
+            data.next_step === "redirect_to_onboarding" && 
+            'needs_onboarding' in data && 
+            data.needs_onboarding === true &&
+            'saved_product_details' in data &&
+            data.saved_product_details
+          ) {
+            logger.info(`[Orchestrator] Detected need to transition from StripePaymentLinkTool to StripeSellerOnboardingTool`);
+            needsStripeOnboarding = true;
+            savedProductDetails = data.saved_product_details;
+            previousToolName = "StripePaymentLinkTool";
+          }
+        }
+        
+        // Check for StripeSellerOnboardingTool returning to StripePaymentLinkTool
+        if (
+          structuredDataMap.has(callId) && 
+          originalRoutedCall.tool_name === "StripeSellerOnboardingTool"
+        ) {
+          const data = structuredDataMap.get(callId);
+          if (
+            data && 
+            data.result_type === "seller_onboarding" && 
+            'return_to_payment_link_after' in data && 
+            data.return_to_payment_link_after === true &&
+            'saved_product_details' in data && 
+            data.saved_product_details
+          ) {
+            logger.info(`[Orchestrator] Detected completion of StripeSellerOnboardingTool, should return to StripePaymentLinkTool`);
+            returnToPaymentLinkAfterOnboarding = true;
+            savedProductDetails = data.saved_product_details;
+            previousToolName = "StripeSellerOnboardingTool";
+          }
+        }
+        
         // Check if content indicates an error before considering structuredData
         if (
           typeof toolMessage.content === 'string' &&
@@ -1929,6 +2087,113 @@ Respond in STRICT JSON format:
         toolResultsSummaryParts.push(`Error: Internal error executing ${originalRoutedCall.tool_name}.`);
       }
     }
+    
+    // Handle the special tool transitions if needed
+    if (needsStripeOnboarding && savedProductDetails) {
+      logger.info(`[Orchestrator] Triggering StripeSellerOnboardingTool after StripePaymentLinkTool`);
+      
+      // Prepare arguments for the StripeSellerOnboardingTool
+      const onboardingArgs = {
+        intent: "start_selling",
+        country: null,
+        entity_type: null,
+        business_description: savedProductDetails.product_name ? `selling ${savedProductDetails.product_name}` : null,
+        _context: {
+          savedProductDetails: savedProductDetails,
+          previous_tool: previousToolName,
+          userState: userState,
+          userId: userId,
+          userName: apiContext.userName || "friend"
+        },
+        _rawUserInput: currentTurnUserInput
+      };
+      
+      try {
+        // Find the StripeSellerOnboardingTool
+        const { tool } = await this.getResolvedTool("StripeSellerOnboardingTool", userId);
+        
+        if (tool) {
+          logger.info(`[Orchestrator] Found StripeSellerOnboardingTool, executing it`);
+          
+          // Execute the tool with our arguments
+          const onboardingResult = await tool.execute(onboardingArgs);
+          
+          // Create a tool message for the response
+          const onboardingToolMessage: ChatMessage = {
+            role: "tool",
+            tool_call_id: `auto_transition_${crypto.randomUUID()}`, 
+            name: "StripeSellerOnboardingTool",
+            content: onboardingResult?.result || null,
+            timestamp: new Date().toISOString()
+          };
+          
+          // Add the result to our responses
+          toolResultsMessages.push(onboardingToolMessage);
+          toolResultsSummaryParts.push(`Transitioned to StripeSellerOnboardingTool: ${
+            onboardingResult?.result ? onboardingResult.result.substring(0, 100) + '...' : 'Initiated Stripe account setup'
+          }`);
+          
+          // Update structured data
+          if (onboardingResult.structuredData) {
+            lastSuccessfulStructuredData = onboardingResult.structuredData as AnyToolStructuredData;
+          }
+        }
+      } catch (error) {
+        logger.error(`[Orchestrator] Error transitioning to StripeSellerOnboardingTool:`, error);
+      }
+    }
+    
+    if (returnToPaymentLinkAfterOnboarding && savedProductDetails) {
+      logger.info(`[Orchestrator] Returning to StripePaymentLinkTool after StripeSellerOnboardingTool completion`);
+      
+      // Prepare arguments for the StripePaymentLinkTool with saved product details
+      const paymentLinkArgs = {
+        ...savedProductDetails,
+        _context: {
+          savedProductDetails: savedProductDetails,
+          previous_tool: previousToolName,
+          userState: userState,
+          userId: userId,
+          userName: apiContext.userName || "friend"
+        },
+        _rawUserInput: "yes continue with creating my payment link"
+      };
+      
+      try {
+        // Find the StripePaymentLinkTool
+        const { tool } = await this.getResolvedTool("StripePaymentLinkTool", userId);
+        
+        if (tool) {
+          logger.info(`[Orchestrator] Found StripePaymentLinkTool, executing it to resume flow`);
+          
+          // Execute the tool with our saved arguments
+          const paymentLinkResult = await tool.execute(paymentLinkArgs);
+          
+          // Create a tool message for the response
+          const paymentLinkToolMessage: ChatMessage = {
+            role: "tool",
+            tool_call_id: `auto_transition_${crypto.randomUUID()}`,
+            name: "StripePaymentLinkTool",
+            content: paymentLinkResult?.result || null,
+            timestamp: new Date().toISOString()
+          };
+          
+          // Add the result to our responses
+          toolResultsMessages.push(paymentLinkToolMessage);
+          toolResultsSummaryParts.push(`Resumed StripePaymentLinkTool: ${
+            paymentLinkResult?.result ? paymentLinkResult.result.substring(0, 100) + '...' : 'Resumed payment link creation'
+          }`);
+          
+          // Update structured data
+          if (paymentLinkResult.structuredData) {
+            lastSuccessfulStructuredData = paymentLinkResult.structuredData as AnyToolStructuredData;
+          }
+        }
+      } catch (error) {
+        logger.error(`[Orchestrator] Error returning to StripePaymentLinkTool:`, error);
+      }
+    }
+    
     return { messages: toolResultsMessages, lastSuccessfulStructuredData, llmUsage: null, toolResultsSummary: toolResultsSummaryParts.join("\n") || "Tools processing completed.", clarificationQuestion, clarificationDetails };
   }
   public async runOrchestration(
@@ -2249,8 +2514,19 @@ Respond in STRICT JSON format:
                   tool_name: { type: "string" as const },
                   arguments: {
                     type: "object" as const,
-                    additionalProperties: false,
-                    properties: {}
+                    additionalProperties: false, // Must be set to false as required by OpenAI API
+                    properties: {
+                      product_name: { type: ["string", "null"] },
+                      price: { type: ["number", "null"] },
+                      currency: { type: ["string", "null"] },
+                      description: { type: ["string", "null"] },
+                      step: { type: ["string", "null"] },
+                      intent: { type: ["string", "null"] },
+                      country: { type: ["string", "null"] },
+                      entity_type: { type: ["string", "null"] },
+                      business_description: { type: ["string", "null"] }
+                    },
+                    required: ["product_name", "price", "currency", "description", "step", "intent", "country", "entity_type", "business_description"]
                   },
                   reason: { type: "string" as const }
                 },
@@ -2312,12 +2588,6 @@ Respond in STRICT JSON format:
         messagesForGpt4o.unshift({
           role: 'system',
           content: `TOOL SUMMARY: ${toolExecutionMessages[0].content}`,
-          timestamp: Date.now()
-        });
-        // Also add the tool summary as an assistant message in the conversation flow
-        messagesForGpt4o.push({
-          role: 'assistant',
-          content: toolExecutionMessages[0].content.trim(),
           timestamp: Date.now()
         });
       }
@@ -2441,13 +2711,6 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
       responseIntentType = synthesisResult.intentType;
       if (finalFlowType !== "direct_llm_after_router_fail") { // Only update if not already set by router failure
         finalFlowType = routedTools.planned_tools.length > 0 ? "workflow_synthesis" : "direct_llm_synthesis";
-      }
-      // Prepend tool summary if present and not already included
-      if (toolExecutionMessages.length > 0 && typeof toolExecutionMessages[0].content === 'string' && toolExecutionMessages[0].content.trim()) {
-        const summary = toolExecutionMessages[0].content.trim();
-        if (!finalResponseText.startsWith(summary)) {
-          finalResponseText = summary + '\n\n' + finalResponseText;
-        }
       }
     }
     ttsInstructionsForFinalResponse = getDynamicInstructions(responseIntentType);
@@ -2846,6 +3109,26 @@ If you can confidently infer the missing arguments, return them in the 'inferred
     }
     // Fallback: if LLM fails or returns error, return nulls
     return { inferredArgs: null, clarificationQuestion: null };
+  }
+  /**
+   * Filters tool arguments to only include properties that are valid for the specific tool
+   */
+  private filterArgumentsForTool(args: Record<string, any>, tool: BaseTool): Record<string, any> {
+    if (!tool.argsSchema || !tool.argsSchema.properties) {
+      return args;
+    }
+    
+    const validProps = Object.keys(tool.argsSchema.properties);
+    const filteredArgs: Record<string, any> = {};
+    
+    // Only include properties that are defined in this tool's schema
+    for (const prop of validProps) {
+      if (prop in args) {
+        filteredArgs[prop] = args[prop];
+      }
+    }
+    
+    return filteredArgs;
   }
 }
 declare module "../../memory-framework/core/CompanionCoreMemory" {

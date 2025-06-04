@@ -140,9 +140,16 @@ export class EventFinderTool extends BaseTool {
     if (!dateInput) return undefined;
     try {
       const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
-      if (isNaN(d.getTime())) { this.log("warn", `Invalid date input for formatting: ${dateInput}`); return undefined; }
-      return d.toISOString().substring(0, 19) + "Z"; 
-    } catch (e: any) { this.log("error", `Error parsing date for formatting: ${dateInput}`, e.message); return undefined; }
+      if (isNaN(d.getTime())) { 
+        this.log("warn", `Invalid date input for formatting: ${dateInput}`); 
+        return undefined; 
+      }
+      // Use proper ISO format as required by Ticketmaster API: YYYY-MM-DDTHH:mm:ssZ (without milliseconds)
+      return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    } catch (e: any) { 
+      this.log("error", `Error parsing date for formatting: ${dateInput}`, e.message); 
+      return undefined; 
+    }
   }
 
   private mapRawEventToAppEvent(rawEvent: TicketmasterEventRaw): TicketmasterEvent {
@@ -160,19 +167,92 @@ export class EventFinderTool extends BaseTool {
         return { error: "Event Finder Tool (Ticketmaster) not configured.", result: "Event search via Ticketmaster is unavailable." };
     }
 
-    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));
-    const effectiveRadius = (input.radius === null || input.radius === undefined) ? 25 : input.radius;
-    const effectiveRadiusUnit = (input.radiusUnit === null || input.radiusUnit === undefined) ? "miles" : input.radiusUnit;
-    const effectiveStartDate = input.startDate === null ? undefined : input.startDate;
-    const effectiveEndDate = input.endDate === null ? undefined : input.endDate;
-    const effectiveKeyword = input.keyword === null ? undefined : input.keyword;
-    const effectiveClassificationName = input.classificationName === null ? undefined : input.classificationName;
-    const effectiveLocation = input.location === null ? undefined : input.location;
-    const effectiveCountryCode = input.countryCode === null ? undefined : input.countryCode;
-    const userNameForResponse = input.context?.userName || "friend";
+    // Apply user event preferences if available
+    let modifiedInput = { ...input };
+    if (input.context?.userState?.workflow_preferences?.eventFinderPreferences) {
+      const eventPrefs = input.context.userState.workflow_preferences.eventFinderPreferences;
+      
+      // Apply preferred event types to the keyword if not already specified
+      if (eventPrefs.eventTypes && eventPrefs.eventTypes.length > 0 && !modifiedInput.keyword) {
+        modifiedInput.keyword = eventPrefs.eventTypes.join(' OR ');
+        this.log("debug", `[EventFinderTool] Applied preferred event types: ${eventPrefs.eventTypes.join(', ')}`);
+      }
+      
+      // Apply preferred venues to the keyword if specified
+      if (eventPrefs.preferredVenues && eventPrefs.preferredVenues.length > 0) {
+        const venueQuery = eventPrefs.preferredVenues.join(' OR ');
+        modifiedInput.keyword = modifiedInput.keyword ? `${modifiedInput.keyword} (${venueQuery})` : venueQuery;
+        this.log("debug", `[EventFinderTool] Applied preferred venues: ${eventPrefs.preferredVenues.join(', ')}`);
+      }
+      
+      // Apply distance radius preference if not specified
+      if (eventPrefs.distanceRadius && !modifiedInput.radius) {
+        modifiedInput.radius = eventPrefs.distanceRadius;
+        this.log("debug", `[EventFinderTool] Applied preferred distance radius: ${eventPrefs.distanceRadius}`);
+      }
+      
+      // Apply time preference to start/end dates if specified
+      if (eventPrefs.timePreference && eventPrefs.timePreference !== "any" && !modifiedInput.startDate) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        switch (eventPrefs.timePreference) {
+          case "morning":
+            modifiedInput.startDate = new Date(today.getTime() + 6 * 60 * 60 * 1000).toISOString(); // 6 AM
+            modifiedInput.endDate = new Date(today.getTime() + 12 * 60 * 60 * 1000).toISOString(); // 12 PM
+            break;
+          case "afternoon":
+            modifiedInput.startDate = new Date(today.getTime() + 12 * 60 * 60 * 1000).toISOString(); // 12 PM
+            modifiedInput.endDate = new Date(today.getTime() + 18 * 60 * 60 * 1000).toISOString(); // 6 PM
+            break;
+          case "evening":
+            modifiedInput.startDate = new Date(today.getTime() + 18 * 60 * 60 * 1000).toISOString(); // 6 PM
+            modifiedInput.endDate = new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString(); // 12 AM
+            break;
+        }
+        this.log("debug", `[EventFinderTool] Applied time preference: ${eventPrefs.timePreference}`);
+      }
+      
+      // Apply preferred days of week if specified
+      if (eventPrefs.preferredDaysOfWeek && eventPrefs.preferredDaysOfWeek.length > 0 && !modifiedInput.startDate) {
+        // Find the next occurrence of one of the preferred days
+        const now = new Date();
+        const preferredDayIndices = eventPrefs.preferredDaysOfWeek.map(day => {
+          const dayMap: { [key: string]: number } = {
+            'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4,
+            'friday': 5, 'saturday': 6, 'sunday': 0
+          };
+          return dayMap[day.toLowerCase()];
+        });
+        
+        const currentDayIndex = now.getDay();
+        let nextPreferredDay = preferredDayIndices.find(dayIndex => dayIndex > currentDayIndex);
+        
+        if (nextPreferredDay === undefined) {
+          // No preferred day this week, find the earliest one next week
+          nextPreferredDay = Math.min(...preferredDayIndices) + 7;
+        }
+        
+        const daysUntilNext = nextPreferredDay - currentDayIndex;
+        const nextPreferredDate = new Date(now.getTime() + daysUntilNext * 24 * 60 * 60 * 1000);
+        modifiedInput.startDate = nextPreferredDate.toISOString();
+        this.log("debug", `[EventFinderTool] Applied preferred days of week: ${eventPrefs.preferredDaysOfWeek.join(', ')}`);
+      }
+    }
+
+    const effectiveLimit = (modifiedInput.limit === null || modifiedInput.limit === undefined) ? 5 : Math.max(1, Math.min(modifiedInput.limit, 10));
+    const effectiveRadius = (modifiedInput.radius === null || modifiedInput.radius === undefined) ? 25 : modifiedInput.radius;
+    const effectiveRadiusUnit = (modifiedInput.radiusUnit === null || modifiedInput.radiusUnit === undefined) ? "miles" : modifiedInput.radiusUnit;
+    const effectiveStartDate = modifiedInput.startDate === null ? undefined : modifiedInput.startDate;
+    const effectiveEndDate = modifiedInput.endDate === null ? undefined : modifiedInput.endDate;
+    const effectiveKeyword = modifiedInput.keyword === null ? undefined : modifiedInput.keyword;
+    const effectiveClassificationName = modifiedInput.classificationName === null ? undefined : modifiedInput.classificationName;
+    const effectiveLocation = modifiedInput.location === null ? undefined : modifiedInput.location;
+    const effectiveCountryCode = modifiedInput.countryCode === null ? undefined : modifiedInput.countryCode;
+    const userNameForResponse = modifiedInput.context?.userName || "friend";
 
     const logPrefix = `[EventFinderTool User:${input.context?.userId?.substring(0,8)}]`;
-    const queryInputForStructuredData = { ...input, limit: effectiveLimit, radius: effectiveRadius, radiusUnit: effectiveRadiusUnit, source: effectiveSource };
+    const queryInputForStructuredData = { ...modifiedInput, limit: effectiveLimit, radius: effectiveRadius, radiusUnit: effectiveRadiusUnit, source: effectiveSource };
 
     const params = new URLSearchParams({ apikey: this.API_KEY, size: String(effectiveLimit), sort: "date,asc", includeTBA: "no", includeTBD: "no" });
     let locationDescription = "your current area";
@@ -183,14 +263,57 @@ export class EventFinderTool extends BaseTool {
 
     if (effectiveLocation) {
         if (effectiveLocation.match(/^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/)) {
+            // Coordinates format
             params.set("latlong", effectiveLocation);
             locationDescription = `near coordinates ${effectiveLocation}`;
         } else {
-            params.set("keyword", `${params.get("keyword") || ""} ${effectiveLocation}`.trim());
+            // City name or address - use city parameter instead of adding to keyword
+            params.set("city", effectiveLocation);
             locationDescription = `near ${effectiveLocation}`;
         }
         params.set("radius", String(effectiveRadius));
         params.set("unit", effectiveRadiusUnit);
+    } else if (effectiveCountryCode && !effectiveLocation) {
+        // If we have a country code but no specific city, use a major city from that country
+        const majorCitiesByCountry: Record<string, string> = {
+            "US": "New York",
+            "GB": "London", 
+            "CA": "Toronto",
+            "AU": "Sydney",
+            "DE": "Berlin",
+            "FR": "Paris",
+            "IT": "Rome",
+            "ES": "Madrid",
+            "NL": "Amsterdam",
+            "JP": "Tokyo",
+            "KR": "Seoul",
+            "CN": "Beijing",
+            "IN": "Mumbai",
+            "BR": "São Paulo",
+            "MX": "Mexico City",
+            "AR": "Buenos Aires",
+            "SG": "Singapore",
+            "HK": "Hong Kong",
+            "TH": "Bangkok",
+            "MY": "Kuala Lumpur",
+            "ID": "Jakarta",
+            "PH": "Manila",
+            "VN": "Ho Chi Minh City",
+            "TW": "Taipei"
+        };
+        
+        const majorCity = majorCitiesByCountry[effectiveCountryCode];
+        if (majorCity) {
+            params.set("city", majorCity);
+            locationDescription = `in ${majorCity}, ${effectiveCountryCode}`;
+            params.set("radius", String(effectiveRadius));
+            params.set("unit", effectiveRadiusUnit);
+            this.log("info", `${logPrefix} Using major city ${majorCity} for country ${effectiveCountryCode}`);
+        } else {
+            // Fallback to global search with country filter
+            locationDescription = `in ${effectiveCountryCode}`;
+            this.log("warn", `${logPrefix} No major city mapping for country ${effectiveCountryCode}, searching globally with country filter.`);
+        }
     } else if (typeof input.context?.latitude === 'number' && typeof input.context?.longitude === 'number') {
         const geoPoint = `${input.context.latitude},${input.context.longitude}`;
         params.set("latlong", geoPoint);
@@ -209,6 +332,7 @@ export class EventFinderTool extends BaseTool {
 
     const url = `${this.API_BASE}?${params.toString()}`;
     this.log("info", `${logPrefix} Searching Ticketmaster: ${url.split("apikey=")[0]}...`);
+    this.log("debug", `${logPrefix} Date range: start=${startDateTime}, end=${endDateTime}, location=${effectiveLocation}, country=${effectiveCountryCode}`);
 
     let outputStructuredData: EventFinderStructuredOutput = {
       result_type: "event_list", source_api: "ticketmaster", query: queryInputForStructuredData,

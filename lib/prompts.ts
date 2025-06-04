@@ -123,6 +123,32 @@ SPECIFIC TOOL GUIDANCE WITH EXAMPLES:
   Example 2: "Basketball games next month" → { keyword: "basketball games", relativeDateDescription: "next month", classificationName: "Sports" }
   Example 3: "Family events in Chicago" → { keyword: "family events", location: "Chicago", classificationName: "Family" }
 
+- StripePaymentLinkTool: Use when users want to create payment links, sell products, or set up e-commerce. The tool handles conversational flow.
+  Example 1: "I want to create a payment link for my product" → { step: "initial" }
+  Example 2: "Help me sell my handmade candles for $25" → { product_name: "handmade candles", price: 2500, step: "initial" }
+  Example 3: "Create a payment link for my consulting service" → { product_name: "consulting service", step: "initial" }
+
+IMPORTANT: For Stripe tools, only pass the following parameters for StripePaymentLinkTool:
+- product_name (optional string or null)
+- price (optional number or null)
+- currency (optional string or null)
+- description (optional string or null)
+- image_url (optional string or null)
+- quantity_adjustable (optional boolean or null)
+- payment_link_name (optional string or null)
+- step (string, preferably "initial" for new flows)
+
+- StripeSellerOnboardingTool: Use when users want to set up a seller account, become a seller, or start accepting payments. This tool guides users through Stripe Connect onboarding.
+  Example 1: "I want to start selling online" → { intent: "start_selling" }
+  Example 2: "How do I become a seller?" → { intent: "become_seller" }
+  Example 3: "Set up my payments account" → { intent: "setup_account" }
+
+IMPORTANT: For StripeSellerOnboardingTool, only pass the following parameters:
+- intent (string, required)
+- country (optional string or null)
+- entity_type (optional string or null)
+- business_description (optional string or null)
+
 - GoogleCalendarReaderTool:
   Example 1: "What's on my calendar today?" → { action: "get_today_events", maxResults: 5, calendarId: "primary" }
   Example 2: "Show my upcoming meetings" → { action: "get_upcoming_events", maxResults: 5, calendarId: "primary" }

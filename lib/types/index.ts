@@ -203,46 +203,94 @@ attractions?: Array<{ name: string }>;
 }
 // --- Workflow Preferences ---
 export interface UserWorkflowPreferences {
-newsKeywords?: string[];
-newsSources?: string[];
-newsPreferredCategories?: ("business" | "entertainment" | "general" | "health" | "science" | "sports" | "technology")[];
-contentRadarSubreddits?: string[];
-contentRadarRssUrls?: string[];
-redditPreferredSubreddits?: string[];
-youtubePreferredChannels?: string[];
-hackernewsPreferredTopics?: string[];
-recipePreferredCuisines?: string[];
-recipePreferredDiets?: string[];
-sportsPreferredTeams?: string[];
-sportsPreferredLeagues?: string[];
-webSearchPreferredSources?: string[];
-interestCategories?: ("sports" | "cinema" | "tvshows" | "politics" | "tech" | "anime" | "gaming" | "music" | "books" | "science" | "travel" | "cooking" | "fashion" | "finance" | "health" | "art")[];
-trackedMarketAssets?: {
-id: string;
-type: "crypto" | "stock" | "nft";
-alertThreshold?: number;
-}[];
-localConditions?: {
-type: "aqi" | "pollen" | "transit";
-threshold?: number;
-transitRouteId?: string;
-}[];
-webWatchers?: { url: string; selector: string; watchKey: string }[];
-learningTopics?: string[];
-creativeInterests?: string[];
-importantDates?: { label: string; date: string }[];
-entertainmentGenres?: {
-type: "movie" | "music" | "game";
-genres: string[];
-}[];
-sleepGoalHours?: number;
-activityGoalSteps?: number;
-dailyBriefingTime?: string; // format: "HH:MM"
-dailyBriefingEnabled?: boolean;
-dailyBriefingIncludeNews?: boolean;
-dailyBriefingIncludeWeather?: boolean;
-dailyBriefingIncludeCalendar?: boolean;
-dailyBriefingIncludeReminders?: boolean;
+  // News preferences
+  newsKeywords?: string[];
+  newsSources?: string[];
+  newsPreferredCategories?: ("business" | "entertainment" | "general" | "health" | "science" | "sports" | "technology")[];
+  
+  // Reddit preferences  
+  contentRadarSubreddits?: string[];
+  contentRadarRssUrls?: string[];
+  redditPreferredSubreddits?: string[];
+  
+  // YouTube preferences
+  youtubePreferredChannels?: string[];
+  youtubePreferredCategories?: ("music" | "gaming" | "education" | "entertainment" | "news" | "sports" | "technology" | "travel")[];
+  youtubeVideoLengthPreference?: ("short" | "medium" | "long" | "any");
+  
+  // HackerNews preferences
+  hackernewsPreferredTopics?: string[];
+  
+  // Recipe preferences
+  recipePreferredCuisines?: string[];
+  recipePreferredDiets?: string[];
+  recipeSkillLevel?: ("beginner" | "intermediate" | "advanced" | "any");
+  recipeMaxCookingTime?: number; // in minutes
+  
+  // Sports preferences
+  sportsPreferredTeams?: string[];
+  sportsPreferredLeagues?: string[];
+  
+  // WebSearch preferences
+  webSearchPreferredSources?: string[];
+  webSearchShoppingPreferences?: {
+    preferredRetailers?: string[];
+    priceRange?: { min?: number; max?: number };
+    preferredBrands?: string[];
+    shippingPreference?: ("free" | "fast" | "any");
+    reviewThreshold?: number; // minimum review rating
+  };
+  webSearchTikTokPreferences?: {
+    preferredCreators?: string[];
+    preferredHashtags?: string[];
+    contentTypes?: ("dance" | "comedy" | "education" | "cooking" | "diy" | "any")[];
+    videoLengthPreference?: ("short" | "medium" | "long" | "any");
+  };
+  
+  // Event Finder preferences
+  eventFinderPreferences?: {
+    preferredVenues?: string[];
+    eventTypes?: ("concerts" | "sports" | "theater" | "comedy" | "festivals" | "family" | "business")[];
+    priceRange?: { min?: number; max?: number };
+    distanceRadius?: number; // in miles/km
+    preferredDaysOfWeek?: ("monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday")[];
+    timePreference?: ("morning" | "afternoon" | "evening" | "any");
+  };
+  
+  // General interest categories
+  interestCategories?: ("sports" | "cinema" | "tvshows" | "politics" | "tech" | "anime" | "gaming" | "music" | "books" | "science" | "travel" | "cooking" | "fashion" | "finance" | "health" | "art")[];
+  
+  // Advanced tracking and monitoring
+  trackedMarketAssets?: {
+    id: string;
+    type: "crypto" | "stock" | "nft";
+    alertThreshold?: number;
+  }[];
+  localConditions?: {
+    type: "aqi" | "pollen" | "transit";
+    threshold?: number;
+    transitRouteId?: string;
+  }[];
+  webWatchers?: { url: string; selector: string; watchKey: string }[];
+  learningTopics?: string[];
+  creativeInterests?: string[];
+  importantDates?: { label: string; date: string }[];
+  entertainmentGenres?: {
+    type: "movie" | "music" | "game";
+    genres: string[];
+  }[];
+  
+  // Personal goals and metrics
+  sleepGoalHours?: number;
+  activityGoalSteps?: number;
+  
+  // Daily briefing preferences
+  dailyBriefingTime?: string; // format: "HH:MM"
+  dailyBriefingEnabled?: boolean;
+  dailyBriefingIncludeNews?: boolean;
+  dailyBriefingIncludeWeather?: boolean;
+  dailyBriefingIncludeCalendar?: boolean;
+  dailyBriefingIncludeReminders?: boolean;
 }
 // --- Data Analysis Types ---
 export interface DataAnalysisInput {
@@ -1058,6 +1106,8 @@ email?: string | null;
 full_name?: string | null;
 first_name?: string | null;
 avatar_url?: string | null;
+stripe_account_id?: string | null;
+stripe_onboarding_complete?: boolean | null;
 };
 export type UserJournalEntry = {
 id: number;

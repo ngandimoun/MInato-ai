@@ -226,6 +226,52 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     const userNameForResponse = input.context?.userName || "friend";
 
     const logPrefix = `[HNTool ${effectiveQuery ? `Query:'${effectiveQuery.substring(0,20)}'` : `Filter:${effectiveFilter}`}]`;
+    
+    // Apply user preferences if available (moved after logPrefix definition)
+    if (input.context?.userState?.workflow_preferences) {
+      const prefs = input.context.userState.workflow_preferences;
+      
+      // If user has preferred HackerNews topics and no specific query, use them
+      if (prefs.hackernewsPreferredTopics && 
+          prefs.hackernewsPreferredTopics.length > 0 && 
+          !effectiveQuery) {
+        // Use the first preferred topic as the search query
+        const preferredTopic = prefs.hackernewsPreferredTopics[0];
+        // Re-evaluate effective values since we're changing the query
+        const newEffectiveQuery = preferredTopic.trim();
+        logger.debug(`${logPrefix} Applied user's preferred HackerNews topic: ${newEffectiveQuery}`);
+        
+        // Update the input for downstream processing
+        input.query = newEffectiveQuery;
+        
+        // Re-calculate effective values
+        const updatedEffectiveQuery = newEffectiveQuery;
+        const updatedEffectiveFilter = undefined; // Query takes precedence
+        
+        return this.execute({ ...input, query: newEffectiveQuery }, abortSignal);
+      }
+      
+      // If user has a query but also has preferred topics, bias the search
+      if (prefs.hackernewsPreferredTopics && 
+          prefs.hackernewsPreferredTopics.length > 0 && 
+          effectiveQuery) {
+        // Check if the query doesn't already include preferred topics
+        const hasPreferredTopic = prefs.hackernewsPreferredTopics.some(topic => 
+          effectiveQuery.toLowerCase().includes(topic.toLowerCase())
+        );
+        
+        if (!hasPreferredTopic) {
+          // Add preferred topics as additional search terms
+          const topicQuery = prefs.hackernewsPreferredTopics.slice(0, 2).join(' OR ');
+          const enhancedQuery = `${effectiveQuery} (${topicQuery})`;
+          logger.debug(`${logPrefix} Enhanced query with preferred topics: ${prefs.hackernewsPreferredTopics.slice(0, 2).join(', ')}`);
+          
+          // Update the input and re-execute
+          return this.execute({ ...input, query: enhancedQuery }, abortSignal);
+        }
+      }
+    }
+    
     const queryInputForStructuredData = { ...input, query: effectiveQuery, filter: effectiveFilter, limit: effectiveLimit, time: effectiveTime };
 
     if (!effectiveQuery && !effectiveFilter) {

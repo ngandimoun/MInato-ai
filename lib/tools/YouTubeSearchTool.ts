@@ -204,6 +204,60 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
           logger.debug(`${logPrefix} Applied user's preferred YouTube channel: ${channel}`);
         }
       }
+      
+      // Apply preferred YouTube categories if user hasn't specified a category
+      if (prefs.youtubePreferredCategories && 
+          prefs.youtubePreferredCategories.length > 0 && 
+          !input.category) {
+        // Use the first preferred category as default
+        input.category = prefs.youtubePreferredCategories[0] as any;
+        logger.debug(`${logPrefix} Applied user's preferred YouTube category: ${input.category}`);
+      }
+      
+      // Apply video length preference to the query if specified
+      if (prefs.youtubeVideoLengthPreference && prefs.youtubeVideoLengthPreference !== "any") {
+        if (prefs.youtubeVideoLengthPreference === "short") {
+          input.query = `${input.query} short`;
+          logger.debug(`${logPrefix} Applied video length preference: short videos`);
+        } else if (prefs.youtubeVideoLengthPreference === "medium") {
+          input.query = `${input.query} 4-20 minutes`;
+          logger.debug(`${logPrefix} Applied video length preference: medium length videos`);
+        } else if (prefs.youtubeVideoLengthPreference === "long") {
+          input.query = `${input.query} long video tutorial`;
+          logger.debug(`${logPrefix} Applied video length preference: long videos`);
+        }
+      }
+      
+      // Apply additional category-based query refinements
+      if (input.category) {
+        switch (input.category) {
+          case "education":
+            input.query = `${input.query} tutorial educational learn`;
+            break;
+          case "music":
+            input.query = `${input.query} official music video song`;
+            break;
+          case "gaming":
+            input.query = `${input.query} gameplay gaming review`;
+            break;
+          case "technology":
+            input.query = `${input.query} tech review technology`;
+            break;
+          case "entertainment":
+            input.query = `${input.query} entertainment funny viral`;
+            break;
+          case "news":
+            input.query = `${input.query} news update latest`;
+            break;
+          case "sports":
+            input.query = `${input.query} sports highlights game`;
+            break;
+          case "travel":
+            input.query = `${input.query} travel vlog destination`;
+            break;
+        }
+        logger.debug(`${logPrefix} Applied category-based query refinement for: ${input.category}`);
+      }
     }
     
     const userNameForResponse = input._context?.userName || "friend";

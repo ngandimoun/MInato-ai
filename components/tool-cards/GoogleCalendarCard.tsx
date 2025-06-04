@@ -65,51 +65,28 @@ return (
 export function GoogleCalendarCard({ data }: GoogleCalendarCardProps) {
 if (!data) return <p className="text-sm text-muted-foreground">No calendar data available.</p>;
 const userName = data.query?.context?.userName || "User";
-const userLocale = data.query?.context?.locale?.split("-")[0];
-const userTimezone = data.query?.context?.timezone;
+
+// Return a placeholder card with coming soon message
 return (
 <Card className="w-full">
 <CardHeader>
 <CardTitle className="flex items-center gap-2">
 <CalendarDays className="h-5 w-5 text-primary"/>
-{userName}'s Google Calendar - Today
+{userName}'s Google Calendar
 </CardTitle>
 <CardDescription>
-  {data.events.length > 0 ? `You have ${data.events.length} event(s) today.` : "Your calendar is clear for today!"}
-  {data.query && data.query.calendarId && data.query.calendarId !== 'primary' && ` Calendar: ${data.query.calendarId}`}
+  Google Calendar integration will be available in a future Minato upgrade.
 </CardDescription>
 </CardHeader>
 <CardContent>
-{data.error && (
-<div className="flex items-center gap-2 text-destructive text-sm p-3 bg-destructive/10 rounded-md">
-<AlertCircle size={18}/>
-<div>
-<p className="font-medium">Calendar Error</p>
-<p className="text-xs">{data.error}</p>
-</div>
-</div>
-)}
-{!data.error && data.events && data.events.length > 0 ? (
-<ScrollArea className="max-h-80 pr-2"> {/* Added pr for scrollbar */}
-<ul className="space-y-2.5">
-{data.events.map(event => (
-<EventItem key={event.id} event={event} userLocale={userLocale} userTimezone={userTimezone}/>
-))}
-</ul>
-</ScrollArea>
-) : (
-!data.error &&
 <div className="text-center py-6 text-muted-foreground">
 <Info size={24} className="mx-auto mb-2 opacity-50"/>
-<p className="text-sm">No events scheduled for today in this calendar.</p>
+<p className="text-sm">This feature is coming soon! Stay tuned for updates.</p>
 </div>
-)}
 </CardContent>
-{data.events && data.events.length > 0 && (
 <CardFooter className="text-xs text-muted-foreground justify-center pt-3 border-t">
-Displaying events for today.
+Connect to see your daily events in Minato.
 </CardFooter>
-)}
 </Card>
 );
 }
