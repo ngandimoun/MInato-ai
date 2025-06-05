@@ -118,9 +118,8 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
     parsedData &&
     typeof parsedData === 'object' &&
     'result_type' in parsedData &&
-    parsedData.result_type === 'tiktok_video' &&
-    'source_api' in parsedData &&
-    parsedData.source_api === 'serper_tiktok';
+    ['product_list', 'web_snippet', 'answerBox', 'knowledgeGraph', 'recipe', 'recipe_detail'].includes(parsedData.result_type as string) &&
+    (!('source_api' in parsedData) || parsedData.source_api !== 'youtube'); // Exclude YouTube videos
 
   if (isTikTokVideoList || isTikTokVideo) {
     return <TikTokCard data={parsedData as CachedVideoList} />;
