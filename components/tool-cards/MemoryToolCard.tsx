@@ -3,7 +3,7 @@
 
 import { MemoryToolResult } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button"; // Added for potential actions
+import { Button } from "@/components/ui/button"; 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Brain, Search, ThumbsUp, AlertTriangle, BadgeCheck, Info, CalendarDays, Tag, Activity, AlertCircle, Sparkles } from "lucide-react";
 import { format, formatDistanceToNowStrict, parseISO } from 'date-fns';
@@ -52,7 +52,7 @@ const MemoryListItem: React.FC<{ memory: NonNullable<MemoryToolResult['memories'
             whileTap={{ scale: 0.97 }}
             onClick={handleCopyToClipboard}
             className={cn(
-                "glass-card relative p-2.5 my-2 first:mt-0 last:mb-0 rounded-xl transition-all",
+                "glass-card relative p-2.5 rounded-xl transition-all h-full cursor-pointer", 
                 isLatest && "border-cyan-400/60 minato-glow"
             )}
         >
@@ -94,6 +94,7 @@ export function MemoryToolCard({ data }: MemoryToolCardProps) {
 
   return (
     <Card className="w-full glass-card overflow-hidden">
+      
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2">
             <motion.div
@@ -119,7 +120,9 @@ export function MemoryToolCard({ data }: MemoryToolCardProps) {
           <span className="italic">just now</span>
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      
+      {/* MODIFICATION: Ajustement du padding de CardContent */}
+      <CardContent className="pt-2 pb-4 px-4 md:px-6"> 
         {data.error && (
             <div className="flex items-center gap-2 text-destructive text-sm p-3 bg-destructive/10 rounded-md">
                 <AlertCircle size={18}/> 
@@ -131,7 +134,8 @@ export function MemoryToolCard({ data }: MemoryToolCardProps) {
         )}
         {!data.error && data.found && data.memories && data.memories.length > 0 ? (
           <>
-            <div className="text-sm mb-2 text-muted-foreground flex items-center">
+            {/* MODIFICATION: mb-3 au lieu de mb-2 pour l'espacement avant ScrollArea */}
+            <div className="text-sm mb-3 text-muted-foreground flex items-center"> 
               <motion.div 
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -141,8 +145,9 @@ export function MemoryToolCard({ data }: MemoryToolCardProps) {
                 Results for: "<span className="text-cyan-600 dark:text-cyan-400">{queryText.substring(0,50)}{queryText.length > 50 ? "..." : ""}</span>"
               </motion.div>
             </div>
-            <ScrollArea className="max-h-[70vh] md:max-h-80 pr-2 custom-scrollbar">
-              <ul className="space-y-0">
+            {/* MODIFICATION: Ajustement des classes de ScrollArea pour max-h et pr */}
+            <ScrollArea className="h-64 md:h-80 lg:h-96 pr-3 custom-scrollbar"> 
+              <ul className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                 {data.memories.map((mem, index) => (
                   <MemoryListItem key={mem.memory_id} memory={mem} index={index} />
                 ))}
@@ -165,13 +170,13 @@ export function MemoryToolCard({ data }: MemoryToolCardProps) {
         <CardFooter className="text-xs text-muted-foreground justify-center pt-2 pb-3 border-t">
             <div className="flex items-center gap-2">
                 <span className="text-[11px] opacity-70">Displaying {data.memories.length} of {data.count} memories</span>
-                <Button 
+                {/* <Button 
                     variant="outline" 
                     size="sm" 
                     className="h-7 text-xs flex gap-1 items-center"
                 >
                     <Search className="h-3 w-3" /> Search again
-                </Button>
+                </Button> */}
             </div>
         </CardFooter>
       )}

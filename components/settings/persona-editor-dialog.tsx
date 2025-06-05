@@ -16,9 +16,17 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X } from "lucide-react";
+import { OpenAITtsVoice } from "@/lib/types";
 
 interface Persona {
   id: string;
@@ -26,6 +34,7 @@ interface Persona {
   description: string;
   system_prompt: string;
   isCustom: boolean;
+  voice_id?: string | null;
 }
 
 interface PersonaEditorDialogProps {
@@ -120,6 +129,21 @@ const specialSkillsOptions = [
   { id: "therapy", label: "Therapy-Like Support" },
 ];
 
+// TTS Voice options (matching the ones from settings-panel.tsx)
+const TTS_VOICES_WITH_DESC: { id: OpenAITtsVoice; name: string; description: string }[] = [
+  { id: "alloy", name: "Naruto", description: "Energetic and determined." },
+  { id: "echo", name: "Sasuke", description: "Cool, composed, and precise." },
+  { id: "fable", name: "Hinata", description: "Gentle storyteller with soft expression." },
+  { id: "onyx", name: "Madara", description: "Deep and authoritative tone." },
+  { id: "nova", name: "Sakura", description: "Bright and friendly personality." },
+  { id: "shimmer", name: "Mikasa", description: "Calm and soothing presence." },
+  { id: "ash", name: "Kakashi", description: "Relaxed and contemplative." },
+  { id: "ballad", name: "Itachi", description: "Smooth and melodic delivery." },
+  { id: "coral", name: "Tsunade", description: "Confident and approachable." },
+  { id: "sage", name: "Jiraiya", description: "Wise mentor with experience." },
+  { id: "verse", name: "Minato", description: "Clear and focused articulation." },
+];
+
 export function PersonaEditorDialog({
   open,
   onOpenChange,
@@ -135,6 +159,9 @@ export function PersonaEditorDialog({
     string | null
   >(null);
   const [selectedVibe, setSelectedVibe] = useState<string | null>(null);
+  const [selectedVoice, setSelectedVoice] = useState<OpenAITtsVoice | null>(
+    initialPersona?.voice_id as OpenAITtsVoice | null
+  );
 
   // Magic spice state
   const [magicSpiceOpen, setMagicSpiceOpen] = useState(false);
@@ -341,6 +368,14 @@ export function PersonaEditorDialog({
       }
     }
     
+    // Add voice info to description if set
+    if (selectedVoice) {
+      const voiceInfo = TTS_VOICES_WITH_DESC.find(v => v.id === selectedVoice);
+      if (voiceInfo) {
+        description += ` | Voice: ${voiceInfo.name}`;
+      }
+    }
+    
     // Trim and clean up description
     description = description.trim();
     
@@ -349,6 +384,7 @@ export function PersonaEditorDialog({
       description: description,
       system_prompt: system_prompt,
       isCustom: true,
+      voice_id: selectedVoice || null,
     });
     onOpenChange(false);
   };
@@ -494,6 +530,31 @@ export function PersonaEditorDialog({
                   </Button>
                 ))}
               </div>
+            </div>
+
+            {/* Voice Selection */}
+            <div className="space-y-2">
+              <Label className="text-sm">Persona Voice:</Label>
+              <Select
+                value={selectedVoice || "none"}
+                onValueChange={(value) => setSelectedVoice(value === "none" ? null : value as OpenAITtsVoice)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a voice for this persona" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No specific voice (use default)</SelectItem>
+                  {TTS_VOICES_WITH_DESC.map(voice => (
+                    <SelectItem key={voice.id} value={voice.id}>
+                      <span className="font-medium">{voice.name}</span>
+                      <span className="text-muted-foreground/70 ml-2 text-xs">{voice.description}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Choose a specific voice for this persona. If not set, Minato will use the default voice.
+              </p>
             </div>
           </div>
 

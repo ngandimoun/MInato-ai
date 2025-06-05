@@ -242,7 +242,13 @@ if (state && state.user_first_name) {
 if (state) {
   setLanguage(state.preferred_locale || appConfig.defaultLocale || "en-US");
   setSelectedPersonaId(state.active_persona_id || DEFAULT_PERSONA_ID);
-  setSelectedMinatoVoice((state.chainedvoice as OpenAITtsVoice) || defaultMinatoVoice);
+  
+  // Load voice from state with logging
+  const savedVoice = state.chainedvoice as OpenAITtsVoice;
+  const voiceToLoad = savedVoice || defaultMinatoVoice;
+  logger.info(`[Settings] Loading voice from state: ${savedVoice || 'none'}, using: ${voiceToLoad}`);
+  setSelectedMinatoVoice(voiceToLoad);
+  
   setGoogleCalendarConnected(!!state.googlecalendarenabled);
   setGoogleGmailConnected(!!state.googleemailenabled);
   
@@ -390,13 +396,18 @@ const voiceToUse = isValidVoice ? newVoice : defaultMinatoVoice;
 const selectedVoiceInfo = ALL_TTS_VOICES_WITH_DESC.find(voice => voice.id === voiceToUse);
 const characterName = selectedVoiceInfo?.name || 'Default';
 
+logger.info(`[Settings] Saving voice selection: ${voiceToUse} (${characterName}) for user ${user.id.substring(0, 8)}...`);
+
 setSelectedMinatoVoice(voiceToUse);
 const success = await updateProfileState({ chainedvoice: voiceToUse });
 
-if (success) toast({ title: `Voice set to ${characterName}!`, description: `Minato will now speak with the ${characterName} voice.` });
-else {
-toast({ title: "Failed to update voice", variant: "destructive" });
-setSelectedMinatoVoice((state?.chainedvoice as OpenAITtsVoice) || defaultMinatoVoice);
+if (success) {
+  logger.info(`[Settings] Voice successfully saved to Supabase: ${voiceToUse}`);
+  toast({ title: `Voice set to ${characterName}!`, description: `Minato will now speak with the ${characterName} voice.` });
+} else {
+  logger.error(`[Settings] Failed to save voice to Supabase`);
+  toast({ title: "Failed to update voice", variant: "destructive" });
+  setSelectedMinatoVoice((state?.chainedvoice as OpenAITtsVoice) || defaultMinatoVoice);
 }
 setIsSavingVoice(false);
 };
@@ -632,55 +643,54 @@ try { return URL.createObjectURL(file); } catch (error) { console.error("Error c
 };
 const handleLinkClick = (url: string | null) => { /* Could add tracking here */ };
 const colorPalettes: ColorPaletteOption[] = [
-{ name: "Arctic Dawn", value: "arctic-dawn", primary: "bg-blue-600", secondary: "bg-blue-200", description: "Cool blues and greys" },
-{ name: "Sakura Blossom", value: "sakura-blossom", primary: "bg-pink-400", secondary: "bg-pink-100", description: "Soft pinks and whites" },
-{ name: "Emerald Forest", value: "emerald-forest", primary: "bg-green-700", secondary: "bg-green-200", description: "Deep greens and browns" },
-{ name: "Cyber Neon", value: "cyber-neon", primary: "bg-purple-600", secondary: "bg-cyan-300", description: "Vibrant purple and cyan" },
-{ name: "Monochrome Ink", value: "monochrome-ink", primary: "bg-gray-800", secondary: "bg-gray-300", description: "Grayscale variants" },
-{ name: "Sunset Gold", value: "sunset-gold", primary: "bg-amber-500", secondary: "bg-amber-200", description: "Warm oranges and golds" },
-{ name: "Lavender Mist", value: "lavender-mist", primary: "bg-purple-400", secondary: "bg-purple-100", description: "Soft purples and lilacs" },
-{ name: "Ocean Depths", value: "ocean-depths", primary: "bg-teal-700", secondary: "bg-blue-300", description: "Deep blues and teals" },
-{ name: "Desert Sand", value: "desert-sand", primary: "bg-amber-600", secondary: "bg-yellow-100", description: "Warm neutrals and tans" },
-{ name: "Midnight Galaxy", value: "midnight-galaxy", primary: "bg-indigo-800", secondary: "bg-violet-300", description: "Deep purples and blues" },
-{ name: "Autumn Harvest", value: "autumn-harvest", primary: "bg-red-600", secondary: "bg-orange-300", description: "Rich reds and oranges" },
-{ name: "Spring Meadow", value: "spring-meadow", primary: "bg-lime-600", secondary: "bg-yellow-300", description: "Fresh greens and yellows" },
-{ name: "Royal Purple", value: "royal-purple", primary: "bg-purple-800", secondary: "bg-purple-300", description: "Deep royal purples" },
-{ name: "Tropical Paradise", value: "tropical-paradise", primary: "bg-teal-500", secondary: "bg-yellow-200", description: "Bright tropical colors" },
-{ name: "Ruby Red", value: "ruby-red", primary: "bg-red-700", secondary: "bg-red-200", description: "Rich ruby reds" },
-{ name: "Midnight Blue", value: "midnight-blue", primary: "bg-blue-900", secondary: "bg-blue-300", description: "Deep midnight blues" },
-{ name: "Forest Green", value: "forest-green", primary: "bg-green-800", secondary: "bg-green-300", description: "Dark forest greens" },
-{ name: "Sunset Orange", value: "sunset-orange", primary: "bg-orange-600", secondary: "bg-orange-200", description: "Warm sunset oranges" },
-{ name: "Slate Gray", value: "slate-gray", primary: "bg-slate-700", secondary: "bg-slate-300", description: "Cool slate grays" },
-{ name: "Turquoise Sea", value: "turquoise-sea", primary: "bg-cyan-600", secondary: "bg-cyan-200", description: "Vibrant turquoise blues" },
-{ name: "Chocolate Brown", value: "chocolate-brown", primary: "bg-amber-800", secondary: "bg-amber-300", description: "Rich chocolate browns" },
-{ name: "Electric Blue", value: "electric-blue", primary: "bg-blue-500", secondary: "bg-indigo-200", description: "Vibrant electric blues" },
-{ name: "Olive Green", value: "olive-green", primary: "bg-green-600", secondary: "bg-lime-100", description: "Earthy olive greens" },
-{ name: "Coral Reef", value: "coral-reef", primary: "bg-rose-500", secondary: "bg-orange-200", description: "Vibrant coral colors" },
-// New color palettes
-{ name: "Velvet Purple", value: "velvet-purple", primary: "bg-purple-700", secondary: "bg-purple-200", description: "Rich velvety purples" },
-{ name: "Cosmic Blue", value: "cosmic-blue", primary: "bg-blue-800", secondary: "bg-blue-400", description: "Cosmic deep blues" },
-{ name: "Rose Gold", value: "rose-gold", primary: "bg-rose-400", secondary: "bg-rose-200", description: "Elegant rose gold tones" },
-{ name: "Mint Fresh", value: "mint-fresh", primary: "bg-emerald-400", secondary: "bg-emerald-100", description: "Refreshing mint greens" },
-{ name: "Cherry Blossom", value: "cherry-blossom", primary: "bg-pink-500", secondary: "bg-pink-200", description: "Delicate cherry pinks" },
-{ name: "Golden Hour", value: "golden-hour", primary: "bg-amber-400", secondary: "bg-orange-100", description: "Warm sunset glow" },
-{ name: "Mystic Violet", value: "mystic-violet", primary: "bg-violet-600", secondary: "bg-violet-200", description: "Mystical violet hues" },
-{ name: "Neon Lime", value: "neon-lime", primary: "bg-lime-500", secondary: "bg-lime-200", description: "Bright neon lime greens" },
-{ name: "Honey Amber", value: "honey-amber", primary: "bg-amber-500", secondary: "bg-yellow-200", description: "Warm honey amber tones" },
-{ name: "Deep Crimson", value: "deep-crimson", primary: "bg-red-800", secondary: "bg-red-300", description: "Dark rich crimsons" },
-{ name: "Aqua Marine", value: "aqua-marine", primary: "bg-cyan-500", secondary: "bg-cyan-100", description: "Fresh aqua marine blues" },
-{ name: "Peach Cream", value: "peach-cream", primary: "bg-orange-300", secondary: "bg-orange-100", description: "Soft peachy creams" },
-{ name: "Steel Blue", value: "steel-blue", primary: "bg-blue-600", secondary: "bg-blue-300", description: "Industrial steel blues" },
-{ name: "Matcha Green", value: "matcha-green", primary: "bg-green-500", secondary: "bg-green-200", description: "Serene matcha greens" },
-{ name: "Silver Moon", value: "silver-moon", primary: "bg-slate-500", secondary: "bg-slate-200", description: "Ethereal silver grays" },
-{ name: "Sunset Pink", value: "sunset-pink", primary: "bg-rose-500", secondary: "bg-rose-300", description: "Warm sunset pinks" },
-{ name: "Ocean Blue", value: "ocean-blue", primary: "bg-blue-600", secondary: "bg-blue-200", description: "Deep ocean blues" },
-{ name: "Morning Mist", value: "morning-mist", primary: "bg-gray-400", secondary: "bg-gray-200", description: "Soft misty grays" },
-{ name: "Twilight Haze", value: "twilight-haze", primary: "bg-purple-500", secondary: "bg-blue-200", description: "Dreamy twilight purples" },
-{ name: "Citrus Lime", value: "citrus-lime", primary: "bg-lime-500", secondary: "bg-yellow-200", description: "Zesty citrus lime greens" },
-{ name: "Berry Punch", value: "berry-punch", primary: "bg-fuchsia-600", secondary: "bg-fuchsia-200", description: "Vibrant berry tones" },
-{ name: "Coffee Mocha", value: "coffee-mocha", primary: "bg-amber-700", secondary: "bg-amber-200", description: "Rich coffee mocha browns" },
-{ name: "Bamboo Green", value: "bamboo-green", primary: "bg-green-600", secondary: "bg-green-200", description: "Natural bamboo greens" },
-{ name: "Flamingo Pink", value: "flamingo-pink", primary: "bg-pink-500", secondary: "bg-pink-300", description: "Bright flamingo pinks" },
+{ name: "Komorebi Path", value: "komorebi-path", primary: "bg-green-600", secondary: "bg-yellow-200", description: "Sunlight through trees" },
+{ name: "Sakura Breeze", value: "sakura-breeze", primary: "bg-pink-400", secondary: "bg-pink-100", description: "Cherry blossom wind" },
+{ name: "Aki no Mori", value: "aki-no-mori", primary: "bg-orange-600", secondary: "bg-red-300", description: "Autumn forest colors" },
+{ name: "Neo Kyoto Glow", value: "neo-kyoto-glow", primary: "bg-purple-600", secondary: "bg-cyan-300", description: "Cyberpunk neon vibes" },
+{ name: "Setsugen Whisper", value: "setsugen-whisper", primary: "bg-gray-100", secondary: "bg-blue-100", description: "Quiet snowfield hues" },
+{ name: "Yugure Sky", value: "yugure-sky", primary: "bg-orange-500", secondary: "bg-purple-300", description: "Twilight dusk colors" },
+{ name: "Kaguya Moon", value: "kaguya-moon", primary: "bg-indigo-200", secondary: "bg-yellow-100", description: "Celestial moon glow" },
+{ name: "Shinkai Depths", value: "shinkai-depths", primary: "bg-blue-900", secondary: "bg-teal-300", description: "Deep ocean blues" },
+{ name: "Fuji Sunrise", value: "fuji-sunrise", primary: "bg-blue-600", secondary: "bg-orange-200", description: "Mount Fuji dawn" },
+{ name: "Tanabata Wish", value: "tanabata-wish", primary: "bg-indigo-800", secondary: "bg-yellow-300", description: "Star festival night" },
+{ name: "Kitsune Fire", value: "kitsune-fire", primary: "bg-orange-600", secondary: "bg-red-200", description: "Mystical fox flames" },
+{ name: "Ghibli Meadow", value: "ghibli-meadow", primary: "bg-green-500", secondary: "bg-blue-200", description: "Whimsical pastoral" },
+{ name: "Ryujin Palace", value: "ryujin-palace", primary: "bg-teal-700", secondary: "bg-cyan-200", description: "Dragon sea palace" },
+{ name: "Umi no Iro", value: "umi-no-iro", primary: "bg-blue-500", secondary: "bg-blue-200", description: "Colors of the sea" },
+{ name: "Tengu Mountain", value: "tengu-mountain", primary: "bg-green-800", secondary: "bg-gray-300", description: "Mountain spirit realm" },
+{ name: "Hotaru Night", value: "hotaru-night", primary: "bg-indigo-900", secondary: "bg-yellow-200", description: "Firefly summer eve" },
+{ name: "Matcha Garden", value: "matcha-garden", primary: "bg-green-600", secondary: "bg-green-200", description: "Serene tea garden" },
+{ name: "Kamikakushi Hues", value: "kamikakushi-hues", primary: "bg-red-700", secondary: "bg-purple-200", description: "Spirited away colors" },
+{ name: "Shonen Spirit", value: "shonen-spirit", primary: "bg-red-600", secondary: "bg-orange-300", description: "Bold anime energy" },
+{ name: "Maho Shojo Sparkle", value: "maho-shojo-sparkle", primary: "bg-pink-500", secondary: "bg-purple-200", description: "Magical girl shine" },
+{ name: "Tsuchi Earth", value: "tsuchi-earth", primary: "bg-amber-800", secondary: "bg-amber-300", description: "Earthy soil tones" },
+{ name: "Raijin Spark", value: "raijin-spark", primary: "bg-blue-500", secondary: "bg-indigo-200", description: "Thunder god energy" },
+{ name: "Take Grove", value: "take-grove", primary: "bg-green-600", secondary: "bg-lime-100", description: "Bamboo forest calm" },
+{ name: "Sango Reef", value: "sango-reef", primary: "bg-rose-500", secondary: "bg-orange-200", description: "Coral reef colors" },
+{ name: "Murasaki Silk", value: "murasaki-silk", primary: "bg-purple-700", secondary: "bg-purple-200", description: "Royal purple silk" },
+{ name: "Hoshi Cosmos", value: "hoshi-cosmos", primary: "bg-blue-800", secondary: "bg-blue-400", description: "Starry cosmos deep" },
+{ name: "Sakura Gold", value: "sakura-gold", primary: "bg-rose-400", secondary: "bg-rose-200", description: "Golden cherry bloom" },
+{ name: "Wakaba Mint", value: "wakaba-mint", primary: "bg-emerald-400", secondary: "bg-emerald-100", description: "Fresh spring leaves" },
+{ name: "Hanami Bloom", value: "hanami-bloom", primary: "bg-pink-500", secondary: "bg-pink-200", description: "Flower viewing joy" },
+{ name: "Kiniro Hour", value: "kiniro-hour", primary: "bg-amber-400", secondary: "bg-orange-100", description: "Golden hour glow" },
+{ name: "Onmyoji Violet", value: "onmyoji-violet", primary: "bg-violet-600", secondary: "bg-violet-200", description: "Mystic spell hues" },
+{ name: "Midori Neon", value: "midori-neon", primary: "bg-lime-500", secondary: "bg-lime-200", description: "Electric green flash" },
+{ name: "Mitsu Amber", value: "mitsu-amber", primary: "bg-amber-500", secondary: "bg-yellow-200", description: "Sweet honey tones" },
+{ name: "Akane Crimson", value: "akane-crimson", primary: "bg-red-800", secondary: "bg-red-300", description: "Deep sunset red" },
+{ name: "Mizu Aqua", value: "mizu-aqua", primary: "bg-cyan-500", secondary: "bg-cyan-100", description: "Pure water flow" },
+{ name: "Momo Cream", value: "momo-cream", primary: "bg-orange-300", secondary: "bg-orange-100", description: "Soft peach cream" },
+{ name: "Hagane Steel", value: "hagane-steel", primary: "bg-blue-600", secondary: "bg-blue-300", description: "Strong steel blue" },
+{ name: "Ocha Green", value: "ocha-green", primary: "bg-green-500", secondary: "bg-green-200", description: "Calming tea green" },
+{ name: "Tsuki Silver", value: "tsuki-silver", primary: "bg-slate-500", secondary: "bg-slate-200", description: "Moonlight silver" },
+{ name: "Yuuhi Pink", value: "yuuhi-pink", primary: "bg-rose-500", secondary: "bg-rose-300", description: "Sunset pink glow" },
+{ name: "Kaiyou Blue", value: "kaiyou-blue", primary: "bg-blue-600", secondary: "bg-blue-200", description: "Ocean voyage blue" },
+{ name: "Asagiri Mist", value: "asagiri-mist", primary: "bg-gray-400", secondary: "bg-gray-200", description: "Morning mist soft" },
+{ name: "Tasogare Haze", value: "tasogare-haze", primary: "bg-purple-500", secondary: "bg-blue-200", description: "Twilight haze dream" },
+{ name: "Yuzu Citrus", value: "yuzu-citrus", primary: "bg-lime-500", secondary: "bg-yellow-200", description: "Fresh yuzu zest" },
+{ name: "Ichigo Punch", value: "ichigo-punch", primary: "bg-fuchsia-600", secondary: "bg-fuchsia-200", description: "Strawberry burst" },
+{ name: "Kohi Mocha", value: "kohi-mocha", primary: "bg-amber-700", secondary: "bg-amber-200", description: "Coffee mocha warm" },
+{ name: "Take Bamboo", value: "take-bamboo", primary: "bg-green-600", secondary: "bg-green-200", description: "Bamboo grove peace" },
+{ name: "Tsuru Pink", value: "tsuru-pink", primary: "bg-pink-500", secondary: "bg-pink-300", description: "Crane feather pink" },
 ];
 // Overall loading state for the panel
 const isPanelLoading = (isAuthLoading || isAuthFetchingProfile) && !initialLoadDone;

@@ -680,22 +680,7 @@ Example 2 JSON:
             if (!actualToolArgs.mode) {
               let defaultMode = "fallback_search"; // Default to general search
               
-              // Check if this looks like a product search
-              const productKeywords = [
-                'buy', 'purchase', 'shop', 'price', 'cost', 'cheap', 'expensive', 
-                'amazon', 'ebay', 'dollar', 'euro', 'find me', 'shopping',
-                'book', 'reservation', 'ticket', 'hotel', 'flight', 'vacation',
-                'deal', 'discount', 'sale', 'offer', 'promotion', 'coupon',
-                'brand', 'product', 'item', 'online store', 'marketplace'
-              ];
               const userQuery = (actualToolArgs.query || userInputForFallback || "").toLowerCase();
-              
-              for (const keyword of productKeywords) {
-                if (userQuery.includes(keyword)) {
-                  defaultMode = "product_search";
-                  break;
-                }
-              }
               
               // Check if this looks like a TikTok search
               if (userQuery.includes("tiktok") || userQuery.includes("tik tok") || 
@@ -713,10 +698,6 @@ Example 2 JSON:
             // Set other required parameters with null values if they're missing
             if (actualToolArgs.location === undefined) actualToolArgs.location = null;
             if (actualToolArgs.language === undefined) actualToolArgs.language = null;
-            if (actualToolArgs.minPrice === undefined) actualToolArgs.minPrice = null;
-            if (actualToolArgs.maxPrice === undefined) actualToolArgs.maxPrice = null;
-            if (actualToolArgs.color === undefined) actualToolArgs.color = null;
-            if (actualToolArgs.brand === undefined) actualToolArgs.brand = null;
             
             // Try to extract location from query if possible
             const locationRegex = /\b(?:in|at|from|for)\s+([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)?)\b/i;
@@ -724,37 +705,6 @@ Example 2 JSON:
             const locationMatch = userQuery.match(locationRegex);
             if (locationMatch && locationMatch[1]) {
               actualToolArgs.location = locationMatch[1].trim();
-            }
-            
-            // Try to extract price range if product_search mode
-            if (actualToolArgs.mode === "product_search") {
-              const minPriceRegex = /\b(?:min|minimum|from|over|above)\s+(?:price\s+)?[$€£¥]?(\d+(?:\.\d+)?)/i;
-              const maxPriceRegex = /\b(?:max|maximum|under|below|less than)\s+(?:price\s+)?[$€£¥]?(\d+(?:\.\d+)?)/i;
-              
-              const minMatch = userQuery.match(minPriceRegex);
-              const maxMatch = userQuery.match(maxPriceRegex);
-              
-              if (minMatch && minMatch[1]) {
-                actualToolArgs.minPrice = parseFloat(minMatch[1]);
-              }
-              
-              if (maxMatch && maxMatch[1]) {
-                actualToolArgs.maxPrice = parseFloat(maxMatch[1]);
-              }
-              
-              // Extract color if mentioned
-              const colorRegex = /\b(?:color|colour)\s+(?:is\s+)?([a-z]+)\b|\b([a-z]+)\s+(?:color|colour)\b/i;
-              const colorMatch = userQuery.match(colorRegex);
-              if (colorMatch && (colorMatch[1] || colorMatch[2])) {
-                actualToolArgs.color = (colorMatch[1] || colorMatch[2]).toLowerCase();
-              }
-              
-              // Extract brand if mentioned
-              const brandRegex = /\b(?:brand|make|by)\s+([A-Za-z0-9\s]+)\b|\b([A-Za-z]+)\s+brand\b/i;
-              const brandMatch = userQuery.match(brandRegex);
-              if (brandMatch && (brandMatch[1] || brandMatch[2])) {
-                actualToolArgs.brand = (brandMatch[1] || brandMatch[2]).trim();
-              }
             }
             
             logger.info(`${logPrefix} WebSearchTool parameters after fallback: ${JSON.stringify(actualToolArgs)}`);
@@ -2239,21 +2189,33 @@ Respond in STRICT JSON format:
     let lang: string = "en";
     // AJOUT: Initialisation de toolExecutionMessages
     let toolExecutionMessages: ChatMessage[] = [];
+    
+    // Always fetch fresh user state to ensure we have the latest persona selection
     const userState: UserState | null = await supabaseAdmin.getUserState(userId);
+    
     let personaId = userState?.active_persona_id || DEFAULT_PERSONA_ID;
     let personaNameForPrompt = "Minato";
     let personaSpecificInstructions = "You are Minato, a helpful, friendly, and knowledgeable AI assistant.";
+    
+    logger.info(`[${turnIdentifier}] Using persona ID: ${personaId} for user ${userId.substring(0, 8)}`);
+    
     try { // Bloc try principal
       userName = await this.getUserFirstName(userId);
       lang = apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0] || "en";
       const effectiveApiContext = { ...(apiContext || {}), userName, lang, locale: userState?.preferred_locale || (appConfig as any).defaultLocale, runId };
+      
       try { // Bloc try pour la récupération de la persona (ceci est OK)
         const persona = await this.memoryFramework.getPersonaById(personaId, userId);
         if (persona?.system_prompt) {
           personaSpecificInstructions = persona.system_prompt;
           personaNameForPrompt = persona.name || personaId;
+          logger.info(`[${turnIdentifier}] Loaded persona "${personaNameForPrompt}" with custom instructions (${personaSpecificInstructions.length} chars) and voice: ${persona.voice_id || 'none'}`);
+        } else {
+          logger.warn(`[${turnIdentifier}] Persona ${personaId} not found or has no system_prompt, using defaults`);
         }
-      } catch (e: any) { logger.error(`[${turnIdentifier}] Error fetching persona:`, e.message); }
+      } catch (e: any) { 
+        logger.error(`[${turnIdentifier}] Error fetching persona ${personaId}:`, e.message); 
+      }
       if (typeof userInput === 'string') {
         textQueryForRouter = userInput;
         mainUserInputContent.push({ type: "text", text: userInput });
@@ -2913,7 +2875,10 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
         transcribedText = transcriptionResult.text;
         detectedLang = transcriptionResult.language || null;
         logger.info(`--- ${turnIdentifier} STT OK. Lang: ${detectedLang || "unk"}. Text: "${transcribedText.substring(0, 50)}..."`);
+        
+        // Always fetch fresh user state to ensure we have the latest voice selection
         const userState = await supabaseAdmin.getUserState(userId);
+        
         const lang = detectedLang || apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0] || "en";
         const effectiveApiContext = { ...apiContext, sessionId: currentSessionId, runId: currentSessionId, locale: userState?.preferred_locale || (appConfig as any).defaultLocale, lang, detectedLanguage: detectedLang, userName, transcription: transcribedText };
         orchResultRaw = await this.runOrchestration(userId, transcribedText, history, effectiveApiContext);
@@ -2928,15 +2893,28 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
         }
         let ttsUrl: string | null = null;
         if (orchResult?.response) { // Only generate TTS if there's a response text
+          // Always fetch fresh state before TTS generation to ensure latest voice is used
+          const freshUserState = await supabaseAdmin.getUserState(userId);
+          
           let selectedVoice = isValidOpenAITtsVoice((appConfig as any).openai.ttsDefaultVoice)
             ? (appConfig as any).openai.ttsDefaultVoice
             : 'nova' as OpenAITtsVoice;
-          const persona = userState?.active_persona_id ? await this.memoryFramework.getPersonaById(userState.active_persona_id, userId) : null;
-          if (persona?.voice_id && isValidOpenAITtsVoice(persona.voice_id)) {
-            selectedVoice = persona.voice_id;
-          } else if (userState?.chainedvoice && isValidOpenAITtsVoice(userState.chainedvoice)) {
-            selectedVoice = userState.chainedvoice as OpenAITtsVoice;
+          
+          // First check if user has selected a custom voice in settings
+          if (freshUserState?.chainedvoice && isValidOpenAITtsVoice(freshUserState.chainedvoice)) {
+            selectedVoice = freshUserState.chainedvoice as OpenAITtsVoice;
+            logger.debug(`${turnIdentifier} Using user's selected voice: ${selectedVoice}`);
+          } else {
+            // If no custom voice selected, check persona voice
+            const persona = freshUserState?.active_persona_id ? await this.memoryFramework.getPersonaById(freshUserState.active_persona_id, userId) : null;
+            if (persona?.voice_id && isValidOpenAITtsVoice(persona.voice_id)) {
+              selectedVoice = persona.voice_id;
+              logger.debug(`${turnIdentifier} Using persona voice: ${selectedVoice} from persona ${persona.name}`);
+            } else {
+              logger.debug(`${turnIdentifier} Using default voice: ${selectedVoice} (no user voice or persona voice found)`);
+            }
           }
+          
           const ttsStart = Date.now();
           const ttsInstructions = orchResult.ttsInstructions || getDynamicInstructions(orchResult.intentType);
           const ttsResult = await this.ttsService.generateAndStoreSpeech(orchResult.response, userId, selectedVoice, ttsInstructions);
@@ -2987,8 +2965,11 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
           // Attempt to generate TTS for the error message itself
           const userStateOnError = await supabaseAdmin.getUserState(userId); // Fetch state again for voice preference
           const errorTtsVoice = (userStateOnError?.chainedvoice && isValidOpenAITtsVoice(userStateOnError.chainedvoice))
-            ? userStateOnError.chainedvoice
+            ? userStateOnError.chainedvoice as OpenAITtsVoice
             : (isValidOpenAITtsVoice((appConfig as any).openai.ttsDefaultVoice) ? (appConfig as any).openai.ttsDefaultVoice : 'nova');
+          
+          logger.debug(`${turnIdentifier} Using voice for error message: ${errorTtsVoice}`);
+          
           const errorTtsResult = await this.ttsService.generateAndStoreSpeech(
             userFacingError, userId,
             errorTtsVoice,

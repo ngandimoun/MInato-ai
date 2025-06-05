@@ -136,7 +136,7 @@ export function EventFinderCard({ data }: EventFinderCardProps) {
       </CardHeader>
       <CardContent>
         {data.events && data.events.length > 0 ? (
-          <ScrollArea className={cn("max-h-[calc(100vh-20rem)]", data.events.length > 3 ? "pr-3" : "")}>
+          <ScrollArea className={cn("max-h-[600px]", data.events.length > 3 ? "pr-3" : "")}>
             <ul className="space-y-3">
               {data.events.map(event => (
                 <EventItem 
