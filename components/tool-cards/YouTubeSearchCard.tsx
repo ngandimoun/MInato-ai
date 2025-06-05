@@ -145,7 +145,7 @@ export function YouTubeSearchCard({ data }: YouTubeSearchCardProps) {
               >
                 {validVideos.length > 0 ? (
                   <ScrollArea className={cn("w-full", validVideos.length > 3 ? "h-[450px]" : "h-auto")}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pr-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pr-4">
                       {validVideos.map((video, index) => (
                         <motion.div
                           key={video.videoId}
