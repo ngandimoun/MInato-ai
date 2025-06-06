@@ -14,11 +14,7 @@ import { generateStructuredJson } from "../providers/llm_clients";
 
 interface WebSearchInput extends ToolInput {
   query: string;
-  mode: "product_search" | "tiktok_search" | "fallback_search";
-  minPrice?: number | null;
-  maxPrice?: number | null;
-  color?: string | null;
-  brand?: string | null;
+  mode: "tiktok_search" | "fallback_search";
   location?: string | null;
   language?: string | null;
   apiContext?: Record<string, any>;
@@ -74,18 +70,14 @@ const SCHEMA_VERSIONS: Record<string, SchemaDefinition> = {
 export class WebSearchTool extends BaseTool {
   name = "WebSearchTool";
   description =
-    "Performs web searches using Serper API. Primarily specialized for shopping/products (with 'product_search' mode) and TikTok videos (with 'tiktok_search' mode). Use 'fallback_search' mode ONLY when other specialized tools cannot handle the query. DO NOT use this tool for recipes, YouTube videos, news, Reddit, images, or events as other specialized tools exist for those purposes.";
+    "Performs web searches using Serper API. Supports TikTok video search (with 'tiktok_search' mode) and general web search (with 'fallback_search' mode) ONLY when LLM knowledge is insufficient to answer user queries. Use 'fallback_search' mode sparingly and only when other specialized tools cannot handle the query.";
   argsSchema = {
     type: "object" as const,
     properties: {
-      query: { type: "string" as const, description: "The keywords, question, or product name to search for. This is always required." } as OpenAIToolParameterProperties,
-      mode: { type: "string" as const, enum: ["product_search", "tiktok_search", "fallback_search"], description: "The type of search: 'product_search' for shopping/products (primary use), 'tiktok_search' for TikTok videos, or 'fallback_search' ONLY when other specialized tools cannot handle the query. This is always required." } as OpenAIToolParameterProperties,
+      query: { type: "string" as const, description: "The keywords, question, or search term. This is always required." } as OpenAIToolParameterProperties,
+      mode: { type: "string" as const, enum: ["tiktok_search", "fallback_search"], description: "The type of search: 'tiktok_search' for TikTok videos, or 'fallback_search' ONLY when LLM knowledge is insufficient and other specialized tools cannot handle the query. This is always required." } as OpenAIToolParameterProperties,
       location: { type: ["string", "null"] as const, description: "Optional: Two-letter country code (e.g., 'us', 'gb', 'fr') for search localization. Provide as string or null for global search." } as OpenAIToolParameterProperties,
       language: { type: ["string", "null"] as const, description: "Optional: Two-letter language code (e.g., 'en', 'es', 'fr') for search results. Provide as string or null for default." } as OpenAIToolParameterProperties,
-      minPrice: { type: ["number", "null"] as const, description: "Optional: Minimum price filter for 'product_search' mode. Must be a positive number. Provide as number or null." } as OpenAIToolParameterProperties,
-      maxPrice: { type: ["number", "null"] as const, description: "Optional: Maximum price filter for 'product_search' mode. Must be a positive number greater than minPrice if set. Provide as number or null." } as OpenAIToolParameterProperties,
-      color: { type: ["string", "null"] as const, description: "Optional: Color filter for 'product_search' mode (e.g., 'red', 'blue'). Provide as string or null." } as OpenAIToolParameterProperties,
-      brand: { type: ["string", "null"] as const, description: "Optional: Brand filter for 'product_search' mode (e.g., 'Apple', 'Sony'). Provide as string or null." } as OpenAIToolParameterProperties,
     },
     required: ["query", "mode"],
     additionalProperties: false as false,
@@ -93,7 +85,7 @@ export class WebSearchTool extends BaseTool {
   cacheTTLSeconds = 60 * 15; // Cache for 15 minutes
   categories = ["search", "web"];
   version = "1.0.0";
-  metadata = { provider: "Serper API", supports: ["product_search", "tiktok_search", "fallback_search"] };
+  metadata = { provider: "Serper API", supports: ["tiktok_search", "fallback_search"] };
 
   private readonly API_KEY: string;
   private readonly SERPER_API_URL = "https://google.serper.dev/search";
@@ -109,48 +101,7 @@ export class WebSearchTool extends BaseTool {
     }
   }
 
-  private parsePrice(priceString?: string | number | null): { price: number | null; currency: string | null; } {
-    if (typeof priceString === "number") { return { price: priceString, currency: null }; }
-    if (!priceString || typeof priceString !== "string") { return { price: null, currency: null }; }
-    const cleaned = priceString.replace(/,/g, "");
-    const priceRegex = new RegExp(`(?:([$€£¥])\\s?(\\d+(?:\\.\\d{1,2})?))|(?:(\\d+(?:\\.\\d{1,2})?)\\s?([$€£¥]))|(?:(USD|EUR|GBP|JPY|CAD|AUD)\\s?(\\d+(?:\\.\\d{1,2})?))|(?:(\\d+(?:\\.\\d{1,2})?)\\s?(USD|EUR|GBP|JPY|CAD|AUD))`, "i");
-    const match = cleaned.match(priceRegex);
-    if (match) {
-      let valueStr: string | undefined; let symbolOrCode: string | undefined;
-      if (match[1] && match[2]) { symbolOrCode = match[1]; valueStr = match[2]; }
-      else if (match[3] && match[4]) { valueStr = match[3]; symbolOrCode = match[4]; }
-      else if (match[5] && match[6]) { symbolOrCode = match[5]; valueStr = match[6]; }
-      else if (match[7] && match[8]) { valueStr = match[7]; symbolOrCode = match[8]; }
-      if (valueStr) {
-        const value = parseFloat(valueStr); let currency: string | null = null;
-        if (symbolOrCode) { const upperSymbolOrCode = symbolOrCode.toUpperCase(); if (["$", "USD"].includes(upperSymbolOrCode)) currency = "USD"; else if (["€", "EUR"].includes(upperSymbolOrCode)) currency = "EUR"; else if (["£", "GBP"].includes(upperSymbolOrCode)) currency = "GBP"; else if (["¥", "JPY"].includes(upperSymbolOrCode)) currency = "JPY"; else if (["CAD", "AUD"].includes(upperSymbolOrCode)) currency = upperSymbolOrCode; else currency = upperSymbolOrCode.length === 3 ? upperSymbolOrCode : null; }
-        return { price: value, currency };
-      }
-    }
-    const directParse = parseFloat(cleaned); return !isNaN(directParse) ? { price: directParse, currency: null } : { price: null, currency: null };
-  }
 
-  private extractProductData(item: SerperShoppingResult, queryText: string): CachedProduct {
-    const { price, currency } = this.parsePrice(item.priceString || item.price);
-    const ratingSource = item.rating ?? item.attributes?.rating ?? item.attributes?.Rating ?? null;
-    const reviewsSource = item.reviews ?? item.attributes?.reviews ?? item.attributes?.Reviews ?? null;
-    const rating = typeof ratingSource === "number" ? ratingSource : typeof ratingSource === "string" ? parseFloat(ratingSource.replace(/[^\d.-]/g, '')) : null;
-    const ratingCount = typeof reviewsSource === "number" ? reviewsSource : typeof reviewsSource === "string" ? parseInt(reviewsSource.replace(/\D/g, ""), 10) : null;
-    return {
-      result_type: "product", source_api: "serper_shopping",
-      title: item.title || "Unknown Product",
-      price: price,
-      currency: item.currency || currency || null,
-      source: item.source || "Unknown Retailer",
-      link: item.link || "#",
-      imageUrl: item.imageUrl || null,
-      rating: (rating !== null && !isNaN(rating)) ? rating : null,
-      ratingCount: (ratingCount !== null && !isNaN(ratingCount)) ? ratingCount : null,
-      delivery: item.delivery || item.attributes?.delivery || null,
-      offers: item.offers || item.attributes?.offers || null,
-      productId: item.productId || item.attributes?.product_id || null,
-    };
-  }
 
   private extractTikTokVideoData(item: SerperVideoResult, queryText: string): CachedTikTokVideo {
     let tiktokId: string | undefined;
@@ -208,7 +159,7 @@ export class WebSearchTool extends BaseTool {
     return { resultText: null, extractedData: null, resultType: null, sourceApi: null };
   }
 
-  private inferSearchMode(queryText: string): "product_search" | "tiktok_search" | "fallback_search" {
+  private inferSearchMode(queryText: string): "tiktok_search" | "fallback_search" {
     const lowerQuery = queryText.toLowerCase();
     
     // Check for explicit TikTok searches first with stronger matching
@@ -226,7 +177,14 @@ export class WebSearchTool extends BaseTool {
       return "tiktok_search";
     }
     
-    // Check for shopping/product specific keywords - EXPANDED for better product intent detection
+    // Default to fallback search for general queries
+    return "fallback_search";
+  }
+
+  private detectProductSearchIntent(queryText: string): boolean {
+    const lowerQuery = queryText.toLowerCase();
+    
+    // Check for shopping/product specific keywords
     const productKeywords = [
       // Shopping intent
       'buy', 'purchase', 'shop', 'shopping', 'price', 'cheap', 'expensive',
@@ -253,12 +211,11 @@ export class WebSearchTool extends BaseTool {
     
     for (const keyword of productKeywords) {
       if (lowerQuery.includes(keyword)) {
-        return "product_search";
+        return true;
       }
     }
     
-    // Default to fallback search for general queries
-    return "fallback_search";
+    return false;
   }
   
   // NEW: Helper method to check if a query is explicitly about TikTok
@@ -393,32 +350,31 @@ export class WebSearchTool extends BaseTool {
     // Analyze the video intent of the user query
     const videoIntent = this.analyzeVideoIntent(cleanedInput);
     
-    // Check for TikTok intent in the original user input
-    if (videoIntent === 'tiktok') {
-      // Force TikTok mode if TikTok is the intent
-      return {
-        query: cleanedInput.replace(/\b(use websearch to find|find me|search for|look for|show me)\b/i, '')
-          .replace(/\b(a|some)\b/i, '')
-          .replace(/\b(tiktok|tik tok|tik-tok)\b/i, '')
-          .trim(),
-        mode: "tiktok_search"
-      };
-    }
-    // If the query seems to be about general content, use fallback search
-    else {
-      return {
-        query: cleanedInput,
-        mode: "fallback_search"
-      };
-    }
+          // Check for TikTok intent in the original user input
+      if (videoIntent === 'tiktok') {
+        // Force TikTok mode if TikTok is the intent
+        return {
+          query: cleanedInput.replace(/\b(use websearch to find|find me|search for|look for|show me)\b/i, '')
+            .replace(/\b(a|some)\b/i, '')
+            .replace(/\b(tiktok|tik tok|tik-tok)\b/i, '')
+            .trim(),
+          mode: "tiktok_search" as const
+        };
+      }
+      // If the query seems to be about general content, use fallback search
+      else {
+        return {
+          query: cleanedInput,
+          mode: "fallback_search" as const
+        };
+      }
     
     try {
       // The extraction prompt for identifying WebSearchTool parameters
       const extractionPrompt = `
-You are an expert parameter extractor for Minato's WebSearchTool which operates in three distinct modes:
-1. "product_search" - PRIMARILY for shopping, finding products to buy, price comparisons, travel bookings, hotels, flights, retail information
-2. "tiktok_search" - For finding TikTok-specific content, short-form videos, trends
-3. "fallback_search" - For general information ONLY when other specialized tools cannot handle the query
+You are an expert parameter extractor for Minato's WebSearchTool which operates in two distinct modes:
+1. "tiktok_search" - For finding TikTok-specific content, short-form videos, trends
+2. "fallback_search" - For general information ONLY when LLM knowledge is insufficient and other specialized tools cannot handle the query
 
 IMPORTANT: There are OTHER SPECIALIZED TOOLS for:
 - YouTube videos (do not use WebSearchTool for this)
@@ -454,17 +410,12 @@ COMPREHENSIVE ANALYSIS GUIDELINES:
    - Preserve quoted phrases exactly as provided
 
 MODE SELECTION RULES:
-- "product_search": Select for purchasing intent, shopping, product comparisons, travel bookings, hotels, flights
 - "tiktok_search": Select ONLY when the user EXPLICITLY requests TikTok content or clearly wants short-form viral videos
-- "fallback_search": Use ONLY when query doesn't fit into any specialized tool category
+- "fallback_search": Use ONLY when LLM knowledge is insufficient and query doesn't fit into any specialized tool category
 
 Analyze what the user is looking for and extract these parameters:
 - query: The exact search query (required)
-- mode: One of ["product_search", "tiktok_search", "fallback_search"] (required)
-- minPrice: Minimum price if mentioned (number or null)
-- maxPrice: Maximum price if mentioned (number or null)
-- color: Color preference if mentioned (string or null)
-- brand: Brand preference if mentioned (string or null)
+- mode: One of ["tiktok_search", "fallback_search"] (required)
 - location: Location mentioned (country code, city name, or null)
 - language: Language preference if mentioned (language code or null)
 
@@ -473,13 +424,9 @@ Output as JSON with these exact fields.`;
       const model = (appConfig as any).openai?.extractionModel || "gpt-4o-mini-2024-07-18";
       this.log("debug", `Extracting WebSearch parameters from: "${cleanedInput.substring(0, 50)}..." using ${model}`);
       
-      const llmResult = await generateStructuredJson<{
+              const llmResult = await generateStructuredJson<{
         query: string;
-        mode: "product_search" | "tiktok_search" | "fallback_search";
-        minPrice?: number | null;
-        maxPrice?: number | null;
-        color?: string | null;
-        brand?: string | null;
+        mode: "tiktok_search" | "fallback_search";
         location?: string | null;
         language?: string | null;
       }>(
@@ -489,11 +436,7 @@ Output as JSON with these exact fields.`;
           type: "object",
           properties: {
             query: { type: "string" },
-            mode: { type: "string", enum: ["product_search", "tiktok_search", "fallback_search"] },
-            minPrice: { type: ["number", "null"] },
-            maxPrice: { type: ["number", "null"] },
-            color: { type: ["string", "null"] },
-            brand: { type: ["string", "null"] },
+            mode: { type: "string", enum: ["tiktok_search", "fallback_search"] },
             location: { type: ["string", "null"] },
             language: { type: ["string", "null"] }
           },
@@ -614,6 +557,16 @@ Output as JSON with these exact fields.`;
       // @ts-ignore - Delete property even though it's not in the interface
       delete toolInput.context;
     }
+
+    // Early detection for product/shopping search intent
+    if (this.detectProductSearchIntent(toolInput.query)) {
+      const userNameForResponse = toolInput.apiContext?.userName || "friend";
+      return {
+        result: `Sorry ${userNameForResponse}, product and shopping search features are coming in the next months of Minato updates. For now, I can help you with TikTok videos or general information searches.`,
+        structuredData: undefined,
+        error: null
+      };
+    }
     
     // Apply user preferences from user state if available before other processing
     if (toolInput._context?.userState?.workflow_preferences) {
@@ -633,51 +586,7 @@ Output as JSON with these exact fields.`;
         }
       }
       
-      // Apply shopping preferences for product searches
-      if (toolInput.mode === "product_search" && prefs.webSearchShoppingPreferences) {
-        const shoppingPrefs = prefs.webSearchShoppingPreferences;
-        
-        // Apply preferred retailers to the query
-        if (shoppingPrefs.preferredRetailers && shoppingPrefs.preferredRetailers.length > 0) {
-          const retailerSites = shoppingPrefs.preferredRetailers.map((retailer: string) => `site:${retailer}.com`).join(' OR ');
-          toolInput.query = `(${retailerSites}) ${toolInput.query}`;
-          this.log("debug", `[WebSearchTool] Applied shopping retailers: ${shoppingPrefs.preferredRetailers.join(', ')}`);
-        }
-        
-        // Apply preferred brands to the query
-        if (shoppingPrefs.preferredBrands && shoppingPrefs.preferredBrands.length > 0) {
-          const brandQuery = shoppingPrefs.preferredBrands.join(' OR ');
-          toolInput.query = `${toolInput.query} (${brandQuery})`;
-          this.log("debug", `[WebSearchTool] Applied preferred brands: ${shoppingPrefs.preferredBrands.join(', ')}`);
-        }
-        
-        // Apply price range to the query
-        if (shoppingPrefs.priceRange) {
-          if (shoppingPrefs.priceRange.min !== undefined) {
-            toolInput.query = `${toolInput.query} price:>${shoppingPrefs.priceRange.min}`;
-          }
-          if (shoppingPrefs.priceRange.max !== undefined) {
-            toolInput.query = `${toolInput.query} price:<${shoppingPrefs.priceRange.max}`;
-          }
-          this.log("debug", `[WebSearchTool] Applied price range filter: ${shoppingPrefs.priceRange.min || 'any'} - ${shoppingPrefs.priceRange.max || 'any'}`);
-        }
-        
-        // Apply shipping preference to the query
-        if (shoppingPrefs.shippingPreference && shoppingPrefs.shippingPreference !== "any") {
-          if (shoppingPrefs.shippingPreference === "free") {
-            toolInput.query = `${toolInput.query} "free shipping"`;
-          } else if (shoppingPrefs.shippingPreference === "fast") {
-            toolInput.query = `${toolInput.query} "fast shipping" OR "next day delivery"`;
-          }
-          this.log("debug", `[WebSearchTool] Applied shipping preference: ${shoppingPrefs.shippingPreference}`);
-        }
-        
-        // Apply review threshold to the query
-        if (shoppingPrefs.reviewThreshold && shoppingPrefs.reviewThreshold > 0) {
-          toolInput.query = `${toolInput.query} reviews:>${shoppingPrefs.reviewThreshold}`;
-          this.log("debug", `[WebSearchTool] Applied review threshold: >${shoppingPrefs.reviewThreshold}`);
-        }
-      }
+
       
       // Apply TikTok preferences for TikTok searches
       if (toolInput.query.toLowerCase().includes('tiktok') && prefs.webSearchTikTokPreferences) {
@@ -787,17 +696,13 @@ Output as JSON with these exact fields.`;
     let { query, mode } = toolInput;
     const location = (toolInput.location === null) ? undefined : toolInput.location;
     const language = (toolInput.language === null) ? undefined : toolInput.language;
-    const minPrice = (toolInput.minPrice === null || toolInput.minPrice === undefined || toolInput.minPrice <= 0) ? undefined : toolInput.minPrice;
-    const maxPrice = (toolInput.maxPrice === null || toolInput.maxPrice === undefined || toolInput.maxPrice <= 0) ? undefined : toolInput.maxPrice;
-    const color = (toolInput.color === null) ? undefined : toolInput.color;
-    const brand = (toolInput.brand === null) ? undefined : toolInput.brand;
 
     const executionLogPrefix = `[WebSearchTool Mode:${mode}] Query:"${normalizedQuery.substring(0, 50)}..."`;
 
     if (abortSignal?.aborted) { return { error: "Web Search cancelled.", result: "Cancelled.", structuredData: undefined }; }
     if (!this.API_KEY) { return { error: "Web Search Tool is not configured.", result: `Sorry, ${userNameForResponse}, Minato cannot perform web searches right now.`, structuredData: undefined }; }
     if (!query?.trim()) { return { error: "Missing or empty search query.", result: "What exactly should Minato search the web for?", structuredData: undefined }; }
-    if (!["product_search", "tiktok_search", "fallback_search"].includes(mode)) { 
+    if (!["tiktok_search", "fallback_search"].includes(mode)) { 
       this.log("warn", `Invalid mode '${mode}', falling back to 'fallback_search'`);
       mode = "fallback_search"; 
     }
@@ -809,17 +714,7 @@ Output as JSON with these exact fields.`;
     this.log("info", `${executionLogPrefix} Using lang:${langCode}, country:${countryCode}`);
 
     let refinedQuery = query.trim();
-    if (mode === "product_search") {
-      let prefix = "buy";
-      if (brand) prefix += ` ${brand}`; if (color) prefix += ` ${color}`;
-      refinedQuery = `${prefix} ${refinedQuery}`;
-      if (minPrice !== undefined) refinedQuery += ` min price ${minPrice}`;
-      if (maxPrice !== undefined && maxPrice > (minPrice ?? 0)) refinedQuery += ` max price ${maxPrice}`;
-      requestBody.q = refinedQuery.replace(/\s+/g, " ").trim();
-      requestBody.tbs = `mr:1,price:1,ppr_min:${minPrice || ""},ppr_max:${maxPrice || ""}`; // Serper specific shopping filters
-      requestBody.type = "shopping"; // Ensure Serper uses shopping search type
-      this.log("info", `${executionLogPrefix} Product search refined query: "${requestBody.q.substring(0, 70)}..."`);
-    } else if (mode === "tiktok_search") {
+    if (mode === "tiktok_search") {
       refinedQuery = `${query.trim()} site:tiktok.com`;
       requestBody.q = refinedQuery.replace(/\s+/g, " ").trim(); requestBody.type = "videos";
       this.log("info", `${executionLogPrefix} TikTok search query: "${requestBody.q.substring(0, 70)}..."`);
@@ -849,28 +744,7 @@ Output as JSON with these exact fields.`;
       const data: SerperResponse = (await response.json()) as SerperResponse;
       this.log("debug", `${executionLogPrefix} Received ${response.status} response from Serper API. Organic count: ${data.organic?.length}, Shopping: ${data.shopping?.length}, Videos: ${data.videos?.length}`);
 
-      if (mode === "product_search") {
-        const products = data.shopping; const organicProducts = data.organic?.filter(p => p.price || p.attributes?.price);
-        let allProductResults: SerperShoppingResult[] = products || [];
-        if (allProductResults.length === 0 && organicProducts && organicProducts.length > 0) { this.log("info", `${executionLogPrefix} No direct shopping results, adapting ${organicProducts.length} organic results into product format.`); allProductResults = organicProducts.map(o => ({ title: o.title, link: o.link, source: o.source || (o.link ? new URL(o.link).hostname : "Unknown"), priceString: o.attributes?.price || o.price?.toString(), imageUrl: o.imageUrl, position: o.position } as SerperShoppingResult)); }
-
-        let outputData: CachedProductList = { result_type: "product_list", source_api: "serper_shopping", query: toolInput, products: [], error: undefined };
-        if (allProductResults.length === 0) { return { result: `I couldn't find products matching "${query}" for ${userNameForResponse} with those criteria. How about a different search?`, structuredData: outputData }; }
-
-        this.log("info", `${executionLogPrefix} Found ${allProductResults.length} potential product results.`);
-        const extractedProducts: CachedProduct[] = allProductResults.map((p) => this.extractProductData(p, query)).filter((p): p is CachedProduct => !!(p.title && p.link));
-        if (extractedProducts.length === 0) { outputData.error = "Failed to process product details from results"; return { result: `I found matches for "${query}" for ${userNameForResponse}, but had trouble extracting the details.`, structuredData: outputData }; }
-
-        outputData.products = extractedProducts; outputData.error = undefined;
-        const topProduct = extractedProducts[0];
-        let resultString = `Hey ${userNameForResponse}, I found some products for "${query}"! For example, there's "${topProduct.title}"`;
-        if (topProduct.price) resultString += ` for around ${topProduct.currency || '$'}${topProduct.price}`;
-        resultString += ` from ${topProduct.source}.`;
-        if (extractedProducts.length > 1) resultString += ` There are ${extractedProducts.length - 1} more options too. I can show you the list!`;
-        else resultString += ` What do you think?`;
-        return { result: resultString, structuredData: outputData };
-
-      } else if (mode === "tiktok_search") {
+      if (mode === "tiktok_search") {
         const videos = data.videos?.filter((v) => v.link?.includes("tiktok.com"));
         let outputData: CachedVideoList = { result_type: "video_list", source_api: "serper_tiktok", query: toolInput, videos: [], error: undefined };
         if (!videos || videos.length === 0) { return { result: `I couldn't find TikTok videos for "${query}" for ${userNameForResponse}. Maybe try a different search term?`, structuredData: outputData }; }
@@ -921,7 +795,6 @@ Output as JSON with these exact fields.`;
       let responseStructuredData: AnyToolStructuredData | undefined;
       const baseErrorData = { query: toolInput, error: errorMessage };
       switch (mode) {
-        case "product_search": responseStructuredData = { result_type: "product_list", source_api: "serper_shopping", products: [], ...baseErrorData }; break;
         case "tiktok_search": responseStructuredData = { result_type: "video_list", source_api: "serper_tiktok", videos: [], ...baseErrorData }; break;
         default: responseStructuredData = { result_type: "web_snippet", source_api: "serper_general", data: null, ...baseErrorData } as CachedSingleWebResult;
       }

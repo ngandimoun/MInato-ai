@@ -6,28 +6,28 @@ import React, { createContext, useContext, useEffect, useState, useLayoutEffect 
 
 export type Theme = "light" | "dark" | "system"
 export type ColorPalette =
-  | "arctic-dawn" | "sakura-blossom" | "emerald-forest" | "cyber-neon" | "monochrome-ink"
-  | "sunset-gold" | "lavender-mist" | "ocean-depths" | "desert-sand" | "midnight-galaxy"
-  | "autumn-harvest" | "spring-meadow" | "royal-purple" | "tropical-paradise" | "ruby-red"
-  | "midnight-blue" | "forest-green" | "sunset-orange" | "slate-gray" | "turquoise-sea"
-  | "chocolate-brown" | "electric-blue" | "olive-green" | "coral-reef"
-  | "velvet-purple" | "cosmic-blue" | "rose-gold" | "mint-fresh" | "cherry-blossom"
-  | "golden-hour" | "mystic-violet" | "neon-lime" | "honey-amber" | "deep-crimson"
-  | "aqua-marine" | "peach-cream" | "steel-blue" | "matcha-green" | "silver-moon"
-  | "sunset-pink" | "ocean-blue" | "morning-mist" | "twilight-haze" | "citrus-lime"
-  | "berry-punch" | "coffee-mocha" | "bamboo-green" | "flamingo-pink"
+  | "aki-no-mori" | "sakura-breeze" | "komorebi-path" | "neo-kyoto-glow" | "setsugen-whisper"
+  | "yugure-sky" | "kaguya-moon" | "shinkai-depths" | "fuji-sunrise" | "tanabata-wish"
+  | "kitsune-fire" | "ghibli-meadow" | "ryujin-palace" | "umi-no-iro" | "tengu-mountain"
+  | "hotaru-night" | "matcha-garden" | "kamikakushi-hues" | "shonen-spirit" | "maho-shojo-sparkle"
+  | "tsuchi-earth" | "raijin-spark" | "take-grove" | "sango-reef"
+  | "murasaki-silk" | "hoshi-cosmos" | "sakura-gold" | "wakaba-mint" | "hanami-bloom"
+  | "kiniro-hour" | "onmyoji-violet" | "midori-neon" | "mitsu-amber" | "akane-crimson"
+  | "mizu-aqua" | "momo-cream" | "hagane-steel" | "ocha-green" | "tsuki-silver"
+  | "yuuhi-pink" | "kaiyou-blue" | "asagiri-mist" | "tasogare-haze" | "yuzu-citrus"
+  | "ichigo-punch" | "kohi-mocha" | "take-bamboo" | "tsuru-pink"
 
 const PALETTE_CLASSES = [
-  "palette-arctic-dawn", "palette-sakura-blossom", "palette-emerald-forest", "palette-cyber-neon", "palette-monochrome-ink",
-  "palette-sunset-gold", "palette-lavender-mist", "palette-ocean-depths", "palette-desert-sand", "palette-midnight-galaxy",
-  "palette-autumn-harvest", "palette-spring-meadow", "palette-royal-purple", "palette-tropical-paradise", "palette-ruby-red",
-  "palette-midnight-blue", "palette-forest-green", "palette-sunset-orange", "palette-slate-gray", "palette-turquoise-sea",
-  "palette-chocolate-brown", "palette-electric-blue", "palette-olive-green", "palette-coral-reef",
-  "palette-velvet-purple", "palette-cosmic-blue", "palette-rose-gold", "palette-mint-fresh", "palette-cherry-blossom",
-  "palette-golden-hour", "palette-mystic-violet", "palette-neon-lime", "palette-honey-amber", "palette-deep-crimson",
-  "palette-aqua-marine", "palette-peach-cream", "palette-steel-blue", "palette-matcha-green", "palette-silver-moon",
-  "palette-sunset-pink", "palette-ocean-blue", "palette-morning-mist", "palette-twilight-haze", "palette-citrus-lime",
-  "palette-berry-punch", "palette-coffee-mocha", "palette-bamboo-green", "palette-flamingo-pink"
+  "palette-aki-no-mori", "palette-sakura-breeze", "palette-komorebi-path", "palette-neo-kyoto-glow", "palette-setsugen-whisper",
+  "palette-yugure-sky", "palette-kaguya-moon", "palette-shinkai-depths", "palette-fuji-sunrise", "palette-tanabata-wish",
+  "palette-kitsune-fire", "palette-ghibli-meadow", "palette-ryujin-palace", "palette-umi-no-iro", "palette-tengu-mountain",
+  "palette-hotaru-night", "palette-matcha-garden", "palette-kamikakushi-hues", "palette-shonen-spirit", "palette-maho-shojo-sparkle",
+  "palette-tsuchi-earth", "palette-raijin-spark", "palette-take-grove", "palette-sango-reef",
+  "palette-murasaki-silk", "palette-hoshi-cosmos", "palette-sakura-gold", "palette-wakaba-mint", "palette-hanami-bloom",
+  "palette-kiniro-hour", "palette-onmyoji-violet", "palette-midori-neon", "palette-mitsu-amber", "palette-akane-crimson",
+  "palette-mizu-aqua", "palette-momo-cream", "palette-hagane-steel", "palette-ocha-green", "palette-tsuki-silver",
+  "palette-yuuhi-pink", "palette-kaiyou-blue", "palette-asagiri-mist", "palette-tasogare-haze", "palette-yuzu-citrus",
+  "palette-ichigo-punch", "palette-kohi-mocha", "palette-take-bamboo", "palette-tsuru-pink"
 ];
 
 interface ThemeProviderProps {
@@ -50,7 +50,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 export function ThemeProvider({
   children,
   defaultTheme = "system",
-  defaultColorPalette = "arctic-dawn",
+  defaultColorPalette = "komorebi-path",
   storageKeyTheme = "minato-theme",
   storageKeyPalette = "minato-palette",
 }: ThemeProviderProps) {
@@ -83,14 +83,14 @@ export function ThemeProvider({
   // Update state and localStorage
   const setTheme = (newTheme: Theme) => {
     if (typeof window !== 'undefined') {
-        localStorage.setItem(storageKeyTheme, newTheme);
+      localStorage.setItem(storageKeyTheme, newTheme);
     }
     setThemeState(newTheme);
   };
 
   const setColorPalette = (newPalette: ColorPalette) => {
     if (typeof window !== 'undefined') {
-        localStorage.setItem(storageKeyPalette, newPalette);
+      localStorage.setItem(storageKeyPalette, newPalette);
     }
     setColorPaletteState(newPalette);
   };

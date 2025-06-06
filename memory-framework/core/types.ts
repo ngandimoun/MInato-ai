@@ -164,7 +164,7 @@ export interface PredefinedPersona {
     name: string; // Display name (e.g., 'Default', 'Professional')
     description: string; // Short description shown in UI
     system_prompt: string; // The core system prompt text
-    voice_id: string | null; // Corresponding TTS/Realtime voice ID if applicable
+    voice_id: string | null | undefined; // Corresponding TTS/Realtime voice ID if applicable
     is_public: boolean; // True for predefined, false for user-created (used for DB query)
 }
 export interface UserPersona {
@@ -173,7 +173,7 @@ export interface UserPersona {
     name: string; // User-defined name
     description?: string | null; // User-defined description
     system_prompt: string; // The custom system prompt
-    voice_id: string | null; // Associated voice ID
+    voice_id: string | null | undefined; // Associated voice ID
     created_at: string; // ISO timestamp
     updated_at: string; // ISO timestamp
     // isCustom is not a DB field, usually added in application logic if needed
