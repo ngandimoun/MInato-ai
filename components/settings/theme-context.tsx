@@ -6,7 +6,7 @@ import React, { createContext, useContext, useEffect, useState, useLayoutEffect 
 
 export type Theme = "light" | "dark" | "system"
 export type ColorPalette =
-  | "komorebi-path" | "sakura-breeze" | "aki-no-mori" | "neo-kyoto-glow" | "setsugen-whisper"
+  | "aki-no-mori" | "sakura-breeze" | "komorebi-path" | "neo-kyoto-glow" | "setsugen-whisper"
   | "yugure-sky" | "kaguya-moon" | "shinkai-depths" | "fuji-sunrise" | "tanabata-wish"
   | "kitsune-fire" | "ghibli-meadow" | "ryujin-palace" | "umi-no-iro" | "tengu-mountain"
   | "hotaru-night" | "matcha-garden" | "kamikakushi-hues" | "shonen-spirit" | "maho-shojo-sparkle"
@@ -18,7 +18,7 @@ export type ColorPalette =
   | "ichigo-punch" | "kohi-mocha" | "take-bamboo" | "tsuru-pink"
 
 const PALETTE_CLASSES = [
-  "palette-komorebi-path", "palette-sakura-breeze", "palette-aki-no-mori", "palette-neo-kyoto-glow", "palette-setsugen-whisper",
+  "palette-aki-no-mori", "palette-sakura-breeze", "palette-komorebi-path", "palette-neo-kyoto-glow", "palette-setsugen-whisper",
   "palette-yugure-sky", "palette-kaguya-moon", "palette-shinkai-depths", "palette-fuji-sunrise", "palette-tanabata-wish",
   "palette-kitsune-fire", "palette-ghibli-meadow", "palette-ryujin-palace", "palette-umi-no-iro", "palette-tengu-mountain",
   "palette-hotaru-night", "palette-matcha-garden", "palette-kamikakushi-hues", "palette-shonen-spirit", "palette-maho-shojo-sparkle",
@@ -83,14 +83,14 @@ export function ThemeProvider({
   // Update state and localStorage
   const setTheme = (newTheme: Theme) => {
     if (typeof window !== 'undefined') {
-        localStorage.setItem(storageKeyTheme, newTheme);
+      localStorage.setItem(storageKeyTheme, newTheme);
     }
     setThemeState(newTheme);
   };
 
   const setColorPalette = (newPalette: ColorPalette) => {
     if (typeof window !== 'undefined') {
-        localStorage.setItem(storageKeyPalette, newPalette);
+      localStorage.setItem(storageKeyPalette, newPalette);
     }
     setColorPaletteState(newPalette);
   };

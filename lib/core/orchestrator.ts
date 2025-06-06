@@ -1857,7 +1857,7 @@ Respond in STRICT JSON format:
           canonicalToolName === "YouTubeSearchTool" &&
           (actualToolArgs.limit === undefined || actualToolArgs.limit === null || isNaN(Number(actualToolArgs.limit)))
         ) {
-          actualToolArgs.limit = 3;
+          actualToolArgs.limit = 5;
         }
         // Add query length validation
         if (searchToolsRequiringQuery.includes(canonicalToolName) && actualToolArgs.query) {

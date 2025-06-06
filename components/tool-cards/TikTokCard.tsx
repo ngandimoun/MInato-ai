@@ -322,7 +322,7 @@ export function TikTokCard({ data }: TikTokCardProps) {
           </ScrollArea>
         </CardContent>
         
-        <CardFooter className="text-xs text-muted-foreground justify-between pt-3 pb-3 px-4 border-t border-border/50 bg-muted/20 backdrop-blur-sm">
+        {/* <CardFooter className="text-xs text-muted-foreground justify-between pt-3 pb-3 px-4 border-t border-border/50 bg-muted/20 backdrop-blur-sm">
           <span className="flex items-center">
             <Globe className="h-3 w-3 mr-1" />
             TikTok videos via Serper.dev
@@ -331,7 +331,7 @@ export function TikTokCard({ data }: TikTokCardProps) {
           <Button variant="ghost" size="sm" className="h-6 px-2 text-xs hover:bg-pink-500/10">
             New Search <Search className="ml-1 h-3 w-3" />
           </Button>
-        </CardFooter>
+        </CardFooter> */}
       </Card>
     </motion.div>
   );

@@ -74,7 +74,7 @@ export class YouTubeSearchTool extends BaseTool {
       this.log("warn", "Update YouTubeSearchTool USER_AGENT contact info with actual details.");
     }
   }
-  
+
   private async extractYouTubeParameters(userInput: string): Promise<Partial<YouTubeSearchInput>> {
     // Enhanced extraction prompt for YouTube
     const extractionPrompt = `
@@ -153,14 +153,14 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
         [], // no history context needed
         "gpt-4o-mini"
       );
-      
+
       return extractionResult || {};
     } catch (error) {
       logger.error("[YouTubeSearchTool] Parameter extraction failed:", error);
       return {};
     }
   }
-  
+
   private buildYouTubeEmbedUrl(videoId: string): string {
     return `https://www.youtube.com/embed/${videoId}?autoplay=0&modestbranding=1&rel=0`;
   }
@@ -169,11 +169,11 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
   }
   async execute(input: YouTubeSearchInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
     const logPrefix = `[YouTubeSearchTool]`;
-    
+
     // If input is from natural language, extract parameters
     if (input._rawUserInput && typeof input._rawUserInput === 'string') {
       const extractedParams = await this.extractYouTubeParameters(input._rawUserInput);
-      
+
       // Only use extracted parameters if they're not already specified
       if (extractedParams.query && input.query === undefined) {
         input.query = extractedParams.query;
@@ -188,15 +188,15 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
         input.description_keywords = extractedParams.description_keywords;
       }
     }
-    
+
     // Apply user preferences using the standard API context
     if (input._context?.userState?.workflow_preferences) {
       const prefs = input._context.userState.workflow_preferences;
-      
+
       // If user has preferred YouTube channels, we can prioritize them in the query
-      if (prefs.youtubePreferredChannels && 
-          prefs.youtubePreferredChannels.length > 0 && 
-          !input.query.toLowerCase().includes('channel:')) {
+      if (prefs.youtubePreferredChannels &&
+        prefs.youtubePreferredChannels.length > 0 &&
+        !input.query.toLowerCase().includes('channel:')) {
         // Add channel name to the query if there's only one preferred channel
         if (prefs.youtubePreferredChannels.length === 1) {
           const channel = prefs.youtubePreferredChannels[0];
@@ -204,16 +204,16 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
           logger.debug(`${logPrefix} Applied user's preferred YouTube channel: ${channel}`);
         }
       }
-      
+
       // Apply preferred YouTube categories if user hasn't specified a category
-      if (prefs.youtubePreferredCategories && 
-          prefs.youtubePreferredCategories.length > 0 && 
-          !input.category) {
+      if (prefs.youtubePreferredCategories &&
+        prefs.youtubePreferredCategories.length > 0 &&
+        !input.category) {
         // Use the first preferred category as default
         input.category = prefs.youtubePreferredCategories[0] as any;
         logger.debug(`${logPrefix} Applied user's preferred YouTube category: ${input.category}`);
       }
-      
+
       // Apply video length preference to the query if specified
       if (prefs.youtubeVideoLengthPreference && prefs.youtubeVideoLengthPreference !== "any") {
         if (prefs.youtubeVideoLengthPreference === "short") {
@@ -227,7 +227,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
           logger.debug(`${logPrefix} Applied video length preference: long videos`);
         }
       }
-      
+
       // Apply additional category-based query refinements
       if (input.category) {
         switch (input.category) {
@@ -259,27 +259,27 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
         logger.debug(`${logPrefix} Applied category-based query refinement for: ${input.category}`);
       }
     }
-    
+
     const userNameForResponse = input._context?.userName || "friend";
     const queryString = input.query || "";
     const effectiveLimit = Math.min(Math.max(1, input.limit || 5), 10);
-    
+
     if (!queryString.trim()) {
       const errorMsg = "Empty search query.";
       logger.error(`${logPrefix} ${errorMsg}`);
       return {
         error: errorMsg,
         result: `Minato needs a search term to find YouTube videos for ${userNameForResponse}.`,
-        structuredData: { 
-          result_type: "video_list", 
-          source_api: "youtube", 
-          query: { ...input, limit: effectiveLimit }, 
-          videos: [], 
-          error: "Empty search query." 
+        structuredData: {
+          result_type: "video_list",
+          source_api: "youtube",
+          query: { ...input, limit: effectiveLimit },
+          videos: [],
+          error: "Empty search query."
         }
       };
     }
-    
+
     let langCode = "en";
     if (input.context && typeof input.context === 'object') {
       if ('locale' in input.context && typeof (input.context as any).locale === 'string') {
