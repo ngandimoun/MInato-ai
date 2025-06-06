@@ -5,6 +5,7 @@ import * as React from 'react';
 import type { CachedProductList, CachedProduct, AnyToolStructuredData } from "../../lib/types";
 import { StarIcon } from '@heroicons/react/20/solid';
 import { HighQualityImage } from '../ui/high-quality-image';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const formatCurrency = (priceString?: string | number | null, defaultCurrency = "USD"): string => {
   if (priceString === null || priceString === undefined) return "";
@@ -169,14 +170,16 @@ export const WebSearchCard: React.FC<WebSearchCardProps> = ({ data }) => {
       <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
         Products matching {displayQuery}:
       </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {productData.products.map((product, index) => (
-          <ProductCard 
-            key={product.productId || product.link || index} 
-            product={product} 
-          />
-        ))}
-      </div>
+      <ScrollArea className="max-h-[550px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pr-4 pb-2">
+          {productData.products.map((product, index) => (
+            <ProductCard 
+              key={product.productId || product.link || index} 
+              product={product} 
+            />
+          ))}
+        </div>
+      </ScrollArea>
     </div>
   );
 };

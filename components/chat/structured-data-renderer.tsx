@@ -118,14 +118,8 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
     parsedData &&
     typeof parsedData === 'object' &&
     'result_type' in parsedData &&
-<<<<<<< HEAD
     ['product_list', 'web_snippet', 'answerBox', 'knowledgeGraph', 'recipe', 'recipe_detail'].includes(parsedData.result_type as string) &&
     (!('source_api' in parsedData) || parsedData.source_api !== 'youtube'); // Exclude YouTube videos
-=======
-    parsedData.result_type === 'tiktok_video' &&
-    'source_api' in parsedData &&
-    parsedData.source_api === 'serper_tiktok';
->>>>>>> 401d044e99eb1a65cfcd0ca1a394bbd0eabfd241
 
   if (isTikTokVideoList || isTikTokVideo) {
     return <TikTokCard data={parsedData as CachedVideoList} />;

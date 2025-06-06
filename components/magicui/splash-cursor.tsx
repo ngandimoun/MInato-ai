@@ -1,3 +1,4 @@
+// components/SplashCursor.tsx
 "use client";
 import { useEffect, useRef } from "react";
 
@@ -1251,10 +1252,9 @@ function SplashCursor({
   ]);
 
   return (
-    <div className="fixed top-0 left-0 z-50 pointer-events-none">
-      <canvas ref={canvasRef} id="fluid" className="w-screen h-screen" />
+    <div className="fixed top-0 left-0 w-screen h-screen z-[-1] pointer-events-none">
+      <canvas ref={canvasRef} id="fluid-canvas" className="w-screen h-screen" />
     </div>
   );
 }
-
 export { SplashCursor };

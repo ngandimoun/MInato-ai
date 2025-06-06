@@ -1,3 +1,5 @@
+// components/payment-links-list.tsx
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,8 +11,9 @@ import {
   ExternalLink, 
   MoreHorizontal, 
   Link as LinkIcon,
-  Trash2,
+  Trash2, // Peut-être plus utilisé si on garde que archive, à vérifier
   Copy,
+  Check, // Nouvelle icône pour l'animation de copie
   QrCode,
   Eye,
   EyeOff,
@@ -45,6 +48,7 @@ import {
 import { toast } from "@/components/ui/use-toast";
 import { formatCurrency } from "@/lib/utils";
 import QRCode from 'qrcode';
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"; // Ajout pour le scroll Shadcn
 
 interface PaymentLink {
   id: string;
@@ -67,10 +71,13 @@ interface PaymentLink {
   };
 }
 
+// Hauteur fixe pour le composant principal (ajustez au besoin)
+const FIXED_COMPONENT_HEIGHT = "h-[calc(100vh-120px)]"; // Exemple: hauteur de la fenêtre moins 120px pour un éventuel header/footer de page
+
 export function PaymentLinksList() {
   const [isLoading, setIsLoading] = useState(true);
   const [paymentLinks, setPaymentLinks] = useState<PaymentLink[]>([]);
-  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null); 
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
   const [isArchiving, setIsArchiving] = useState<string | null>(null);
   const [qrCodeDialogOpen, setQrCodeDialogOpen] = useState(false);
@@ -78,6 +85,9 @@ export function PaymentLinksList() {
   const [selectedLink, setSelectedLink] = useState<PaymentLink | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
   const router = useRouter();
+
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
+  const [isCreatingLink, setIsCreatingLink] = useState(false); // Nouvel état pour le bouton Create Payment Link
 
   // Fetch payment links
   useEffect(() => {
@@ -108,16 +118,23 @@ export function PaymentLinksList() {
   }, []);
 
   const handleCreatePaymentLink = () => {
+    setIsCreatingLink(true); // Active l'état de chargement
+    // La navigation va démonter le composant, donc l'état isCreatingLink
+    // sera naturellement réinitialisé. Pas besoin de le remettre à false ici.
     router.push('/dashboard/create-payment-link');
   };
 
-  const handleCopyLink = (url: string) => {
+  const handleCopyLink = (linkId: string, url: string) => {
     navigator.clipboard.writeText(url)
       .then(() => {
+        setCopiedLinkId(linkId);
         toast({
-          title: "Link Copied",
-          description: "Payment link copied to clipboard!",
+          title: "Link Copied!",
+          description: "Payment link copied to clipboard.",
         });
+        setTimeout(() => {
+          setCopiedLinkId(null);
+        }, 2000);
       })
       .catch(err => {
         logger.error('[PaymentLinksList] Error copying to clipboard:', err);
@@ -190,7 +207,6 @@ export function PaymentLinksList() {
         throw new Error(errorData.error || 'Failed to update payment link status');
       }
       
-      // Update the local state
       setPaymentLinks(prevLinks => 
         prevLinks.map(l => 
           l.id === link.id ? { ...l, active: !l.active } : l
@@ -239,7 +255,6 @@ export function PaymentLinksList() {
         throw new Error(errorData.error || 'Failed to archive payment link');
       }
       
-      // Remove the link from local state
       setPaymentLinks(prevLinks => 
         prevLinks.filter(l => l.id !== selectedLink.id)
       );
@@ -262,26 +277,20 @@ export function PaymentLinksList() {
     }
   };
 
-  // Legacy delete function - keeping for backwards compatibility
   const handleDeleteLink = async (id: string) => {
     try {
       setIsDeleting(id);
-      
       const response = await fetch(`/api/seller/payment-links/${id}`, {
         method: 'DELETE',
       });
-      
       if (!response.ok) {
         throw new Error('Failed to delete payment link');
       }
-      
-      // Update the local state to reflect the deletion
       setPaymentLinks(prevLinks => 
         prevLinks.map(link => 
           link.id === id ? { ...link, active: false } : link
         )
       );
-      
       toast({
         title: "Success",
         description: "Payment link deactivated successfully.",
@@ -298,160 +307,182 @@ export function PaymentLinksList() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary/70 mr-2" />
-        <p>Loading payment links...</p>
-      </div>
-    );
-  }
-
-  if (paymentLinks.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-muted-foreground mb-4">You don't have any payment links yet.</p>
-        <Button onClick={handleCreatePaymentLink} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Create Payment Link
-        </Button>
-      </div>
-    );
-  }
-
-  // Count active payment links
-  const activeLinks = paymentLinks.filter(link => link.active).length;
-
   return (
-    <>
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <p className="text-sm text-muted-foreground">
-            {activeLinks} active payment link{activeLinks !== 1 ? 's' : ''}
-          </p>
-          <Button onClick={handleCreatePaymentLink} size="sm" className="gap-2">
-            <Plus className="h-4 w-4" />
-            Create Payment Link
+    <div className={`flex flex-col ${FIXED_COMPONENT_HEIGHT} bg-card border rounded-lg overflow-hidden`}>
+      {isLoading ? (
+        <div className="flex-1 flex justify-center items-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary/70 mr-2" />
+          <p>Loading payment links...</p>
+        </div>
+      ) : paymentLinks.length === 0 ? (
+        <div className="flex-1 flex flex-col justify-center items-center text-center p-6">
+          <p className="text-muted-foreground mb-4">You don't have any payment links yet.</p>
+          <Button 
+            onClick={handleCreatePaymentLink} 
+            className="gap-2"
+            disabled={isCreatingLink} // Désactive le bouton pendant le chargement
+          >
+            {isCreatingLink ? (
+              <Loader2 className="h-4 w-4 animate-spin" /> // Icône de chargement
+            ) : (
+              <Plus className="h-4 w-4" /> // Icône Plus
+            )}
+            {isCreatingLink ? "Loading..." : "Create Payment Link"} {/* Texte conditionnel */}
           </Button>
         </div>
-
-        <div className="grid gap-4">
-          {paymentLinks.map((link) => (
-            <div 
-              key={link.id} 
-              className={`bg-background rounded-lg border p-4 ${!link.active ? 'opacity-60' : ''}`}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-medium">{link.product_name}</h3>
-                    <Badge variant={link.active ? "default" : "secondary"}>
-                      {link.active ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
-                  {link.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-2">{link.description}</p>
-                  )}
-                  
-                  {/* Enhanced features display */}
-                  {link.features && (
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {link.features.tax_collection && <Badge variant="outline" className="text-xs">Tax Collection</Badge>}
-                      {link.features.promotion_codes && <Badge variant="outline" className="text-xs">Promo Codes</Badge>}
-                      {link.features.pdf_invoices && <Badge variant="outline" className="text-xs">PDF Invoices</Badge>}
-                      {link.features.shipping_required && <Badge variant="outline" className="text-xs">Shipping</Badge>}
-                      {link.features.quantity_adjustable && <Badge variant="outline" className="text-xs">Adjustable Qty</Badge>}
-                      {link.features.inventory_tracking && <Badge variant="outline" className="text-xs">Inventory</Badge>}
-                    </div>
-                  )}
-                </div>
-                
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreHorizontal className="h-4 w-4" />
-                      <span className="sr-only">Open menu</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleCopyLink(link.payment_link_url)}>
-                      <Copy className="mr-2 h-4 w-4" />
-                      Copy Link
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleViewQRCode(link)}>
-                      <QrCode className="mr-2 h-4 w-4" />
-                      View QR Code
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => window.open(link.payment_link_url, '_blank')}>
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Open Link
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      onClick={() => handleToggleStatus(link)}
-                      disabled={isUpdatingStatus === link.id}
-                    >
-                      {isUpdatingStatus === link.id ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Updating...
-                        </>
-                      ) : link.active ? (
-                        <>
-                          <EyeOff className="mr-2 h-4 w-4" />
-                          Deactivate Link
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Activate Link
-                        </>
-                      )}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      onClick={() => handleArchiveLink(link)}
-                      disabled={isArchiving === link.id}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      {isArchiving === link.id ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Archiving...
-                        </>
-                      ) : (
-                        <>
-                          <Archive className="mr-2 h-4 w-4" />
-                          Archive Link
-                        </>
-                      )}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="text-sm px-2 py-1 rounded-md bg-primary/10 text-primary font-medium">
-                  {formatCurrency(link.price, link.currency)}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1 text-xs"
-                    onClick={() => handleCopyLink(link.payment_link_url)}
-                  >
-                    <LinkIcon className="h-3 w-3" />
-                    Copy Link
-                  </Button>
-                </div>
-              </div>
+      ) : (
+        <>
+          {/* Section Header - Non scrollable */}
+          <div className="p-6 border-b">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">
+                {paymentLinks.filter(link => link.active).length} active payment link{paymentLinks.filter(link => link.active).length !== 1 ? 's' : ''}
+              </p>
+              <Button 
+                onClick={handleCreatePaymentLink} 
+                size="sm" 
+                className="gap-2"
+                disabled={isCreatingLink} // Désactive le bouton pendant le chargement
+              >
+                {isCreatingLink ? (
+                  <Loader2 className="h-4 w-4 animate-spin" /> // Icône de chargement
+                ) : (
+                  <Plus className="h-4 w-4" /> // Icône Plus
+                )}
+                {isCreatingLink ? "Loading..." : "Create Payment Link"} {/* Texte conditionnel */}
+              </Button>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      {/* QR Code Dialog */}
+          {/* Section Liste - Scrollable */}
+          <ScrollArea className="flex-1 p-6">
+            <div className="grid gap-4">
+              {paymentLinks.map((link) => (
+                <div 
+                  key={link.id} 
+                  className={`bg-background rounded-lg border p-4 ${!link.active ? 'opacity-60' : ''}`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 pr-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-medium truncate" title={link.product_name}>{link.product_name}</h3>
+                        <Badge variant={link.active ? "default" : "secondary"}>
+                          {link.active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                      {link.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2 mb-2">{link.description}</p>
+                      )}
+                      
+                      {link.features && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {link.features.tax_collection && <Badge variant="outline" className="text-xs">Tax Collection</Badge>}
+                          {link.features.promotion_codes && <Badge variant="outline" className="text-xs">Promo Codes</Badge>}
+                          {link.features.pdf_invoices && <Badge variant="outline" className="text-xs">PDF Invoices</Badge>}
+                          {link.features.shipping_required && <Badge variant="outline" className="text-xs">Shipping</Badge>}
+                          {link.features.quantity_adjustable && <Badge variant="outline" className="text-xs">Adjustable Qty</Badge>}
+                          {link.features.inventory_tracking && <Badge variant="outline" className="text-xs">Inventory</Badge>}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Open menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleCopyLink(link.id, link.payment_link_url)}>
+                          {copiedLinkId === link.id ? (
+                            <Check className="mr-2 h-4 w-4 text-green-500" />
+                          ) : (
+                            <Copy className="mr-2 h-4 w-4" />
+                          )}
+                          {copiedLinkId === link.id ? "Copied!" : "Copy Link"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleViewQRCode(link)}>
+                          <QrCode className="mr-2 h-4 w-4" />
+                          View QR Code
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => window.open(link.payment_link_url, '_blank')}>
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Open Link
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={() => handleToggleStatus(link)}
+                          disabled={isUpdatingStatus === link.id}
+                        >
+                          {isUpdatingStatus === link.id ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Updating...
+                            </>
+                          ) : link.active ? (
+                            <>
+                              <EyeOff className="mr-2 h-4 w-4" />
+                              Deactivate Link
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="mr-2 h-4 w-4" />
+                              Activate Link
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={() => handleArchiveLink(link)}
+                          disabled={isArchiving === link.id}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          {isArchiving === link.id ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Archiving...
+                            </>
+                          ) : (
+                            <>
+                              <Archive className="mr-2 h-4 w-4" />
+                              Archive Link
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm px-2 py-1 rounded-md bg-primary/10 text-primary font-medium">
+                      {formatCurrency(link.price, link.currency)}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1 text-xs"
+                        onClick={() => handleCopyLink(link.id, link.payment_link_url)}
+                        disabled={copiedLinkId === link.id}
+                      >
+                        {copiedLinkId === link.id ? (
+                          <Check className="h-3 w-3 text-green-500" />
+                        ) : (
+                          <LinkIcon className="h-3 w-3" />
+                        )}
+                        {copiedLinkId === link.id ? "Copied!" : "Copy Link"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <ScrollBar orientation="vertical" />
+          </ScrollArea>
+        </>
+      )}
+
       <Dialog open={qrCodeDialogOpen} onOpenChange={setQrCodeDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -475,15 +506,23 @@ export function PaymentLinksList() {
               <Button onClick={handleDownloadQRCode} variant="outline" size="sm">
                 Download QR Code
               </Button>
-              <Button onClick={() => selectedLink && handleCopyLink(selectedLink.payment_link_url)} size="sm">
-                Copy Link
+              <Button 
+                onClick={() => selectedLink && handleCopyLink(selectedLink.id, selectedLink.payment_link_url)} 
+                size="sm"
+                disabled={copiedLinkId === selectedLink?.id}
+              >
+                {copiedLinkId === selectedLink?.id ? (
+                  <Check className="mr-2 h-4 w-4 text-green-500" />
+                ) : (
+                  <Copy className="mr-2 h-4 w-4" />
+                )}
+                {copiedLinkId === selectedLink?.id ? "Copied!" : "Copy Link"}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Archive Confirmation Dialog */}
       <AlertDialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -513,6 +552,6 @@ export function PaymentLinksList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
-} 
+}

@@ -24,11 +24,14 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.75rem;
-    
+
     /* Minato brand colors */
-    --minato-cyan: 175 87% 50%; /* #13EEE3 */
-    --minato-cyan-light: 175 87% 93%; /* #C2FEF9 */
-    --minato-cyan-dark: 175 87% 32%; /* #0A9E99 */
+    --minato-cyan: 175 87% 50%;
+    /* #13EEE3 */
+    --minato-cyan-light: 175 87% 93%;
+    /* #C2FEF9 */
+    --minato-cyan-dark: 175 87% 32%;
+    /* #0A9E99 */
   }
 
   .dark {
@@ -53,18 +56,21 @@
     --ring: 224.3 76.3% 48%;
   }
 
-  /* Arctic Dawn palette (cool blues/greys) */
-  .palette-arctic-dawn {
-    --primary: 210 100% 50%;
+
+  /* Emerald Forest palette (deep greens/browns) */
+  .palette-aki-no-mori {
+    --primary: 142 76% 36%;
     --primary-foreground: 210 40% 98%;
-    --ring: 210 100% 50%;
+    --ring: 142 76% 36%;
   }
 
-  .dark.palette-arctic-dawn {
-    --primary: 210 100% 60%;
+  .dark.palette-aki-no-mori {
+    --primary: 142 76% 46%;
     --primary-foreground: 222.2 47.4% 11.2%;
-    --ring: 210 100% 60%;
+    --ring: 142 76% 46%;
   }
+
+  
 
   /* Sakura Blossom palette (soft pinks/whites) */
   .palette-sakura-blossom {
@@ -79,131 +85,131 @@
     --ring: 350 100% 76%;
   }
 
-  /* Emerald Forest palette (deep greens/browns) */
-  .palette-emerald-forest {
-    --primary: 142 76% 36%;
+  /* Arctic Dawn palette (cool blues/greys) */
+  .palette-komorebi-path {
+    --primary: 210 100% 50%;
     --primary-foreground: 210 40% 98%;
-    --ring: 142 76% 36%;
+    --ring: 210 100% 50%;
   }
 
-  .dark.palette-emerald-forest {
-    --primary: 142 76% 46%;
+  .dark.palette-komorebi-path {
+    --primary: 210 100% 60%;
     --primary-foreground: 222.2 47.4% 11.2%;
-    --ring: 142 76% 46%;
+    --ring: 210 100% 60%;
   }
 
   /* Cyber Neon palette (vibrant purple/cyan/pink) */
-  .palette-cyber-neon {
+  .palette-neo-kyoto-glow {
     --primary: 280 100% 60%;
     --primary-foreground: 210 40% 98%;
     --ring: 280 100% 60%;
   }
 
-  .dark.palette-cyber-neon {
+  .dark.palette-neo-kyoto-glow {
     --primary: 280 100% 70%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 280 100% 70%;
   }
 
   /* Monochrome Ink palette (grayscale variants) */
-  .palette-monochrome-ink {
+  .palette-setsugen-whisper {
     --primary: 0 0% 20%;
     --primary-foreground: 0 0% 98%;
     --ring: 0 0% 20%;
   }
 
-  .dark.palette-monochrome-ink {
+  .dark.palette-setsugen-whisper {
     --primary: 0 0% 80%;
     --primary-foreground: 0 0% 10%;
     --ring: 0 0% 80%;
   }
 
   /* Sunset Gold palette (warm oranges/golds) */
-  .palette-sunset-gold {
+  .palette-yugure-sky {
     --primary: 35 100% 50%;
     --primary-foreground: 210 40% 98%;
     --ring: 35 100% 50%;
   }
 
-  .dark.palette-sunset-gold {
+  .dark.palette-yugure-sky {
     --primary: 35 100% 60%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 35 100% 60%;
   }
 
   /* Lavender Mist palette (soft purples) */
-  .palette-lavender-mist {
+  .palette-kaguya-moon {
     --primary: 260 70% 65%;
     --primary-foreground: 210 40% 98%;
     --ring: 260 70% 65%;
   }
 
-  .dark.palette-lavender-mist {
+  .dark.palette-kaguya-moon {
     --primary: 260 70% 75%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 260 70% 75%;
   }
 
   /* Ocean Depths palette (deep blues and teals) */
-  .palette-ocean-depths {
+  .palette-shinkai-depths {
     --primary: 195 100% 35%;
     --primary-foreground: 210 40% 98%;
     --ring: 195 100% 35%;
   }
 
-  .dark.palette-ocean-depths {
+  .dark.palette-shinkai-depths {
     --primary: 195 100% 45%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 195 100% 45%;
   }
 
   /* Desert Sand palette (warm neutrals) */
-  .palette-desert-sand {
+  .palette-fuji-sunrise {
     --primary: 25 60% 55%;
     --primary-foreground: 210 40% 98%;
     --ring: 25 60% 55%;
   }
 
-  .dark.palette-desert-sand {
+  .dark.palette-fuji-sunrise {
     --primary: 25 60% 65%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 25 60% 65%;
   }
 
   /* Midnight Galaxy palette (deep purples and blues) */
-  .palette-midnight-galaxy {
+  .palette-tanabata-wish {
     --primary: 250 100% 40%;
     --primary-foreground: 210 40% 98%;
     --ring: 250 100% 40%;
   }
 
-  .dark.palette-midnight-galaxy {
+  .dark.palette-tanabata-wish {
     --primary: 250 100% 60%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 250 100% 60%;
   }
 
   /* Autumn Harvest palette (rich reds and oranges) */
-  .palette-autumn-harvest {
+  .palette-kitsune-fire {
     --primary: 15 90% 45%;
     --primary-foreground: 210 40% 98%;
     --ring: 15 90% 45%;
   }
 
-  .dark.palette-autumn-harvest {
+  .dark.palette-kitsune-fire {
     --primary: 15 90% 55%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 15 90% 55%;
   }
 
   /* Spring Meadow palette (fresh greens and yellows) */
-  .palette-spring-meadow {
+  .palette-ghibli-meadow {
     --primary: 85 80% 40%;
     --primary-foreground: 210 40% 98%;
     --ring: 85 80% 40%;
   }
 
-  .dark.palette-spring-meadow {
+  .dark.palette-ghibli-meadow {
     --primary: 85 80% 50%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 85 80% 50%;
@@ -211,468 +217,468 @@
 
   /* Add the new color palette CSS variables */
   /* Royal Purple palette */
-  .palette-royal-purple {
+  .palette-ryujin-palace {
     --primary: 270 70% 40%;
     --primary-foreground: 210 40% 98%;
     --ring: 270 70% 40%;
   }
 
-  .dark.palette-royal-purple {
+  .dark.palette-ryujin-palace {
     --primary: 270 70% 50%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 270 70% 50%;
   }
 
   /* Tropical Paradise palette */
-  .palette-tropical-paradise {
+  .palette-umi-no-iro {
     --primary: 175 80% 45%;
     --primary-foreground: 210 40% 98%;
     --ring: 175 80% 45%;
   }
 
-  .dark.palette-tropical-paradise {
+  .dark.palette-umi-no-iro {
     --primary: 175 80% 55%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 175 80% 55%;
   }
 
   /* Ruby Red palette */
-  .palette-ruby-red {
+  .palette-tengu-mountain {
     --primary: 0 75% 40%;
     --primary-foreground: 210 40% 98%;
     --ring: 0 75% 40%;
   }
 
-  .dark.palette-ruby-red {
+  .dark.palette-tengu-mountain {
     --primary: 0 75% 50%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 0 75% 50%;
   }
 
   /* Midnight Blue palette */
-  .palette-midnight-blue {
+  .palette-hotaru-night {
     --primary: 220 80% 30%;
     --primary-foreground: 210 40% 98%;
     --ring: 220 80% 30%;
   }
 
-  .dark.palette-midnight-blue {
+  .dark.palette-hotaru-night {
     --primary: 220 80% 40%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 220 80% 40%;
   }
 
   /* Forest Green palette */
-  .palette-forest-green {
+  .palette-matcha-garden {
     --primary: 130 70% 30%;
     --primary-foreground: 210 40% 98%;
     --ring: 130 70% 30%;
   }
 
-  .dark.palette-forest-green {
+  .dark.palette-matcha-garden {
     --primary: 130 70% 40%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 130 70% 40%;
   }
 
   /* Sunset Orange palette */
-  .palette-sunset-orange {
+  .palette-kamikakushi-hues {
     --primary: 25 90% 50%;
     --primary-foreground: 210 40% 98%;
     --ring: 25 90% 50%;
   }
 
-  .dark.palette-sunset-orange {
+  .dark.palette-kamikakushi-hues{
     --primary: 25 90% 60%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 25 90% 60%;
   }
 
   /* Slate Gray palette */
-  .palette-slate-gray {
+  .palette-shonen-spirit {
     --primary: 215 25% 40%;
     --primary-foreground: 210 40% 98%;
     --ring: 215 25% 40%;
   }
 
-  .dark.palette-slate-gray {
+  .dark.palette-shonen-spirit {
     --primary: 215 25% 60%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 215 25% 60%;
   }
 
   /* Turquoise Sea palette */
-  .palette-turquoise-sea {
+  .palette-maho-shojo-sparkle {
     --primary: 185 85% 40%;
     --primary-foreground: 210 40% 98%;
     --ring: 185 85% 40%;
   }
 
-  .dark.palette-turquoise-sea {
+  .dark.palette-maho-shojo-sparkle {
     --primary: 185 85% 50%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 185 85% 50%;
   }
 
   /* Chocolate Brown palette */
-  .palette-chocolate-brown {
+  .palette-tsuchi-earth {
     --primary: 30 60% 35%;
     --primary-foreground: 210 40% 98%;
     --ring: 30 60% 35%;
   }
 
-  .dark.palette-chocolate-brown {
+  .dark.palette-tsuchi-earth {
     --primary: 30 60% 45%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 30 60% 45%;
   }
 
   /* Electric Blue palette */
-  .palette-electric-blue {
+  .palette-raijin-spark {
     --primary: 210 100% 55%;
     --primary-foreground: 210 40% 98%;
     --ring: 210 100% 55%;
   }
 
-  .dark.palette-electric-blue {
+  .dark.palette-raijin-spark {
     --primary: 210 100% 65%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 210 100% 65%;
   }
 
   /* Olive Green palette */
-  .palette-olive-green {
+  .palette-take-grove {
     --primary: 80 40% 35%;
     --primary-foreground: 210 40% 98%;
     --ring: 80 40% 35%;
   }
 
-  .dark.palette-olive-green {
+  .dark.palette-take-grove {
     --primary: 80 40% 45%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 80 40% 45%;
   }
 
   /* Coral Reef palette */
-  .palette-coral-reef {
+  .palette-sango-reef {
     --primary: 355 70% 60%;
     --primary-foreground: 210 40% 98%;
     --ring: 355 70% 60%;
   }
 
-  .dark.palette-coral-reef {
+  .dark.palette-sango-reef {
     --primary: 355 70% 70%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 355 70% 70%;
   }
 
   /* Velvet Purple palette */
-  .palette-velvet-purple {
+  .palette-murasaki-silk {
     --primary: 270 70% 45%;
     --primary-foreground: 210 40% 98%;
     --ring: 270 70% 45%;
   }
 
-  .dark.palette-velvet-purple {
+  .dark.palette-murasaki-silk {
     --primary: 270 70% 55%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 270 70% 55%;
   }
 
   /* Cosmic Blue palette */
-  .palette-cosmic-blue {
+  .palette-hoshi-cosmos {
     --primary: 230 80% 40%;
     --primary-foreground: 210 40% 98%;
     --ring: 230 80% 40%;
   }
 
-  .dark.palette-cosmic-blue {
+  .dark.palette-hoshi-cosmos {
     --primary: 230 80% 50%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 230 80% 50%;
   }
 
   /* Rose Gold palette */
-  .palette-rose-gold {
+  .palette-sakura-gold {
     --primary: 340 60% 65%;
     --primary-foreground: 210 40% 98%;
     --ring: 340 60% 65%;
   }
 
-  .dark.palette-rose-gold {
+  .dark.palette-sakura-gold {
     --primary: 340 60% 75%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 340 60% 75%;
   }
 
   /* Mint Fresh palette */
-  .palette-mint-fresh {
+  .palette-wakaba-mint {
     --primary: 150 60% 50%;
     --primary-foreground: 210 40% 98%;
     --ring: 150 60% 50%;
   }
 
-  .dark.palette-mint-fresh {
+  .dark.palette-wakaba-mint {
     --primary: 150 60% 60%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 150 60% 60%;
   }
 
   /* Cherry Blossom palette */
-  .palette-cherry-blossom {
+  .palette-hanami-bloom {
     --primary: 345 80% 70%;
     --primary-foreground: 210 40% 98%;
     --ring: 345 80% 70%;
   }
 
-  .dark.palette-cherry-blossom {
+  .dark.palette-hanami-bloom {
     --primary: 345 80% 80%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 345 80% 80%;
   }
 
   /* Golden Hour palette */
-  .palette-golden-hour {
+  .palette-kiniro-hour {
     --primary: 40 90% 55%;
     --primary-foreground: 210 40% 98%;
     --ring: 40 90% 55%;
   }
 
-  .dark.palette-golden-hour {
+  .dark.palette-kiniro-hour {
     --primary: 40 90% 65%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 40 90% 65%;
   }
 
   /* Mystic Violet palette */
-  .palette-mystic-violet {
+  .palette-onmyoji-violet {
     --primary: 265 75% 55%;
     --primary-foreground: 210 40% 98%;
     --ring: 265 75% 55%;
   }
 
-  .dark.palette-mystic-violet {
+  .dark.palette-onmyoji-violet {
     --primary: 265 75% 65%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 265 75% 65%;
   }
 
   /* Neon Lime palette */
-  .palette-neon-lime {
+  .palette-midori-neon {
     --primary: 75 90% 50%;
     --primary-foreground: 210 40% 98%;
     --ring: 75 90% 50%;
   }
 
-  .dark.palette-neon-lime {
+  .dark.palette-midori-neon {
     --primary: 75 90% 60%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 75 90% 60%;
   }
 
   /* Honey Amber palette */
-  .palette-honey-amber {
+  .palette-mitsu-amber {
     --primary: 45 80% 50%;
     --primary-foreground: 210 40% 98%;
     --ring: 45 80% 50%;
   }
 
-  .dark.palette-honey-amber {
+  .dark.palette-mitsu-amber {
     --primary: 45 80% 60%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 45 80% 60%;
   }
 
   /* Deep Crimson palette */
-  .palette-deep-crimson {
+  .palette-akane-crimson {
     --primary: 350 85% 35%;
     --primary-foreground: 210 40% 98%;
     --ring: 350 85% 35%;
   }
 
-  .dark.palette-deep-crimson {
+  .dark.palette-akane-crimson {
     --primary: 350 85% 45%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 350 85% 45%;
   }
 
   /* Aqua Marine palette */
-  .palette-aqua-marine {
+  .palette-mizu-aqua {
     --primary: 180 70% 50%;
     --primary-foreground: 210 40% 98%;
     --ring: 180 70% 50%;
   }
 
-  .dark.palette-aqua-marine {
+  .dark.palette-mizu-aqua {
     --primary: 180 70% 60%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 180 70% 60%;
   }
 
   /* Peach Cream palette */
-  .palette-peach-cream {
+  .palette-momo-cream {
     --primary: 25 80% 70%;
     --primary-foreground: 210 40% 98%;
     --ring: 25 80% 70%;
   }
 
-  .dark.palette-peach-cream {
+  .dark.palette-momo-cream {
     --primary: 25 80% 80%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 25 80% 80%;
   }
 
   /* Steel Blue palette */
-  .palette-steel-blue {
+  .palette-hagane-steel {
     --primary: 215 60% 45%;
     --primary-foreground: 210 40% 98%;
     --ring: 215 60% 45%;
   }
 
-  .dark.palette-steel-blue {
+  .dark.palette-hagane-steel {
     --primary: 215 60% 55%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 215 60% 55%;
   }
 
   /* Matcha Green palette */
-  .palette-matcha-green {
+  .palette-ocha-green {
     --primary: 100 50% 40%;
     --primary-foreground: 210 40% 98%;
     --ring: 100 50% 40%;
   }
 
-  .dark.palette-matcha-green {
+  .dark.palette-ocha-green {
     --primary: 100 50% 50%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 100 50% 50%;
   }
 
   /* Silver Moon palette */
-  .palette-silver-moon {
+  .palette-tsuki-silver {
     --primary: 220 15% 60%;
     --primary-foreground: 210 40% 98%;
     --ring: 220 15% 60%;
   }
 
-  .dark.palette-silver-moon {
+  .dark.palette-tsuki-silver {
     --primary: 220 15% 70%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 220 15% 70%;
   }
 
   /* Sunset Pink palette */
-  .palette-sunset-pink {
+  .palette-yuuhi-pink {
     --primary: 330 90% 65%;
     --primary-foreground: 210 40% 98%;
     --ring: 330 90% 65%;
   }
 
-  .dark.palette-sunset-pink {
+  .dark.palette-yuuhi-pink {
     --primary: 330 90% 75%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 330 90% 75%;
   }
 
   /* Ocean Blue palette */
-  .palette-ocean-blue {
+  .palette-kaiyou-blue {
     --primary: 205 80% 45%;
     --primary-foreground: 210 40% 98%;
     --ring: 205 80% 45%;
   }
 
-  .dark.palette-ocean-blue {
+  .dark.palette-kaiyou-blue {
     --primary: 205 80% 55%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 205 80% 55%;
   }
 
   /* Morning Mist palette */
-  .palette-morning-mist {
+  .palette-asagiri-mist {
     --primary: 210 20% 60%;
     --primary-foreground: 210 40% 98%;
     --ring: 210 20% 60%;
   }
 
-  .dark.palette-morning-mist {
+  .dark.palette-asagiri-mist {
     --primary: 210 20% 70%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 210 20% 70%;
   }
 
   /* Twilight Haze palette */
-  .palette-twilight-haze {
+  .palette-tasogare-haze {
     --primary: 260 50% 50%;
     --primary-foreground: 210 40% 98%;
     --ring: 260 50% 50%;
   }
 
-  .dark.palette-twilight-haze {
+  .dark.palette-tasogare-haze {
     --primary: 260 50% 60%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 260 50% 60%;
   }
 
   /* Citrus Lime palette */
-  .palette-citrus-lime {
+  .palette-yuzu-citrus {
     --primary: 85 80% 45%;
     --primary-foreground: 210 40% 98%;
     --ring: 85 80% 45%;
   }
 
-  .dark.palette-citrus-lime {
+  .dark.palette-yuzu-citrus {
     --primary: 85 80% 55%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 85 80% 55%;
   }
 
   /* Berry Punch palette */
-  .palette-berry-punch {
+  .palette-ichigo-punch {
     --primary: 320 70% 50%;
     --primary-foreground: 210 40% 98%;
     --ring: 320 70% 50%;
   }
 
-  .dark.palette-berry-punch {
+  .dark.palette-ichigo-punch {
     --primary: 320 70% 60%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 320 70% 60%;
   }
 
   /* Coffee Mocha palette */
-  .palette-coffee-mocha {
+  .palette-kohi-mocha {
     --primary: 30 60% 30%;
     --primary-foreground: 210 40% 98%;
     --ring: 30 60% 30%;
   }
 
-  .dark.palette-coffee-mocha {
+  .dark.palette-kohi-mocha {
     --primary: 30 60% 40%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 30 60% 40%;
   }
 
   /* Bamboo Green palette */
-  .palette-bamboo-green {
+  .palette-take-bamboo {
     --primary: 120 40% 40%;
     --primary-foreground: 210 40% 98%;
     --ring: 120 40% 40%;
   }
 
-  .dark.palette-bamboo-green {
+  .dark.palette-take-bamboo {
     --primary: 120 40% 50%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 120 40% 50%;
   }
 
   /* Flamingo Pink palette */
-  .palette-flamingo-pink {
+  .palette-tsuru-pink {
     --primary: 335 80% 65%;
     --primary-foreground: 210 40% 98%;
     --ring: 335 80% 65%;
   }
 
-  .dark.palette-flamingo-pink {
+  .dark.palette-tsuru-pink {
     --primary: 335 80% 75%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --ring: 335 80% 75%;
@@ -683,6 +689,7 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -691,81 +698,290 @@
 /* ===== Minato UI Component Styles ===== */
 
 @layer components {
+
   /* Glass card effects */
   .glass-card {
     @apply bg-white/70 dark:bg-neutral-800/70 backdrop-blur-md border-border/40;
     box-shadow: 0 0 1px rgba(0, 0, 0, 0.05), 0 0 5px rgba(0, 0, 0, 0.025);
   }
-  
+
   .dark .glass-card {
     box-shadow: 0 0 1px rgba(255, 255, 255, 0.05), 0 0 5px rgba(255, 255, 255, 0.015);
   }
-  
+
   /* Custom scrollbar */
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
     height: 4px;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
     background: rgba(120, 120, 120, 0.2);
     border-radius: 9999px;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(120, 120, 120, 0.3);
   }
-  
+
   .dark .custom-scrollbar::-webkit-scrollbar-thumb {
     background: rgba(180, 180, 180, 0.2);
   }
-  
+
   .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(180, 180, 180, 0.3);
   }
-  
+
   /* Accent glow */
   .minato-glow {
     box-shadow: 0 0 10px rgba(19, 238, 227, 0.2);
     transition: box-shadow 0.3s ease;
   }
-  
+
   .minato-glow:hover {
     box-shadow: 0 0 15px rgba(19, 238, 227, 0.3);
   }
-  
+
   /* Chip styling for memory tags */
   .memory-chip {
     @apply rounded-full px-2 py-0.5 text-xs inline-flex items-center gap-1;
   }
-  
+
   /* Status labels */
   .status-latest {
     @apply bg-green-500/10 text-green-600 dark:text-green-400;
   }
-  
+
   .status-outdated {
     @apply bg-amber-500/10 text-amber-600 dark:text-amber-400;
   }
-  
+
   .status-current {
     @apply bg-blue-500/10 text-blue-600 dark:text-blue-400;
   }
-  
+
   .status-overdue {
     @apply bg-red-500/10 text-red-600 dark:text-red-400;
   }
-  
+
   /* Card accent lines */
   .card-accent-left {
     @apply hidden md:block absolute left-0 top-0 h-full w-1 rounded-l-xl bg-gradient-to-b from-transparent via-cyan-400/40 to-transparent;
   }
-  
+
   .card-accent-top {
     @apply md:hidden absolute left-0 top-0 w-full h-0.5 rounded-t-xl bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent;
+  }
+
+  .custom-scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    /* Largeur de la barre de défilement */
+    height: 6px;
+    /* Hauteur pour les barres horizontales (si jamais) */
+  }
+
+  .custom-scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+    /* Fond de la piste de défilement */
+  }
+
+  .custom-scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border) / 0.4);
+    /* Couleur du "pouce", utilise la variable --border de shadcn */
+    border-radius: 10px;
+    /* Coins arrondis pour le pouce */
+    border: 1px solid transparent;
+    /* Pour éviter les artefacts visuels sur certains navigateurs */
+  }
+
+  .custom-scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--border) / 0.6);
+    /* Couleur du pouce au survol */
+  }
+
+  /* Pour Firefox (optionnel mais recommandé pour la cohérence) */
+  .custom-scrollbar-thin {
+    scrollbar-width: thin;
+    /* 'auto', 'thin', 'none' */
+    scrollbar-color: hsl(var(--border) / 0.4) transparent;
+    /* pouce et piste */
+  }
+
+
+
+
+  @layer base {
+    * {
+      @apply border-border;
+    }
+
+    body {
+      @apply bg-background text-foreground;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+  }
+
+  @layer utilities {
+    .geometric-kanji {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-weight: 700;
+      text-shadow: 0 0 10px currentColor;
+    }
+
+    .japanese-subtitle {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-weight: 300;
+    }
+
+    .colourful-text {
+      background: linear-gradient(45deg, #f0f0f0, #00ffff, #f0f0f0);
+      background-size: 200% 200%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: colorShift 3s ease-in-out infinite;
+    }
+
+    .glitch-text {
+      position: relative;
+      animation: glitch 0.3s ease-in-out;
+    }
+
+    .hero-glow {
+      text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+    }
+
+    .shine-button {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .animate-float {
+      animation: float 6s ease-in-out infinite;
+    }
+
+    .animate-float-delayed {
+      animation: float 6s ease-in-out infinite 2s;
+    }
+
+    .animate-float-slow {
+      animation: float 8s ease-in-out infinite 1s;
+    }
+
+    .animate-line-sweep {
+      animation: lineSweep 1s ease-out;
+    }
+
+    .animate-shine {
+      animation: shine 2s ease-in-out infinite;
+    }
+  }
+
+  @keyframes colorShift {
+
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+
+  @keyframes glitch {
+    0% {
+      transform: translate(0);
+    }
+
+    20% {
+      transform: translate(-2px, 2px);
+    }
+
+    40% {
+      transform: translate(-2px, -2px);
+    }
+
+    60% {
+      transform: translate(2px, 2px);
+    }
+
+    80% {
+      transform: translate(2px, -2px);
+    }
+
+    100% {
+      transform: translate(0);
+    }
+  }
+
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+
+    50% {
+      transform: translateY(-20px);
+    }
+  }
+
+  @keyframes lineSweep {
+    0% {
+      transform: translateX(-100%);
+    }
+
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes shine {
+    0% {
+      transform: translateX(-100%);
+    }
+
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #030613;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #00ffff;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #ff073a;
+  }
+
+  .google-blue {
+    color: #4285F4;
+  }
+
+  .google-red {
+    color: #EA4335;
+  }
+
+  .google-yellow {
+    color: #FBBC05;
+  }
+
+  .google-green {
+    color: #34A853;
   }
 }

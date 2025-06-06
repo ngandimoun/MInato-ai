@@ -33,7 +33,7 @@ export function SportsInfoCard({ data }: SportsInfoCardProps) {
       )}
     >
       {/* Event Status Badge */}
-      <div className="absolute top-2 right-2">
+      <div className="absolute top-6 right-2">
         <Badge 
           className={cn(
             "text-xs py-1 px-2 border-0 backdrop-blur-sm",
@@ -270,7 +270,7 @@ export function SportsInfoCard({ data }: SportsInfoCardProps) {
               </h6>
               <ScrollArea className="h-64">
                 <div className="space-y-3 pr-4">
-                  {eventsList.slice(1, 4).map((ev, idx) => renderEventDetails(ev, false, idx + 1))}
+                  {eventsList.slice(1).map((ev, idx) => renderEventDetails(ev, false, idx + 1))}
                 </div>
               </ScrollArea>
             </motion.div>

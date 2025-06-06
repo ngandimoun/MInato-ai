@@ -1,3 +1,5 @@
+// components/chat/message-list.tsx
+
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";

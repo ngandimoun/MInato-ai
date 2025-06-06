@@ -1174,24 +1174,23 @@ scopes?: string[] | null;
 status: "active" | "revoked" | "error";
 last_error?: string | null;
 };
-export type PredefinedPersona = {
+export interface PredefinedPersona {
 id: string;
 name: string;
-description: string;
+description?: string | null;
 system_prompt: string;
-voice_id: string | null;
-is_public: boolean;
-};
-export type UserPersona = {
+voice_id?: OpenAITtsVoice | string | null;
+}
+export interface UserPersona {
 id: string;
 user_id: string;
 name: string;
 description?: string | null;
 system_prompt: string;
-voice_id: string | null;
+voice_id?: OpenAITtsVoice | string | null;
 created_at: string;
 updated_at: string;
-};
+}
 export type Persona =
 | PredefinedPersona
 | (UserPersona & { isCustom?: boolean; traits?: string[]; preferredTools?: string[]; avoidTools?: string[]; style?: string; tone?: string });

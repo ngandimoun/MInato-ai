@@ -862,7 +862,7 @@ export class CompanionCoreMemory {
          if (personaId.startsWith("minato_")) { // Or any other prefix/check for predefined IDs
             const predefined = await this.supabaseService.getPredefinedPersonas().then(list => list.find(p => p.id === personaId));
             if (predefined) {
-                logger.debug(`[Persona] Found predefined persona: ${personaId}`);
+                logger.debug(`[Persona] Found predefined persona: ${personaId}, voice_id: ${predefined.voice_id || 'none'}`);
                 return predefined;
             }
          }
@@ -872,7 +872,7 @@ export class CompanionCoreMemory {
          if (rawSupabaseAdminClient) { // Check if client is available
             const userPersona = await rawSupabaseAdminClient.getUserPersonaById(userId, personaId);
             if (userPersona) {
-                logger.debug(`[Persona] Found user-specific persona: ${personaId} for user ${userId.substring(0,8)}`);
+                logger.debug(`[Persona] Found user-specific persona: ${personaId} for user ${userId.substring(0,8)}, voice_id: ${userPersona.voice_id || 'none'}`);
                 return userPersona;
             }
          } else {

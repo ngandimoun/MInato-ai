@@ -9,12 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Newspaper, MessageCircle, ThumbsUp, ExternalLink, User, CalendarClock, AlertCircle, Flame, TrendingUp, Sparkles, Briefcase, HelpCircle, ChevronDown, ChevronUp, Bookmark, Share2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNowStrict, format, parseISO } from 'date-fns';
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 
 interface HackerNewsCardProps { data: HackerNewsStructuredOutput; }
 
-// Utilities for relative and formatted date
 function getRelativeDate(story: HackerNewsStory): string | undefined {
     if (story.createdAt) {
         try {
@@ -43,10 +42,10 @@ const StoryItem: React.FC<{ story: HackerNewsStory; index: number }> = ({ story,
 
     const storyTypeIcon = () => {
         switch (story.type) {
-            case "job": return <Briefcase size={14} className="text-emerald-500"/>;
-            case "ask": return <HelpCircle size={14} className="text-blue-500"/>;
-            case "show": return <Sparkles size={14} className="text-amber-500"/>;
-            default: return <Newspaper size={14} className="text-orange-500"/>;
+            case "job": return <Briefcase size={12} className="text-emerald-600 dark:text-emerald-500"/>;
+            case "ask": return <HelpCircle size={12} className="text-blue-600 dark:text-blue-500"/>;
+            case "show": return <Sparkles size={12} className="text-amber-600 dark:text-amber-500"/>;
+            default: return <Newspaper size={12} className="text-orange-600 dark:text-orange-500"/>;
         }
     }
 
@@ -54,77 +53,73 @@ const StoryItem: React.FC<{ story: HackerNewsStory; index: number }> = ({ story,
         if (points > 500) return "from-red-500 to-pink-500";
         if (points > 200) return "from-orange-500 to-red-500";
         if (points > 100) return "from-amber-500 to-orange-500";
-        if (points > 50) return "from-blue-500 to-indigo-500";
-        return "from-gray-500 to-gray-600";
+        if (points > 50) return "from-sky-500 to-blue-500";
+        return "from-neutral-500 to-neutral-600";
     }
 
     const points = story.points || 0;
 
     return (
         <motion.li 
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1, duration: 0.3 }}
+            transition={{ delay: index * 0.07, duration: 0.35, ease: "easeOut" }}
             className="group relative"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
             <div className={cn(
-                "relative p-4 rounded-xl border backdrop-blur-sm transition-all duration-300",
-                "bg-gradient-to-br from-background/80 to-background/40 dark:from-background/90 dark:to-background/60",
-                "hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20",
-                "hover:scale-[1.02] hover:-translate-y-1"
+                "relative p-3 sm:p-3.5 rounded-lg border transition-all duration-300", // p-3 pour petits écrans, p-3.5 pour sm+
+                "bg-white/80 dark:bg-neutral-900/70 backdrop-blur-sm",
+                "border-neutral-200/90 dark:border-neutral-700/60",
+                "hover:shadow-xl hover:shadow-primary/10 dark:hover:shadow-primary/5",
+                "hover:border-primary/30 dark:hover:border-primary/40",
+                "hover:scale-[1.015] hover:-translate-y-0.5"
             )}>
-                {/* Gradient background overlay on hover */}
                 <motion.div
-                    className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 transition-opacity duration-300"
+                    className="absolute inset-0 rounded-lg bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 transition-opacity duration-300"
                     animate={{ opacity: isHovered ? 1 : 0 }}
                 />
                 
                 <div className="relative z-10">
-                    <div className="flex gap-4 items-start">
-                        {/* Enhanced Score Badge */}
+                    <div className="flex gap-3 sm:gap-3.5 items-start"> {/* gap-3 pour petits écrans */}
                         <motion.div 
-                            className="flex-shrink-0"
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.95 }}
+                            className="flex-shrink-0 flex flex-col items-center w-12 sm:w-14" // w-12 pour petits écrans
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.98 }}
                         >
-                            <div className={cn(
-                                "relative w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm",
-                                "bg-gradient-to-br shadow-lg",
+                             <div className={cn(
+                                "relative w-12 h-12 sm:w-14 sm:h-14 rounded-md flex items-center justify-center text-white font-semibold text-base", // taille score ajustée
+                                "bg-gradient-to-br shadow-md",
                                 getScoreColor(points)
                             )}>
-                                <div className="absolute inset-0 rounded-xl bg-white/20 backdrop-blur-sm" />
-                                <span className="relative z-10">{points}</span>
+                                <div className="absolute inset-0 rounded-md bg-white/10 backdrop-blur-xs" />
+                                <span className="relative z-10 text-sm sm:text-base">{points}</span> {/* taille texte score ajustée */}
                             </div>
-                            <div className="flex items-center justify-center mt-1 gap-1">
+                            <div className="flex items-center gap-1 mt-1.5 text-center">
                                 {storyTypeIcon()}
-                                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                <span className="text-[9px] sm:text-[10px] text-muted-foreground font-medium uppercase tracking-wide leading-tight"> {/* taille texte type ajustée */}
                                     {story.type}
                                 </span>
                             </div>
                         </motion.div>
-
-                        {/* Content Section */}
-                        <div className="flex-1 min-w-0 space-y-2">
+                        <div className="flex-1 min-w-0">
                             <div>
                                 <motion.a 
                                     href={story.url || story.hnLink} 
                                     target="_blank" 
                                     rel="noopener noreferrer" 
-                                    className="font-semibold text-base text-foreground hover:text-primary transition-colors line-clamp-2 leading-tight"
+                                    className="font-semibold text-sm sm:text-base text-neutral-800 dark:text-neutral-100 hover:text-primary dark:hover:text-primary transition-colors line-clamp-2 leading-snug" // taille titre ajustée
                                     title={story.title}
-                                    whileHover={{ x: 2 }}
+                                    whileHover={{ x: 1 }}
                                 >
                                     {story.title}
                                 </motion.a>
-
-                                {/* Enhanced metadata */}
-                                <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
-                                    {story.author && (
+                                <div className="flex flex-wrap gap-x-2 sm:gap-x-3 gap-y-1 mt-1 text-xs text-neutral-500 dark:text-neutral-400"> {/* gap-x ajusté */}
+                                     {story.author && (
                                         <motion.span 
-                                            className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
-                                            whileHover={{ scale: 1.05 }}
+                                            className="flex items-center gap-1 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-default"
+                                            whileHover={{ scale: 1.03 }}
                                         >
                                             <User size={12}/> 
                                             <span className="font-medium">{story.author}</span>
@@ -132,16 +127,16 @@ const StoryItem: React.FC<{ story: HackerNewsStory; index: number }> = ({ story,
                                     )}
                                     {story.numComments !== null && (
                                         <motion.span 
-                                            className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
-                                            whileHover={{ scale: 1.05 }}
+                                            className="flex items-center gap-1 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-default"
+                                            whileHover={{ scale: 1.03 }}
                                         >
                                             <MessageCircle size={12}/> 
-                                            <span className="font-medium">{story.numComments} comments</span>
+                                            <span className="font-medium">{story.numComments}</span>
                                         </motion.span>
                                     )}
                                     {getRelativeDate(story) && (
                                         <span 
-                                            className="flex items-center gap-1" 
+                                            className="flex items-center gap-1 cursor-default" 
                                             title={getFormattedDate(story)}
                                         >
                                             <CalendarClock size={12}/>
@@ -150,80 +145,88 @@ const StoryItem: React.FC<{ story: HackerNewsStory; index: number }> = ({ story,
                                     )}
                                 </div>
                             </div>
-
-                            {/* Story text preview with expand/collapse */}
-                            <AnimatePresence>
-                                {story.text && (
-                                    <motion.div
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        className="space-y-2"
-                                    >
-                                        <motion.p 
-                                            className={cn(
-                                                "text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg border",
-                                                !isExpanded && "line-clamp-2"
-                                            )}
-                                            layout
-                                        >
-                                            {story.text}
-                                        </motion.p>
-                                        {story.text.length > 150 && (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => setIsExpanded(!isExpanded)}
-                                                className="h-8 text-xs text-primary hover:text-primary/80"
-                                            >
-                                                {isExpanded ? (
-                                                    <>
-                                                        <ChevronUp size={14} className="mr-1" />
-                                                        Show Less
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <ChevronDown size={14} className="mr-1" />
-                                                        Read More
-                                                    </>
-                                                )}
-                                            </Button>
-                                        )}
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
                         </div>
-
-                        {/* Action buttons */}
                         <motion.div 
-                            className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                            initial={{ x: 20 }}
-                            animate={{ x: isHovered ? 0 : 20 }}
+                            className="flex flex-col gap-1 sm:gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200" // gap ajusté
+                            initial={{ x: 10, opacity:0 }}
+                            animate={{ x: isHovered ? 0 : 10, opacity: isHovered ? 1: 0 }}
+                            transition={{ ease: "easeOut", duration:0.2 }}
                         >
                             <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                className="p-2 rounded-lg bg-background/80 hover:bg-primary/10 border hover:border-primary/20 transition-colors"
+                                whileHover={{ scale: 1.1, backgroundColor: 'var(--primary-hover-bg, #F0F9FF)' }} 
+                                whileTap={{ scale: 0.95 }}
+                                className="p-1 sm:p-1.5 rounded-md bg-white/80 dark:bg-neutral-800/80 hover:text-primary border border-neutral-200/80 dark:border-neutral-700/70 hover:border-primary/30" // padding ajusté
                                 title="Bookmark story"
+                                style={{ '--primary-hover-bg': 'hsl(var(--primary)/0.1)' } as React.CSSProperties}
                             >
-                                <Bookmark size={16} className="text-muted-foreground hover:text-primary transition-colors" />
+                                <Bookmark size={14} className="text-neutral-500 dark:text-neutral-400 group-hover:text-primary transition-colors" /> {/* taille icone ajustée */}
                             </motion.button>
                             <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                className="p-2 rounded-lg bg-background/80 hover:bg-primary/10 border hover:border-primary/20 transition-colors"
+                                whileHover={{ scale: 1.1, backgroundColor: 'var(--primary-hover-bg, #F0F9FF)' }}
+                                whileTap={{ scale: 0.95 }}
+                                className="p-1 sm:p-1.5 rounded-md bg-white/80 dark:bg-neutral-800/80 hover:text-primary border border-neutral-200/80 dark:border-neutral-700/70 hover:border-primary/30" // padding ajusté
                                 title="Share story"
+                                style={{ '--primary-hover-bg': 'hsl(var(--primary)/0.1)' } as React.CSSProperties}
                             >
-                                <Share2 size={16} className="text-muted-foreground hover:text-primary transition-colors" />
+                                <Share2 size={14} className="text-neutral-500 dark:text-neutral-400 group-hover:text-primary transition-colors" /> {/* taille icone ajustée */}
                             </motion.button>
                         </motion.div>
                     </div>
-
-                    {/* Footer with external link */}
-                    <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/50">
-                        <div className="flex items-center gap-2">
+                    <AnimatePresence initial={false}>
+                        {story.text && (
+                            <motion.div
+                                layout
+                                key="storyTextContainer"
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0, marginTop:0, marginBottom:0 }}
+                                transition={{ duration: 0.3, ease: "easeInOut" }}
+                                className="w-full mt-2 space-y-1 sm:space-y-1.5 overflow-hidden" // space-y ajusté
+                            >
+                                {isExpanded ? (
+                                    <ScrollArea 
+                                        className="h-48 pr-2 sm:pr-2.5 custom-scrollbar-thin" // max-h et pr ajustés
+                                    >
+                                        <p className={cn(
+                                            "text-xs sm:text-sm text-neutral-600 dark:text-neutral-300", // taille texte ajustée
+                                            "bg-neutral-100/70 dark:bg-neutral-800/40 p-2 sm:p-2.5 rounded-md", // padding ajusté
+                                            "border border-neutral-200/60 dark:border-neutral-700/40",
+                                            "whitespace-pre-wrap"
+                                        )}>
+                                            {story.text}
+                                        </p>
+                                    </ScrollArea>
+                                ) : (
+                                    <p className={cn(
+                                        "text-xs sm:text-sm text-neutral-600 dark:text-neutral-300", // taille texte ajustée
+                                        "bg-neutral-100/70 dark:bg-neutral-800/40 p-2 sm:p-2.5 rounded-md", // padding ajusté
+                                        "border border-neutral-200/60 dark:border-neutral-700/40",
+                                        "line-clamp-2"
+                                    )}>
+                                        {story.text}
+                                    </p>
+                                )}
+                                {story.text.length > 100 && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setIsExpanded(!isExpanded)}
+                                        className="h-auto py-0.5 px-1 sm:py-1 sm:px-1.5 text-[11px] sm:text-xs font-medium text-primary hover:text-primary/80 hover:bg-primary/10" // padding et taille texte ajustés
+                                    >
+                                        {isExpanded ? (
+                                            <><ChevronUp size={12} className="mr-0.5" />Show Less</>
+                                        ) : (
+                                            <><ChevronDown size={12} className="mr-0.5" />Read More</>
+                                        )}
+                                    </Button>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                    <div className="flex justify-between items-center mt-2 sm:mt-2.5 pt-2 sm:pt-2.5 border-t border-neutral-200/70 dark:border-neutral-700/50"> {/* marges ajustées */}
+                        <div className="flex items-center gap-1.5 sm:gap-2"> {/* gap ajusté */}
                             {points > 100 && (
-                                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-primary/10 to-accent/10">
+                                <Badge variant="secondary" className="text-[10px] sm:text-xs bg-rose-500/10 text-rose-600 dark:text-rose-500 border-rose-500/20 font-normal"> {/* taille texte ajustée */}
                                     <Flame size={10} className="mr-1" />
                                     Trending
                                 </Badge>
@@ -233,12 +236,12 @@ const StoryItem: React.FC<{ story: HackerNewsStory; index: number }> = ({ story,
                             href={story.hnLink} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs text-primary/80 hover:text-primary transition-colors"
+                            className="flex items-center gap-0.5 sm:gap-1 text-[11px] sm:text-xs text-primary/90 hover:text-primary font-medium hover:underline" // taille texte et gap ajustés
                             title="View on Hacker News"
-                            whileHover={{ x: 2 }}
+                            whileHover={{ x: 1 }}
                         >
                             <ExternalLink size={12}/> 
-                            <span className="font-medium">View on HN</span>
+                            <span>View on HN</span>
                         </motion.a>
                     </div>
                 </div>
@@ -248,34 +251,32 @@ const StoryItem: React.FC<{ story: HackerNewsStory; index: number }> = ({ story,
 };
 
 export function HackerNewsCard({ data }: HackerNewsCardProps) {
-  console.log("[HackerNewsCard] Rendering with data:", data);
-  console.log("typeof data.result_type:", typeof data.result_type, "value:", data.result_type, "===", data.result_type === "hn_stories");
   if (!data) return <p className="text-sm text-muted-foreground">No Hacker News data.</p>;
 
   const iconForSource = () => {
       if (data.query?.filter === "top" || data.sourceDescription.toLowerCase().includes("top")) 
-          return <Flame className="h-6 w-6 text-orange-500"/>;
+          return <Flame className="h-5 w-5 text-red-500"/>;
       if (data.query?.filter === "new" || data.sourceDescription.toLowerCase().includes("new")) 
-          return <Sparkles className="h-6 w-6 text-blue-500"/>;
+          return <Sparkles className="h-5 w-5 text-sky-500"/>;
       if (data.query?.filter === "best" || data.sourceDescription.toLowerCase().includes("best")) 
-          return <TrendingUp className="h-6 w-6 text-green-500"/>;
-      return <Newspaper className="h-6 w-6 text-primary"/>;
+          return <TrendingUp className="h-5 w-5 text-emerald-500"/>;
+      return <Newspaper className="h-5 w-5 text-orange-500"/>;
   };
 
   return (
     <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
     >
         <Card className={cn(
             "w-full relative overflow-hidden",
-            "bg-gradient-to-br from-background to-background/80",
-            "backdrop-blur-sm border-border/50",
-            "shadow-lg dark:shadow-primary/5"
+            "bg-gradient-to-br from-white dark:from-neutral-900 to-neutral-50 dark:to-neutral-800/90",
+            "backdrop-blur-md border-neutral-200/80 dark:border-neutral-700/60",
+            "shadow-lg dark:shadow-neutral-950/20"
         )}>
-            {/* Header with enhanced styling */}
-            <CardHeader className="relative">
+            {/* Ajustement du padding pour le CardHeader pour les petits écrans */}
+            <CardHeader className="relative px-3 py-3 sm:px-5 sm:py-4 md:px-6 md:py-5">
                 <motion.div
                     className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-accent/5"
                     initial={{ opacity: 0 }}
@@ -283,24 +284,24 @@ export function HackerNewsCard({ data }: HackerNewsCardProps) {
                     transition={{ duration: 0.6 }}
                 />
                 <div className="relative z-10">
-                    <CardTitle className="flex items-center gap-3 text-xl">
+                    <CardTitle className="flex items-center gap-2 sm:gap-2.5 text-base sm:text-lg font-semibold text-neutral-800 dark:text-neutral-100"> {/* Taille de police et gap ajustés */}
                         <motion.div
-                            whileHover={{ rotate: 5, scale: 1.1 }}
-                            transition={{ type: "spring", stiffness: 300 }}
+                            whileHover={{ rotate: 3, scale: 1.1 }}
+                            transition={{ type: "spring", stiffness: 300, damping:15 }}
                         >
                             {iconForSource()}
                         </motion.div>
-                        <span className="bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+                        <span className="bg-gradient-to-r from-neutral-800 to-neutral-600 dark:from-neutral-100 dark:to-neutral-300 bg-clip-text text-transparent">
                             Hacker News: {data.sourceDescription || "Stories"}
                         </span>
                     </CardTitle>
-                    <CardDescription className="text-base mt-2">
+                    <CardDescription className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1 sm:mt-1.5"> {/* Taille de police et margin ajustées */}
                         {data.count > 0 ? (
-                            <span className="flex items-center gap-2">
-                                <Eye size={16} className="text-primary" />
+                            <span className="flex items-center gap-1 sm:gap-1.5"> {/* Gap ajusté */}
+                                <Eye size={14} className="text-primary/80" />
                                 Showing {data.count} top stories
                                 {data.query?.query && (
-                                    <Badge variant="outline" className="ml-2">
+                                    <Badge variant="outline" className="ml-1.5 sm:ml-2 text-[10px] sm:text-xs font-normal border-neutral-300 dark:border-neutral-600"> {/* Margin et taille de texte ajustés */}
                                         "{data.query.query}"
                                     </Badge>
                                 )}
@@ -315,21 +316,22 @@ export function HackerNewsCard({ data }: HackerNewsCardProps) {
             <CardContent className="p-0">
                 {data.error && (
                     <motion.div 
-                        className="flex items-center gap-3 text-destructive text-sm p-4 mx-6 mb-4 bg-destructive/10 rounded-xl border border-destructive/20"
-                        initial={{ opacity: 0, y: 20 }}
+                        className="flex items-center gap-2 sm:gap-3 text-destructive-600 dark:text-destructive-400 text-xs sm:text-sm p-3 sm:p-3.5 mx-3 sm:mx-4 md:mx-5 mb-3 sm:mb-4 bg-destructive/10 rounded-lg border border-destructive/20" /* Paddings et margins ajustés */
+                        initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                     >
-                        <AlertCircle size={20}/> 
+                        <AlertCircle size={16}/> 
                         <div>
                             <p className="font-semibold">Error Fetching Hacker News</p>
-                            <p className="text-xs opacity-80">{data.error}</p>
+                            <p className="text-[11px] sm:text-xs opacity-90">{data.error}</p> {/* Taille de texte ajustée */}
                         </div>
                     </motion.div>
                 )}
                 
                 {!data.error && data.stories && data.stories.length > 0 ? (
-                    <ScrollArea className="max-h-[600px] px-6">
-                        <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-6">
+                    // Ajustement du padding pour la ScrollArea pour les petits écrans
+                    <ScrollArea className="max-h-[550px] px-2.5 sm:px-4 md:px-5 pt-1 pb-2">
+                        <ul className="grid grid-cols-1 gap-2.5 sm:gap-3 md:gap-3.5 pb-2.5 sm:pb-4"> {/* Gaps ajustés */}
                             {data.stories.map((story, index) => (
                                 <StoryItem key={story.id} story={story} index={index} />
                             ))}
@@ -337,33 +339,19 @@ export function HackerNewsCard({ data }: HackerNewsCardProps) {
                     </ScrollArea>
                 ) : (
                     !data.error && (
-                        <div className="text-center py-12 px-6">
+                        <div className="text-center py-8 sm:py-10 px-3 sm:px-5"> {/* Padding ajusté */}
                             <motion.div
-                                initial={{ opacity: 0, y: 20 }}
+                                initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="space-y-3"
+                                className="space-y-2 sm:space-y-2.5" // Space-y ajusté
                             >
-                                <Newspaper size={48} className="mx-auto text-muted-foreground/50" />
-                                <p className="text-muted-foreground">No stories to display</p>
+                                <Newspaper size={36} className="mx-auto text-neutral-400 dark:text-neutral-600" />
+                                <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">No stories to display</p>
                             </motion.div>
                         </div>
                     )
                 )}
             </CardContent>
-
-            {data.stories && data.stories.length > 0 && (
-                <CardFooter className="text-xs text-muted-foreground justify-center pt-4 border-t border-border/50 bg-muted/30">
-                    <motion.p
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.3 }}
-                        className="flex items-center gap-2"
-                    >
-                        <Sparkles size={12} />
-                        Stories from Hacker News via {data.source_api === "hackernews" ? "Algolia/Firebase API" : data.source_api}
-                    </motion.p>
-                </CardFooter>
-            )}
         </Card>
     </motion.div>
   );

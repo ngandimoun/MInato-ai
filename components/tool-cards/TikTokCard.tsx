@@ -1,3 +1,6 @@
+// components/tool-cards/TikTokCard.tsx
+"use client"
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,7 +40,7 @@ const TikTokVideo: React.FC<{ video: CachedTikTokVideo; index: number }> = ({ vi
     >
       <div 
         className={cn(
-          "group relative p-4 rounded-xl cursor-pointer transition-all duration-300",
+          "group relative p-4 rounded-xl cursor-pointer transition-all duration-300 h-full", // Ajout de h-full pour s'assurer que les cartes dans une grille ont une hauteur cohérente si nécessaire
           "bg-gradient-to-r from-background/50 to-background/30",
           "hover:from-pink-500/5 hover:to-purple-500/5",
           "border border-border/50 hover:border-pink-500/30",
@@ -45,10 +48,10 @@ const TikTokVideo: React.FC<{ video: CachedTikTokVideo; index: number }> = ({ vi
           isHovered && "scale-[1.02]"
         )}
       >
-        <div className="flex gap-4">
+        <div className="flex flex-col gap-3">
           {/* Thumbnail Section */}
-          <div className="relative flex-shrink-0 group">
-            <div className="relative w-32 h-20 md:w-40 md:h-24 rounded-lg overflow-hidden bg-muted">
+          <div className="relative group">
+            <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-muted">
               {thumbnailUrl ? (
                 <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
                   <img 
@@ -175,20 +178,16 @@ export function TikTokCard({ data }: TikTokCardProps) {
   const [showAll, setShowAll] = useState(false);
   const [activeTab, setActiveTab] = useState("popular");
   
-  // Extract query text if available
   const hasQuery = (d: any): d is { query: { query?: string; mode?: string } } =>
     d && typeof d === 'object' && 'query' in d && d.query !== undefined;
   
   const queryText = hasQuery(data) ? data.query.query || "TikTok videos" : "TikTok videos";
   
-  // Filter only TikTok videos - Safely check for TikTok videos
   const tikTokVideos = Array.isArray(data.videos) ? 
     data.videos.filter((v) => {
-      // Type-safe check for TikTok videos
       return 'source' in v && v.source === 'TikTok';
     }) as CachedTikTokVideo[] : [];
   
-  // Error handling
   if (!tikTokVideos.length) {
     return (
       <motion.div
@@ -201,9 +200,9 @@ export function TikTokCard({ data }: TikTokCardProps) {
             <div className="absolute -top-20 -right-20 w-40 h-40 bg-pink-500/10 rounded-full blur-3xl" />
             <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl" />
             
-            <CardTitle className="flex items-center gap-3 text-base md:text-lg relative z-10">
+            <CardTitle className="flex items-center gap-3 text-xs md:text-sm relative z-10">
               <div className="relative">
-                <Film className="h-6 w-6 text-pink-500 animate-pulse"/>
+                <Film className="h-4 w-4 text-pink-500 animate-pulse"/>
                 <div className="absolute inset-0 bg-pink-500/20 blur-xl" />
               </div>
               <span className="bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent font-semibold">
@@ -235,8 +234,7 @@ export function TikTokCard({ data }: TikTokCardProps) {
     );
   }
   
-  // Main content display
-  const itemsToShow = showAll ? tikTokVideos : tikTokVideos.slice(0, 4);
+  const itemsToShow = showAll ? tikTokVideos : tikTokVideos.slice(0, 6);
   
   return (
     <motion.div
@@ -244,14 +242,14 @@ export function TikTokCard({ data }: TikTokCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <Card className="w-full overflow-hidden backdrop-blur-xl bg-gradient-to-br from-background/95 via-background/85 to-background/95 border border-border/50 shadow-xl">
+      <Card className="w-full text-sm overflow-hidden backdrop-blur-xl bg-gradient-to-br from-background/95 via-background/85 to-background/95 border border-border/50 shadow-xl">
         <CardHeader className="pb-2 relative">
           <div className="absolute -top-20 -right-20 w-40 h-40 bg-pink-500/10 rounded-full blur-3xl" />
           <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl" />
           
-          <CardTitle className="flex items-center gap-3 text-base md:text-lg relative z-10">
+          <CardTitle className="flex items-center gap-3 text-xs md:text-sm relative z-10">
             <div className="relative">
-              <Film className="h-6 w-6 text-pink-500 animate-pulse"/>
+              <Film className="h-4 w-4 text-pink-500 animate-pulse"/>
               <div className="absolute inset-0 bg-pink-500/20 blur-xl" />
             </div>
             <span className="bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent font-semibold">
@@ -283,7 +281,8 @@ export function TikTokCard({ data }: TikTokCardProps) {
 
         <CardContent className="pt-2 px-4">
           <ScrollArea className={cn("w-full", tikTokVideos.length > 3 ? "h-[450px]" : "h-auto")}>
-            <div className="space-y-3 pr-4">
+            {/* MODIFICATION 1: Suppression de space-y-3 ici */}
+            <div className="pr-4"> {/* Était: className="space-y-3 pr-4" */}
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeTab}
@@ -291,6 +290,8 @@ export function TikTokCard({ data }: TikTokCardProps) {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.3 }}
+                  // MODIFICATION 2: Ajout des classes pour la grille
+                  className="grid grid-cols-1 lg:grid-cols-3 gap-3"
                 >
                   {itemsToShow.map((video, idx) => (
                     <TikTokVideo key={video.videoId || video.videoUrl || idx} video={video} index={idx} />
@@ -321,7 +322,7 @@ export function TikTokCard({ data }: TikTokCardProps) {
           </ScrollArea>
         </CardContent>
         
-        <CardFooter className="text-xs text-muted-foreground justify-between pt-3 pb-3 px-4 border-t border-border/50 bg-muted/20 backdrop-blur-sm">
+        {/* <CardFooter className="text-xs text-muted-foreground justify-between pt-3 pb-3 px-4 border-t border-border/50 bg-muted/20 backdrop-blur-sm">
           <span className="flex items-center">
             <Globe className="h-3 w-3 mr-1" />
             TikTok videos via Serper.dev
@@ -330,8 +331,8 @@ export function TikTokCard({ data }: TikTokCardProps) {
           <Button variant="ghost" size="sm" className="h-6 px-2 text-xs hover:bg-pink-500/10">
             New Search <Search className="ml-1 h-3 w-3" />
           </Button>
-        </CardFooter>
+        </CardFooter> */}
       </Card>
     </motion.div>
   );
-} 
+}
