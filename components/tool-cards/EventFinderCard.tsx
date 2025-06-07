@@ -33,7 +33,7 @@ const EventItem: React.FC<{ event: TicketmasterEvent; isExpanded: boolean; onTog
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
-            className="p-3 border rounded-lg hover:shadow-md transition-shadow bg-card" // Added bg-card for consistency if needed
+            className="p-3 border rounded-lg hover:shadow-md transition-shadow"
         >
             <div className="flex flex-col sm:flex-row gap-3">
                 {mainImage && (
@@ -78,7 +78,7 @@ const EventItem: React.FC<{ event: TicketmasterEvent; isExpanded: boolean; onTog
                     <h5 className="font-medium text-muted-foreground">Attractions:</h5>
                     <ul className="list-disc list-inside pl-2">
                         {event._embedded.attractions.map(attr => (
-                            <li key={attr.id || attr.name}>{attr.name}</li> // Added fallback key for attr
+                            <li key={attr.name}>{attr.name}</li>
                         ))}
                     </ul>
                 </motion.div>
@@ -114,9 +114,9 @@ export function EventFinderCard({ data }: EventFinderCardProps) {
   const iconForQuery = () => {
       const query = data.query?.classificationName?.toLowerCase() || data.query?.keyword?.toLowerCase();
       if (query?.includes("music") || query?.includes("concert")) return <Music className="h-5 w-5 text-primary"/>;
-      if (query?.includes("sport")) return <Users className="h-5 w-5 text-primary"/>;
+      if (query?.includes("sport")) return <Users className="h-5 w-5 text-primary"/>; // Using Users for sports as an example
       if (query?.includes("art") || query?.includes("theatre")) return <Palette className="h-5 w-5 text-primary"/>;
-      if (query?.includes("family")) return <ImageIcon className="h-5 w-5 text-primary"/>;
+      if (query?.includes("family")) return <ImageIcon className="h-5 w-5 text-primary"/>; // Example for Family
       if (data.query?.location || data.query?.countryCode) return <Globe className="h-5 w-5 text-primary"/>;
       return <Ticket className="h-5 w-5 text-primary"/>;
   }
@@ -136,9 +136,8 @@ export function EventFinderCard({ data }: EventFinderCardProps) {
       </CardHeader>
       <CardContent>
         {data.events && data.events.length > 0 ? (
-          <ScrollArea className={cn("h-[600px]", data.events.length > 3 ? "pr-3" : "")}>
-            {/* Changement ici pour la grille */}
-            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <ScrollArea className={cn("max-h-[600px]", data.events.length > 3 ? "pr-3" : "")}>
+            <ul className="space-y-3">
               {data.events.map(event => (
                 <EventItem 
                     key={event.id} 
