@@ -198,7 +198,9 @@ city?: { name: string };
 state?: { stateCode?: string };
 country?: { countryCode: string };
 }>;
-attractions?: Array<{ name: string }>;
+attractions?: Array<{
+    id: string; name: string 
+}>;
 };
 }
 // --- Workflow Preferences ---
