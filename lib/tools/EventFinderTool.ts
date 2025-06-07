@@ -9,7 +9,6 @@ import {
   TicketmasterEvent,
 } from "@/lib/types/index";
 import { format, parseISO } from "date-fns"; // For better date formatting
-import { generateStructuredJson } from "../providers/llm_clients";
 
 interface EventFinderInput extends ToolInput {
   keyword?: string | null;
@@ -162,122 +161,7 @@ export class EventFinderTool extends BaseTool {
     };
   }
 
-  private async extractEventFinderParameters(userInput: string): Promise<Partial<EventFinderInput>> {
-    // Enhanced extraction prompt for EventFinder
-    const extractionPrompt = `
-You are an expert parameter extractor for Minato's EventFinderTool which finds events via Ticketmaster.
-
-Given this user query about events: "${userInput.replace(/\"/g, '\\"')}"
-
-COMPREHENSIVE ANALYSIS GUIDELINES:
-
-1. EVENT KEYWORD EXTRACTION:
-   - Extract specific event keywords (artist names, event types, etc.)
-   - Examples: "Taylor Swift" → "Taylor Swift", "rock concert" → "rock concert"
-   - Leave null if the user just wants to browse events in general
-
-2. LOCATION IDENTIFICATION:
-   - Extract specific location (city, state, postal code, or coordinates)
-   - Handle common formats: "New York", "NYC", "90210", "London, UK"
-   - Map common abbreviations to full names
-   - Leave null to use user's current location
-
-3. DATE/TIME EXTRACTION:
-   - Identify start and end dates for event search
-   - Convert relative dates: "this weekend", "next month", "tomorrow"
-   - Use ISO 8601 format (YYYY-MM-DDTHH:mm:ssZ)
-   - If only one date mentioned, use it as startDate
-
-4. CLASSIFICATION DETECTION:
-   - Identify broad event categories: "Music", "Sports", "Arts & Theatre", "Family"
-   - Extract from context clues (e.g., "concert" → "Music", "game" → "Sports")
-
-5. SEARCH PARAMETERS:
-   - Extract radius if mentioned (e.g., "within 50 miles")
-   - Identify country code if specific country mentioned
-   - Determine result limit if specified
-
-OUTPUT FORMAT: JSON object with these fields:
-- "keyword": (string|null) Event search keywords
-- "location": (string|null) Location to search near
-- "radius": (number|null) Search radius
-- "radiusUnit": ("miles"|"km"|null) Radius unit
-- "startDate": (string|null) Start date in ISO format
-- "endDate": (string|null) End date in ISO format
-- "classificationName": (string|null) Event category
-- "limit": (number|null) Max results (1-10)
-- "countryCode": (string|null) 2-letter country code
-
-RESPOND ONLY WITH THE JSON OBJECT.`;
-
-    try {
-      // Define the schema for EventFinderInput
-      const eventParamsSchema = {
-        type: "object",
-        properties: {
-          keyword: { type: ["string", "null"] },
-          location: { type: ["string", "null"] },
-          radius: { type: ["number", "null"] },
-          radiusUnit: { type: ["string", "null"], enum: ["miles", "km", null] },
-          startDate: { type: ["string", "null"] },
-          endDate: { type: ["string", "null"] },
-          classificationName: { type: ["string", "null"] },
-          limit: { type: ["number", "null"] },
-          countryCode: { type: ["string", "null"] }
-        }
-      };
-
-      const extractionResult = await generateStructuredJson<Partial<EventFinderInput>>(
-        extractionPrompt,
-        userInput,
-        eventParamsSchema,
-        "EventFinderToolParameters",
-        [], // no history context needed
-        "gpt-4o-mini"
-      );
-      
-      return extractionResult || {};
-    } catch (error) {
-      logger.error("[EventFinderTool] Parameter extraction failed:", error);
-      return {};
-    }
-  }
-
   async execute(input: EventFinderInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    // If input is from natural language, extract parameters
-    if (input._rawUserInput && typeof input._rawUserInput === 'string') {
-      const extractedParams = await this.extractEventFinderParameters(input._rawUserInput);
-      
-      // Only use extracted parameters if they're not already specified
-      if (extractedParams.keyword !== undefined && input.keyword === undefined) {
-        input.keyword = extractedParams.keyword;
-      }
-      if (extractedParams.location !== undefined && input.location === undefined) {
-        input.location = extractedParams.location;
-      }
-      if (extractedParams.radius !== undefined && input.radius === undefined) {
-        input.radius = extractedParams.radius;
-      }
-      if (extractedParams.radiusUnit !== undefined && input.radiusUnit === undefined) {
-        input.radiusUnit = extractedParams.radiusUnit;
-      }
-      if (extractedParams.startDate !== undefined && input.startDate === undefined) {
-        input.startDate = extractedParams.startDate;
-      }
-      if (extractedParams.endDate !== undefined && input.endDate === undefined) {
-        input.endDate = extractedParams.endDate;
-      }
-      if (extractedParams.classificationName !== undefined && input.classificationName === undefined) {
-        input.classificationName = extractedParams.classificationName;
-      }
-      if (extractedParams.limit !== undefined && input.limit === undefined) {
-        input.limit = extractedParams.limit;
-      }
-      if (extractedParams.countryCode !== undefined && input.countryCode === undefined) {
-        input.countryCode = extractedParams.countryCode;
-      }
-    }
-    
     const effectiveSource = (input.source === null || input.source === undefined) ? "ticketmaster" : input.source;
     if (effectiveSource === "ticketmaster" && !this.API_KEY) {
         return { error: "Event Finder Tool (Ticketmaster) not configured.", result: "Event search via Ticketmaster is unavailable." };

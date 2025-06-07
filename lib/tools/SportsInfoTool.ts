@@ -10,7 +10,6 @@ import { generateStructuredJson } from "../providers/llm_clients";
 interface SportsInput extends ToolInput {
   teamName: string; // Required
   queryType: "next_game" | "last_game" | "team_info"; // Required
-  _rawUserInput?: string; // Raw user input passed by orchestrator
 }
 interface SportsDbTeam { idTeam: string; strTeam: string; strTeamShort?: string | null; strAlternate?: string | null; intFormedYear?: string | null; strSport: string; strLeague: string; idLeague?: string; strStadium?: string | null; strStadiumThumb?: string | null; strStadiumLocation?: string | null; intStadiumCapacity?: string | null; strWebsite?: string | null; strFacebook?: string | null; strTwitter?: string | null; strInstagram?: string | null; strDescriptionEN?: string | null; strGender?: string; strCountry?: string; strTeamBadge?: string; strTeamJersey?: string | null; strTeamLogo?: string | null; strTeamFanart1?: string | null; strTeamFanart2?: string | null; strTeamFanart3?: string | null; strTeamFanart4?: string | null; strTeamBanner?: string | null; }
 interface SportsDbEvent { idEvent: string; strEvent: string; strEventAlternate?: string; strFilename?: string; strSport: string; idLeague: string; strLeague: string; strSeason: string; strDescriptionEN?: string | null; strHomeTeam: string; strAwayTeam: string; idHomeTeam: string; idAwayTeam: string; intHomeScore: string | null; intAwayScore: string | null; intRound?: string; intSpectators?: string | null; strHomeGoalDetails?: string | null; strAwayGoalDetails?: string | null; strHomeLineupGoalkeeper?: string | null; strAwayLineupGoalkeeper?: string | null; intHomeShots?: string | null; intAwayShots?: string | null; dateEvent: string; dateEventLocal?: string | null; strTime: string; strTimeLocal?: string | null; strTVStation?: string | null; idVenue?: string; strVenue?: string; strCountry?: string; strCity?: string | null; strPoster?: string | null; strSquare?: string | null; strFanart?: string | null; strThumb?: string | null; strBanner?: string | null; strMap?: string | null; strTweet1?: string | null; strTweet2?: string | null; strTweet3?: string | null; strVideo?: string | null; strStatus?: string; strPostponed?: "yes" | "no"; strLocked?: "unlocked" | "locked"; strTimestamp?: string; }
@@ -58,47 +57,29 @@ Given this user query about sports: "${userInput.replace(/\"/g, '\\"')}"
 
 COMPREHENSIVE ANALYSIS GUIDELINES:
 
-1. TEAM NAME IDENTIFICATION - CRITICAL RULES:
-   - Extract ONLY ONE team name, even if multiple teams are mentioned
-   - If the query contains "vs", "versus", "against", or similar match indicators, extract ONLY THE FIRST TEAM mentioned
+1. TEAM NAME IDENTIFICATION:
+   - Precisely extract the sports team name (e.g., "Manchester United", "Los Angeles Lakers", "New York Yankees")
    - Handle team nicknames and common abbreviations (e.g., "Man U", "Lakers", "Yankees")
-   - Consider context clues to disambiguate teams with similar names
-   - IMPORTANT: Translate non-English team names to their English equivalents (e.g., "Espagne" → "Spain", "Deutschland" → "Germany")
-   
-   IMPORTANT EXAMPLES:
-   - "Spain vs France last game" → teamName: "Spain" (NOT "Spain vs France")
-   - "Barcelona versus Real Madrid match" → teamName: "Barcelona" (NOT "Barcelona versus Real Madrid")
-   - "Lakers against Celtics next game" → teamName: "Lakers" (NOT "Lakers against Celtics")
-   - "Manchester United vs Liverpool result" → teamName: "Manchester United"
-   - "tell me about Barcelona" → teamName: "Barcelona"
-   - "when does Brazil play next" → teamName: "Brazil"
-   - "Espagne vs France score" → teamName: "Spain" (translate from French)
-   - "España contra Francia resultado" → teamName: "Spain" (translate from Spanish)
+   - Consider context clues to disambiguate teams with similar names (e.g., "Barcelona" - FC Barcelona vs Barcelona SC)
+   - For queries like "tell me about Barcelona", extract "Barcelona" as the team name
 
 2. QUERY TYPE DETERMINATION:
    - Analyze what specific information the user wants about the team:
      a) "team_info" - General information about the team (default if unclear)
      b) "next_game" - Information about upcoming scheduled games
      c) "last_game" - Results from most recently completed games
-   - Look for clear indicators:
-     - "last game", "last match", "result", "score" → "last_game"
-     - "next game", "next match", "when play", "upcoming" → "next_game"
-     - "about", "info", "tell me about", general questions → "team_info"
-   - Default to "last_game" if the user mentions "score" or appears to be asking about a match result
+   - Look for clear indicators like "when is the next game", "last match result", etc.
+   - Default to "team_info" if the user is simply asking about a team with no specific time reference
 
 3. MULTILINGUAL UNDERSTANDING:
    - Recognize team names and sports terminology in multiple languages
    - Identify query intent across different language patterns
-   - Always translate non-English team names to their English equivalents
 
 OUTPUT FORMAT (JSON):
 {
-  "teamName": "Extracted single team name (FIRST team if multiple mentioned, translated to English if needed)",
+  "teamName": "Extracted team name",
   "queryType": "team_info" | "next_game" | "last_game"
 }
-
-CRITICAL: Never extract multiple teams separated by "vs" or similar as the teamName. Always extract just the first team.
-CRITICAL: Always translate non-English team names to their English equivalents.
 
 If teamName cannot be confidently identified, set it to null.
 If queryType is ambiguous, default to "team_info".
@@ -119,7 +100,7 @@ If queryType is ambiguous, default to "team_info".
         extractionPrompt,
         userInput,
         sportsParamSchema,
-        "minato_sports_query_extraction_v1",
+        "sports_param_extractor",
         [],
         "gpt-4o",
       );
@@ -130,26 +111,8 @@ If queryType is ambiguous, default to "team_info".
         return {}; // Return empty object on error
       }
 
-      let teamName = result.teamName || undefined;
-      
-      // Post-process to ensure we only get the first team if multiple teams are mentioned
-      if (teamName && typeof teamName === 'string') {
-        // Check for common match indicators
-        const matchIndicators = [' vs ', ' versus ', ' contre ', ' against ', ' v ', ' VS ', ' VERSUS ', ' CONTRE ', ' AGAINST ', ' V '];
-        
-        for (const indicator of matchIndicators) {
-          if (teamName.includes(indicator)) {
-            // Extract only the first team
-            const teams = teamName.split(indicator);
-            teamName = teams[0].trim();
-            this.log("info", `[SportsInfoTool] Post-processed team name from "${result.teamName}" to "${teamName}"`);
-            break;
-          }
-        }
-      }
-      
       const extractedParams: Partial<SportsInput> = {
-        teamName: teamName,
+        teamName: result.teamName || undefined,
         queryType: result.queryType || "team_info"
       };
 
@@ -202,145 +165,53 @@ If queryType is ambiguous, default to "team_info".
   }
 
   private async findTeam(teamName: string, abortSignal?: AbortSignal): Promise<SportsDbTeam | null> {
-    // Common non-English to English team name translations
-    const commonTeamTranslations: Record<string, string> = {
-      'espagne': 'spain',
-      'españa': 'spain',
-      'spanien': 'spain',
-      'spagna': 'spain',
-      
-      'france': 'france', // Same in English
-      'francia': 'france',
-      'frankreich': 'france',
-      
-      'allemagne': 'germany',
-      'alemania': 'germany',
-      'deutschland': 'germany',
-      
-      'angleterre': 'england',
-      'inglaterra': 'england',
-      
-      'italie': 'italy',
-      'italia': 'italy',
-      'italien': 'italy',
-      
-      'brésil': 'brazil',
-      'brasil': 'brazil',
-      'brasilien': 'brazil',
-      
-      'états-unis': 'united states',
-      'estados unidos': 'united states',
-      'usa': 'united states',
-      
-      'japon': 'japan',
-      'japón': 'japan',
-      
-      'portugal': 'portugal', // Same in English
-      
-      'pays-bas': 'netherlands',
-      'países bajos': 'netherlands',
-      'holanda': 'netherlands'
-    };
-    
-    // Normalize and check for translations
-    const normalizedInput = teamName.toLowerCase().trim();
-    const translatedTeamName = commonTeamTranslations[normalizedInput] || teamName;
-    
-    if (translatedTeamName !== teamName) {
-      this.log("info", `Translated team name from "${teamName}" to "${translatedTeamName}"`);
-    }
-    
-    const url = `${this.API_BASE}${this.API_KEY}/searchteams.php?t=${encodeURIComponent(translatedTeamName)}`;
-    this.log("debug", `Searching TheSportsDB team: "${translatedTeamName}" URL: ${url.replace(this.API_KEY, "***")}`);
+    const url = `${this.API_BASE}${this.API_KEY}/searchteams.php?t=${encodeURIComponent(teamName)}`;
+    this.log("debug", `Searching TheSportsDB team: "${teamName}" URL: ${url.replace(this.API_KEY, "***")}`);
     try {
       const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(8000) });
-      if (abortSignal?.aborted) { this.log("warn", `Team search aborted for "${translatedTeamName}"`); return null; }
+      if (abortSignal?.aborted) { this.log("warn", `Team search aborted for "${teamName}"`); return null; }
       if (!response.ok) throw new Error(`Team search API failed: ${response.status} ${response.statusText}`);
       const data = await response.json() as TheSportsDbResponse<SportsDbTeam>;
-      if (!data?.teams || data.teams.length === 0) { 
-        // If no results with translated name, try original
-        if (translatedTeamName !== teamName) {
-          this.log("info", `No results for translated name "${translatedTeamName}", trying original "${teamName}"`);
-          return this.findTeam(teamName, abortSignal);
-        }
-        this.log("warn", `No teams found matching "${translatedTeamName}"`); 
-        return null; 
-      }
+      if (!data?.teams || data.teams.length === 0) { this.log("warn", `No teams found matching "${teamName}"`); return null; }
       
       // Prioritize exact match if multiple teams are returned (e.g., "Barcelona" might return FC Barcelona and Barcelona SC)
-      const exactMatch = data.teams.find(t => 
-        t.strTeam.toLowerCase() === translatedTeamName.toLowerCase() || 
-        t.strTeam.toLowerCase() === teamName.toLowerCase()
-      );
-      
+      const exactMatch = data.teams.find(t => t.strTeam.toLowerCase() === teamName.toLowerCase());
       // Try fuzzy matches if no exact match
       let fuzzyMatch = null;
       if (!exactMatch) {
-        const lowerTeamName = translatedTeamName.toLowerCase();
-        const lowerOriginalName = teamName.toLowerCase();
-        
+        const lowerTeamName = teamName.toLowerCase();
         // Check for team name contained within full name
-        fuzzyMatch = data.teams.find(t => 
-          t.strTeam.toLowerCase().includes(lowerTeamName) || 
-          (t.strAlternate && t.strAlternate.toLowerCase().includes(lowerTeamName)) ||
-          t.strTeam.toLowerCase().includes(lowerOriginalName) || 
-          (t.strAlternate && t.strAlternate.toLowerCase().includes(lowerOriginalName))
-        );
+        fuzzyMatch = data.teams.find(t => t.strTeam.toLowerCase().includes(lowerTeamName) || 
+                                    (t.strAlternate && t.strAlternate.toLowerCase().includes(lowerTeamName)));
       }
       
-      // For national teams, prioritize the proper national team (filter by sport if needed)
-      const isNationalTeam = data.teams.some(t => t.strTeam.includes('National') || t.strTeam.includes('National Team'));
-      let nationalTeam = null;
-      
-      if (isNationalTeam) {
-        nationalTeam = data.teams.find(t => 
-          (t.strTeam.includes('National') || t.strTeam.includes('National Team')) && 
-          (t.strSport === 'Soccer' || t.strSport === 'Football')
-        );
-      }
-      
-      const teamToReturn = nationalTeam || exactMatch || fuzzyMatch || data.teams[0];
+      const teamToReturn = exactMatch || fuzzyMatch || data.teams[0];
       this.log("info", `Found Team: ${teamToReturn.strTeam} (ID: ${teamToReturn.idTeam})`);
       return teamToReturn;
     } catch (error: any) {
-      if (error.name === 'AbortError') this.log("error", `Team search timed out or aborted for "${translatedTeamName}"`);
-      else this.log("error", `Error finding team "${translatedTeamName}":`, error.message);
+      if (error.name === 'AbortError') this.log("error", `Team search timed out or aborted for "${teamName}"`);
+      else this.log("error", `Error finding team "${teamName}":`, error.message);
       return null;
     }
   }
 
   async execute(input: SportsInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    // Log what we received
-    this.log("info", `[SportsInfoTool] Execute called with teamName: "${input.teamName}", queryType: "${input.queryType}", _rawUserInput: "${input._rawUserInput || 'none'}"`);
-    
-    // If teamName contains multiple teams (vs indicator), always extract parameters
-    const hasVsPattern = input.teamName && /vs|versus|against|contre|v\.?\s|contre/i.test(input.teamName);
-    const needsExtraction = input._rawUserInput || hasVsPattern;
-    
-    if (needsExtraction) {
-      const rawInput = input._rawUserInput || input.teamName || '';
-      this.log("info", `[SportsInfoTool] Extracting parameters from: "${rawInput}"`);
-      const extractedParams = await this.extractSportsParameters(rawInput);
+    // If input is from natural language, extract parameters
+    if (input._rawUserInput && typeof input._rawUserInput === 'string') {
+      const extractedParams = await this.extractSportsParameters(input._rawUserInput);
       
-      // Always use extracted parameters when extraction is done
-      if (extractedParams.teamName) {
-        this.log("info", `[SportsInfoTool] Using extracted teamName: "${extractedParams.teamName}" (original: "${input.teamName}")`);
+      // Only use extracted parameters if they're not already specified
+      if (extractedParams.teamName && !input.teamName) {
         input.teamName = extractedParams.teamName;
       }
-      if (extractedParams.queryType) {
+      if (extractedParams.queryType && !input.queryType) {
         input.queryType = extractedParams.queryType;
-      }
-      
-      // For queries with vs pattern but no specific query type, default to last_game
-      if (hasVsPattern && !extractedParams.queryType) {
-        this.log("info", `[SportsInfoTool] Setting default queryType to last_game for vs pattern query`);
-        input.queryType = "last_game";
       }
     }
     
     // Apply user preferences if available
-    if (input.context?.userState?.workflow_preferences) {
-      const prefs = input.context.userState.workflow_preferences;
+    if (input._context?.userState?.workflow_preferences) {
+      const prefs = input._context.userState.workflow_preferences;
       
       // If user hasn't specified a team but has preferred leagues,
       // we can suggest a team from their preferred league
@@ -350,7 +221,7 @@ If queryType is ambiguous, default to "team_info".
       }
     }
     
-    const userNameForResponse = input.context?.userName || "friend";
+    const userNameForResponse = input._context?.userName || "friend";
     const teamNameInput = input.teamName || "";
     const queryType = input.queryType || "team_info";
     
@@ -468,33 +339,7 @@ If queryType is ambiguous, default to "team_info".
               else if (!isHomeTeam && homeWon) outcome = "they lost"; 
               else outcome = "it was a draw"; 
             }
-            
-            // Special formatting for "vs pattern" queries to emphasize the score
-            if (hasVsPattern && scoreAvailable) {
-              // Format match result in a more structured way for vs queries
-              const vsTeamResult = `${event.homeTeamName} ${event.homeScore} - ${event.awayScore} ${event.awayTeamName}`;
-              
-              // Extract potential team names from the original query for better matching
-              const originalQuery = input._rawUserInput || input.teamName || '';
-              const potentialTeams = originalQuery.split(/vs|versus|against|contre|v\.?\s/i).map(t => t.trim().toLowerCase());
-              
-              // Check if the query was about both teams in the event
-              const queryIncludesBothTeams = 
-                potentialTeams.some(t => event.homeTeamName.toLowerCase().includes(t) || 
-                                        (event.homeTeamName.toLowerCase() === t)) &&
-                potentialTeams.some(t => event.awayTeamName.toLowerCase().includes(t) || 
-                                        (event.awayTeamName.toLowerCase() === t));
-              
-              if (queryIncludesBothTeams) {
-                // More detailed format for when the query specifically asked about these two teams
-                resultString = `Match result: ${vsTeamResult}\nPlayed on ${dateTimeString}${venue ? ` at ${venue}` : ""}\nStatus: ${event.status || "Completed"}`;
-              } else {
-                // More generic format
-                resultString = `The last match result for ${teamDisplayName}: ${vsTeamResult} (played on ${dateTimeString})`;
-              }
-            } else {
-              resultString = `${teamDisplayName}'s last game: they played ${opponent} (${homeAway}) on ${dateTimeString}. It looks like ${outcome}, and ${score}. The status was: ${event.status || "Finished"}.`;
-            }
+            resultString = `${teamDisplayName}'s last game: they played ${opponent} (${homeAway}) on ${dateTimeString}. It looks like ${outcome}, and ${score}. The status was: ${event.status || "Finished"}.`;
           }
         }
       }

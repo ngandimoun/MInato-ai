@@ -146,19 +146,10 @@ COMPREHENSIVE ANALYSIS GUIDELINES:
    - Look for keywords like "trending" (→top), "latest" (→new), "best", "Ask HN", "Show HN", "jobs"
    - Default to "top" if unspecified but implied by context
 
-2. SEARCH QUERY EXTRACTION - CRITICAL:
-   - Extract MEANINGFUL KEYWORDS from the user's query, not the entire raw string
-   - Remove filler words like "some", "on", "about", "for", "the", "a", "an", "in", "of", "with"
-   - Focus on IMPORTANT TERMS: nouns, technical terms, company names, technologies
-   - For complex queries, identify the CORE TOPICS being searched for
-   - Join extracted keywords with spaces to form a clean search query
-   
-   Examples of query extraction:
-   - "some startup ai voice trends on" → "startup ai voice trends"
-   - "articles about machine learning in healthcare" → "machine learning healthcare"
-   - "posts on rust programming language" → "rust programming language"
-   - "discussions about the latest javascript frameworks" → "javascript frameworks"
-   - "what are people saying about openai" → "openai"
+2. SEARCH QUERY EXTRACTION:
+   - If user wants to search for specific topics (e.g., "Find HN posts about AI"), extract the search query ("AI")
+   - Only populate query if user is clearly looking for specific content vs. browsing a list
+   - If both filter and query are detected, prioritize query (as it overrides filter)
 
 3. TIME RANGE ANALYSIS:
    - For "top" stories, determine desired time range: "hour", "day", "week", "month", "year", "all"
@@ -171,12 +162,12 @@ COMPREHENSIVE ANALYSIS GUIDELINES:
    - Default to 5 if unspecified
 
 OUTPUT FORMAT: JSON object with these fields:
-- "query": (string|null) CLEANED search terms with meaningful keywords only, null if browsing lists
+- "query": (string|null) Search terms if the user wants to search for specific content, null if browsing lists
 - "filter": (string|null) One of: "top", "new", "best", "ask", "show", "job", or null if unspecified
 - "time": (string|null) For top stories: "hour", "day", "week", "month", "year", "all", or null if unspecified
 - "limit": (number|null) Number of stories (1-10) or null if unspecified
 
-IMPORTANT: For the query field, extract only meaningful keywords, not the full user input.
+If a parameter cannot be confidently extracted, set it to null rather than guessing.
 
 RESPOND ONLY WITH THE JSON OBJECT.`;
 
