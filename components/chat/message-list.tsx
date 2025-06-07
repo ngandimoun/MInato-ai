@@ -22,6 +22,7 @@ export function MessageList({ messages, messagesEndRef }: MessageListProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null); // Ref for the ScrollArea's Radix viewport
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [newMessageIds, setNewMessageIds] = useState<Set<string>>(new Set());
 
   const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -56,6 +57,69 @@ export function MessageList({ messages, messagesEndRef }: MessageListProps) {
       return () => viewport.removeEventListener("scroll", handleScroll);
     }
   }, [messages]); // Re-run when messages change to re-evaluate scroll button visibility
+
+  // Track new messages when they are added
+  const prevMessageCountRef = useRef(messages.length);
+  const prevMessageContentsRef = useRef<Map<string, string | null>>(new Map());
+  
+  useEffect(() => {
+    // Track both new messages and messages that just received content
+    const currentMessageContents = new Map<string, string | null>();
+    
+    messages.forEach(msg => {
+      const msgId = msg.id || `msg-${msg.timestamp}`;
+      const content = typeof msg.content === 'string' ? msg.content : null;
+      currentMessageContents.set(msgId, content);
+    });
+    
+    // Find newly added AI messages or AI messages that just got content
+    const newAiMessageIds: string[] = [];
+    
+    messages.forEach(msg => {
+      if (msg.role !== 'assistant') return;
+      
+      const msgId = msg.id || `msg-${msg.timestamp}`;
+      const currentContent = typeof msg.content === 'string' ? msg.content : null;
+      const prevContent = prevMessageContentsRef.current.get(msgId);
+      
+      // Also check by timestamp in case message ID changed
+      let prevContentByTimestamp: string | null | undefined = undefined;
+      if (!prevMessageContentsRef.current.has(msgId) && msg.timestamp) {
+        // Try to find by timestamp
+        const timestampKey = `msg-${msg.timestamp}`;
+        prevContentByTimestamp = prevMessageContentsRef.current.get(timestampKey);
+      }
+      
+      // Message is new if:
+      // 1. It wasn't in the previous map (newly added)
+      // 2. It had no content before but now has content
+      if ((!prevMessageContentsRef.current.has(msgId) && prevContentByTimestamp === undefined) || 
+          ((prevContent === null || prevContent === '') && currentContent !== null && currentContent !== '') ||
+          ((prevContentByTimestamp === null || prevContentByTimestamp === '') && currentContent !== null && currentContent !== '')) {
+        newAiMessageIds.push(msgId);
+      }
+    });
+    
+    if (newAiMessageIds.length > 0) {
+      setNewMessageIds(prev => {
+        const updated = new Set(prev);
+        newAiMessageIds.forEach(id => updated.add(id));
+        return updated;
+      });
+      
+      // Clear new status after typing effect completes
+      setTimeout(() => {
+        setNewMessageIds(prev => {
+          const updated = new Set(prev);
+          newAiMessageIds.forEach(id => updated.delete(id));
+          return updated;
+        });
+      }, 5000); // 5 seconds should be enough for most messages
+    }
+    
+    prevMessageCountRef.current = messages.length;
+    prevMessageContentsRef.current = currentMessageContents;
+  }, [messages]);
 
   const groupedMessages: { [dateKey: string]: Message[] } = {};
   messages.forEach((message) => {
@@ -107,7 +171,7 @@ export function MessageList({ messages, messagesEndRef }: MessageListProps) {
                         exit={{ opacity: 0, y: -10, transition: { duration: 0.15 } }}
                         transition={{ type: "spring", stiffness: 350, damping: 30, duration: 0.25 }}
                       >
-                        <MessageItem message={message} />
+                        <MessageItem message={message} isNew={newMessageIds.has(message.id || `msg-${message.timestamp}`)} />
                         {message.structured_data && (
                           <StructuredDataRenderer data={message.structured_data} />
                         )}
