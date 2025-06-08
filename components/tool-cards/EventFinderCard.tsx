@@ -136,8 +136,8 @@ export function EventFinderCard({ data }: EventFinderCardProps) {
       </CardHeader>
       <CardContent>
         {data.events && data.events.length > 0 ? (
-          <ScrollArea className={cn("max-h-[600px]", data.events.length > 3 ? "pr-3" : "")}>
-            <ul className="space-y-3">
+          <ScrollArea className={cn("h-[600px]", data.events.length > 3 ? "pr-3" : "")}>
+            <ul className="grid grid-cols-1 md:grid-col -2 gap-3">
               {data.events.map(event => (
                 <EventItem 
                     key={event.id} 

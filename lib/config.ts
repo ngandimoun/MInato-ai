@@ -72,6 +72,11 @@ export interface AppConfig {
     mediaUploadBucket: string;
     maxToolsPerTurn: number;
   };
+  minato?: {
+    useEnhancedOrchestration: boolean;
+    useDynamicPersonalization: boolean;
+    useDynamicPersonalizationForAudio: boolean;
+  };
   defaultLocale: string;
   toolTimeoutMs?: number;
   // ... rest of your config interface
@@ -144,6 +149,19 @@ export const appConfig: AppConfig = {
     maxToolsPerTurn: frameworkConfigUnified.llm.maxToolsPerTurn ?? 3,
   },
   
+  // Minato-specific configuration
+  minato: {
+    // Enable the enhanced orchestration system by default
+    // This uses XML-structured planning and parallel tool execution for more efficient processing
+    useEnhancedOrchestration: getEnvVar("USE_ENHANCED_ORCHESTRATION", true, 'boolean') as boolean,
+    
+    // Dynamic personalization has been disabled
+    useDynamicPersonalization: getEnvVar("USE_DYNAMIC_PERSONALIZATION", false, 'boolean') as boolean,
+    
+    // Dynamic personalization for audio messages has been disabled
+    useDynamicPersonalizationForAudio: getEnvVar("USE_DYNAMIC_PERSONALIZATION_AUDIO", false, 'boolean') as boolean,
+  },
+  
   toolTimeoutMs: getEnvVar("TOOL_TIMEOUT_MS", DEFAULT_TOOL_TIMEOUT_MS, 'number') as number,
 };
 export const logger = frameworkLoggerUnified;
@@ -152,4 +170,24 @@ export const injectPromptVariables = frameworkInjectPromptVariablesUnified;
 if (typeof window === "undefined") {
     logger.info("[lib/config.ts] appConfig, logger, and injectPromptVariables are re-exporting from memory-framework/config.");
     logger.info(`[lib/config.ts] Key Models - Chat/Vision: ${appConfig.openai.chatModel}, Planning: ${appConfig.openai.planningModel}, Extraction: ${appConfig.openai.extractionModel}`);
+    if (appConfig.minato?.useEnhancedOrchestration) {
+        logger.info(`[lib/config.ts] Enhanced orchestration is ENABLED with XML-structured planning and parallel tool execution`);
+    }
 }
+
+// Feature flags for enhanced functionality
+export const featureFlags = {
+  // NLU & Intent Features
+  useNluDisambiguation: true,
+  
+  // Planning & Orchestration Features
+  useXmlStructuredPlanning: true,
+  useMultiToolChainOfThought: true,
+  
+  // Personalization Features
+  useDynamicPersonalization: true,
+  useDynamicPersonalizationForAudio: false,
+  
+  // Voice Mode Features
+  useEnhancedVoiceMode: true,
+};

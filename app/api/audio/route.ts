@@ -3,7 +3,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { Orchestrator } from "@/lib/core/orchestrator";
-import { ChatMessage } from "@/lib/types/index";
+import { ChatMessage, OrchestratorResponse } from "@/lib/types/index";
 import { checkRateLimit } from "@/lib/rate-limiter";
 import {
   RATE_LIMIT_ID_AUDIO_INPUT,
@@ -17,6 +17,7 @@ import { randomUUID } from "crypto";
 import { appConfig } from "@/lib/config";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { v4 as uuidv4 } from "uuid";
+import { STTService } from "@/lib/providers/stt_service";
 
 let orchestratorInstance: Orchestrator | null = null;
 
@@ -394,16 +395,21 @@ export async function POST(req: NextRequest) {
     
     const orchestrator = getOrchestrator();
     logger.info(
-      `${logPrefix} [ORCH] Calling orchestrator.processAudioMessage with: userId=${userId}, fullSignedUrl=${signedUrl}, size=${audioBuffer.length} bytes, type=${detectedMimeType}`
+      `${logPrefix} [ORCH] Processing audio message: userId=${userId}, fullSignedUrl=${signedUrl}, size=${audioBuffer.length} bytes, type=${detectedMimeType}`
     );
+    
+    // Use the proper processAudioMessage method instead of manually transcribing and using runOrchestration
     const response = await orchestrator.processAudioMessage(
       userId,
       signedUrl,
       history,
       sessionId,
-      context
+      {
+        ...context,
+        detectedMimeType
+      }
     );
-
+    
     if (response.error) {
       const userError =
         process.env.NODE_ENV === "production"
