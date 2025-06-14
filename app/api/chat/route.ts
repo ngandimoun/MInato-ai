@@ -46,7 +46,7 @@ timestamp: string;
 attachments?: MessageAttachmentDB[] | null;
 tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] | null; // Align with OpenAI type
 tool_call_id?: string; // This is for role='tool' only
-structured_data?: AnyToolStructuredData | null;
+  structured_data?: AnyToolStructuredData | AnyToolStructuredData[] | null;
 audio_url?: string | null;
 intent_type?: string | null;
 tts_instructions?: string | null;

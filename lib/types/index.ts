@@ -466,7 +466,7 @@ export type ChatMessage = {
   content: string | ChatMessageContentPart[] | null;
   name?: string; // Optional name (e.g., tool name for role 'tool', user name for role 'user')
   timestamp?: string | number;
-  structured_data?: AnyToolStructuredData | null;
+  structured_data?: AnyToolStructuredData | AnyToolStructuredData[] | null;
   attachments?: MessageAttachment[];
   audioUrl?: string;
   debugInfo?: OrchestratorResponse['debugInfo'] | null;
@@ -1238,7 +1238,7 @@ export type OrchestratorResponse = {
         [key: string]: any;
     } | null;
     audioUrl?: string | null;
-    structuredData?: AnyToolStructuredData | null;
+    structuredData?: AnyToolStructuredData | AnyToolStructuredData[] | null;
     workflowFeedback?: WorkflowFeedback | null;
     debugInfo?: {
         flow_type?: string;
@@ -1707,3 +1707,261 @@ data && typeof data === "object" && data !== null && "result_type" in data
 }
 export type User = { id: string; name?: string; avatar?: string; role: "user" };
 export type Bot = { id: string; name?: string; avatar?: string; role: "assistant"; };
+
+// XML-structured planning and parallel execution types
+export interface XmlPlanStep {
+  id: number;
+  type: "tool_call" | "llm_process" | "clarification_query";
+  toolName?: string | null;
+  arguments?: Record<string, any>;
+  description: string;
+  reason: string;
+  dependencies: string[];
+  parallel: boolean;
+}
+
+export interface XmlPlan {
+  goal: string;
+  reasoning: string;
+  steps: XmlPlanStep[];
+  is_partial_plan: boolean;
+  continuation_summary: string | null;
+}
+
+export interface XmlVerificationIssue {
+  type: "tool_mismatch" | "missing_argument" | "redundant_step" | "inefficient_sequence" | "missing_dependency" | "logical_error" | "other";
+  description: string;
+  location: string;
+  severity: "critical" | "major" | "minor";
+  suggested_fix: string;
+}
+
+export interface XmlVerificationSuggestion {
+  target: string;
+  improvement: string;
+  reasoning: string;
+}
+
+export interface XmlVerification {
+  plan_id: string;
+  is_valid: boolean;
+  issues: XmlVerificationIssue[];
+  suggestions: XmlVerificationSuggestion[];
+  corrected_plan: XmlPlan | null;
+}
+
+export interface XmlQueryClassification {
+  category: "direct_response" | "workflow_required" | "tool_execution" | "clarification_needed" | "multi_step_reasoning";
+  confidence: "high" | "medium" | "low";
+  reasoning: string;
+  complexity: "simple" | "moderate" | "complex";
+  time_sensitivity: "immediate" | "standard" | "extended";
+  parallel_opportunity: "high" | "medium" | "low" | "none";
+  suggested_approach: {
+    primary_method: "direct_llm" | "tool_router" | "workflow_engine" | "planning_system";
+    fallback_method: "direct_llm" | "tool_router" | "workflow_engine" | "planning_system";
+    explanation: string;
+  };
+}
+
+export interface XmlParallelExecutionGroup {
+  id: number;
+  intent?: string;
+  steps: number[];
+  reason: string;
+}
+
+export interface XmlSequentialDependency {
+  group_id: number;
+  depends_on: number | null;
+}
+
+export interface XmlParallelExecutionPlan {
+  execution_groups: XmlParallelExecutionGroup[];
+  sequential_dependencies: XmlSequentialDependency[];
+}
+
+// Add these type definitions for the NLU Analysis system
+
+// NLU Analysis Types
+export type XmlNluConfidence = 'high' | 'medium' | 'low';
+export type XmlResolutionSource = 'conversation_history' | 'user_preferences' | 'implicit_context';
+export type XmlEntitySource = 'direct_mention' | 'conversation_history' | 'inference';
+export type XmlSentimentPrimary = 'positive' | 'negative' | 'neutral';
+export type XmlSentimentSecondary = 'curious' | 'frustrated' | 'excited' | 'confused' | 'impatient' | 'satisfied' | 'other' | 'neutral';
+export type XmlSentimentIntensity = 'high' | 'medium' | 'low';
+
+export interface XmlEntity {
+  name: string;
+  type: 'person' | 'place' | 'object' | 'date' | 'concept' | string;
+  reference_type: 'direct' | 'pronoun' | 'demonstrative' | 'implied' | string;
+  linked_to?: string;
+}
+
+export interface XmlSentiment {
+  primary: XmlSentimentPrimary;
+  secondary: XmlSentimentSecondary;
+  intensity: XmlSentimentIntensity;
+}
+
+export interface XmlImplicitNeed {
+  need: string;
+  evidence: string;
+}
+
+export interface XmlConversationReference {
+  queryText: string;
+  refersTo: string;
+  resolution: string;
+}
+
+export interface XmlAmbiguityResolution {
+  originalAmbiguity: string;
+  resolutionSource: XmlResolutionSource;
+  resolutionExplanation: string;
+}
+
+export interface XmlNluAnalysis {
+  original_query: string;
+  disambiguated_query: string;
+  entities: XmlEntity[];
+  references: XmlReference[];
+  implicit_needs: string[];
+  true_intent: string;
+  confidence?: XmlNluConfidence;
+  language_detected?: string;
+  potential_tools?: XmlToolRanking[];
+  ambiguity_resolution?: {
+    original_ambiguity: string;
+    resolution_source: XmlResolutionSource;
+    resolution_explanation: string;
+  } | null;
+}
+
+export interface XmlToolRanking {
+  tool_name: string;
+  confidence: number;
+  reasoning: string;
+  arguments?: Record<string, any>;
+}
+
+export interface XmlReference {
+  expression: string;
+  resolved_to: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+// XML Chain of Thought Planning Types
+export interface XmlIdentifiedIntent {
+  name: string;
+  importance: 'primary' | 'secondary' | 'tertiary';
+  explicit: boolean;
+  key_phrases: string;
+}
+
+export interface XmlUserPreference {
+  type: 'location' | 'time' | 'activity' | 'style' | 'other';
+  value: string;
+  source: 'explicit' | 'implicit' | 'memory' | 'inferred';
+}
+
+export interface XmlExecutionStrategy {
+  parallelism_opportunity: 'high' | 'medium' | 'low';
+  reasoning: string;
+  success_criteria: string;
+}
+
+export interface XmlMetaAnalysis {
+  identified_intents: XmlIdentifiedIntent[];
+  user_preferences: XmlUserPreference[];
+  execution_strategy: XmlExecutionStrategy;
+}
+
+export interface XmlChainOfThoughtStep {
+  id: string;
+  type: 'tool_call' | 'llm_process' | 'clarification_query';
+  tool_name?: string;
+  arguments: Record<string, any>;
+  description: string;
+  reason: string;
+  dependencies: string[];
+  fallback_strategy: string;
+}
+
+export interface XmlExecutionGroup {
+  id: string;
+  intent_addressed: string;
+  steps: XmlChainOfThoughtStep[];
+}
+
+export interface XmlResponseSection {
+  title: string;
+  content_from: string;
+  presentation: string;
+}
+
+export interface XmlAdaptiveElement {
+  type: 'follow_up_suggestion' | 'proactive_offer' | 'memory_reference';
+  trigger: string;
+  content: string;
+}
+
+export interface XmlResponseSynthesisStrategy {
+  organization: {
+    sections: XmlResponseSection[];
+  };
+  adaptive_elements: XmlAdaptiveElement[];
+}
+
+export interface XmlCotPlan {
+  goal: string;
+  reasoning: string;
+  execution_groups: XmlExecutionGroup[];
+  response_synthesis_strategy: XmlResponseSynthesisStrategy;
+}
+
+export interface XmlChainOfThoughtPlan {
+  meta_analysis: XmlMetaAnalysis;
+  plan: XmlCotPlan;
+}
+
+// Enhanced classification with intent analysis
+export interface XmlIntentAnalysis {
+  count: string;
+  primary_intent: string;
+  secondary_intents: string;
+}
+
+export interface XmlClassification {
+  category: 'direct_response' | 'workflow_required' | 'tool_execution' | 'clarification_needed' | 'multi_step_reasoning' | 'multi_intent_complex';
+  confidence: XmlNluConfidence;
+  reasoning: string;
+  complexity: 'simple' | 'moderate' | 'complex';
+  time_sensitivity: 'immediate' | 'standard' | 'extended';
+  parallel_opportunity: 'high' | 'medium' | 'low' | 'none';
+  intent_analysis?: XmlIntentAnalysis;
+  suggested_approach: {
+    primary_method: 'direct_llm' | 'tool_router' | 'workflow_engine' | 'planning_system' | 'multi_tool_cot';
+    fallback_method: 'direct_llm' | 'tool_router' | 'workflow_engine' | 'planning_system';
+    explanation: string;
+  };
+}
+
+// Enhanced parallel execution plan
+export interface XmlParallelExecutionGroup {
+  id: number;
+  intent?: string;
+  steps: number[];
+  reason: string;
+}
+
+export interface XmlPriorityGroup {
+  group_ids: number[];
+  reason: string;
+}
+
+export interface XmlParallelExecutionPlan {
+  execution_groups: XmlParallelExecutionGroup[];
+  sequential_dependencies: XmlSequentialDependency[];
+  execution_priority?: XmlPriorityGroup[] | null;
+}

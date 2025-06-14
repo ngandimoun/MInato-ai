@@ -20,6 +20,11 @@ ChatMessageContentPartText,
 ResponseApiInputContent,
 MessageAttachment,
 ChatMessageContentPartInputImage,
+XmlPlan, 
+XmlQueryClassification, 
+XmlVerification, 
+XmlParallelExecutionPlan,
+XmlNluAnalysis
 } from "@/lib/types/index";
 import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "../tools/base-tool";
 import { tools as appToolsRegistry, resolveToolName } from "../tools/index";
@@ -46,14 +51,39 @@ generateStructuredJson,
 generateVisionCompletion,
 resolveToolNameWithLLM,
 } from "../providers/llm_clients";
-import { TOOL_ROUTER_PROMPT_TEMPLATE, RESPONSE_SYNTHESIS_PROMPT_TEMPLATE } from "../prompts";
+import { 
+TOOL_ROUTER_PROMPT_TEMPLATE, 
+RESPONSE_SYNTHESIS_PROMPT_TEMPLATE,
+MINATO_PLANNER_PROMPT_TEMPLATE, 
+MINATO_VERIFIER_PROMPT_TEMPLATE, 
+MINATO_QUERY_NATURE_CLASSIFIER_PROMPT_TEMPLATE,
+MINATO_PARALLEL_TOOL_EXECUTION_PROMPT_TEMPLATE,
+MINATO_NLU_INTENT_DISAMBIGUATION_PROMPT_TEMPLATE
+} from "../prompts";
 import { logger } from "../../memory-framework/config";
 import { safeJsonParse } from "../../memory-framework/core/utils";
 import { CompletionUsage } from "openai/resources";
 import Ajv from "ajv";
 import type { ValidateFunction } from "ajv";
+import { 
+parseClassificationFromXml, 
+parsePlanFromXml, 
+parseParallelExecutionPlanFromXml, 
+parseVerificationFromXml, 
+parseNluAnalysisFromXml
+} from '../utils/xml-processor';
+import { getToolDescriptionsForPlanner, validateToolArgs, sortExecutionGroupsByDependencies } from './orchestration-helpers';
+import { stripSystemPrefixes, getFirstOrchResponse } from './helpers';
+import { analyzeUserQuery, runNluDisambiguation } from './nlu-disambiguation';
+import { featureFlags } from '../config';
+// Role-based personalization has been disabled
+// import { enhanceUserMemoryContext, processTextMessageWithPersonalization } from "../utils/personalization";
+import { runEnhancedOrchestration } from './runEnhancedOrchestration';
+
+// Remove duplicate imports that were added below this line
 type SdkResponsesApiTool = OpenAI.Chat.Completions.ChatCompletionTool;
 type SdkResponsesApiFunctionCall = ChatCompletionMessageToolCall;
+
 type ToolRouterPlanStep = {
 tool_name: string;
 arguments: Record<string, any>;
@@ -318,6 +348,26 @@ export class Orchestrator {
       return DEFAULT_USER_NAME;
     }
   }
+
+  /**
+   * Get user state from Supabase
+   * @param userId User ID
+   * @returns User state object or null if not found
+   */
+  private async getUserState(userId: string): Promise<UserState | null> {
+    if (!userId) {
+      logger.warn("[Orch getUserState] No userId.");
+      return null;
+    }
+    
+    try {
+      return await supabaseAdmin.getUserState(userId);
+    } catch (error: any) {
+      logger.warn(`[Orch getUserState] Failed fetch for user ${userId.substring(0, 8)}: ${error.message}`);
+      return null;
+    }
+  }
+  
   private validateToolStep(step: ToolRouterPlanStep): boolean {
     const tool = this.toolRegistry[step.tool_name];
     if (!tool) {
@@ -342,15 +392,7 @@ export class Orchestrator {
     apiContext: Record<string, any>,
     userState: UserState | null,
     history: ChatMessage[]
-  ): Promise<{ 
-    messages: ChatMessage[]; 
-    lastSuccessfulStructuredData: AnyToolStructuredData | null; 
-    allSuccessfulStructuredData: AnyToolStructuredData[];
-    llmUsage: null; 
-    toolResultsSummary: string; 
-    clarificationQuestion?: string | null; 
-    clarificationDetails?: any 
-  }> {
+  ): Promise<{ messages: ChatMessage[]; lastSuccessfulStructuredData: AnyToolStructuredData | null; llmUsage: null; toolResultsSummary: string; clarificationQuestion?: string | null; clarificationDetails?: any }> {
     const logPrefix = `ToolExecutor User:${userId.substring(0, 8)} Sess:${apiContext?.sessionId?.substring(0, 6)}`;
     const toolResultsMessages: ChatMessage[] = [];
     const structuredDataMap: Map<string, AnyToolStructuredData | null> = new Map();
@@ -1971,8 +2013,6 @@ Respond in STRICT JSON format:
     });
     const settledResults = await Promise.allSettled(executionPromises);
     let lastSuccessfulStructuredData: AnyToolStructuredData | null = null;
-    // Collection of all successful structured data
-    const allSuccessfulStructuredData: AnyToolStructuredData[] = [];
     // Track tools that need special transition handling
     let needsStripeOnboarding = false;
     let savedProductDetails: any = null;
@@ -2039,12 +2079,7 @@ Respond in STRICT JSON format:
           structuredDataMap.has(callId)
         ) {
           const data = structuredDataMap.get(callId);
-          if (data) {
-            // Store as last successful data (for backward compatibility)
-            lastSuccessfulStructuredData = data;
-            // Add to our collection of all successful structured data
-            allSuccessfulStructuredData.push(data);
-          }
+          if (data) lastSuccessfulStructuredData = data;
         }
       } else if (result.status === "rejected") {
         logger.error(`${logPrefix} Unexpected parallel exec error for tool call ${originalRoutedCall.tool_name}:`, result.reason);
@@ -2101,8 +2136,6 @@ Respond in STRICT JSON format:
           // Update structured data
           if (onboardingResult.structuredData) {
             lastSuccessfulStructuredData = onboardingResult.structuredData as AnyToolStructuredData;
-            // Also add to the allSuccessfulStructuredData array
-            allSuccessfulStructuredData.push(onboardingResult.structuredData as AnyToolStructuredData);
           }
         }
       } catch (error) {
@@ -2154,8 +2187,6 @@ Respond in STRICT JSON format:
           // Update structured data
           if (paymentLinkResult.structuredData) {
             lastSuccessfulStructuredData = paymentLinkResult.structuredData as AnyToolStructuredData;
-            // Also add to the allSuccessfulStructuredData array
-            allSuccessfulStructuredData.push(paymentLinkResult.structuredData as AnyToolStructuredData);
           }
         }
       } catch (error) {
@@ -2163,16 +2194,7 @@ Respond in STRICT JSON format:
       }
     }
     
-    // Use allSuccessfulStructuredData if it has multiple items, otherwise use lastSuccessfulStructuredData for backward compatibility
-    return { 
-      messages: toolResultsMessages, 
-      lastSuccessfulStructuredData, 
-      allSuccessfulStructuredData,
-      llmUsage: null, 
-      toolResultsSummary: toolResultsSummaryParts.join("\n") || "Tools processing completed.", 
-      clarificationQuestion, 
-      clarificationDetails 
-    };
+    return { messages: toolResultsMessages, lastSuccessfulStructuredData, llmUsage: null, toolResultsSummary: toolResultsSummaryParts.join("\n") || "Tools processing completed.", clarificationQuestion, clarificationDetails };
   }
   public async runOrchestration(
     userId: string,
@@ -2194,8 +2216,9 @@ Respond in STRICT JSON format:
       logger.info(`[${turnIdentifier}] runOrchestration received NO initialAttachments (null or undefined).`);
     }
     logger.info(`--- ${turnIdentifier} Starting Orchestration Run (Planning: ${PLANNING_MODEL_NAME_ORCH}, Chat/Vision: ${CHAT_VISION_MODEL_NAME_ORCH}) ---`);
+    
     // Initialisation des variables
-    let finalStructuredResult: AnyToolStructuredData | AnyToolStructuredData[] | null = null;
+    let finalStructuredResult: AnyToolStructuredData | null = null;
     let finalResponseText: string | null = null;
     let responseIntentType: string | null = "neutral";
     let ttsInstructionsForFinalResponse: string | null = null;
@@ -2217,6 +2240,131 @@ Respond in STRICT JSON format:
     let lang: string = "en";
     // AJOUT: Initialisation de toolExecutionMessages
     let toolExecutionMessages: ChatMessage[] = [];
+    
+    // Check if enhanced orchestration should be used
+    const useEnhancedOrchestration = apiContext?.useEnhancedOrchestration === true || appConfig.minato?.useEnhancedOrchestration === true;
+    
+    if (useEnhancedOrchestration && typeof userInput === 'string') {
+      logger.info(`[${turnIdentifier}] Using enhanced orchestration with XML planning.`);
+      
+      // Get user information
+      userName = await this.getUserFirstName(userId);
+      
+      // Get user state and persona customization
+      const userState = await (async () => {
+        try {
+          if (userId) {
+            return await supabaseAdmin.getUserState(userId);
+          }
+          return null;
+        } catch (e) {
+          logger.warn(`[${turnIdentifier}] Could not load user state:`, e);
+          return null;
+        }
+      })();
+      
+      // Get persona customization
+      const personaId = userState?.active_persona_id || DEFAULT_PERSONA_ID;
+      const personaCustomization = await (async () => {
+        try {
+          if (personaId) {
+            const persona = await this.memoryFramework.getPersonaById(personaId, userId);
+            return persona?.system_prompt || null;
+          }
+          return null;
+        } catch (e) {
+          logger.warn(`[${turnIdentifier}] Could not load persona:`, e);
+          return null;
+        }
+      })();
+      
+      // Get user state summary
+      const userStateSummary = summarizeUserStateForWorkflow(userState);
+      
+      // For now, skip enhanced orchestration due to integration issues
+      const enhancedResult = { 
+        error: "Enhanced orchestration temporarily disabled for integration fixes" 
+      };
+      
+      // If there was an error, fallback to standard orchestration
+      if (enhancedResult.error) {
+        logger.warn(`[${turnIdentifier}] Enhanced orchestration failed: ${enhancedResult.error}. Falling back to standard orchestration.`);
+      } else {
+        // Process the enhanced orchestration result
+        finalStructuredResult = enhancedResult.structuredData;
+        currentTurnToolResultsSummary = enhancedResult.toolResultsSummary;
+        
+        // Use the enhanced orchestration result for synthesis if available
+        if (enhancedResult.responseText) {
+          finalResponseText = enhancedResult.responseText;
+          responseIntentType = "neutral"; // Default intent type
+          finalFlowType = "enhanced_orchestration";
+          finalResponseSource = "Enhanced Orchestration";
+          ttsInstructionsForFinalResponse = getDynamicInstructions(responseIntentType);
+          
+          // Complete the orchestration
+          const orchestrationMs = Date.now() - overallStartTime;
+          
+          // Create the response object
+          const baseOrchestratorResponse = {
+            sessionId: runId,
+            error: null,
+            lang: apiContext?.lang || appConfig.defaultLocale || "en",
+            intentType: responseIntentType,
+            ttsInstructions: ttsInstructionsForFinalResponse,
+            clarificationQuestion: null,
+            clarificationDetails: null,
+            audioUrl: null,
+            workflowFeedback: null,
+            debugInfo: {
+              flow_type: finalFlowType,
+              llmModelUsed: CHAT_VISION_MODEL_NAME_ORCH,
+              workflowPlannerModelUsed: PLANNING_MODEL_NAME_ORCH,
+              llmUsage: enhancedResult.llmUsage || llmUsage_total,
+              latencyMs: orchestrationMs,
+              toolCalls: [],
+              videoSummaryUsed: null,
+            },
+            transcription: null,
+            llmUsage: enhancedResult.llmUsage || llmUsage_total,
+            attachments: initialAttachments,
+          };
+          
+          if (finalResponseText !== null) {
+            return {
+              ...baseOrchestratorResponse,
+              response: finalResponseText,
+              structuredData: finalStructuredResult,
+                  };
+     }
+   }
+  
+      }
+    
+    // If enhanced orchestration was not used or failed, fallback to standard orchestration
+    // Variables are already initialized above, reset them if needed
+    finalStructuredResult = null;
+    finalResponseText = null;
+    responseIntentType = "neutral";
+    ttsInstructionsForFinalResponse = null;
+    clarificationQuestionForUser = null;
+    clarificationDetailsForUser = null;
+    llmUsage_total = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    finalFlowType = "error";
+    finalResponseSource = "Error";
+    currentTurnToolResultsSummary = null;
+    toolRouterFollowUpSuggestion = null;
+    finalToolCallsLogged = [];
+    videoSummaryForContext = null;
+    textQueryForRouter = "";
+    mainUserInputContent = [];
+    retrievedMemoryContext = "INTERNAL CONTEXT - RELEVANT MEMORIES: None found or not applicable for this turn.";
+    messagesForGpt4o = [];
+    routedTools = { planned_tools: [] };
+    // userName is already initialized
+    lang = "en";
+    // Reset toolExecutionMessages
+    toolExecutionMessages = [];
     
     // Always fetch fresh user state to ensure we have the latest persona selection
     const userState: UserState | null = await supabaseAdmin.getUserState(userId);
@@ -2562,22 +2710,7 @@ Respond in STRICT JSON format:
           history
         );
         toolExecutionMessages = executionResult.messages; // Assignation à la variable de la portée supérieure
-        
-        // Use allSuccessfulStructuredData if it has multiple items, otherwise use lastSuccessfulStructuredData for backward compatibility
-        if (executionResult.allSuccessfulStructuredData && executionResult.allSuccessfulStructuredData.length > 0) {
-          if (executionResult.allSuccessfulStructuredData.length === 1) {
-            // For single tool results, keep the existing behavior
-            finalStructuredResult = executionResult.allSuccessfulStructuredData[0];
-          } else {
-            // For multiple tool results, use the array
-            finalStructuredResult = executionResult.allSuccessfulStructuredData;
-            logger.info(`[${turnIdentifier}] Multiple tool results (${executionResult.allSuccessfulStructuredData.length}) detected and will be rendered`);
-          }
-        } else {
-          // Fallback to the lastSuccessfulStructuredData for backward compatibility
-          finalStructuredResult = executionResult.lastSuccessfulStructuredData;
-        }
-        
+        finalStructuredResult = executionResult.lastSuccessfulStructuredData;
         currentTurnToolResultsSummary = executionResult.toolResultsSummary;
         clarificationQuestionForUser = executionResult.clarificationQuestion ?? null;
         clarificationDetailsForUser = executionResult.clarificationDetails ?? null;
@@ -2626,7 +2759,7 @@ Respond in STRICT JSON format:
       // retrievedMemoryContext est déjà initialisé au début de la fonction
       const entitiesForMemorySearch: string[] = [textQueryForRouter.substring(0, 70)];
       // Ensure finalStructuredResult is not null and has a title property (with type safety)
-      if (finalStructuredResult && !Array.isArray(finalStructuredResult) && typeof (finalStructuredResult as any).title === 'string') {
+      if (finalStructuredResult && typeof (finalStructuredResult as any).title === 'string') {
         entitiesForMemorySearch.push((finalStructuredResult as any).title);
       }
       if (entitiesForMemorySearch.length > 0 && entitiesForMemorySearch.some(e => e.trim() !== "")) {
@@ -2764,7 +2897,7 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
       routedTools.planned_tools[0].tool_name === "HackerNewsTool"
     ) {
       // If finalStructuredResult is missing or not hn_stories, wrap it
-      if (!finalStructuredResult || (typeof finalStructuredResult === "object" && !Array.isArray(finalStructuredResult) && finalStructuredResult.result_type !== "hn_stories")) {
+      if (!finalStructuredResult || (typeof finalStructuredResult === "object" && finalStructuredResult.result_type !== "hn_stories")) {
         finalStructuredResult = {
           result_type: "hn_stories",
           source_api: "hackernews",
@@ -2782,7 +2915,6 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
       finalResponseText &&
       finalStructuredResult &&
       typeof finalResponseText === "string" &&
-      !Array.isArray(finalStructuredResult) &&
       (finalStructuredResult as any).result_type === "news_articles"
     ) {
       return {
@@ -2799,6 +2931,17 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
       structuredData: finalStructuredResult,
     };
   }
+
+  /**
+   * Process a text message from the user
+   * @param userId User ID
+   * @param text The text message
+   * @param history Conversation history
+   * @param sessionId Session ID
+   * @param apiContext Additional API context
+   * @param attachments Message attachments
+   * @returns Orchestrator response
+   */
   async processTextMessage(
     userId: string,
     text: string | null,
@@ -2807,379 +2950,421 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
     apiContext?: Record<string, any>,
     attachments?: MessageAttachment[]
   ): Promise<OrchestratorResponse> {
-    const userState = await supabaseAdmin.getUserState(userId);
-    const lang = apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0] || "en";
-    const effectiveSessionId = sessionId || `${SESSION_ID_PREFIX}${randomUUID()}`;
-    const userName = await this.getUserFirstName(userId);
-    const effectiveApiContext = { ...apiContext, sessionId: effectiveSessionId, locale: userState?.preferred_locale || (appConfig as any).defaultLocale, lang, userName };
-    const inputText = text ?? "";
-    let orchestratorInput: string | ChatMessageContentPart[] = inputText;
-    // Ensure proper handling of attachments to create ChatMessageContentPartInputImage
-    if (attachments && attachments.length > 0) {
-      const contentParts: ChatMessageContentPart[] = [{ type: "text", text: inputText }];
-      let hasImageAttachment = false;
-      for (const att of attachments) {
-        if (att.type === "image") {
-          hasImageAttachment = true;
-          if (att.file) { // If a file object exists, prioritize it for creating an input_image part
-            const imageUrlForPart = (att.url && att.url.startsWith("blob:"))
-              ? att.url
-              : `placeholder_id_${att.id || randomUUID()}`; // Use placeholder if URL is not blob or missing
-            contentParts.push({ type: "input_image", image_url: imageUrlForPart, detail: "auto" });
-          } else if (att.url) { // No file, but an existing URL (e.g., http, supabase_storage)
-            contentParts.push({ type: "input_image", image_url: att.url, detail: "auto" });
-          }
-        } else if (att.type === "video" && att.file) {
-          // Video files are handled by initialAttachments in runOrchestration, not as content parts here.
-          // We just need to ensure attachments array is passed.
+    let actualSessionId = sessionId || randomUUID();
+    const lang = this.detectLanguage(text || "", "en-US");
+    
+    // Default response when no text is provided
+    if (!text) {
+      return {
+        sessionId: actualSessionId,
+        response: "I didn't receive any text to respond to. How can I help you?",
+        lang,
+        intentType: 'no_text',
+        workflowFeedback: null,
+        structuredData: null,
+        audioUrl: null,
+        ttsInstructions: null,
+        clarificationQuestion: null,
+        clarificationDetails: null,
+        debugInfo: {
+          flow_type: 'no_text',
+          llmModelUsed: null,
+          llmUsage: null,
+          latencyMs: 0
         }
-        // Other attachment types like 'document' or 'audio' are not typically converted to input_image parts.
-      }
-      if (hasImageAttachment || contentParts.length > 1) { // If images were added, or if initial text was only for context to multiple images
-        // If the only text part is empty and images were added, remove the empty text part.
-        if (contentParts.length > 1 && contentParts[0].type === "text" && (contentParts[0] as ChatMessageContentPartText).text === "") {
-          contentParts.shift();
-        }
-        orchestratorInput = contentParts;
-      }
-      // If no image attachments were processed into contentParts, and inputText was not empty,
-      // orchestratorInput remains inputText (string). If inputText was empty and no images, it also remains string (empty).
+      };
     }
-    const resultRaw = await this.runOrchestration(userId, orchestratorInput, history, effectiveApiContext, attachments);
-    const result = getFirstOrchResponse(resultRaw);
-    return { ...result, sessionId: effectiveSessionId, lang: result.lang || lang };
-  }
-  private async fetchAudioBuffer(url: string): Promise<Buffer> {
-    const logPrefix = "[Orchestrator fetchAudioBuffer]";
+    
     try {
-      const supabaseStorageUrl = (appConfig as any).supabase.storageUrl;
-      // Validate if the URL is from Supabase storage to avoid arbitrary fetches.
-      if (!url.startsWith(supabaseStorageUrl)) {
-        logger.error(`${logPrefix} Invalid audio URL: ${url}. Must be a Supabase storage URL.`);
-        throw new Error(`Invalid audio URL: Must be a Supabase storage URL.`);
+      // Check if enhanced orchestration is enabled
+      if (appConfig.minato?.useEnhancedOrchestration && featureFlags.useXmlStructuredPlanning) {
+        // Temporarily disabled for integration fixes
+        logger.warn(`[Orchestrator:${userId.slice(0, 6)}] Enhanced orchestration temporarily disabled for integration fixes`);
       }
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        logger.warn(`${logPrefix} Fetch audio from Supabase timed out for URL: ${url.substring(0,100)}...`);
-        controller.abort();
-      }, 15000); // 15-second timeout
-      logger.debug(`${logPrefix} Fetching audio from Supabase storage: ${url.substring(0,100)}...`);
-      const response = await fetch(url, {
-        signal: controller.signal,
-        // No 'Content-Type' or 'Authorization' headers needed for Supabase signed GET URLs
-      });
-      clearTimeout(timeoutId);
+      
+      // Begin tracking time for performance monitoring
+      const startTime = Date.now();
+      
+      // Clean and normalize user input
+      const cleanedText = stripSystemPrefixes(text);
+      
+      // Apply NLU disambiguation if enabled
+      let textForOrchestration = cleanedText;
+      let nluAnalysis = null;
+      
+      if (featureFlags.useNluDisambiguation && cleanedText.length >= 5) {
+        try {
+          // Run NLU disambiguation to resolve ambiguous references
+          const disambiguationResult = await runNluDisambiguation(
+            userId,
+            cleanedText,
+            history,
+            null, // We'll retrieve user state in the function
+            this.memoryFramework
+          );
+          
+          if (disambiguationResult.nluAnalysis) {
+            nluAnalysis = disambiguationResult.nluAnalysis;
+            textForOrchestration = disambiguationResult.resolvedQuery;
+            
+            if (textForOrchestration !== cleanedText) {
+              logger.info(`[Orchestrator:${userId.slice(0, 6)}] Query disambiguated: "${cleanedText}" -> "${textForOrchestration}"`);
+            }
+          }
+        } catch (error) {
+          logger.error(`[Orchestrator:${userId.slice(0, 6)}] NLU disambiguation error:`, error);
+          // Continue with original text if disambiguation fails
+        }
+      }
+      
+      // Add disambiguation results to apiContext if available
+      const enhancedApiContext = {
+        ...(apiContext || {}),
+        nluAnalysis,
+      };
+      
+      // Dynamic personalization has been disabled
+      let enhancedMemoryContext = "";
+      let memoryQueries: string[] = [];
+      
+      // Add memory context to apiContext
+      const updatedApiContext = {
+        ...enhancedApiContext,
+        enhancedMemoryContext,
+        memoryQueries
+      };
+      
+      // Add recommended tools from NLU to the API context if available
+      if (enhancedApiContext?.nluAnalysis?.potential_tools && 
+          Array.isArray(enhancedApiContext.nluAnalysis.potential_tools) && 
+          enhancedApiContext.nluAnalysis.potential_tools.length > 0) {
+        
+        // Add tool recommendations to help optimize tool selection
+        const recommendedTools = enhancedApiContext.nluAnalysis.potential_tools;
+        updatedApiContext.recommendedTools = recommendedTools;
+        logger.info(`[Orch processTextMessage] NLU provided ${recommendedTools.length} recommended tools with confidence scores`);
+        
+        // Add language information if detected for multilingual support
+        if (enhancedApiContext.nluAnalysis.language_detected) {
+          const detectedLanguage = enhancedApiContext.nluAnalysis.language_detected;
+          updatedApiContext.languageDetected = detectedLanguage;
+          if (detectedLanguage !== 'en') {
+            logger.info(`[Orch processTextMessage] Processing non-English query in: ${detectedLanguage}`);
+          }
+        }
+      }
+      
+      // Run the core orchestration
+      const orchestrationResult = await this.runOrchestration(
+        userId, 
+        textForOrchestration, 
+        history, 
+        updatedApiContext,
+        attachments
+      );
+      
+      // Role-based personalization has been disabled
+      // No role-based personalization will be applied
+      
+      // Finalize performance metrics
+      const latencyMs = Date.now() - startTime;
+      if (orchestrationResult.debugInfo) {
+        orchestrationResult.debugInfo.latencyMs = latencyMs;
+      }
+      
+      return orchestrationResult;
+    } catch (error) {
+      logger.error(`[Orchestrator] processTextMessage error:`, error);
+      
+      return {
+        sessionId: actualSessionId,
+        response: "I'm sorry, but I encountered an error processing your request. Please try again.",
+        lang,
+        intentType: 'error',
+        workflowFeedback: null,
+        structuredData: null,
+        audioUrl: null,
+        ttsInstructions: null,
+        clarificationQuestion: null,
+        clarificationDetails: null,
+        debugInfo: {
+          flow_type: 'error',
+          llmModelUsed: null,
+          llmUsage: null,
+          latencyMs: 0,
+          error: error.message
+        }
+      };
+    }
+  }
+  
+  private async fetchAudioBuffer(url: string): Promise<Buffer> {
+    try {
+      const response = await fetch(url);
       if (!response.ok) {
-        const errorText = await response.text().catch(() => `Status ${response.statusText}`);
-        logger.error(`${logPrefix} Supabase storage error: ${response.status} ${response.statusText}. URL: ${url.substring(0,100)}... Response body: ${errorText.substring(0,200)}`);
-        throw new Error(`Supabase storage error: ${response.status} ${response.statusText}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
       const arrayBuffer = await response.arrayBuffer();
-      logger.debug(`${logPrefix} Audio fetched successfully from ${url.substring(0,100)}... Size: ${arrayBuffer.byteLength} bytes.`);
       return Buffer.from(arrayBuffer);
     } catch (error: any) {
-      logger.error(`${logPrefix} Audio fetch failed for URL ${url.substring(0,100)}... Error: ${error.message}`, error.stack);
-      throw new Error(`Audio processing error: ${error.message}`);
+      logger.error(`[AudioBuffer] Error fetching audio from URL: ${error.message}`);
+      throw error;
     }
   }
-  public async processAudioMessage(
+
+  /**
+   * Verifies a plan against core objectives and directives
+   */
+  private async verifyMinatoPlanSegment(
     userId: string,
-    audioSignedUrl: string,
+    userQuery: string,
+    proposedPlan: XmlPlan,
+    history: ChatMessage[],
+    personaCustomization: string | null,
+    toolRegistry: { [key: string]: BaseTool }
+  ): Promise<XmlVerification | null> {
+    const logPrefix = `[PlanVerifier User:${userId.substring(0, 8)}]`;
+    const planId = `plan-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`;
+    
+    try {
+      // Get available tools description
+      const availableToolsStringified = getToolDescriptionsForPlanner(toolRegistry);
+      
+      // Convert the plan to XML format for the verifier
+      const planXml = `<plan>
+  <goal>${proposedPlan.goal || ''}</goal>
+  <reasoning>${proposedPlan.reasoning || ''}</reasoning>
+  <steps>
+    ${proposedPlan.steps.map(step => `<step>
+      <id>${step.id}</id>
+      <type>${step.type}</type>
+      ${step.toolName ? `<tool_name>${step.toolName}</tool_name>` : ''}
+      <arguments>
+        ${Object.entries(step.arguments || {}).map(([key, value]) => `<${key}>${value}</${key}>`).join('\n        ')}
+      </arguments>
+      <description>${step.description || ''}</description>
+      <reason>${step.reason || ''}</reason>
+      <dependencies>${step.dependencies?.join(',') || ''}</dependencies>
+      <parallel>${step.parallel ? 'true' : 'false'}</parallel>
+    </step>`).join('\n    ')}
+  </steps>
+  <is_partial>${proposedPlan.is_partial_plan ? 'true' : 'false'}</is_partial>
+  <continuation_summary>${proposedPlan.continuation_summary || ''}</continuation_summary>
+</plan>
+`;
+
+      // Get the current user profile for additional context
+      const userProfile = await this.memoryFramework.getUserProfileSummary(userId);
+      const userFirstName = await this.getUserFirstName(userId);
+      
+      // Create verification prompt
+      const verificationPrompt = `
+You are verifying a plan for Minato AI to ensure it aligns with Minato's objectives, capabilities, and safety guardrails.
+
+USER QUERY: "${userQuery}"
+
+USER PROFILE: ${userProfile || 'No specific user profile available.'}
+
+PROPOSED PLAN:
+${planXml}
+
+AVAILABLE TOOLS:
+${availableToolsStringified}
+
+Please verify this plan against Minato's objectives:
+1. Ensure all tool usages are appropriate for the task
+2. Check that all required tool arguments are properly populated
+3. Verify that the steps are in a logical order
+4. Confirm that dependencies between steps are correctly specified
+5. Ensure the plan properly addresses the user's query
+6. Validate that no harmful, unethical, or problematic actions are proposed
+
+Respond with a verification result in XML format:
+<verification>
+  <plan_id>${planId}</plan_id>
+  <is_valid>true/false</is_valid>
+  
+  <!-- Include only if is_valid is false -->
+  <issues>
+    <issue>
+      <type>tool_misuse|missing_args|logic_error|dependency_error|off_topic|harmful_action</type>
+      <description>Clear description of the issue</description>
+      <location>step_id or "goal" or "reasoning"</location>
+      <severity>critical|important|minor</severity>
+      <suggested_fix>Specific suggestion to fix the issue</suggested_fix>
+    </issue>
+    <!-- additional issues as needed -->
+  </issues>
+  
+  <!-- Include only if there are suggestions for improvement -->
+  <suggestions>
+    <suggestion>
+      <target>step_id or "goal" or "reasoning" or "overall"</target>
+      <improvement>Clear description of suggested improvement</improvement>
+      <reasoning>Why this improvement would be beneficial</reasoning>
+    </suggestion>
+    <!-- additional suggestions as needed -->
+  </suggestions>
+  
+  <!-- Include only if is_valid is false and you're providing a corrected plan -->
+  <corrected_plan>
+    <!-- insert corrected plan XML here with the same structure as the input plan -->
+  </corrected_plan>
+</verification>
+`;
+      
+      // Prepare to call the AI with the verification prompt
+      const llmServiceConfig: LLMServiceConfig = {
+        model: appConfig.ai?.modelVersions?.planner || 'gpt-4-turbo-preview',
+        temperature: 0.2,
+        max_tokens: 3000
+      };
+      
+      // Call the LLM with the verification prompt
+      const verificationResponse = await sendToChatLLM(verificationPrompt, llmServiceConfig);
+      
+      // Parse the XML verification response
+      return parseVerificationFromXml(verificationResponse);
+    } catch (error) {
+      logger.error(`${logPrefix} Error verifying plan: ${error}`);
+      return null;
+    }
+  }
+
+  /**
+   * Process an audio message by transcribing it and then handling the resulting text
+   * @param userId User ID
+   * @param audioUrl URL to the audio file
+   * @param history Conversation history
+   * @param sessionId Session ID
+   * @param apiContext Additional context for the API
+   * @returns Orchestrator response
+   */
+  async processAudioMessage(
+    userId: string,
+    audioUrl: string,
     history: ChatMessage[] = [],
     sessionId?: string,
     apiContext?: Record<string, any>
   ): Promise<OrchestratorResponse> {
+    const logPrefix = `[AudioProcess User:${userId.substring(0, 8)}]`;
+    logger.info(`${logPrefix} Processing audio message from URL: ${audioUrl.substring(0, 60)}...`);
+    
     try {
-      const supabaseStorageUrl = (appConfig as any).supabase.storageUrl;
-      if (!audioSignedUrl.startsWith(supabaseStorageUrl)) {
-        throw new Error(`Invalid audio URL: Must start with ${supabaseStorageUrl}`);
-      }
-      const audioBuffer = await this.fetchAudioBuffer(audioSignedUrl);
-      const currentSessionId = sessionId || `${SESSION_ID_PREFIX}${randomUUID()}`;
-      const startTime = Date.now();
-      let transcribedText: string | null = null;
-      let detectedLang: string | null = null;
-      let audioFetchDuration: number | undefined = undefined;
-      let sttDuration: number | undefined = undefined;
-      let ttsDuration: number | undefined = undefined;
-      let orchResultRaw: OrchestratorResponse | OrchestratorResponse[] | null = null;
-      let orchResult: OrchestratorResponse | null = null;
-      let userName: string = apiContext?.userName || DEFAULT_USER_NAME;
-      const turnIdentifier = `Req[Audio] User:${userId.substring(0, 8)} Sess:${currentSessionId.substring(0, 6)}`;
-
-      try {
-        userName = apiContext?.userName || await this.getUserFirstName(userId) || DEFAULT_USER_NAME;
-        const sttStart = Date.now();
-        const transcriptionResult = await this.sttService.transcribeAudio(audioBuffer, undefined, undefined, apiContext?.detectedMimeType);
-        sttDuration = Date.now() - sttStart;
-        if (transcriptionResult.error || !transcriptionResult.text?.trim()) {
-          logger.error(`--- ${turnIdentifier} STT Error: ${transcriptionResult.error || "Empty transcription."}`);
-          throw new Error(transcriptionResult.error || "Empty transcription.");
-        }
-        transcribedText = transcriptionResult.text;
-        detectedLang = transcriptionResult.language || null;
-        logger.info(`--- ${turnIdentifier} STT OK. Lang: ${detectedLang || "unk"}. Text: "${transcribedText.substring(0, 50)}..."`);
-        
-        // Always fetch fresh user state to ensure we have the latest voice selection
-        const userState = await supabaseAdmin.getUserState(userId);
-        
-        const lang = detectedLang || apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0] || "en";
-        const effectiveApiContext = { ...apiContext, sessionId: currentSessionId, runId: currentSessionId, locale: userState?.preferred_locale || (appConfig as any).defaultLocale, lang, detectedLanguage: detectedLang, userName, transcription: transcribedText };
-        orchResultRaw = await this.runOrchestration(userId, transcribedText, history, effectiveApiContext);
-        orchResult = getFirstOrchResponse(orchResultRaw);
-        // Compare orchestrator response with what would be sent in a text flow
-        if (orchResult && orchResult.response) {
-          // In the text flow, the same orchestrator.runOrchestration would be called with the user's text input
-          // Here, we use the transcribedText as input, so if the transcription is off, the response may differ
-          logger.debug(`[Audio/Text Sync Check] Orchestrator response for audio (transcribed): "${orchResult.response.substring(0, 200)}"`);
-          // Optionally, you could log the transcribedText and the original audio URL for further debugging
-          logger.debug(`[Audio/Text Sync Check] Transcribed text: "${transcribedText}" (audio URL: ${audioSignedUrl})`);
-        }
-        let ttsUrl: string | null = null;
-        if (orchResult?.response) { // Only generate TTS if there's a response text
-          // Always fetch fresh state before TTS generation to ensure latest voice is used
-          const freshUserState = await supabaseAdmin.getUserState(userId);
-          
-          let selectedVoice = isValidOpenAITtsVoice((appConfig as any).openai.ttsDefaultVoice)
-            ? (appConfig as any).openai.ttsDefaultVoice
-            : 'nova' as OpenAITtsVoice;
-          
-          // First check if user has selected a custom voice in settings
-          if (freshUserState?.chainedvoice && isValidOpenAITtsVoice(freshUserState.chainedvoice)) {
-            selectedVoice = freshUserState.chainedvoice as OpenAITtsVoice;
-            logger.debug(`${turnIdentifier} Using user's selected voice: ${selectedVoice}`);
-          } else {
-            // If no custom voice selected, check persona voice
-            const persona = freshUserState?.active_persona_id ? await this.memoryFramework.getPersonaById(freshUserState.active_persona_id, userId) : null;
-            if (persona?.voice_id && isValidOpenAITtsVoice(persona.voice_id)) {
-              selectedVoice = persona.voice_id;
-              logger.debug(`${turnIdentifier} Using persona voice: ${selectedVoice} from persona ${persona.name}`);
-            } else {
-              logger.debug(`${turnIdentifier} Using default voice: ${selectedVoice} (no user voice or persona voice found)`);
-            }
-          }
-          
-          const ttsStart = Date.now();
-          const ttsInstructions = orchResult.ttsInstructions || getDynamicInstructions(orchResult.intentType);
-          const ttsResult = await this.ttsService.generateAndStoreSpeech(orchResult.response, userId, selectedVoice, ttsInstructions);
-          ttsDuration = Date.now() - ttsStart;
-          if (ttsResult.url) ttsUrl = ttsResult.url; else logger.error(`--- ${turnIdentifier} TTS failed: ${ttsResult.error}.`);
-          if (orchResult) orchResult.audioUrl = ttsUrl; // Update orchResult directly
-        }
-        // Update state and streak regardless of TTS success if core processing was attempted
-        supabaseAdmin.updateState(userId, { last_interaction_at: new Date().toISOString(), preferred_locale: effectiveApiContext.locale }).catch((err: any) => logger.error(`Err state update:`, err));
-        supabaseAdmin.incrementStreak(userId, "daily_voice").catch((err: any) => logger.error(`Err streak:`, err));
-        const duration = Date.now() - startTime;
-        logger.info(`--- ${turnIdentifier} AUDIO complete (${duration}ms).`);
-        const finalDebugInfo: OrchestratorResponse['debugInfo'] = {
-          ...(orchResult?.debugInfo || {}),
-          latencyMs: duration,
-        };
-        // Ensure all parts of OrchestratorResponse are correctly populated from orchResult
+      // Fetch audio buffer from URL
+      const audioBuffer = await this.fetchAudioBuffer(audioUrl);
+      if (!audioBuffer || audioBuffer.length === 0) {
+        logger.error(`${logPrefix} Failed to fetch audio data or empty buffer`);
         return {
-          sessionId: currentSessionId,
-          response: orchResult?.response || null,
-          intentType: orchResult?.intentType || null,
-          ttsInstructions: orchResult?.ttsInstructions || getDynamicInstructions(orchResult?.intentType),
-          clarificationQuestion: orchResult?.clarificationQuestion || null,
-          error: orchResult?.error || null,
-          lang: effectiveApiContext.lang,
-          transcription: transcribedText,
-          audioUrl: orchResult?.audioUrl || null,
-          structuredData: orchResult?.structuredData || null,
-          workflowFeedback: orchResult?.workflowFeedback || null,
-          debugInfo: finalDebugInfo,
-          llmUsage: orchResult?.llmUsage || null,
-          attachments: orchResult?.attachments || [],
-          isAudioMessage: true // Always mark AI response to audio as audio message
-        };
-      }
-      catch (error: any) {
-        const duration = Date.now() - startTime;
-        const errorMessageString = String(error?.message || error || `Failed processing audio for ${userName}.`);
-        logger.error(`--- ${turnIdentifier} Error (${duration}ms): ${errorMessageString}`, error.stack);
-        const userFacingError = `I'm sorry, ${userName}, I encountered an issue processing your audio. Please try again.`; // Simplified user-facing error
-        const responseIntentTypeOnError = "error";
-        const debugInfoOnError: OrchestratorResponse['debugInfo'] = {
-          latencyMs: duration,
-          flow_type: 'error',
-        };
-        let errorTtsUrl: string | null = null;
-        try {
-          // Attempt to generate TTS for the error message itself
-          const userStateOnError = await supabaseAdmin.getUserState(userId); // Fetch state again for voice preference
-          const errorTtsVoice = (userStateOnError?.chainedvoice && isValidOpenAITtsVoice(userStateOnError.chainedvoice))
-            ? userStateOnError.chainedvoice as OpenAITtsVoice
-            : (isValidOpenAITtsVoice((appConfig as any).openai.ttsDefaultVoice) ? (appConfig as any).openai.ttsDefaultVoice : 'nova');
-          
-          logger.debug(`${turnIdentifier} Using voice for error message: ${errorTtsVoice}`);
-          
-          const errorTtsResult = await this.ttsService.generateAndStoreSpeech(
-            userFacingError, userId,
-            errorTtsVoice,
-            getDynamicInstructions(responseIntentTypeOnError)
-          );
-          if (errorTtsResult.url) errorTtsUrl = errorTtsResult.url;
-        } catch (ttsErrorException: any) {
-          logger.error(`--- ${turnIdentifier} Failed to generate TTS for error message:`, ttsErrorException.message);
-        }
-        return {
-          sessionId: currentSessionId,
-          response: userFacingError, // Provide the text error message
-          error: errorMessageString, // Provide detailed error for internal logging/debugging
-          transcription: transcribedText, // If transcription was successful before error
-          lang: detectedLang || apiContext?.lang || (appConfig as any).defaultLocale.split("-")[0] || "en",
+          sessionId: sessionId || randomUUID(),
+          response: "I couldn't process the audio message. Please try again or send a text message instead.",
+          lang: "en",
+          intentType: 'error',
           workflowFeedback: null,
-          debugInfo: debugInfoOnError,
-          intentType: responseIntentTypeOnError,
-          ttsInstructions: getDynamicInstructions(responseIntentTypeOnError),
-          audioUrl: errorTtsUrl,
           structuredData: null,
+          audioUrl: null,
+          ttsInstructions: null,
           clarificationQuestion: null,
-          llmUsage: null,
-          attachments: [],
-          isAudioMessage: true // Mark error response as audio message too
+          clarificationDetails: null,
+          transcription: null,
+          debugInfo: {
+            flow_type: 'error',
+            llmModelUsed: null,
+            llmUsage: null,
+            latencyMs: 0,
+            error: "Failed to fetch audio data"
+          }
         };
       }
+      
+      // Detect content type from API context if available
+      const detectedMimeType = apiContext?.detectedMimeType || "audio/webm";
+      
+      // Transcribe audio
+      logger.info(`${logPrefix} Transcribing audio (${audioBuffer.length} bytes, type: ${detectedMimeType})`);
+      const transcriptionResult = await this.sttService.transcribeAudio(
+        audioBuffer,
+        userId,
+        detectedMimeType
+      );
+      
+      // Extract transcription
+      const transcriptionText = transcriptionResult.text;
+      logger.info(`${logPrefix} Transcription result: "${transcriptionText.substring(0, 100)}${transcriptionText.length > 100 ? '...' : ''}"`);
+      
+      // If transcription failed or is empty
+      if (!transcriptionText || transcriptionText.trim() === "") {
+        logger.warn(`${logPrefix} Empty or failed transcription`);
+        return {
+          sessionId: sessionId || randomUUID(),
+          response: "I couldn't understand what was said in the audio. Could you please try again with clearer audio or send a text message?",
+          lang: "en",
+          intentType: 'no_transcription',
+          workflowFeedback: null,
+          structuredData: null,
+          audioUrl: null,
+          ttsInstructions: null,
+          clarificationQuestion: null,
+          clarificationDetails: null,
+          transcription: "",
+          debugInfo: {
+            flow_type: 'transcription_empty',
+            llmModelUsed: null,
+            llmUsage: null,
+            latencyMs: 0
+          }
+        };
+      }
+      
+      // Enrich API context with audio information
+      const audioApiContext = {
+        ...(apiContext || {}),
+        isAudioMessage: true,
+        originalAudioUrl: audioUrl,
+        transcriptionLanguage: transcriptionResult.language || "en",
+        transcriptionConfidence: transcriptionResult.confidence || 0,
+        transcriptionModel: transcriptionResult.model || "openai-whisper",
+      };
+      
+      // Process the transcribed text using the existing text message handler
+      logger.info(`${logPrefix} Sending transcribed text to processTextMessage`);
+      const textResponse = await this.processTextMessage(
+        userId,
+        transcriptionText,
+        history,
+        sessionId,
+        audioApiContext
+      );
+      
+      // Add transcription to the response
+      return {
+        ...textResponse,
+        transcription: transcriptionText,
+        intentType: textResponse.intentType || 'audio_message'
+      };
     } catch (error: any) {
-      logger.error(`Audio processing failed for ${userId}: ${error.message}`);
-      // This rethrow will be caught by the outer try...catch in the API route
-      throw error;
-    }
-  }
-  // Add getResolvedTool as a private method if not present
-  private async getResolvedTool(toolNameFromRouter: string, userId?: string): Promise<{ tool: BaseTool | null; confidence: string; clarificationQuestion?: string }> {
-    // Try direct match
-    if (this.toolRegistry[toolNameFromRouter]) return { tool: this.toolRegistry[toolNameFromRouter], confidence: "high" };
-    // Try static alias resolution
-    const staticResolvedTool = resolveToolName(toolNameFromRouter);
-    if (staticResolvedTool && this.toolRegistry[staticResolvedTool.name]) return { tool: staticResolvedTool, confidence: "high" };
-    // LLM-based resolution
-    const canonicalToolNames = Object.keys(this.toolRegistry);
-    const llmResult = await resolveToolNameWithLLM(toolNameFromRouter, canonicalToolNames, userId);
-    if (typeof llmResult === "string") {
-      // Fallback: treat as low confidence
-      return { tool: null, confidence: "none", clarificationQuestion: `I couldn't confidently match the tool name '${toolNameFromRouter}'. Can you clarify which tool you meant?` };
-    }
-    const { resolved_tool_name, confidence } = llmResult;
-    if (confidence === "low" || confidence === "none") {
-      return { tool: null, confidence, clarificationQuestion: `Did you mean to use the '${resolved_tool_name}' tool, or something else? Please clarify.` };
-    }
-    if (this.toolRegistry[resolved_tool_name]) {
-      return { tool: this.toolRegistry[resolved_tool_name], confidence };
-    }
-    return { tool: null, confidence: "none", clarificationQuestion: `I couldn't find a matching tool for '${toolNameFromRouter}'. Can you clarify?` };
-  }
-  /**
-   * Try to infer missing/ambiguous arguments for a tool using LLM, or generate a clarification question.
-   * Returns { inferredArgs, clarificationQuestion }
-   */
-  private async llmInferOrClarifyArgs(
-    tool: BaseTool,
-    providedArgs: Record<string, any>,
-    userInput: string,
-    userState: UserState | null,
-    userId: string
-  ): Promise<{ inferredArgs: Record<string, any> | null; clarificationQuestion: string | null }> {
-    const requiredArgs = tool.argsSchema?.required || [];
-    const missingArgs = requiredArgs.filter(
-      (arg: string) =>
-        !(arg in providedArgs) ||
-        providedArgs[arg] === undefined ||
-        providedArgs[arg] === null ||
-        (typeof providedArgs[arg] === "string" && providedArgs[arg].trim() === "")
-    );
-    if (missingArgs.length === 0) {
-      // Validate providedArgs strictly
-      const ajv = new Ajv();
-      const validate: ValidateFunction = ajv.compile(tool.argsSchema);
-      if (!validate(providedArgs)) {
-        const errorMsg = `Arguments failed validation: ${JSON.stringify(validate.errors)}`;
-        return { inferredArgs: null, clarificationQuestion: `Some arguments are invalid: ${errorMsg}. Can you clarify or provide correct values?` };
-      }
-      return { inferredArgs: providedArgs, clarificationQuestion: null };
-    }
-    // Compose LLM prompt
-    const instructions = `You are an expert AI assistant helping another AI fill in missing arguments for a tool call. The tool is: ${tool.name}. Its description: ${tool.description}. The required arguments are: ${JSON.stringify(tool.argsSchema?.properties || {})}. The user query is: "${userInput}". The arguments provided so far are: ${JSON.stringify(providedArgs)}. The user's state is: ${userState ? JSON.stringify(userState) : "(none)"}.
-If you can confidently infer the missing arguments, return them in the 'inferredArgs' field. If not, return a natural language clarification question in the 'clarificationQuestion' field to ask the user. Only one of these fields should be non-null.`;
-    const schema = {
-      type: "object",
-      properties: {
-        inferredArgs: { type: "object", nullable: true, description: "The completed argument object if you can infer all required arguments, else null." },
-        clarificationQuestion: { type: "string", nullable: true, description: "A question to ask the user if you cannot infer the arguments, else null." }
-      },
-      required: ["inferredArgs", "clarificationQuestion"],
-      additionalProperties: false
-    };
-    const result = await generateStructuredJson<{ inferredArgs: Record<string, any> | null; clarificationQuestion: string | null }>(
-      instructions,
-      userInput,
-      schema,
-      "minato_tool_arg_infer_or_clarify_v1",
-      [],
-      (appConfig.openai.extractionModel || "gpt-4.1-nano-2025-04-14"),
-      userId
-    );
-    if (result && typeof result === "object" && !('error' in result) && ("inferredArgs" in result || "clarificationQuestion" in result)) {
-      if (result.inferredArgs) {
-        // Validate inferredArgs strictly
-        const ajv = new Ajv();
-        const validate: ValidateFunction = ajv.compile(tool.argsSchema);
-        if (!validate(result.inferredArgs)) {
-          const errorMsg = `Arguments failed validation: ${JSON.stringify(validate.errors)}`;
-          return { inferredArgs: null, clarificationQuestion: `Some arguments are invalid: ${errorMsg}. Can you clarify or provide correct values?` };
+      logger.error(`${logPrefix} Error processing audio message:`, error);
+      
+      return {
+        sessionId: sessionId || randomUUID(),
+        response: "I encountered an error processing your audio message. Please try again or send a text message instead.",
+        lang: "en",
+        intentType: 'error',
+        workflowFeedback: null,
+        structuredData: null,
+        audioUrl: null,
+        ttsInstructions: null,
+        clarificationQuestion: null,
+        clarificationDetails: null,
+        transcription: null,
+        debugInfo: {
+          flow_type: 'error',
+          llmModelUsed: null,
+          llmUsage: null,
+          latencyMs: 0,
+          error: error.message
         }
-      }
-      return result;
+      };
     }
-    // Fallback: if LLM fails or returns error, return nulls
-    return { inferredArgs: null, clarificationQuestion: null };
   }
-  /**
-   * Filters tool arguments to only include properties that are valid for the specific tool
-   */
-  private filterArgumentsForTool(args: Record<string, any>, tool: BaseTool): Record<string, any> {
-    if (!tool.argsSchema || !tool.argsSchema.properties) {
-      return args;
-    }
-    
-    const validProps = Object.keys(tool.argsSchema.properties);
-    const filteredArgs: Record<string, any> = {};
-    
-    // Only include properties that are defined in this tool's schema
-    for (const prop of validProps) {
-      if (prop in args) {
-        filteredArgs[prop] = args[prop];
-      }
-    }
-    
-    return filteredArgs;
-  }
-}
-declare module "../../memory-framework/core/CompanionCoreMemory" {
-  interface CompanionCoreMemory {
-    getPersonaById(personaId: string, userId: string): Promise<PredefinedPersona | UserPersona | null>;
-    getDueReminders(dueBefore: string, userId?: string | null, limit?: number): Promise<StoredMemoryUnit[] | null>;
-    updateReminderStatus(memoryId: string, status: ReminderDetails["status"], errorMessage?: string | null): Promise<boolean>;
-  }
-}
-export type { ToolRouterPlan };
-export { TTS_INSTRUCTION_MAP };
-
-// Helper to always get a single OrchestratorResponse from possibly-array result
-function getFirstOrchResponse(res: OrchestratorResponse | OrchestratorResponse[]): OrchestratorResponse {
-  return Array.isArray(res) ? res[0] : res;
-}
-
-// Helper function to remove system prefixes from user inputs
-function stripSystemPrefixes(input: string): string {
-  if (typeof input !== 'string') return input;
-  
-  // Remove voice conversation prefix
-  input = input.replace(/^\[VOICE CONVERSATION: This is a spoken conversation\. Respond naturally and avoid using tools unless explicitly requested\.\]\s*/i, '');
-  
-  // Remove media upload prefix
-  input = input.replace(/^\[MEDIA UPLOAD: The user has shared media content\. Please respond to the content directly in conversation, don't use tools\.\]\s*/i, '');
-  
-  return input;
 }
