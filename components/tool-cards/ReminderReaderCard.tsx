@@ -256,8 +256,8 @@ export function ReminderReaderCard({ data }: ReminderReaderCardProps) {
             </div>
         )}
         {!data.error && data.reminders && data.reminders.length > 0 ? (
-          <ScrollArea className="max-h-[70vh] md:max-h-80 pr-2 custom-scrollbar">
-            <ul className="space-y-0.5">
+          <ScrollArea className="h-[30vh] md:h-80 pr-2 custom-scrollbar">
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {data.reminders.map((reminder, index) => (
                 <ReminderItem 
                     key={reminder.memory_id} 

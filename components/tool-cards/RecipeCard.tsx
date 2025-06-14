@@ -183,7 +183,7 @@ export function RecipeCard({ data }: RecipeCardProps) {
                 </div>
             </div>
         ) : (
-        <ScrollArea className="max-h-[250px] pr-3 custom-scrollbar"> {/* Max height for content area */}
+        <ScrollArea className="h-[250px] pr-3 custom-scrollbar"> {/* Max height for content area */}
             <ExpandableSection title="Ingredients" items={recipe.ingredients} type="ingredients" initialVisibleCount={5}/>
             <ExpandableSection title="Instructions" items={recipe.instructions} type="instructions" initialVisibleCount={2}/>
         </ScrollArea>

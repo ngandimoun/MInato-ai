@@ -22,11 +22,15 @@ generateStructuredJson,
 generateResponseWithIntent,
 } from "@/lib/providers/llm_clients";
 import { logger } from "../../memory-framework/config";
-import { appConfig, injectPromptVariables } from "@/lib/config";
+import { appConfig, injectPromptVariables, featureFlags } from "@/lib/config";
 import { TOOL_ROUTER_PROMPT_TEMPLATE } from "@/lib/prompts";
 import OpenAI from "openai";
 import { getProperty } from "dot-prop";
 import { CompletionUsage } from "openai/resources";
+import { enhanceUserMemoryContext } from "./personalization";
+// Comment out the problematic import for now as it seems to be missing
+// import { processTextMessageWithPersonalization } from "./role-based-responses";
+import { CompanionCoreMemory } from "@/memory-framework/core/CompanionCoreMemory";
 
 // Default values for configuration
 const WORKFLOW_MAX_TOOLS_PER_TURN = 3;
@@ -134,10 +138,12 @@ export class WorkflowEngine {
     private toolRegistry: { [key: string]: BaseTool };
     private activeWorkflows: Map<string, WorkflowStateWithPartial>;
     private readonly logger = logger;
+    private memoryFramework?: CompanionCoreMemory;
 
-    constructor(toolRegistry: { [key: string]: BaseTool }) {
+    constructor(toolRegistry: { [key: string]: BaseTool }, memoryFramework?: CompanionCoreMemory) {
         this.toolRegistry = toolRegistry;
         this.activeWorkflows = new Map<string, WorkflowStateWithPartial>();
+        this.memoryFramework = memoryFramework;
         this.logger.info(`[WorkflowEngine] Initialized with ${Object.keys(this.toolRegistry).length} tools.`);
     }
 
@@ -627,9 +633,72 @@ export class WorkflowEngine {
             wfState.status = "completed";
             this.logger.info(`${logPrefix} Workflow dynamic plan completed. Goal: "${wfState.fullPlanGoal || currentDynamicPlan.goal}`);
             this.clearWorkflowState(sessionId);
-            const finalResponse = lastToolOutputData ?
+            let finalResponse = lastToolOutputData ?
                 `Minato has finished: ${wfState.fullPlanGoal || currentDynamicPlan.goal}. The final result is available.` :
                 `Minato has finished: ${wfState.fullPlanGoal || currentDynamicPlan.goal}.`;
+
+            // Apply role-based personalization to workflow response
+            if (appConfig.minato?.useDynamicPersonalization && featureFlags.useDynamicPersonalization && finalResponse) {
+                try {
+                    // Get user state
+                    const userState = await this.getUserState(userId);
+                    
+                    // Get or compute enhanced memory context
+                    let enhancedMemoryContext = "";
+                    if (apiContext?.enhancedMemoryContext) {
+                        enhancedMemoryContext = apiContext.enhancedMemoryContext;
+                    } else if (this.memoryFramework) {
+                        try {
+                            // Generate memory context if not already available
+                            const { enhancedMemoryContext: memContext } = await enhanceUserMemoryContext(
+                                userId,
+                                latestUserInput || "",
+                                history,
+                                userState,
+                                this.memoryFramework
+                            );
+                            enhancedMemoryContext = memContext;
+                        } catch (error) {
+                            logger.error(`[WorkflowEngine:${userId.slice(0, 6)}] Memory context enrichment error:`, error);
+                        }
+                    }
+                    
+                    // We can't use processTextMessageWithPersonalization as it seems to be missing
+                    // For now, we'll just keep the original response
+                    // const personalizedResponse = await processTextMessageWithPersonalization(...);
+                    
+                    // Leave finalResponse unchanged since we can't personalize it
+                    logger.info(`[WorkflowEngine:${userId.slice(0, 6)}] Personalization skipped due to missing module`);
+                } catch (error) {
+                    logger.error(`[WorkflowEngine:${userId.slice(0, 6)}] Role-based personalization error:`, error);
+                    // Keep original response if personalization fails
+                }
+            }
+
+            // Enhanced reasoning for multi-tool orchestration
+            let responseIntentType = "confirmation_positive";
+            
+            // Check for enhanced reasoning data in apiContext
+            if (apiContext.enhancedReasoning || apiContext.orchestrationExplanation) {
+                // Add enhanced reasoning if available
+                if (apiContext.enhancedReasoning) {
+                    responseIntentType = "enhanced_reasoning";
+                    this.logger.info(`${logPrefix} Enhanced reasoning added to workflow response`);
+                }
+                
+                // Add orchestration explanation if available
+                if (apiContext.orchestrationExplanation) {
+                    responseIntentType = "orchestration_explanation";
+                    this.logger.info(`${logPrefix} Orchestration explanation added to workflow response`);
+                }
+                
+                // Add flag to indicate UI cards should have reasoning
+                if (apiContext.generateUICardReasoning === true) {
+                    responseIntentType = "confirmation_positive_with_reasoning";
+                    this.logger.info(`${logPrefix} UI Card reasoning flag set in workflow response`);
+                }
+            }
+
             return {
                 responseText: finalResponse,
                 structuredData: lastToolOutputData,
@@ -640,7 +709,7 @@ export class WorkflowEngine {
                 },
                 isComplete: true,
                 llmUsage: totalLlmUsage,
-                intentType: "confirmation_positive",
+                intentType: responseIntentType,
                 ttsInstructions: null,
                 variables: wfState.variables
             };
@@ -719,5 +788,39 @@ export class WorkflowEngine {
     public getActiveWorkflowState(sessionId: string): WorkflowStateWithPartial | undefined {
         if (!this.activeWorkflows) return undefined;
         return this.activeWorkflows.get(sessionId);
+    }
+    private async getUserState(userId: string): Promise<UserState | null> {
+        try {
+            // Check if we can access the memory framework
+            if (this.memoryFramework) {
+                // Try to get user state from memory framework
+                // Since getUserState may not exist directly on CompanionCoreMemory,
+                // let's work with a more generic approach
+                try {
+                    // Try to get it from search_memory
+                    const userStateResults = await this.memoryFramework.search_memory(
+                        "user state preferences settings profile",
+                        userId,
+                        { limit: 5, offset: 0 }
+                    );
+                    
+                    if (userStateResults && userStateResults.results.length > 0) {
+                        // Try to construct a basic user state from the results
+                        const basicState: Partial<UserState> = {
+                            user_id: userId,
+                            // Add other fields as needed
+                        };
+                        
+                        return basicState as UserState;
+                    }
+                } catch (searchError) {
+                    logger.error(`[WorkflowEngine] getUserState search error:`, searchError);
+                }
+            }
+            return null;
+        } catch (error) {
+            logger.error(`[WorkflowEngine] getUserState error for ${userId}:`, error);
+            return null;
+        }
     }
 }

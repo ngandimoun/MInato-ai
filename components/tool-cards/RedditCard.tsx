@@ -57,7 +57,7 @@ const RedditPostItem: React.FC<{post: RedditPost, isExpanded: boolean, onToggleE
     const score = post.score || 0;
 
     return (
-        <motion.li 
+        <motion.li
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1, duration: 0.3 }}
@@ -76,154 +76,170 @@ const RedditPostItem: React.FC<{post: RedditPost, isExpanded: boolean, onToggleE
                     className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 transition-opacity duration-300"
                     animate={{ opacity: isHovered ? 1 : 0 }}
                 />
-                
-                <div className="relative z-10">
-                    <div className="flex gap-4 items-start">
-                        {/* Enhanced score display */}
-                        <motion.div 
-                            className="flex-shrink-0"
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.95 }}
-                        >
-                            <div className={cn(
-                                "relative w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm",
-                                "bg-gradient-to-br shadow-lg",
-                                getScoreColor(score)
-                            )}>
-                                <div className="absolute inset-0 rounded-xl bg-white/20 backdrop-blur-sm" />
-                                <span className="relative z-10 flex flex-col items-center">
-                                    <ArrowUp size={10} />
-                                    <span className="text-xs">{score}</span>
-                                </span>
-                            </div>
-                        </motion.div>
 
-                        {/* Enhanced thumbnail */}
-                        {post.thumbnailUrl && (
-                            <motion.div
-                                className="flex-shrink-0 relative overflow-hidden rounded-lg"
-                                whileHover={{ scale: 1.05 }}
-                                transition={{ duration: 0.2 }}
-                            >
-                                <a href={post.url || post.permalink} target="_blank" rel="noopener noreferrer" className="block w-20 h-20 md:w-24 md:h-24">
-                                    <img 
-                                        src={post.thumbnailUrl} 
-                                        alt="Post thumbnail" 
-                                        className="w-full h-full object-cover transition-all duration-300 group-hover:brightness-110"
-                                    />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                </a>
-                            </motion.div>
-                        )}
-                        
-                        {/* Content section */}
-                        <div className="flex-1 min-w-0 space-y-2">
-                            <div>
-                                <motion.a 
-                                    href={post.permalink} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer" 
+                <div className="relative z-10 flex flex-col gap-3"> {/* Main content now in flex-col */}
+
+                    {/* Section 1: Title, Author, Score */}
+                    <div className="flex flex-col gap-1.5">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                                <motion.a
+                                    href={post.permalink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
                                     className="font-semibold text-base text-foreground hover:text-primary transition-colors line-clamp-3 leading-snug"
                                     title={post.title}
                                     whileHover={{ x: 2 }}
                                 >
                                     {post.title}
                                 </motion.a>
-
-                                {/* Enhanced metadata */}
-                                <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
-                                    {post.author && (
-                                        <motion.span 
-                                            className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer font-medium"
-                                            whileHover={{ scale: 1.05 }}
-                                        >
-                                            u/{post.author}
-                                        </motion.span>
-                                    )}
-                                    {post.numComments !== null && (
-                                        <motion.span 
-                                            className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
-                                            whileHover={{ scale: 1.05 }}
-                                        >
-                                            <MessageSquare size={12}/> 
-                                            <span className="font-medium">{post.numComments} comments</span>
-                                        </motion.span>
-                                    )}
-                                    {getRelativeDate(post) && (
-                                        <span className="flex items-center gap-1">
-                                            <CalendarClock size={12}/>
-                                            {getRelativeDate(post)}
-                                        </span>
-                                    )}
-                                    <span className="flex items-center gap-1 capitalize">
-                                        {getPostIcon()} 
-                                        <span className="font-medium">{getPostType(post)}</span>
-                                    </span>
-                                </div>
+                                {post.author && (
+                                    <motion.span
+                                        className="block mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer font-medium"
+                                        whileHover={{ scale: 1.05 }}
+                                    >
+                                        u/{post.author}
+                                    </motion.span>
+                                )}
                             </div>
 
-                            {/* Enhanced expandable text */}
-                            <AnimatePresence>
-                                {post.isSelf && post.selfText && (
-                                    <motion.div
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        className="space-y-2"
-                                    >
-                                        <motion.p 
-                                            className={cn(
-                                                "text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg border",
-                                                !isExpanded && "line-clamp-2"
-                                            )}
-                                            layout
-                                        >
-                                            {post.selfText}
-                                        </motion.p>
-                                        {post.selfText.length > 100 && (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={onToggleExpand}
-                                                className="h-8 text-xs text-primary hover:text-primary/80"
-                                            >
-                                                {isExpanded ? (
-                                                    <>
-                                                        <ChevronUp size={14} className="mr-1" />
-                                                        Show Less
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <ChevronDown size={14} className="mr-1" />
-                                                        Read More
-                                                    </>
-                                                )}
-                                            </Button>
-                                        )}
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
+                            {/* Enhanced score display */}
+                            <motion.div
+                                className="flex-shrink-0"
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.95 }}
+                            >
+                                <div className={cn(
+                                    "relative w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm",
+                                    "bg-gradient-to-br shadow-lg",
+                                    getScoreColor(score)
+                                )}>
+                                    <div className="absolute inset-0 rounded-xl bg-white/20 backdrop-blur-sm" />
+                                    <span className="relative z-10 flex flex-col items-center">
+                                        <ArrowUp size={10} />
+                                        <span className="text-xs">{score}</span>
+                                    </span>
+                                </div>
+                            </motion.div>
+                        </div>
 
-                            {/* External link */}
-                            {!post.isSelf && post.url && !post.url.includes(post.permalink) && (
-                                <motion.a 
-                                    href={post.url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer" 
-                                    className="text-xs text-blue-500 hover:underline flex items-center gap-1 hover:text-blue-600 transition-colors"
-                                    whileHover={{ x: 2 }}
+                        {/* Enhanced metadata (Comments, Date, Type) */}
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            {post.numComments !== null && (
+                                <motion.span
+                                    className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
+                                    whileHover={{ scale: 1.05 }}
                                 >
-                                    <ExternalLink size={12}/> 
-                                    View Linked Content
-                                </motion.a>
+                                    <MessageSquare size={12}/>
+                                    <span className="font-medium">{post.numComments} comments</span>
+                                </motion.span>
+                            )}
+                            {getRelativeDate(post) && (
+                                <span className="flex items-center gap-1">
+                                    <CalendarClock size={12}/>
+                                    {getRelativeDate(post)}
+                                </span>
+                            )}
+                            <span className="flex items-center gap-1 capitalize">
+                                {getPostIcon()}
+                                <span className="font-medium">{getPostType(post)}</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Section 2: Enhanced thumbnail (if present) */}
+                    {post.thumbnailUrl && (
+                        <motion.div
+                            className="relative w-full overflow-hidden rounded-lg"
+                            whileHover={{ scale: 1.02 }} // Gentle scale on thumbnail container hover
+                            transition={{ duration: 0.2 }}
+                        >
+                            <a href={post.url || post.permalink} target="_blank" rel="noopener noreferrer" className="block">
+                                <img
+                                    src={post.thumbnailUrl}
+                                    alt="Post thumbnail"
+                                    className="w-full h-auto max-h-96 object-cover rounded-lg transition-all duration-300 group-hover:brightness-110" // max-h can be adjusted
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg" />
+                            </a>
+                        </motion.div>
+                    )}
+
+                    {/* Section 3: Content (SelfText or External Link) */}
+                    <AnimatePresence>
+                        {post.isSelf && post.selfText && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="space-y-2"
+                            >
+                                <motion.p
+                                    className={cn(
+                                        "text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg border",
+                                        !isExpanded && "line-clamp-2" // Kept original line-clamp
+                                    )}
+                                    layout
+                                >
+                                    {post.selfText}
+                                </motion.p>
+                                {post.selfText.length > 100 && ( // Kept original condition
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={onToggleExpand}
+                                        className="h-8 text-xs text-primary hover:text-primary/80"
+                                    >
+                                        {isExpanded ? (
+                                            <><ChevronUp size={14} className="mr-1" />Show Less</>
+                                        ) : (
+                                            <><ChevronDown size={14} className="mr-1" />Read More</>
+                                        )}
+                                    </Button>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {!post.isSelf && post.url && !post.url.includes(post.permalink) && (
+                        <motion.a
+                            href={post.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-500 hover:underline flex items-center gap-1 hover:text-blue-600 transition-colors py-1" // Adjusted padding
+                            whileHover={{ x: 2 }}
+                        >
+                            <ExternalLink size={12}/>
+                            View Linked Content
+                        </motion.a>
+                    )}
+
+                    {/* Section 4: Footer with Badges and Action Buttons */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-border/50">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {score > 500 && (
+                                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-orange-500/10 to-red-500/10">
+                                    <Flame size={10} className="mr-1" />Hot
+                                </Badge>
+                            )}
+                            {(post.numComments || 0) > 50 && (
+                                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-green-500/10 to-emerald-500/10">
+                                    <MessageSquare size={10} className="mr-1" />Active
+                                </Badge>
+                            )}
+                            {index === 0 && (
+                                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-primary/10 to-accent/10">
+                                    <TrendingUp size={10} className="mr-1" />Top
+                                </Badge>
                             )}
                         </div>
 
-                        {/* Action buttons */}
-                        <motion.div 
-                            className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                            initial={{ x: 20 }}
-                            animate={{ x: isHovered ? 0 : 20 }}
+                        {/* Action buttons (now horizontal) */}
+                        <motion.div
+                            className="flex gap-2 items-center" // Buttons are now side-by-side
+                            initial={{ x: 10, opacity: 0 }}
+                            animate={{ x: isHovered ? 0 : 10, opacity: isHovered ? 1 : 0 }}
+                            transition={{ duration: 0.2, ease: "easeInOut" }}
                         >
                             <motion.button
                                 whileHover={{ scale: 1.1 }}
@@ -242,30 +258,6 @@ const RedditPostItem: React.FC<{post: RedditPost, isExpanded: boolean, onToggleE
                                 <Share2 size={16} className="text-muted-foreground hover:text-primary transition-colors" />
                             </motion.button>
                         </motion.div>
-                    </div>
-
-                    {/* Footer with badges */}
-                    <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/50">
-                        <div className="flex items-center gap-2">
-                            {score > 500 && (
-                                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-orange-500/10 to-red-500/10">
-                                    <Flame size={10} className="mr-1" />
-                                    Hot
-                                </Badge>
-                            )}
-                            {(post.numComments || 0) > 50 && (
-                                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-green-500/10 to-emerald-500/10">
-                                    <MessageSquare size={10} className="mr-1" />
-                                    Active
-                                </Badge>
-                            )}
-                            {index === 0 && (
-                                <Badge variant="secondary" className="text-xs bg-gradient-to-r from-primary/10 to-accent/10">
-                                    <TrendingUp size={10} className="mr-1" />
-                                    Top
-                                </Badge>
-                            )}
-                        </div>
                     </div>
                 </div>
             </div>
@@ -374,8 +366,8 @@ export function RedditCard({ data }: RedditCardProps) {
                 )}
                 
                 {!data.error && data.posts && data.posts.length > 0 ? (
-                    <ScrollArea className="max-h-[600px] px-6">
-                        <ul className="space-y-4 pb-6">
+                    <ScrollArea className="h-[600px] px-6">
+                        <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-6">
                             {data.posts.map((post, index) => (
                                 <RedditPostItem 
                                     key={post.id} 

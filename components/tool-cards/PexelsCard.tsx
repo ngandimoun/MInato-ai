@@ -120,14 +120,15 @@ export function PexelsCard({ data }: PexelsCardProps) {
             className="mb-3 group"
           >
             <div 
-              className="aspect-video relative w-full bg-muted rounded-lg overflow-hidden border border-border/40 minato-glow"
+              className="aspect-video relative w-full bg-muted rounded-lg overflow-hidden border border-border/40 minato-glow flex items-center justify-center" // MODIFIED: Added flex items-center justify-center
               style={selectedImage.avgColor ? { backgroundColor: selectedImage.avgColor } : {}}
             >
               <HighQualityImage
                 src={selectedImage.imageUrlRegular} 
                 alt={selectedImage.title || `Pexels Image ${selectedImage.id}`}
                 objectFit="contain"
-                containerClassName="w-full h-full"
+                // containerClassName="w-full h-full" // MODIFIED: Removed to allow HQI wrapper to size to image
+                className="w-full h-full" // MODIFIED: Added to constrain image to parent, allow natural size if smaller
               />
               <Button 
                 variant="ghost" 
@@ -205,9 +206,13 @@ export function PexelsCard({ data }: PexelsCardProps) {
                 <HighQualityImage 
                   src={selectedImage.imageUrlFull || selectedImage.imageUrlRegular} 
                   alt={selectedImage.title || `Pexels Image ${selectedImage.id}`} 
-                  containerClassName="max-w-full max-h-[90vh]"
+                  // containerClassName="max-w-full max-h-[90vh]" // MODIFIED: Removed
                   objectFit="contain"
-                  className="rounded-md"
+                  className={cn(
+                    "rounded-md",
+                    "max-w-full",   // MODIFIED: Added
+                    "max-h-[90vh]"  // MODIFIED: Added (was on containerClassName)
+                  )}
                 />
                 {data.images.length > 1 && (
                     <>
