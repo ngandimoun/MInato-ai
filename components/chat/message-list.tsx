@@ -145,6 +145,22 @@ export function MessageList({ messages, messagesEndRef }: MessageListProps) {
     (a, b) => new Date(a).getTime() - new Date(b).getTime()
   );
 
+  const renderStructuredData = (message: Message) => {
+    // Support for single structured_data object
+    if (message.structured_data) {
+      if (Array.isArray(message.structured_data)) {
+        // If structured_data is an array, render multiple cards
+        return message.structured_data.map((data, index) => (
+          <StructuredDataRenderer key={`structured-data-${index}`} data={data} />
+        ));
+      } else {
+        // If it's a single object, render just one card
+        return <StructuredDataRenderer data={message.structured_data} />;
+      }
+    }
+    return null;
+  };
+
   return (
     <div className="h-full relative">
       {/*
@@ -172,9 +188,7 @@ export function MessageList({ messages, messagesEndRef }: MessageListProps) {
                         transition={{ type: "spring", stiffness: 350, damping: 30, duration: 0.25 }}
                       >
                         <MessageItem message={message} isNew={newMessageIds.has(message.id || `msg-${message.timestamp}`)} />
-                        {message.structured_data && (
-                          <StructuredDataRenderer data={message.structured_data} />
-                        )}
+                        {renderStructuredData(message)}
                       </motion.div>
                     ))}
                   </AnimatePresence>

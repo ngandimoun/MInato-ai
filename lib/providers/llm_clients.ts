@@ -11,7 +11,7 @@ ChatCompletionMessage,
 ChatCompletionContentPart as SdkChatCompletionContentPart, // Renamed to avoid conflict
 ChatCompletionContentPartRefusal,
 } from "openai/resources/chat/completions";
-import { appConfig } from "../config";
+import { appConfig, injectPromptVariables } from "../config";
 import { logger } from "../../memory-framework/config";
 import {
 ChatMessage,
@@ -20,6 +20,7 @@ ChatMessageContentPart as AppChatMessageContentPart,
 ChatMessageContentPartText as AppChatMessageContentPartText,
 ChatMessageContentPartInputImage as AppChatMessageContentPartInputImage,
 AnyToolStructuredData,
+XmlClassification,
 } from "@/lib/types/index";
 import { safeJsonParse } from "@/memory-framework/core/utils";
 import type { CompletionUsage } from "openai/resources";
@@ -27,6 +28,23 @@ import { MEDIA_UPLOAD_BUCKET } from "../constants";
 import { supabase } from "../supabaseClient";
 import Ajv from "ajv";
 import { SchemaService } from "../services/schemaService"; // Import SchemaService
+import { 
+  MINATO_MULTI_TOOL_COT_PROMPT_TEMPLATE, 
+  MINATO_QUERY_NATURE_CLASSIFIER_PROMPT_TEMPLATE,
+  ADVANCED_SKILL_LEARNING_PROMPT_TEMPLATE,
+  ADVANCED_NEWS_AGGREGATOR_PROMPT_TEMPLATE,
+  PROACTIVE_LIFE_IMPROVER_PROMPT_TEMPLATE,
+  ENHANCED_REASONING_RESPONSE_PROMPT_TEMPLATE,
+  MULTI_TOOL_ORCHESTRATION_EXPLANATION_TEMPLATE,
+  REASONING_UI_CARD_TEMPLATE,
+  LEARNING_SERIES_PROGRESSION_PROMPT_TEMPLATE,
+  PROACTIVE_LEARNING_CHECKIN_PROMPT_TEMPLATE,
+  FOCUS_MODE_PROMPT_TEMPLATE
+} from "../prompts";
+import { 
+  parseChainOfThoughtPlanFromXml, 
+  parseClassificationFromXml 
+} from "../utils/xml-processor";
 // --- Initialize Raw OpenAI Client ---
 if (!appConfig.openai.apiKey && typeof window === "undefined") {
 logger.error("CRITICAL: OpenAI API Key is missing. LLM clients will not function.");
@@ -709,5 +727,885 @@ export async function resolveToolNameWithLLM(
   } catch (e: any) {
     logger.error(`[LLM Clients ToolResolve] Exception during LLM tool name resolution: ${e.message}. Fallback to first canonical. ${logSuffix}`);
     return canonicalToolNames[0];
+  }
+}
+
+/**
+ * Generates a multi-tool chain-of-thought plan using the OpenAI API
+ * @param userQuery - User query to plan for
+ * @param chatHistorySummary - Summary of chat history for context
+ * @param personaCustomization - Persona customization information
+ * @param userStateSummary - Summary of user state
+ * @param availableToolsStringified - String representation of available tools
+ * @param nluAnalysis - Optional NLU analysis results
+ * @param userId - Optional user ID for logging
+ * @returns Promise resolving to the chain of thought plan or an error
+ */
+export async function generateMultiToolCotPlan(
+  userQuery: string,
+  chatHistorySummary: string,
+  personaCustomization: string | null,
+  userStateSummary: string | null,
+  availableToolsStringified: string,
+  nluAnalysis: string | null = null,
+  userId?: string
+): Promise<{ plan: any; error?: string | null }> {
+  const logPrefix = `[MultiToolCotPlanner User:${userId?.substring(0, 8) || "N/A"}]`;
+  logger.info(`${logPrefix} Generating multi-tool CoT plan for: "${userQuery.substring(0, 50)}..."`);
+  
+  try {
+    // Prepare the prompt
+    const prompt = injectPromptVariables(MINATO_MULTI_TOOL_COT_PROMPT_TEMPLATE, {
+      userQuery,
+      chatHistorySummary: chatHistorySummary || "No recent conversation history.",
+      personaCustomization: personaCustomization || `Minato is a helpful, friendly AI assistant.`,
+      userStateSummary: userStateSummary || "No specific user state information available.",
+      currentUtcTime: new Date().toISOString(),
+      availableToolsStringified,
+      nluAnalysis: nluAnalysis || "No NLU analysis available."
+    });
+    
+    // Call the OpenAI API
+    const systemPrompt = "You are Minato's advanced Chain-of-Thought planning system. Your task is to create detailed, structured XML plans for complex user requests that involve multiple intents.";
+    
+    // Use a custom type that matches the actual return type of generateStructuredJson
+    const cotPlanOutput = await generateAgentResponse(
+      [{ role: "user", content: prompt }],
+      null,
+      null,
+      PLANNING_MODEL_NAME,
+      undefined,
+      userId,
+      systemPrompt
+    );
+    
+    // Parse the result
+    if (cotPlanOutput.responseContent && typeof cotPlanOutput.responseContent === 'string') {
+      // Parse XML response into structured plan
+      const parsedPlan = parseChainOfThoughtPlanFromXml(cotPlanOutput.responseContent);
+      
+      if (parsedPlan) {
+        logger.info(`${logPrefix} Successfully generated multi-tool CoT plan with ${parsedPlan.plan?.execution_groups?.length || 0} execution groups`);
+        return { plan: parsedPlan };
+      } else {
+        logger.warn(`${logPrefix} Failed to parse CoT plan XML`);
+        return { plan: null, error: "Failed to parse the generated plan" };
+      }
+    } else if (cotPlanOutput.error) {
+      logger.warn(`${logPrefix} Error generating CoT plan: ${cotPlanOutput.error}`);
+      return { plan: null, error: cotPlanOutput.error };
+    } else {
+      logger.warn(`${logPrefix} Unexpected response format from CoT planner`);
+      return { plan: null, error: "Unexpected response format from planning system" };
+    }
+  } catch (error: any) {
+    const errorMessage = error.message || "Unknown error generating CoT plan";
+    logger.error(`${logPrefix} Exception: ${errorMessage}`, error);
+    return { plan: null, error: errorMessage };
+  }
+}
+
+/**
+ * Classifies a user query to determine if it needs multi-tool processing
+ * @param userQuery - User query to classify
+ * @param chatHistorySummary - Summary of chat history for context
+ * @param personaCustomization - Persona customization information
+ * @param userId - Optional user ID for logging
+ * @returns Promise resolving to the query classification
+ */
+export async function classifyQueryForMultiToolProcessing(
+  userQuery: string,
+  chatHistorySummary: string,
+  personaCustomization: string | null,
+  userId?: string
+): Promise<{ classification: XmlClassification | null; error?: string | null }> {
+  const logPrefix = `[QueryClassifier User:${userId?.substring(0, 8) || "N/A"}]`;
+  logger.info(`${logPrefix} Classifying query: "${userQuery.substring(0, 50)}..."`);
+  
+  try {
+    // Prepare the prompt
+    const prompt = injectPromptVariables(MINATO_QUERY_NATURE_CLASSIFIER_PROMPT_TEMPLATE, {
+      userQuery,
+      chatHistorySummary: chatHistorySummary || "No recent conversation history.",
+      personaCustomization: personaCustomization || `Minato is a helpful, friendly AI assistant.`
+    });
+    
+    // Call the OpenAI API
+    const systemPrompt = "You are Minato's query classifier system. Your task is to analyze a user query and determine the optimal processing approach, especially identifying multi-intent queries that require chain-of-thought planning.";
+    
+    // Use a custom type that matches the actual return type of generateStructuredJson
+    const classificationOutput = await generateAgentResponse(
+      [{ role: "user", content: prompt }],
+      null,
+      null,
+      PLANNING_MODEL_NAME,
+      undefined,
+      userId,
+      systemPrompt
+    );
+    
+    // Parse the result
+    if (classificationOutput.responseContent && typeof classificationOutput.responseContent === 'string') {
+      // Parse XML response into structured classification
+      const parsedClassification = parseClassificationFromXml(classificationOutput.responseContent);
+      
+      if (parsedClassification) {
+        logger.info(`${logPrefix} Query classified as '${parsedClassification.category}' with ${parsedClassification.confidence} confidence`);
+        
+        // Log multi-intent detection if available
+        if (parsedClassification.intent_analysis && parsedClassification.intent_analysis.count) {
+          logger.info(`${logPrefix} Detected ${parsedClassification.intent_analysis.count} intents: Primary=${parsedClassification.intent_analysis.primary_intent}`);
+        }
+        
+        return { classification: parsedClassification };
+      } else {
+        logger.warn(`${logPrefix} Failed to parse classification XML`);
+        return { classification: null, error: "Failed to parse the query classification" };
+      }
+    } else if (classificationOutput.error) {
+      logger.warn(`${logPrefix} Error classifying query: ${classificationOutput.error}`);
+      return { classification: null, error: classificationOutput.error };
+    } else {
+      logger.warn(`${logPrefix} Unexpected response format from classifier`);
+      return { classification: null, error: "Unexpected response format from classification system" };
+    }
+  } catch (error: any) {
+    const errorMessage = error.message || "Unknown error classifying query";
+    logger.error(`${logPrefix} Exception: ${errorMessage}`, error);
+    return { classification: null, error: errorMessage };
+  }
+}
+
+/**
+ * Generates a structured skill learning plan using multiple tools in parallel
+ * @param userQuery User's skill learning query
+ * @param chatHistorySummary Summary of conversation history
+ * @param personaCustomization Persona customization information
+ * @param userStateSummary User state summary
+ * @param availableToolsStringified Available tools in string format
+ * @param userId User ID for tracking
+ * @returns Parsed XML skill learning plan
+ */
+export async function generateAdvancedSkillLearningPlan(
+  userQuery: string,
+  chatHistorySummary: string,
+  personaCustomization: string | null,
+  userStateSummary: string | null,
+  availableToolsStringified: string,
+  userId?: string
+): Promise<{ plan: any; error?: string | null }> {
+  const logPrefix = `[SkillLearningPlan${userId ? ` User:${userId.substring(0, 8)}` : ''}]`;
+  
+  try {
+    logger.info(`${logPrefix} Generating advanced skill learning plan for query: "${userQuery.substring(0, 50)}..."`);
+    
+    // Prepare the prompt with variables injected
+    const prompt = injectPromptVariables(ADVANCED_SKILL_LEARNING_PROMPT_TEMPLATE, {
+      userQuery,
+      chatHistorySummary: chatHistorySummary || "No recent conversation history.",
+      personaCustomization: personaCustomization || "No specific persona customization.",
+      userStateSummary: userStateSummary || "No specific user state.",
+      availableToolsStringified: availableToolsStringified || "No tools available.",
+    });
+    
+    // Generate the plan using the planning model
+    const response = await openai.chat.completions.create({
+      model: PLANNING_MODEL_NAME,
+      messages: [
+        { role: "system", content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+    
+    if (!response.choices || !response.choices[0] || !response.choices[0].message) {
+      logger.error(`${logPrefix} No response generated from OpenAI`);
+      return { plan: null, error: "Failed to generate skill learning plan" };
+    }
+    
+    const content = response.choices[0].message.content;
+    if (!content) {
+      logger.error(`${logPrefix} Empty content in response`);
+      return { plan: null, error: "Empty response content" };
+    }
+    
+    // Extract and parse the XML plan
+    // Extract the skill learning plan XML using regular expressions
+    const xmlMatch = /<skill_learning_plan>([\s\S]*?)<\/skill_learning_plan>/i.exec(content);
+    if (!xmlMatch || !xmlMatch[0]) {
+      logger.error(`${logPrefix} No skill learning plan XML found in response`);
+      return { plan: null, error: "No skill learning plan XML found in response" };
+    }
+    
+    const xmlContent = xmlMatch[0];
+    logger.info(`${logPrefix} Successfully generated skill learning plan XML`);
+    
+    // Parse the XML using the utility function
+    const { parseSkillLearningPlanFromXml } = require("../utils/xml-processor");
+    const plan = parseSkillLearningPlanFromXml(xmlContent);
+    
+    if (!plan) {
+      logger.error(`${logPrefix} Failed to parse skill learning plan XML`);
+      return { plan: null, error: "Failed to parse skill learning plan XML" };
+    }
+    
+    return { plan };
+  } catch (error) {
+    logger.error(`${logPrefix} Error generating skill learning plan:`, error);
+    return { 
+      plan: null, 
+      error: error instanceof Error ? error.message : "Unknown error generating skill learning plan" 
+    };
+  }
+}
+
+/**
+ * Generates a structured news aggregator plan using multiple tools in parallel
+ * @param userQuery User's news-related query
+ * @param chatHistorySummary Summary of conversation history
+ * @param personaCustomization Persona customization information
+ * @param userStateSummary User state summary
+ * @param availableToolsStringified Available tools in string format
+ * @param userId User ID for tracking
+ * @returns Parsed XML news aggregator plan
+ */
+export async function generateNewsAggregatorPlan(
+  userQuery: string,
+  chatHistorySummary: string,
+  personaCustomization: string | null,
+  userStateSummary: string | null,
+  availableToolsStringified: string,
+  userId?: string
+): Promise<{ plan: any; error?: string | null }> {
+  const logPrefix = `[NewsAggregatorPlan${userId ? ` User:${userId.substring(0, 8)}` : ''}]`;
+  
+  try {
+    logger.info(`${logPrefix} Generating news aggregator plan for query: "${userQuery.substring(0, 50)}..."`);
+    
+    // Prepare the prompt with variables injected
+    const prompt = injectPromptVariables(ADVANCED_NEWS_AGGREGATOR_PROMPT_TEMPLATE, {
+      userQuery,
+      chatHistorySummary: chatHistorySummary || "No recent conversation history.",
+      personaCustomization: personaCustomization || "No specific persona customization.",
+      userStateSummary: userStateSummary || "No specific user state.",
+      availableToolsStringified: availableToolsStringified || "No tools available.",
+    });
+    
+    // Generate the plan using the planning model
+    const response = await openai.chat.completions.create({
+      model: PLANNING_MODEL_NAME,
+      messages: [
+        { role: "system", content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+    
+    if (!response.choices || !response.choices[0] || !response.choices[0].message) {
+      logger.error(`${logPrefix} No response generated from OpenAI`);
+      return { plan: null, error: "Failed to generate news aggregator plan" };
+    }
+    
+    const content = response.choices[0].message.content;
+    if (!content) {
+      logger.error(`${logPrefix} Empty content in response`);
+      return { plan: null, error: "Empty response content" };
+    }
+    
+    // Extract the news deep dive plan XML using regular expressions
+    const xmlMatch = /<news_deep_dive_plan>([\s\S]*?)<\/news_deep_dive_plan>/i.exec(content);
+    if (!xmlMatch || !xmlMatch[0]) {
+      logger.error(`${logPrefix} No news deep dive plan XML found in response`);
+      return { plan: null, error: "No news deep dive plan XML found in response" };
+    }
+    
+    const xmlContent = xmlMatch[0];
+    logger.info(`${logPrefix} Successfully generated news deep dive plan XML`);
+    
+    // Parse the XML using the utility function
+    const { parseNewsDeepDivePlanFromXml } = require("../utils/xml-processor");
+    const plan = parseNewsDeepDivePlanFromXml(xmlContent);
+    
+    if (!plan) {
+      logger.error(`${logPrefix} Failed to parse news deep dive plan XML`);
+      return { plan: null, error: "Failed to parse news deep dive plan XML" };
+    }
+    
+    return { plan };
+  } catch (error) {
+    logger.error(`${logPrefix} Error generating news aggregator plan:`, error);
+    return { 
+      plan: null, 
+      error: error instanceof Error ? error.message : "Unknown error generating news aggregator plan" 
+    };
+  }
+}
+
+/**
+ * Generates proactive life improvement suggestions based on user memory and patterns
+ * @param userMemoryContext User memory context from memory framework
+ * @param chatHistorySummary Summary of conversation history
+ * @param personaCustomization Persona customization information
+ * @param userStateSummary User state summary
+ * @param currentDateTime Current date and time string
+ * @param availableToolsStringified Available tools in string format
+ * @param userId User ID for tracking
+ * @returns Parsed XML proactive suggestion plan
+ */
+export async function generateProactiveLifeImprovementSuggestions(
+  userMemoryContext: string,
+  chatHistorySummary: string,
+  personaCustomization: string | null,
+  userStateSummary: string | null,
+  currentDateTime: string,
+  availableToolsStringified: string,
+  userId?: string
+): Promise<{ plan: any; error?: string | null }> {
+  const logPrefix = `[ProactiveSuggestions${userId ? ` User:${userId.substring(0, 8)}` : ''}]`;
+  
+  try {
+    logger.info(`${logPrefix} Generating proactive life improvement suggestions`);
+    
+    // Prepare the prompt with variables injected
+    const prompt = injectPromptVariables(PROACTIVE_LIFE_IMPROVER_PROMPT_TEMPLATE, {
+      userMemoryContext: userMemoryContext || "No specific memory context available.",
+      chatHistorySummary: chatHistorySummary || "No recent conversation history.",
+      personaCustomization: personaCustomization || "No specific persona customization.",
+      userStateSummary: userStateSummary || "No specific user state.",
+      currentDateTime: currentDateTime || new Date().toISOString(),
+      availableToolsStringified: availableToolsStringified || "No tools available.",
+    });
+    
+    // Generate the plan using the planning model
+    const response = await openai.chat.completions.create({
+      model: PLANNING_MODEL_NAME,
+      messages: [
+        { role: "system", content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+    
+    if (!response.choices || !response.choices[0] || !response.choices[0].message) {
+      logger.error(`${logPrefix} No response generated from OpenAI`);
+      return { plan: null, error: "Failed to generate proactive suggestions" };
+    }
+    
+    const content = response.choices[0].message.content;
+    if (!content) {
+      logger.error(`${logPrefix} Empty content in response`);
+      return { plan: null, error: "Empty response content" };
+    }
+    
+    // Extract the proactive suggestion plan XML using regular expressions
+    const xmlMatch = /<proactive_suggestion_plan>([\s\S]*?)<\/proactive_suggestion_plan>/i.exec(content);
+    if (!xmlMatch || !xmlMatch[0]) {
+      logger.error(`${logPrefix} No proactive suggestion plan XML found in response`);
+      return { plan: null, error: "No proactive suggestion plan XML found in response" };
+    }
+    
+    const xmlContent = xmlMatch[0];
+    logger.info(`${logPrefix} Successfully generated proactive suggestion plan XML`);
+    
+    // Parse the XML using the utility function
+    const { parseProactiveSuggestionPlanFromXml } = require("../utils/xml-processor");
+    const plan = parseProactiveSuggestionPlanFromXml(xmlContent);
+    
+    if (!plan) {
+      logger.error(`${logPrefix} Failed to parse proactive suggestion plan XML`);
+      return { plan: null, error: "Failed to parse proactive suggestion plan XML" };
+    }
+    
+    return { plan };
+  } catch (error) {
+    logger.error(`${logPrefix} Error generating proactive suggestions:`, error);
+    return { 
+      plan: null, 
+      error: error instanceof Error ? error.message : "Unknown error generating proactive suggestions" 
+    };
+  }
+}
+
+/**
+ * Generate enhanced reasoning explanation for a complex query and tool execution
+ * @param userQuery User query that initiated the process
+ * @param chatHistorySummary Summary of the conversation history
+ * @param personaCustomization User's persona customization preferences
+ * @param userStateSummary Summary of user state
+ * @param toolResultsSummary Summary of tool results
+ * @param parallelToolsUsed Information about parallel tools used
+ * @param language Language code
+ * @param userId Optional user ID for tracking
+ * @returns Enhanced reasoning explanation in XML format or error
+ */
+export async function generateEnhancedReasoning(
+  userQuery: string,
+  chatHistorySummary: string,
+  personaCustomization: string | null,
+  userStateSummary: string | null,
+  toolResultsSummary: string,
+  parallelToolsUsed: string,
+  language: string = "en",
+  userId?: string
+): Promise<{ reasoning: any; error?: string | null }> {
+  const logPrefix = `[EnhancedReasoning${userId ? ` User:${userId.substring(0, 8)}` : ''}]`;
+  
+  try {
+    // Import the template
+    const { ENHANCED_REASONING_RESPONSE_PROMPT_TEMPLATE } = require('../prompts');
+    
+    // Prepare the prompt with variables
+    const prompt = injectPromptVariables(ENHANCED_REASONING_RESPONSE_PROMPT_TEMPLATE, {
+      userQuery,
+      chatHistorySummary,
+      personaCustomization: personaCustomization || "Helpful, friendly AI assistant",
+      userStateSummary: userStateSummary || "",
+      toolResultsSummary,
+      parallelToolsUsed,
+      language
+    });
+    
+    logger.info(`${logPrefix} Generating enhanced reasoning for query: "${userQuery.substring(0, 50)}..."`);
+    
+    // Call OpenAI with the prompt
+    const response = await openai.chat.completions.create({
+      model: PLANNING_MODEL_NAME,
+      messages: [
+        { role: "system", content: prompt },
+        { role: "user", content: "Generate enhanced reasoning for this query and tool results." }
+      ],
+      temperature: 0.7,
+      max_tokens: 1200,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0
+    });
+    
+    const reasoningText = response.choices[0]?.message?.content;
+    
+    if (!reasoningText) {
+      logger.warn(`${logPrefix} No reasoning generated`);
+      return { reasoning: null, error: "No reasoning was generated" };
+    }
+    
+    // Parse the XML response
+    try {
+      const { parseEnhancedReasoningFromXml } = require('../utils/xml-processor');
+      const parsedReasoning = parseEnhancedReasoningFromXml(reasoningText);
+      
+      if (!parsedReasoning) {
+        logger.warn(`${logPrefix} Failed to parse reasoning XML`);
+        return { reasoning: null, error: "Failed to parse reasoning XML" };
+      }
+      
+      return { reasoning: parsedReasoning };
+    } catch (parseError: any) {
+      logger.error(`${logPrefix} Error parsing XML:`, parseError);
+      return { reasoning: reasoningText, error: "XML parsing failed, returning raw text" };
+    }
+  } catch (error: any) {
+    logger.error(`${logPrefix} Error generating enhanced reasoning:`, error);
+    return { reasoning: null, error: error.message };
+  }
+}
+
+/**
+ * Generate multi-tool orchestration explanation
+ * @param userQuery User query that initiated the process
+ * @param toolsUsed Structured information about the tools used
+ * @param executionPattern Description of how tools were executed (sequential, parallel, etc)
+ * @param personaCustomization User's persona customization preferences
+ * @param language Language code
+ * @param userId Optional user ID for tracking
+ * @returns Multi-tool orchestration explanation in XML format or error
+ */
+export async function generateMultiToolOrchestrationExplanation(
+  userQuery: string,
+  toolsUsed: string,
+  executionPattern: string,
+  personaCustomization: string | null,
+  language: string = "en",
+  userId?: string
+): Promise<{ explanation: any; error?: string | null }> {
+  const logPrefix = `[OrchestrationExplanation${userId ? ` User:${userId.substring(0, 8)}` : ''}]`;
+  
+  try {
+    // Import the template
+    const { MULTI_TOOL_ORCHESTRATION_EXPLANATION_TEMPLATE } = require('../prompts');
+    
+    // Prepare the prompt with variables
+    const prompt = injectPromptVariables(MULTI_TOOL_ORCHESTRATION_EXPLANATION_TEMPLATE, {
+      userQuery,
+      toolsUsed,
+      executionPattern,
+      personaCustomization: personaCustomization || "Helpful, friendly AI assistant",
+      language
+    });
+    
+    logger.info(`${logPrefix} Generating multi-tool orchestration explanation for query: "${userQuery.substring(0, 50)}..."`);
+    
+    // Call OpenAI with the prompt
+    const response = await openai.chat.completions.create({
+      model: PLANNING_MODEL_NAME,
+      messages: [
+        { role: "system", content: prompt },
+        { role: "user", content: "Generate a multi-tool orchestration explanation for this query and tool usage." }
+      ],
+      temperature: 0.7,
+      max_tokens: 800,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0
+    });
+    
+    const explanationText = response.choices[0]?.message?.content;
+    
+    if (!explanationText) {
+      logger.warn(`${logPrefix} No explanation generated`);
+      return { explanation: null, error: "No explanation was generated" };
+    }
+    
+    // Parse the XML response
+    try {
+      const { parseOrchestrationExplanationFromXml } = require('../utils/xml-processor');
+      const parsedExplanation = parseOrchestrationExplanationFromXml(explanationText);
+      
+      if (!parsedExplanation) {
+        logger.warn(`${logPrefix} Failed to parse orchestration explanation XML`);
+        return { explanation: null, error: "Failed to parse explanation XML" };
+      }
+      
+      return { explanation: parsedExplanation };
+    } catch (parseError: any) {
+      logger.error(`${logPrefix} Error parsing XML:`, parseError);
+      return { explanation: explanationText, error: "XML parsing failed, returning raw text" };
+    }
+  } catch (error: any) {
+    logger.error(`${logPrefix} Error generating multi-tool orchestration explanation:`, error);
+    return { explanation: null, error: error.message };
+  }
+}
+
+/**
+ * Generate reasoning for UI cards when displaying tool results
+ * @param userQuery User query that initiated the process
+ * @param toolName Name of the tool
+ * @param toolPurpose Purpose/description of the tool
+ * @param toolResultSummary Summary of the tool's results
+ * @param otherToolsUsed Information about other tools used in this orchestration
+ * @param personaCustomization User's persona customization preferences
+ * @param language Language code
+ * @param userId Optional user ID for tracking
+ * @returns UI card reasoning content in XML format or error
+ */
+export async function generateUICardReasoning(
+  userQuery: string,
+  toolName: string,
+  toolPurpose: string,
+  toolResultSummary: string,
+  otherToolsUsed: string,
+  personaCustomization: string | null,
+  language: string = "en",
+  userId?: string
+): Promise<{ cardContent: any; error?: string | null }> {
+  const logPrefix = `[UICardReasoning${userId ? ` User:${userId.substring(0, 8)}` : ''}]`;
+  
+  try {
+    // Import the template
+    const { REASONING_UI_CARD_TEMPLATE } = require('../prompts');
+    
+    // Prepare the prompt with variables
+    const prompt = injectPromptVariables(REASONING_UI_CARD_TEMPLATE, {
+      userQuery,
+      toolName,
+      toolPurpose,
+      toolResultSummary,
+      otherToolsUsed,
+      personaCustomization: personaCustomization || "Helpful, friendly AI assistant",
+      language
+    });
+    
+    logger.info(`${logPrefix} Generating UI card reasoning for tool: "${toolName}" and query: "${userQuery.substring(0, 30)}..."`);
+    
+    // Call OpenAI with the prompt
+    const response = await openai.chat.completions.create({
+      model: PLANNING_MODEL_NAME,
+      messages: [
+        { role: "system", content: prompt },
+        { role: "user", content: `Generate UI card reasoning for the ${toolName} tool.` }
+      ],
+      temperature: 0.7,
+      max_tokens: 300,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0
+    });
+    
+    const cardContentText = response.choices[0]?.message?.content;
+    
+    if (!cardContentText) {
+      logger.warn(`${logPrefix} No UI card content generated`);
+      return { cardContent: null, error: "No UI card content was generated" };
+    }
+    
+    // Parse the XML response
+    try {
+      const { parseUICardReasoningFromXml } = require('../utils/xml-processor');
+      const parsedCardContent = parseUICardReasoningFromXml(cardContentText);
+      
+      if (!parsedCardContent) {
+        logger.warn(`${logPrefix} Failed to parse UI card reasoning XML`);
+        return { cardContent: null, error: "Failed to parse UI card reasoning XML" };
+      }
+      
+      return { cardContent: parsedCardContent };
+    } catch (parseError: any) {
+      logger.error(`${logPrefix} Error parsing XML:`, parseError);
+      return { cardContent: cardContentText, error: "XML parsing failed, returning raw text" };
+    }
+  } catch (error: any) {
+    logger.error(`${logPrefix} Error generating UI card reasoning:`, error);
+    return { cardContent: null, error: error.message };
+  }
+}
+
+/**
+ * Generates a learning progression plan for continuing a learning series
+ * @param learningTopic Learning topic to continue
+ * @param previousInteractions Previous interactions summary
+ * @param chatHistorySummary Summary of conversation history
+ * @param personaCustomization Persona customization information
+ * @param userStateSummary User state summary
+ * @param availableToolsStringified Available tools in string format
+ * @param userId User ID for tracking
+ * @returns Parsed XML learning progression plan
+ */
+export async function generateLearningProgressionPlan(
+  learningTopic: string,
+  previousInteractions: string,
+  chatHistorySummary: string,
+  personaCustomization: string | null,
+  userStateSummary: string | null,
+  availableToolsStringified: string,
+  userId?: string
+): Promise<{ plan: any; error?: string | null }> {
+  const logPrefix = `[LearningProgression${userId ? ` User:${userId.substring(0, 8)}` : ''}]`;
+  
+  try {
+    logger.info(`${logPrefix} Generating learning progression plan for topic: "${learningTopic}"`);
+    
+    // Prepare the prompt with variables injected
+    const prompt = injectPromptVariables(LEARNING_SERIES_PROGRESSION_PROMPT_TEMPLATE, {
+      learningTopic,
+      previousInteractions: previousInteractions || "No previous interaction data available.",
+      chatHistorySummary: chatHistorySummary || "No recent conversation history.",
+      personaCustomization: personaCustomization || "No specific persona customization.",
+      userStateSummary: userStateSummary || "No specific user state.",
+      availableToolsStringified: availableToolsStringified || "No tools available.",
+    });
+    
+    // Generate the plan using the planning model
+    const response = await openai.chat.completions.create({
+      model: PLANNING_MODEL_NAME,
+      messages: [
+        { role: "system", content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+    
+    if (!response.choices || !response.choices[0] || !response.choices[0].message) {
+      logger.error(`${logPrefix} No response generated from OpenAI`);
+      return { plan: null, error: "Failed to generate learning progression plan" };
+    }
+    
+    const content = response.choices[0].message.content;
+    if (!content) {
+      logger.error(`${logPrefix} Empty content in response`);
+      return { plan: null, error: "Empty response content" };
+    }
+    
+    // Extract the learning progression plan XML using regular expressions
+    const xmlMatch = /<learning_progression_plan>([\s\S]*?)<\/learning_progression_plan>/i.exec(content);
+    if (!xmlMatch || !xmlMatch[0]) {
+      logger.error(`${logPrefix} No learning progression plan XML found in response`);
+      return { plan: null, error: "No learning progression plan XML found in response" };
+    }
+    
+    const xmlContent = xmlMatch[0];
+    logger.info(`${logPrefix} Successfully generated learning progression plan XML`);
+    
+    // Parse the XML using the utility function
+    const { parseLearningProgressionPlanFromXml } = require("../utils/xml-processor");
+    const plan = parseLearningProgressionPlanFromXml(xmlContent);
+    
+    if (!plan) {
+      logger.error(`${logPrefix} Failed to parse learning progression plan XML`);
+      return { plan: null, error: "Failed to parse learning progression plan XML" };
+    }
+    
+    return { plan };
+  } catch (error) {
+    logger.error(`${logPrefix} Error generating learning progression plan:`, error);
+    return { 
+      plan: null, 
+      error: error instanceof Error ? error.message : "Unknown error generating learning progression plan" 
+    };
+  }
+}
+
+/**
+ * Generates a proactive check-in plan for ongoing learning journeys
+ * @param learningTopic Topic the user has been learning
+ * @param lastInteractionSummary Summary of the last interaction on this topic
+ * @param timeSinceLastInteraction Time elapsed since last interaction
+ * @param personaCustomization Persona customization information
+ * @param userStateSummary User state summary
+ * @param availableToolsStringified Available tools in string format
+ * @param userId User ID for tracking
+ * @returns Parsed XML proactive check-in plan
+ */
+export async function generateProactiveLearningCheckin(
+  learningTopic: string,
+  lastInteractionSummary: string,
+  timeSinceLastInteraction: string,
+  personaCustomization: string | null,
+  userStateSummary: string | null,
+  availableToolsStringified: string,
+  userId?: string
+): Promise<{ plan: any; error?: string | null }> {
+  const logPrefix = `[ProactiveCheckin${userId ? ` User:${userId.substring(0, 8)}` : ''}]`;
+  
+  try {
+    logger.info(`${logPrefix} Generating proactive learning check-in for topic: "${learningTopic}"`);
+    
+    // Prepare the prompt with variables injected
+    const prompt = injectPromptVariables(PROACTIVE_LEARNING_CHECKIN_PROMPT_TEMPLATE, {
+      learningTopic,
+      lastInteractionSummary: lastInteractionSummary || "No last interaction data available.",
+      timeSinceLastInteraction: timeSinceLastInteraction || "Unknown time elapsed",
+      personaCustomization: personaCustomization || "No specific persona customization.",
+      userStateSummary: userStateSummary || "No specific user state.",
+      availableToolsStringified: availableToolsStringified || "No tools available.",
+    });
+    
+    // Generate the plan using the planning model
+    const response = await openai.chat.completions.create({
+      model: PLANNING_MODEL_NAME,
+      messages: [
+        { role: "system", content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+    
+    if (!response.choices || !response.choices[0] || !response.choices[0].message) {
+      logger.error(`${logPrefix} No response generated from OpenAI`);
+      return { plan: null, error: "Failed to generate proactive learning check-in plan" };
+    }
+    
+    const content = response.choices[0].message.content;
+    if (!content) {
+      logger.error(`${logPrefix} Empty content in response`);
+      return { plan: null, error: "Empty response content" };
+    }
+    
+    // Extract the proactive check-in plan XML using regular expressions
+    const xmlMatch = /<proactive_checkin_plan>([\s\S]*?)<\/proactive_checkin_plan>/i.exec(content);
+    if (!xmlMatch || !xmlMatch[0]) {
+      logger.error(`${logPrefix} No proactive check-in plan XML found in response`);
+      return { plan: null, error: "No proactive check-in plan XML found in response" };
+    }
+    
+    const xmlContent = xmlMatch[0];
+    logger.info(`${logPrefix} Successfully generated proactive check-in plan XML`);
+    
+    // Parse the XML using the utility function
+    const { parseProactiveCheckinPlanFromXml } = require("../utils/xml-processor");
+    const plan = parseProactiveCheckinPlanFromXml(xmlContent);
+    
+    if (!plan) {
+      logger.error(`${logPrefix} Failed to parse proactive check-in plan XML`);
+      return { plan: null, error: "Failed to parse proactive check-in plan XML" };
+    }
+    
+    return { plan };
+  } catch (error) {
+    logger.error(`${logPrefix} Error generating proactive check-in plan:`, error);
+    return { 
+      plan: null, 
+      error: error instanceof Error ? error.message : "Unknown error generating proactive check-in plan" 
+    };
+  }
+}
+
+/**
+ * Generate a focus mode plan with multi-tool orchestration
+ * @param userQuery User's focus mode request
+ * @param chatHistorySummary Summary of chat history for context
+ * @param personaCustomization User's persona customization
+ * @param userStateSummary User state summary
+ * @param availableToolsStringified Available tools description
+ * @param userId User ID for tracking
+ * @returns Generated focus mode plan or error
+ */
+export async function generateFocusModePlan(
+  userQuery: string,
+  chatHistorySummary: string,
+  personaCustomization: string | null,
+  userStateSummary: string | null,
+  availableToolsStringified: string,
+  userId: string
+): Promise<{ plan: string | null; error: string | null }> {
+  try {
+    // Start tracking time for performance monitoring
+    const startTime = Date.now();
+    
+    // Prepare prompt with the focus mode template
+    const prompt = FOCUS_MODE_PROMPT_TEMPLATE
+      .replace('{userQuery}', userQuery)
+      .replace('{chatHistorySummary}', chatHistorySummary)
+      .replace('{personaCustomization}', personaCustomization || 'Not specified')
+      .replace('{userStateSummary}', userStateSummary || 'Not available')
+      .replace('{availableToolsStringified}', availableToolsStringified);
+    
+    // Generate the focus mode plan using GPT-4 model
+    const response = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: "You are a focus mode planning system that creates detailed XML plans for maintaining user focus and productivity."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+    
+    const plan = response.choices[0]?.message?.content || null;
+    
+    // Log usage and performance metrics
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    const tokens = response.usage ? {
+      prompt_tokens: response.usage.prompt_tokens,
+      completion_tokens: response.usage.completion_tokens,
+      total_tokens: response.usage.total_tokens
+    } : null;
+    
+    logger.info(`Generated focus mode plan for user ${userId} in ${duration}ms`, {
+      tokens,
+      query_length: userQuery.length,
+      result_length: plan?.length || 0
+    });
+    
+    return { plan, error: null };
+  } catch (error: any) {
+    logger.error(`Error generating focus mode plan: ${error.message}`, { userId, error });
+    return { plan: null, error: error.message };
   }
 }
