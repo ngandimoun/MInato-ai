@@ -96,8 +96,8 @@ export class BrowserTool extends BaseTool {
 
   constructor() {
     super();
-    this.API_KEY = appConfig.toolApiKeys.browserUse || "";
-    this.USER_AGENT = `MinatoAI-Dossier/1.0 (${appConfig.app.url})`;
+    this.API_KEY = appConfig.toolApiKeys?.browserUse || "";
+    this.USER_AGENT = `MinatoAI-Dossier/1.0 (${appConfig.app?.url || ''})`;
     if (!this.API_KEY) {
       this.log("error", "Browser Use API Key (BROWSER_USE_API_KEY) is missing. Tool will fail.");
     }
@@ -171,7 +171,7 @@ RESPOND ONLY WITH A SINGLE JSON OBJECT containing one key: "task_description".
           required: ["task_description"]
       };
 
-      const result = await generateStructuredJson<{ task_description: string }>(prompt, `Platform: ${platform}, Topic: ${topic}, Criteria: ${criteria}`, schema, "LeadGenStrategy");
+      const result = await generateStructuredJson<{ task_description: string }>(prompt, `Platform: ${platform}, Topic: ${topic}, Criteria: ${criteria}`, schema, { model: "LeadGenStrategy" });
       if (!result || !result.task_description) {
           throw new Error("Failed to generate a dynamic lead generation strategy.");
       }
@@ -247,7 +247,7 @@ RESPOND ONLY WITH A SINGLE JSON OBJECT containing one key: "task_description".
                   title: `Lead Found: ${lead.name}`,
                   content: `Platform: ${lead_platform}\nCriteria: ${lead_criteria}\nReason: ${lead.relevance_reason}\nData: ${lead.extracted_data}`,
                   source: lead.profile_url,
-                  source_type: 'lead',
+                  source_type: 'tool',
                   metadata: { lead_platform, ...lead }
               });
           }
@@ -291,7 +291,7 @@ RESPOND ONLY WITH A SINGLE JSON OBJECT containing one key: "task_description".
               title: `Investigation Summary: ${investigationData.entity_name}`,
               content: `${investigationData.summary}\n\nKey Findings:\n- ${investigationData.extracted_points.join("\n- ")}`,
               source: target_url,
-              source_type: 'investigation',
+              source_type: 'tool',
               metadata: { request: information_to_extract }
           });
 

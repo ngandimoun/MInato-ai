@@ -1,5 +1,5 @@
 //livingdossier/services/tools-livings/toolUsageStore.ts
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "../../../lib/supabaseClient";
 import { logger } from "../../memory-framework/config";
 
 // Table names (adjust if needed)

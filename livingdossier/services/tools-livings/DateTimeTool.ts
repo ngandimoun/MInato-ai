@@ -1,8 +1,8 @@
 //livingdossier/services/tools-livings/DateTimeTool.ts
 import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import { formatInTimeZone } from "date-fns-tz";
-import { findTimeZone } from "timezone-support/lookup-convert"; // getZonedTime not directly used for current impl.
-import { DateTimeStructuredOutput } from "@/lib/types/index";
+import { findTimeZone } from "timezone-support"; // getZonedTime not directly used for current impl.
+import { DateTimeStructuredOutput } from "../../../lib/types/index";
 import { logger } from "../../memory-framework/config";
 
 interface DateTimeInput extends ToolInput {

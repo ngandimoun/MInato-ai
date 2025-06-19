@@ -232,7 +232,6 @@ export class PlaceSearchTool extends BaseTool {
       // Execute fetch request with timeout/abort signal
       const response = await fetch(url, {
         headers: { "User-Agent": this.USER_AGENT }, // IMPORTANT: Provide contact info in USER_AGENT
-        signal: abortSignal ?? AbortSignal.timeout(7000), // Use provided signal or default timeout
       });
 
       // Check abort signal *after* the call

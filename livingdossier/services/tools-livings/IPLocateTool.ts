@@ -63,8 +63,8 @@ export class IPLocateTool extends BaseTool {
 
   constructor() {
     super();
-    this.API_KEY = appConfig.toolApiKeys.ipLocate || "";
-    this.USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app.url}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
+    this.API_KEY = appConfig.toolApiKeys?.ipLocate || "";
+    this.USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app?.url || ''}; mailto:${appConfig.emailFromAddress || "renemakoule@gmail.com"})`;
     if (!this.API_KEY) {
       this.log("warn", "IPLocate API Key (IPLOCATE_API_KEY) is missing. Requests will be limited.");
     }
@@ -86,7 +86,7 @@ export class IPLocateTool extends BaseTool {
 
     try {
       this.log('info', `${logPrefix} Looking up IP: ${ip_address || 'self'}`);
-      const response = await fetch(url, { headers, signal: abortSignal });
+      const response = await fetch(url, { headers });
 
       if (!response.ok) {
         if (response.status === 429) {

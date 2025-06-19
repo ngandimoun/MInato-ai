@@ -1,7 +1,7 @@
 //livingdossier/services/tools-livings/RedditTool.ts
 import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import fetch from "node-fetch"; // Ensure node-fetch is correctly imported or use global fetch
-import { RedditStructuredOutput, RedditPost } from "@/lib/types/index";
+import { RedditStructuredOutput, RedditPost } from "../../../lib/types/index";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { formatDistanceToNowStrict, fromUnixTime } from 'date-fns'; // For better date formatting
@@ -187,10 +187,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       const extractionResult = await generateStructuredJson<RedditInput>(
         extractionPrompt,
         userInput,
-        redditParamsSchema,
-        "RedditToolParameters",
-        [], // no history context needed
-        "gpt-4o-mini"
+        redditParamsSchema
       );
       
       // Ensure we have a valid result with all required fields
@@ -305,7 +302,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     };
 
     try {
-      const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(7000) });
+      const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT } });
       if (abortSignal?.aborted) { outputStructuredData.error = "Request timed out or cancelled."; return { error: "Reddit fetch cancelled.", result: "Cancelled.", structuredData: outputStructuredData }; }
       if (!response.ok) { throw new Error(`Reddit API request failed: ${response.status} ${String(response.statusText || "Unknown Status")}.`); }
       const data: RedditJsonResponse = await response.json() as RedditJsonResponse;

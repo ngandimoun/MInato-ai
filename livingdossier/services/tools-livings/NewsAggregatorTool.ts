@@ -3,13 +3,13 @@ import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "
 import fetch from "node-fetch"; // Ensure node-fetch is imported
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
-import { NewsArticle, NewsArticleList } from "@/lib/types";
+import { NewsArticle, NewsArticleList } from "../../../lib/types";
 import { formatDistanceToNowStrict, parseISO, format } from 'date-fns';
 // Import specific locales as needed
 import { enUS, fr as frLocale, es as esLocale, de as deLocale, ja as jaLocale } from 'date-fns/locale'; // Renamed to avoid conflict
 import type { Locale as DateFnsLocaleType } from 'date-fns';
 import { generateStructuredJson } from "../providers/llm_clients";
-import { SchemaService } from "../services/schemaService";
+//import { SchemaService } from "../services/schemaService";
 
 // Map of supported locales for date-fns
 const dateFnsLocalesMap: { [key: string]: DateFnsLocaleType } = {
@@ -80,12 +80,13 @@ export class NewsAggregatorTool extends BaseTool {
   private readonly NEWSAPI_ORG_KEY: string | undefined;
   private readonly GNEWS_API_BASE = "https://gnews.io/api/v4";
   private readonly NEWSAPI_ORG_BASE = "https://newsapi.org/v2";
-  private readonly USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app.url}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
+  private readonly USER_AGENT: string;
 
   constructor() {
     super();
-    this.GNEWS_API_KEY = appConfig.toolApiKeys.gnews;
-    this.NEWSAPI_ORG_KEY = appConfig.toolApiKeys.newsapiOrg;
+    this.USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app?.url || ''}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
+    this.GNEWS_API_KEY = appConfig.toolApiKeys?.gnews;
+    this.NEWSAPI_ORG_KEY = appConfig.toolApiKeys?.newsapiOrg;
     if (!this.GNEWS_API_KEY && !this.NEWSAPI_ORG_KEY) logger.error("[NewsAggregatorTool] CRITICAL: NEITHER GNews NOR NewsAPI.org API Key is configured. Tool WILL FAIL.");
     else {
       if (!this.GNEWS_API_KEY) logger.warn("[NewsAggregatorTool] GNews API Key missing. Will rely solely on NewsAPI.org.");
@@ -110,8 +111,8 @@ export class NewsAggregatorTool extends BaseTool {
     const { query } = input;
     const effectiveCategory = (input.category === null || input.category === undefined) ? "general" : input.category;
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));
-    const country = input.country || input.context?.countryCode?.toLowerCase() || appConfig.defaultLocale.split("-")[1]?.toLowerCase() || "us";
-    const langCode = (input.lang?.split("-")[0] || input.context?.locale?.split("-")[0] || appConfig.defaultLocale.split("-")[0] || "en").toLowerCase();
+    const country = input.country || input.context?.countryCode?.toLowerCase() || appConfig.defaultLocale?.split("-")[1]?.toLowerCase() || "us";
+    const langCode = (input.lang?.split("-")[0] || input.context?.locale?.split("-")[0] || appConfig.defaultLocale?.split("-")[0] || "en").toLowerCase();
 
     const params = new URLSearchParams({ token: this.GNEWS_API_KEY, country, lang: langCode, max: String(effectiveLimit) });
     let url = "";
@@ -131,7 +132,7 @@ export class NewsAggregatorTool extends BaseTool {
 
     this.log("info", `[NewsAggregatorTool GNews] Fetching from: ${url.replace(this.GNEWS_API_KEY, "***KEY***")}`);
     try {
-        const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(7000) });
+        const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT } });
         if (!response.ok) { this.log("warn", `[NewsAggregatorTool GNews] API error: ${response.status}`); return []; }
         const data = await response.json() as any; 
         return (data.articles || []).map((article: any): NewsArticle => ({
@@ -154,8 +155,8 @@ export class NewsAggregatorTool extends BaseTool {
     const { query, sources } = input;
     const effectiveCategory = (input.category === null || input.category === undefined) ? "general" : input.category;
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));
-    const country = input.country || input.context?.countryCode?.toLowerCase() || appConfig.defaultLocale.split("-")[1]?.toLowerCase() || "us";
-    const langCode = (input.lang?.split("-")[0] || input.context?.locale?.split("-")[0] || appConfig.defaultLocale.split("-")[0] || "en").toLowerCase();
+    const country = input.country || input.context?.countryCode?.toLowerCase() || appConfig.defaultLocale?.split("-")[1]?.toLowerCase() || "us";
+    const langCode = (input.lang?.split("-")[0] || input.context?.locale?.split("-")[0] || appConfig.defaultLocale?.split("-")[0] || "en").toLowerCase();
 
     const params = new URLSearchParams({ apiKey: this.NEWSAPI_ORG_KEY, pageSize: String(effectiveLimit) });
     let url = "";
@@ -187,7 +188,7 @@ export class NewsAggregatorTool extends BaseTool {
 
     this.log("info", `[NewsAggregatorTool NewsAPI] Fetching from: ${url.replace(this.NEWSAPI_ORG_KEY, "***KEY***")}`);
     try {
-        const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(7000) });
+        const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT } });
         if (!response.ok) { this.log("warn", `[NewsAggregatorTool NewsAPI] API error: ${response.status}`); return []; }
         const data = await response.json() as any; 
         return (data.articles || []).map((article: any): NewsArticle => ({
@@ -270,10 +271,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       const extractionResult = await generateStructuredJson<Partial<NewsInput>>(
         extractionPrompt,
         userInput,
-        newsParamsSchema,
-        "NewsAggregatorToolParameters",
-        [], // no history context needed
-        "gpt-4o-mini"
+        newsParamsSchema
       );
       
       return extractionResult || {};
@@ -336,7 +334,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     const effectiveQuery = (typeof input.query === "string" && input.query.trim() !== "") ? input.query : undefined;
     const effectiveSources = (typeof input.sources === "string" && input.sources.trim() !== "") ? input.sources : undefined;
     const effectiveCategory = (typeof input.category === "string" && input.category.trim() !== "" && input.category !== null) ? input.category : "general";
-    const effectiveCountry = (typeof input.country === "string" && input.country.trim() !== "") ? input.country : (input.context?.countryCode?.toLowerCase() || appConfig.defaultLocale.split("-")[1]?.toLowerCase() || "us");
+    const effectiveCountry = (typeof input.country === "string" && input.country.trim() !== "") ? input.country : (input.context?.countryCode?.toLowerCase() || appConfig.defaultLocale?.split("-")[1]?.toLowerCase() || "us");
     const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));
     const userLocaleKey = (input.context?.locale || 'en-US').split('-')[0].toLowerCase();
     const dateFnsLocale = dateFnsLocalesMap[userLocaleKey] || enUS;
@@ -354,7 +352,6 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     if (this.GNEWS_API_KEY) {
       logger.debug(`${logPrefix} Attempting GNews...`);
       const gnewsResult = await this.fetchFromGNews(defaultedInput, abortSignal);
-      if (abortSignal?.aborted) return { error: "News check cancelled.", result: "Cancelled." } as ToolOutput;
       if (gnewsResult.length > 0) { articles = gnewsResult; sourceUsed = "GNews.io"; }
       else primaryError = "GNews returned no results";
     } else {
@@ -364,7 +361,6 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     if (articles.length === 0 && this.NEWSAPI_ORG_KEY) {
       logger.warn(`${logPrefix} ${primaryError || "Primary provider (GNews) returned no results"}. Falling back to NewsAPI.org...`);
       const newsapiResult = await this.fetchFromNewsAPI(defaultedInput, abortSignal);
-      if (abortSignal?.aborted) return { error: "News check cancelled.", result: "Cancelled." } as ToolOutput;
       if (newsapiResult.length > 0) { articles = newsapiResult; sourceUsed = "NewsAPI.org"; primaryError = null; }
       else fallbackError = "NewsAPI.org returned no results";
     } else if (articles.length === 0 && !this.NEWSAPI_ORG_KEY) {

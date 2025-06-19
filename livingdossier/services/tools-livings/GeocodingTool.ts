@@ -9,7 +9,7 @@ type GeocodingFunction = "forward_geocode" | "reverse_geocode";
 
 interface GeocodingInput extends ToolInput {
   function_name: GeocodingFunction;
-  query?: string | null;       // For forward geocoding (e.g., "Eiffel Tower")
+  query?: string | undefined;  // For forward geocoding (e.g., "Eiffel Tower") - changed from null to undefined
   latitude?: number | null;    // For reverse geocoding
   longitude?: number | null;   // For reverse geocoding
 }
@@ -83,8 +83,8 @@ export class GeocodingTool extends BaseTool {
 
   constructor() {
     super();
-    this.API_KEY = appConfig.toolApiKeys.geokeo || "";
-    this.USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app.url}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
+    this.API_KEY = appConfig.toolApiKeys?.geokeo || "";
+    this.USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app?.url || ''}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
     if (!this.API_KEY) {
       this.log("error", "Geokeo API Key (GEOKEO_API_KEY) is missing. Tool will fail.");
     }
@@ -125,7 +125,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
           longitude: { type: ["number", "null"] },
         },
       };
-      return await generateStructuredJson<Partial<GeocodingInput>>(extractionPrompt, userInput, schema, "GeocodingParams") || {};
+      return await generateStructuredJson<Partial<GeocodingInput>>(extractionPrompt, userInput, schema) || {};
     } catch (error) {
       logger.error("[GeocodingTool] Parameter extraction failed:", error);
       return {};
@@ -148,13 +148,15 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     return data as T;
   }
 
-  async execute(input: GeocodingInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    if (input._rawUserInput && typeof input._rawUserInput === 'string') {
-        const extractedParams = await this.extractGeocodingParameters(input._rawUserInput);
-        input = { ...extractedParams, ...input };
+  async execute(input: ToolInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    let typedInput = input as GeocodingInput;
+    
+    if (typedInput._rawUserInput && typeof typedInput._rawUserInput === 'string') {
+        const extractedParams = await this.extractGeocodingParameters(typedInput._rawUserInput);
+        typedInput = { ...extractedParams, ...typedInput };
     }
     
-    const { function_name, query, latitude, longitude } = input;
+    const { function_name, query, latitude, longitude } = typedInput;
 
     if (!this.API_KEY) {
       return { error: "GeocodingTool is not configured.", result: "Sorry, Minato cannot access geocoding services right now." };

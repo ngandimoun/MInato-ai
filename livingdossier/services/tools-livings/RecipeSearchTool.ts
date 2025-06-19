@@ -2,7 +2,7 @@
 import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import fetch from "node-fetch"; // Ensure node-fetch is imported
 import { logger } from "../../memory-framework/config";
-import { CachedRecipe, CachedSingleRecipe } from "@/lib/types/index";
+import { CachedRecipe, CachedSingleRecipe } from "../../../lib/types/index";
 import { appConfig } from "../config";
 import { generateStructuredJson } from "../providers/llm_clients";
 
@@ -48,12 +48,12 @@ export class RecipeSearchTool extends BaseTool {
   metadata = { provider: "TheMealDB", cuisineSupport: true };
 
   private readonly API_BASE = "https://www.themealdb.com/api/json/v1/1";
-  private readonly USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app.url}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
+  private readonly USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app?.url || 'https://minato.ai'}; mailto:${appConfig.emailFromAddress || "renemakoule@gmail.com"})`;
 
   constructor() {
     super();
     this.log("info", "Recipe Tool initialized using TheMealDB (Free Tier API Key '1').");
-    if (this.USER_AGENT.includes("support@example.com")) {
+    if (this.USER_AGENT.includes("renemakoule@gmail.com")) {
       this.log("warn", "Update USER_AGENT in RecipeSearchTool with actual contact/app URL if defaults are used.");
     }
   }
@@ -139,10 +139,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       const extractionResult = await generateStructuredJson<Partial<RecipeSearchInput>>(
         extractionPrompt,
         userInput,
-        recipeParamsSchema,
-        "RecipeSearchToolParameters",
-        [], // no history context needed
-        "gpt-4o-mini"
+        recipeParamsSchema
       );
       
       return extractionResult || {};
@@ -176,7 +173,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
           !input.random && 
           input.query) {
         // Check if the query doesn't already include cuisine-specific terms
-        const hasSpecificCuisine = prefs.recipePreferredCuisines.some(cuisine => 
+        const hasSpecificCuisine = prefs.recipePreferredCuisines.some((cuisine: string) => 
           input.query.toLowerCase().includes(cuisine.toLowerCase())
         );
         
@@ -240,7 +237,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
         result_type: "recipe", source_api: "themealdb", query: queryInputForStructuredData, recipe: null, error: undefined,
       };
       try {
-        const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(8000) });
+        const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT } });
         if (abortSignal?.aborted) { outputStructuredData.error = "Request timed out or cancelled."; return { error: "Recipe search cancelled.", result: "Cancelled.", structuredData: outputStructuredData }; }
         if (!response.ok) { throw new Error(`TheMealDB API request failed: ${response.status} ${response.statusText}`); }
         const data: MealDbSearchResponse = await response.json() as MealDbSearchResponse;
@@ -285,7 +282,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     };
 
     try {
-      const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(8000) });
+      const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT } });
       if (abortSignal?.aborted) { outputStructuredData.error = "Request timed out or cancelled."; return { error: "Recipe search cancelled.", result: "Cancelled.", structuredData: outputStructuredData }; }
       if (!response.ok) { throw new Error(`TheMealDB API request failed: ${response.status} ${response.statusText}`); }
       const data: MealDbSearchResponse = await response.json() as MealDbSearchResponse;

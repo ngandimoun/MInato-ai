@@ -49,8 +49,7 @@ export async function generateStructuredDataClaude<T>(
     const response = await anthropic.messages.create({
       model,
       messages: [{ role: 'user', content: enhancedPrompt }],
-      max_tokens: 4000,
-      system: "You are a helpful assistant that always responds with valid JSON."
+      max_tokens: 4000
     });
 
     const content = response.content[0].text.trim();

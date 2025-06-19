@@ -1,13 +1,13 @@
 //livingdossier/services/tools-livings/HackerNewsTool.ts
 import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "./base-tool";
 import fetch from "node-fetch"; // Ensure node-fetch is imported
-import { HackerNewsStructuredOutput, HackerNewsStory } from "@/lib/types/index";
+import { HackerNewsStructuredOutput, HackerNewsStory } from "../../../lib/types/index";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
 import { formatDistanceToNowStrict, parseISO, fromUnixTime, format } from 'date-fns'; // Added more date-fns functions
 import { generateStructuredJson } from "../providers/llm_clients";
 
-interface HNInput extends ToolInput {
+interface HNInput extends ToolInput { 
   query?: string;
   filter?: "top" | "new" | "best" | "ask" | "show" | "job";
   time?: "hour" | "day" | "week" | "month" | "year" | "all";
@@ -72,10 +72,11 @@ export class HackerNewsTool extends BaseTool {
   private readonly FIREBASE_API_BASE = "https://hacker-news.firebaseio.com/v0";
   private readonly ALGOLIA_API_BASE = "https://hn.algolia.com/api/v1";
   private readonly HN_ITEM_URL_BASE = "https://news.ycombinator.com/item?id=";
-  private readonly USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app.url}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
+  private readonly USER_AGENT: string;
 
   constructor() {
     super();
+    this.USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app?.url || ''}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
     if (this.USER_AGENT.includes("support@example.com")) {
       this.log("warn", "Update HN USER_AGENT contact info in HackerNewsTool with actual contact details.");
     }
@@ -116,7 +117,7 @@ export class HackerNewsTool extends BaseTool {
     if (!itemId) return null;
     const url = `${this.FIREBASE_API_BASE}/item/${itemId}.json`;
     try {
-      const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(4000) });
+      const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT } });
       if (!response.ok) { this.log("warn", `Failed HN item fetch ${itemId}, status: ${response.status}`); return null; }
       const item = await response.json() as HNStoryApiData | null;
       // Filter out comments or deleted items more reliably
@@ -195,10 +196,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       const extractionResult = await generateStructuredJson<Partial<HNInput>>(
         extractionPrompt,
         userInput,
-        hnParamsSchema,
-        "HackerNewsToolParameters",
-        [], // no history context needed
-        "gpt-4o-mini"
+        hnParamsSchema
       );
       
       return extractionResult || {};
@@ -265,7 +263,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
           prefs.hackernewsPreferredTopics.length > 0 && 
           effectiveQuery) {
         // Check if the query doesn't already include preferred topics
-        const hasPreferredTopic = prefs.hackernewsPreferredTopics.some(topic => 
+        const hasPreferredTopic = prefs.hackernewsPreferredTopics.some((topic: string) => 
           effectiveQuery.toLowerCase().includes(topic.toLowerCase())
         );
         
@@ -327,7 +325,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
           sourceDescription += ` (from the last ${effectiveTime})`;
         }
         this.log("info", `${logPrefix} Searching Algolia HN: ${algoliaUrl.split("?query=")[0]}...query=${effectiveQuery.substring(0,30)}...`);
-        const response = await fetch(algoliaUrl, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(6000) });
+        const response = await fetch(algoliaUrl, { headers: { "User-Agent": this.USER_AGENT } });
         if (abortSignal?.aborted) throw new Error("Request aborted during Algolia fetch.");
         if (!response.ok) throw new Error(`HN search API (Algolia) failed: ${response.status} ${response.statusText}`);
         const data: AlgoliaResponse = await response.json() as AlgoliaResponse;
@@ -346,7 +344,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
             else if (effectiveTime === "year") startTimeSeconds = nowSeconds - 365 * 86400;
             const algoliaUrl = `${this.ALGOLIA_API_BASE}/search_by_date?tags=(story,ask_hn,show_hn,job)&hitsPerPage=${effectiveLimit}${startTimeSeconds > 0 ? `&numericFilters=created_at_i>${startTimeSeconds}` : ''}`;
             this.log("info", `${logPrefix} Searching Algolia HN for ${effectiveFilter} stories: ${algoliaUrl.split('?')[0]}...`);
-            const response = await fetch(algoliaUrl, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(6000) });
+            const response = await fetch(algoliaUrl, { headers: { "User-Agent": this.USER_AGENT } });
             if (abortSignal?.aborted) throw new Error("Request aborted during Algolia 'top' fetch.");
             if (!response.ok) throw new Error(`HN '${effectiveFilter}' (Algolia) failed: ${response.status} ${response.statusText}`);
             const data: AlgoliaResponse = await response.json() as AlgoliaResponse;
@@ -355,7 +353,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
             const listType = `${effectiveFilter}stories`; 
             const listUrl = `${this.FIREBASE_API_BASE}/${listType}.json`;
             this.log("info", `${logPrefix} Fetching ${effectiveFilter} IDs from Firebase: ${listUrl}`);
-            const listResponse = await fetch(listUrl, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(6000) });
+            const listResponse = await fetch(listUrl, { headers: { "User-Agent": this.USER_AGENT } });
             if (abortSignal?.aborted) throw new Error("Request aborted fetching story IDs.");
             if (!listResponse.ok) throw new Error(`HN list API (${effectiveFilter}) failed: ${listResponse.status} ${listResponse.statusText}`);
             const itemIds: FirebaseListResponse = await listResponse.json() as FirebaseListResponse;

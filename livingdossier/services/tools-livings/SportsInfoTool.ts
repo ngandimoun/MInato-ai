@@ -3,7 +3,7 @@ import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "
 import fetch from "node-fetch";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
-import { SportsStructuredOutput, SportsTeamData, SportsEventData } from "@/lib/types/index";
+import { SportsStructuredOutput, SportsTeamData, SportsEventData } from "../../../lib/types/index";
 import { format, parseISO } from 'date-fns'; // For better date formatting
 import { generateStructuredJson } from "../providers/llm_clients";
 
@@ -36,12 +36,12 @@ export class SportsInfoTool extends BaseTool {
 
   private readonly API_KEY: string;
   private readonly API_BASE = "https://www.thesportsdb.com/api/v1/json/";
-  private readonly USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app.url}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
+  private readonly USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app?.url || 'https://minato.ai'}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
 
   constructor() {
     super();
-    this.API_KEY = appConfig.toolApiKeys.theSportsDb || "1"; // Default to test key "1"
-    if (!appConfig.toolApiKeys.theSportsDb || this.API_KEY === "1") {
+    this.API_KEY = appConfig.toolApiKeys?.theSportsDb || "1"; // Default to test key "1"
+    if (!appConfig.toolApiKeys?.theSportsDb || this.API_KEY === "1") {
       this.log("warn", "TheSportsDB API key missing or using test key '1'. Functionality may be limited.");
     }
      if (this.USER_AGENT.includes("support@example.com")) {
@@ -118,10 +118,7 @@ If queryType is ambiguous, default to "team_info".
       const result = await generateStructuredJson<{ teamName: string | null; queryType: "next_game" | "last_game" | "team_info" | null; }>(
         extractionPrompt,
         userInput,
-        sportsParamSchema,
-        "minato_sports_query_extraction_v1",
-        [],
-        "gpt-4o",
+        sportsParamSchema
       );
 
       // Apply defaults and validation
@@ -253,7 +250,17 @@ If queryType is ambiguous, default to "team_info".
     const url = `${this.API_BASE}${this.API_KEY}/searchteams.php?t=${encodeURIComponent(translatedTeamName)}`;
     this.log("debug", `Searching TheSportsDB team: "${translatedTeamName}" URL: ${url.replace(this.API_KEY, "***")}`);
     try {
-      const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(8000) });
+      // Create a timeout controller for node-fetch compatibility
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(() => timeoutController.abort(), 8000);
+      
+      const response = await fetch(url, { 
+        headers: { "User-Agent": this.USER_AGENT }, 
+        signal: (abortSignal || timeoutController.signal) as any
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (abortSignal?.aborted) { this.log("warn", `Team search aborted for "${translatedTeamName}"`); return null; }
       if (!response.ok) throw new Error(`Team search API failed: ${response.status} ${response.statusText}`);
       const data = await response.json() as TheSportsDbResponse<SportsDbTeam>;
@@ -403,10 +410,16 @@ If queryType is ambiguous, default to "team_info".
         const url = `${this.API_BASE}${this.API_KEY}/${endpoint}?id=${teamId}`;
         this.log("debug", `${logPrefix} Fetching events from ${endpoint} URL: ${url.replace(this.API_KEY, "***")}`);
         
+        // Create a timeout controller for node-fetch compatibility
+        const timeoutController = new AbortController();
+        const timeoutId = setTimeout(() => timeoutController.abort(), 10000);
+        
         const response = await fetch(url, { 
           headers: { "User-Agent": this.USER_AGENT }, 
-          signal: abortSignal ?? AbortSignal.timeout(10000) 
+          signal: (abortSignal || timeoutController.signal) as any
         });
+        
+        clearTimeout(timeoutId);
         
         if (abortSignal?.aborted) { 
           return { error: "Sports info request cancelled.", result: "Cancelled." }; 

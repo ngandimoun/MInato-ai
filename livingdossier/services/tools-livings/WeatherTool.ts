@@ -7,19 +7,18 @@ import { logger } from "../../memory-framework/config";
 
 // Define local types since imports are failing
 interface CachedWeather {
-  temperature: number;
-  temperatureUnit: string;
-  feelsLike: number;
-  feelsLikeUnit: string;
-  description: string;
-  humidity: number;
-  windSpeed: number;
-  windSpeedUnit: string;
-  windDirection: string;
   location: string;
-  countryCode?: string;
-  timestamp: number;
+  description: string;
+  temperatureCelsius: number;
+  temperatureFahrenheit: number;
+  feelsLikeCelsius: number;
+  feelsLikeFahrenheit: number;
+  humidityPercent: number;
+  windSpeedKph: number;
+  windDirection: string;
   iconCode?: string;
+  timestamp: number;
+  countryCode?: string;
 }
 
 interface CachedSingleWeather {
@@ -223,10 +222,16 @@ export class WeatherTool extends BaseTool {
     };
 
     try {
+      // Create a timeout controller for node-fetch compatibility
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(() => timeoutController.abort(), 6000);
+      
       const response = await fetch(url, {
         headers: { "User-Agent": this.USER_AGENT },
-        signal: abortSignal ?? AbortSignal.timeout(6000), // Use provided signal or default timeout
+        signal: (abortSignal || timeoutController.signal) as any, // Use provided signal or default timeout
       });
+      
+      clearTimeout(timeoutId);
 
       // Check abort signal *after* the call
       if (abortSignal?.aborted) {

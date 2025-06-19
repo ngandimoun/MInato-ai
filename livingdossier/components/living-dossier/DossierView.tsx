@@ -1,13 +1,13 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
-import { Progress } from '@/components/ui/progress'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card'
+import { Button } from '../../../components/ui/button'
+import { Slider } from '../../../components/ui/slider'
+import { Progress } from '../../../components/ui/progress'
+import { Badge } from '../../../components/ui/badge'
+import { Input } from '../../../components/ui/input'
 import { 
   ChevronDown, 
   ChevronUp, 
@@ -21,7 +21,7 @@ import {
   ExternalLink
 } from 'lucide-react'
 
-import { LivingDossier, useLivingDossier } from '@/livingdossier/context/LivingDossierContext'
+import { LivingDossier, useLivingDossier } from '../../../livingdossier/context/LivingDossierContext'
 
 // Import any chart library components you're using
 import { 

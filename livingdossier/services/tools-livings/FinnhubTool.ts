@@ -10,7 +10,7 @@ type FinnhubFunction = "get_quote" | "get_company_profile" | "get_company_news" 
 interface FinnhubInput extends ToolInput {
   function_name: FinnhubFunction;
   symbol?: string | null;      // For quote, profile, news
-  query?: string | null;       // For symbol lookup
+  query?: string | undefined;  // For symbol lookup - changed from null to undefined to match ToolInput
   from_date?: string | null;   // For news, format YYYY-MM-DD
   to_date?: string | null;     // For news, format YYYY-MM-DD
 }
@@ -106,8 +106,8 @@ export class FinnhubTool extends BaseTool {
 
   constructor() {
     super();
-    this.API_KEY = appConfig.toolApiKeys.finnhub || "";
-    this.USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app.url}; mailto:${appConfig.emailFromAddress || "renemakoule@gmail.com"})`;
+    this.API_KEY = appConfig.toolApiKeys?.finnhub || "";
+    this.USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app?.url || ''}; mailto:${appConfig.emailFromAddress || "renemakoule@gmail.com"})`;
     if (!this.API_KEY) {
       this.log("error", "Finnhub API Key (FINNHUB_API_KEY) is missing. Tool will fail.");
     }
@@ -150,7 +150,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
           query: { type: ["string", "null"] },
         },
       };
-      return await generateStructuredJson<Partial<FinnhubInput>>(extractionPrompt, userInput, schema, "FinnhubParams") || {};
+      return await generateStructuredJson<Partial<FinnhubInput>>(extractionPrompt, userInput, schema) || {};
     } catch (error) {
       logger.error("[FinnhubTool] Parameter extraction failed:", error);
       return {};
@@ -177,13 +177,15 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     return data;
   }
 
-  async execute(input: FinnhubInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    if (input._rawUserInput && typeof input._rawUserInput === 'string') {
-        const extractedParams = await this.extractFinnhubParameters(input._rawUserInput);
-        input = { ...extractedParams, ...input };
+  async execute(input: ToolInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    let typedInput = input as FinnhubInput;
+    
+    if (typedInput._rawUserInput && typeof typedInput._rawUserInput === 'string') {
+        const extractedParams = await this.extractFinnhubParameters(typedInput._rawUserInput);
+        typedInput = { ...extractedParams, ...typedInput };
     }
     
-    const { function_name, symbol, query, from_date, to_date } = input;
+    const { function_name, symbol, query, from_date, to_date } = typedInput;
 
     if (!this.API_KEY) {
       return { error: "FinnhubTool is not configured.", result: "Sorry, Minato cannot access detailed financial market data right now." };

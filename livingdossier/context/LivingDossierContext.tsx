@@ -1,3 +1,4 @@
+//livingdossier/context/LivingDossierContext.tsx
 import React, { createContext, useContext, useState, useEffect } from "react"
 import { createClient } from "@supabase/supabase-js"
 import { v4 as uuidv4 } from "uuid"
@@ -270,37 +271,31 @@ export function LivingDossierProvider({ children }: { children: React.ReactNode 
     if (!state.dossier?.simulator) return
     
     setState(s => {
-      if (!s.dossier?.simulator) return s
-      
-      // Get the default params (this assumes the current params have the same structure as defaults)
+      if (!s.dossier || s.dossier === null || !s.dossier.simulator) return s;
       const defaultParams = Object.fromEntries(
-        Object.keys(s.dossier.simulator.params).map(key => {
-          // For each param, find its corresponding input in the visualizations to get the default value
-          const visualization = Object.values(s.dossier.visualizations || {})
-            .find(v => v.interactiveElements?.inputs?.some(input => input.id === key) ||
-                         v.interactiveElements?.sliders?.some(slider => slider.id === key))
-                         
-          const input = visualization?.interactiveElements?.inputs?.find(input => input.id === key)
-          const slider = visualization?.interactiveElements?.sliders?.find(slider => slider.id === key)
-          
+        Object.keys(s.dossier!.simulator.params).map(key => {
+          const visualizations = s.dossier!.visualizations || {};
+          const visualization = Object.values(visualizations)
+            .find(v => v.interactiveElements?.inputs?.some((input: any) => input.id === key) ||
+                         v.interactiveElements?.sliders?.some((slider: any) => slider.id === key))
+          const input = visualization?.interactiveElements?.inputs?.find((input: any) => input.id === key)
+          const slider = visualization?.interactiveElements?.sliders?.find((slider: any) => slider.id === key)
           return [key, (input?.defaultValue || slider?.defaultValue || 0)]
         })
-      )
-      
-      const newOutputs = calculateOutputs(defaultParams)
-      
+      );
+      const newOutputs = calculateOutputs(defaultParams);
       return {
         ...s,
         dossier: {
-          ...s.dossier,
+          ...s.dossier!,
           simulator: {
-            ...s.dossier.simulator,
+            ...s.dossier!.simulator,
             params: defaultParams,
             outputs: newOutputs
           }
         }
-      }
-    })
+      };
+    });
   }
   
   const calculateOutputs = (params: Record<string, number>) => {

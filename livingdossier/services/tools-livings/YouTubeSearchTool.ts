@@ -3,7 +3,7 @@ import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "
 import fetch from "node-fetch";
 import { appConfig } from "../config";
 import { logger } from "../../memory-framework/config";
-import { CachedVideoList, CachedYouTubeVideo } from "@/lib/types/index";
+import { CachedVideoList, CachedYouTubeVideo } from "../../../lib/types/index";
 import { generateStructuredJson } from "../providers/llm_clients";
 
 interface YouTubeSearchInput extends ToolInput {
@@ -67,8 +67,8 @@ export class YouTubeSearchTool extends BaseTool {
   metadata = { provider: "YouTube Data API", maxResults: 5 };
   constructor() {
     super();
-    this.API_KEY = appConfig.toolApiKeys.youtube || "";
-    this.USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app.url}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
+    this.API_KEY = appConfig.toolApiKeys?.youtube || "";
+    this.USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app?.url || 'https://minato.ai'}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
     if (!this.API_KEY) this.log("error", "YouTube API Key (YOUTUBE_API_KEY) is missing. Tool will fail.");
     if (this.USER_AGENT.includes("support@example.com")) {
       this.log("warn", "Update YouTubeSearchTool USER_AGENT contact info with actual details.");
@@ -148,10 +148,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       const extractionResult = await generateStructuredJson<Partial<YouTubeSearchInput>>(
         extractionPrompt,
         userInput,
-        youtubeParamsSchema,
-        "YouTubeSearchToolParameters",
-        [], // no history context needed
-        "gpt-4o-mini"
+        youtubeParamsSchema
       );
 
       return extractionResult || {};
@@ -307,7 +304,17 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     };
 
     try {
-      const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(8000) });
+      // Create a timeout controller for node-fetch compatibility
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(() => timeoutController.abort(), 8000);
+      
+      const response = await fetch(url, { 
+        headers: { "User-Agent": this.USER_AGENT }, 
+        signal: (abortSignal || timeoutController.signal) as any
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (abortSignal?.aborted) { outputData.error = "Request timed out or cancelled."; return { error: "YouTube search cancelled.", result: "Cancelled.", structuredData: outputData }; }
       const data: YouTubeSearchResponse = await response.json() as YouTubeSearchResponse;
 

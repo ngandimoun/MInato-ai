@@ -7,7 +7,7 @@ import { logger } from "../../memory-framework/config";
 import {
   EventFinderStructuredOutput,
   TicketmasterEvent,
-} from "@/lib/types/index";
+} from "../../../lib/types/index";
 import { format, parseISO } from "date-fns"; // For better date formatting
 import { generateStructuredJson } from "../providers/llm_clients";
 
@@ -126,11 +126,12 @@ export class EventFinderTool extends BaseTool {
 
   private readonly API_BASE = "https://app.ticketmaster.com/discovery/v2/events.json";
   private readonly API_KEY: string;
-  private readonly USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app.url}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
+  private readonly USER_AGENT: string;
 
   constructor() {
     super();
-    this.API_KEY = appConfig.toolApiKeys.ticketmaster || "";
+    this.API_KEY = appConfig.toolApiKeys?.ticketmaster || "";
+    this.USER_AGENT = `MinatoAICompanion/1.0 (${appConfig.app?.url || ''}; mailto:${appConfig.emailFromAddress || "support@example.com"})`;
     if (!this.API_KEY) this.log("error", "Ticketmaster API Key missing. EventFinderTool will fail for Ticketmaster source.");
     if (this.USER_AGENT.includes("support@example.com")) {
         this.log("warn", "Update EventFinderTool USER_AGENT contact info with actual details.");
@@ -230,10 +231,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       const extractionResult = await generateStructuredJson<Partial<EventFinderInput>>(
         extractionPrompt,
         userInput,
-        eventParamsSchema,
-        "EventFinderToolParameters",
-        [], // no history context needed
-        "gpt-4o-mini"
+        eventParamsSchema
       );
       
       return extractionResult || {};
@@ -333,7 +331,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       if (eventPrefs.preferredDaysOfWeek && eventPrefs.preferredDaysOfWeek.length > 0 && !modifiedInput.startDate) {
         // Find the next occurrence of one of the preferred days
         const now = new Date();
-        const preferredDayIndices = eventPrefs.preferredDaysOfWeek.map(day => {
+        const preferredDayIndices = eventPrefs.preferredDaysOfWeek.map((day: string) => {
           const dayMap: { [key: string]: number } = {
             'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4,
             'friday': 5, 'saturday': 6, 'sunday': 0
@@ -342,7 +340,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
         });
         
         const currentDayIndex = now.getDay();
-        let nextPreferredDay = preferredDayIndices.find(dayIndex => dayIndex > currentDayIndex);
+        let nextPreferredDay = preferredDayIndices.find((dayIndex: number) => dayIndex > currentDayIndex);
         
         if (nextPreferredDay === undefined) {
           // No preferred day this week, find the earliest one next week
@@ -456,7 +454,9 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     };
 
     try {
-      const response = await fetch(url, { headers: { "User-Agent": this.USER_AGENT }, signal: abortSignal ?? AbortSignal.timeout(8000) });
+      const response = await fetch(url, { 
+        headers: { "User-Agent": this.USER_AGENT }
+      });
       const responseBody = await response.text();
       if (abortSignal?.aborted) {
         outputStructuredData.error = "Request timed out or cancelled.";

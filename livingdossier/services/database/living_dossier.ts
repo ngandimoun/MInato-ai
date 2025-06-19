@@ -2,7 +2,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { config } from '../../config/config';
 import { v4 as uuidv4 } from 'uuid';
-import { supabase } from './supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
 // Initialize Supabase client

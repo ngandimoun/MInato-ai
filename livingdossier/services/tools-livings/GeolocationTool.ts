@@ -4,7 +4,7 @@ import fetch from "node-fetch"; // Use node-fetch for server-side
 // Import specific types directly
 import {
   AnyToolStructuredData,
-} from "@/lib/types/index";
+} from "../../../lib/types/index";
 import { appConfig } from "../config"; // For potential USER_AGENT use
 import { logger } from "../../memory-framework/config"; // Use shared logger
 
@@ -36,7 +36,22 @@ interface GeolocationStructuredOutput {
   result_type: "geolocation";
   source_api: string;
   query: any;
-  location: {
+  queryIP?: string | null;
+  status?: string;
+  city?: string | null;
+  regionCode?: string | null;
+  regionName?: string | null;
+  countryCode?: string | null;
+  countryName?: string | null;
+  zipCode?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  timezone?: string | null;
+  isp?: string | null;
+  organization?: string | null;
+  asn?: string | null;
+  errorMessage?: string | null;
+  location?: {
     ip: string;
     latitude: number;
     longitude: number;
@@ -155,7 +170,6 @@ export class GeolocationTool extends BaseTool {
     try {
       // Execute fetch request with timeout/abort signal
       const response = await fetch(apiUrl, {
-        signal: abortSignal ?? AbortSignal.timeout(4000),
         headers: { "User-Agent": this.USER_AGENT },
       });
 
