@@ -1,0 +1,2314 @@
+Overview to TikTok for Developer Documentation
+Welcome to the TikTok for Developers documentation. Here we'll show you how to set up your TikTok Developer account and start integrating your app with our development kits and server APIs.
+
+
+Onboard as a developer
+To start integrating with us, create your developer account and register your apps. Learn more.
+
+Tip: Subscribe to our email notifications to get our latest product updates.
+
+Browse our development kits
+Login Kit
+Share Kit
+Green Screen Kit
+
+
+
+View our API references
+Display API
+Content Posting API
+Research API
+
+
+Working with organizations
+Introduction
+Organizations allow developers to collaborate as a group. Using organizations, multiple developers can work together on registered apps in TikTok for Developers.
+
+Developers sign in with their TikTok for Developers account, create or join an organization for their company, department, or group, and then cooperate on their project. Individuals assigned as administrators can manage membership in the organization.
+
+Who should use organizations?
+If you work as part of a group of people, you should join or create an organization for your group. For example, employees of a company should register apps under the ownership of the organization and not under their individual accounts.
+
+Note: Sharing developer accounts and login credentials is discouraged because of security, privacy, and business continuity concerns.
+
+Member Guide
+How do I view my organizations?
+Navigate to the My organizations page by selecting My organizations from the Developer menu: the user icon on the top right of the page. Here you can see all the organizations you are a member of. Click on an organization to view its details.
+
+How do I join an organization?
+To join an organization, you must be invited by an administrator. Once invited, an email will be sent to the email address registered with your TikTok developer account. You can also view and respond to pending invitations on the My organizations page.
+
+If you accept the invitation to join an organization, you will be added to the organization. If you reject the invitation, you will not be added. If you change your mind and decide to join, the administrator will need to send you a new invitation. Please be careful before rejecting invitations as we limit the number of invitations administrators can send you.
+
+How do I leave an organization?
+To leave an organization, first navigate to the organization page. Click the menu button (three dots: ...) and select Leave organization. Confirm that you want to leave the organization.
+
+If you leave an organization, you cannot join again without an invitation from an administrator.
+
+How do I register an app directly with an organization?
+Follow the instructions described in Register you app. When prompted to select the app owner, choose one of your organizations from the list.
+
+How do I import an app into an organization?
+Importing or transferring apps are irreversible actions. Only perform this action if you are certain you want to transfer ownership to the organization.
+
+Navigate to your app from the Manage apps page.
+Select an app which you own that you wish to import.
+Open the advanced management drop-down by clicking the three dots (...).
+Click Transfer App.
+Select the desired organization, and click Initiate Transfer.
+An invitation will be emailed to the administrators of the app to accept and complete the transfer.
+
+Do not request to transfer apps to unauthorized organizations. The recipient organization should be the rightful owner of the app in the real world.
+
+Administrator Guide
+What is an organization administrator?
+As an administrator or admin, you have full rights to manage the organization. You can invite developers, promote others to administrators, approve requests for apps to be imported from personal accounts, and even delete the whole organization.
+
+Only assign the administrator role to those who require full control of the organization. However, it's recommended to have at least two admins in an organization to prevent issues when an admin leaves the organization.
+
+How do I create an organization?
+Navigate to the My organizations page and click Add organization. Enter a name for your organization and click Create. Your organization will be created and you will be set as an administrator by default.
+
+Note: For research projects, do not create your own organization. An organization will be created for your project automatically upon approval. It is not possible to add research projects to your non-research organizations.
+
+How do I invite new members?
+To invite a member to your organization, you must be an administrator for that organization.
+
+Navigate to your organization from the My organizations page.
+Scroll down to the Members section.
+Click Add member.
+Enter the member’s email address.
+The developer must already have a registered account with TikTok for Developers. Sending invitations to unregistered developers is not supported.
+Choose the right role for the invitee.
+Admins have total control over the organization and its membership.
+Members have access to the organization's resources (apps and research projects).
+Click Send invitation.
+You can track your invitations in the Members section and cancel them if necessary.
+
+An organization may only have up to 10 members by default.
+
+Note: For research projects, you will be asked additional questions and information about the invitees.
+
+How do I remove members from an organization?
+To remove a member from your organization, you must be an administrator for that organization.
+
+Navigate to your organization from the My organizations page.
+Scroll down to the Members section.
+Find the member you want to remove.
+Click the three dots (...) button to show additional actions, and select Remove.
+How can I stop being an administrator for my organization?
+Follow these steps to give up your administrative rights in an organization:
+
+Navigate to your organization from the My organizations page.
+Click the menu button (three dots: ...) and select Give up admin rights.
+Confirm that you want to give up admin rights.
+
+
+
+
+
+
+
+Register Your App
+To integrate with our products, you must connect your app to TikTok for Developers and submit your app registration for review. This guide demonstrates how to connect an app, configure app settings, and complete the submission process.
+
+Prerequisites
+Before registering your app, do the following:
+
+Create a TikTok developer account from our signup page using your email.
+Create or join an organization representing the owning group of the app. This step is highly recommended but not required.
+Connect your app
+Follow these steps to add your app to TikTok for Developers.
+
+Log in using your TikTok developer account.
+Click the profile icon in the main navigation bar, then click Manage apps to access a list of your apps.
+
+Note: You won't have any apps if you just created a developer account.
+
+Click the Connect an app button to register your app.
+When prompted to Select the app owner, choose one of your organizations and click Confirm. If you don't see any organizations, consider creating one. You may also register the app directly under your individual developer account, but this is not recommended for real app integrations.
+Fill in the information on the app page and add the desired products.
+Once your app configuration is complete, submit your app for review.
+You can access this app page any time by going to the Manage apps page and clicking on the app.
+
+App page navigation
+The app page contains administrative controls and essential information about your app and product configuration.
+
+
+At the top of the app page, you can perform the following operations:
+
+Click the info icon next to the app's name to display the App ID and Ownership.
+
+Toggle between Production mode and Sandbox mode:
+Production mode contains the version of the app that must be submitted for review to be released to the public. This guide covers the configuration and review process for Production mode.
+Sandbox mode is a restricted environment that allows you to try out integrations without having to submit your app for review. Learn more about Sandbox mode.
+Click the URL properties button to verify URL properties for Content Posting API.
+Click the history icon button to access a Changelog and any Review comments if your app was not approved after submission.
+Click the More Options [...] button to transfer app ownership or delete the app.
+Use the left navigation panel to view your app's review status, app details, and products.
+
+View your app's review status under Production. If you just created an app, it will be in Draft status.
+Click App details, Products, or Scopes to scroll the page to the corresponding section.
+In the Products section, click the Add products button to choose from a list of integrations. Learn more about adding products.
+In the Scopes section, you can add scopes to configure access to specific data or perform specific actions. Learn more about scopes.
+Configure settings for your app
+Fill out the requested details and add your desired products to your app.
+
+App details
+The App details section contains essential details about your app's credentials, display information, and intended platforms.
+
+Credentials
+The Credentials section contains Client key and Client secret, which are necessary for your application to invoke TikTok APIs.
+
+Basic information
+The Basic information section contains details that will be displayed to users and help us understand your app.
+
+App icon and App name are displayed whenever your app is present in the TikTok ecosystem. Your app icon must meet the following specifications:
+1024 x 1024 px
+JPEG, JPG, or PNG
+Up to 5 MB
+
+Category helps us better understand your app.
+Description helps the user understand your app. TikTok displays the description when a user views the app authorization page.
+
+Platforms
+You can run your app on different platforms including Web, Android, iOS and Desktop. Select your intended platforms and then provide the requested details.
+
+Web and Desktop require the URL of your official website.
+Android requires your app's package name, Play Store URL, app signature, and signing certificate. These are used to verify your app's identity when you invoke TikTok APIs. Provide your Play Store URL to help us better understand your app.
+iOS requires the App Store URL and Bundle ID. These are used to verify your app's identity when you invoke TikTok APIs. Provide your App Store URL to help us better understand your app.
+Products
+Click the Add products button in the Products section. Choose from a list of products to add to your app. Items appear under the Products section after you add them.
+
+Login Kit settings example
+Each product has its own specific settings. For example, examine the product-specific settings for Login Kit.
+
+Web, iOS, Android and Desktop require a Redirect URI to return an authorization code back to your app.
+Android's redirect URI must be an App Link or Deep Link.
+iOS's redirect URI must be a Universal Link and your app must have the Associated Domain capability.
+Verify URL ownership
+Note: For Sandbox environments, URL verification is only required for Content Posting API.
+
+Before submitting your app for review, you must verify URL properties for all URLs in your app configuration. Some features require URL verification before they can be used, like Link Sharing (beta). There are two cases for URL verification, depending on when the app was created.
+
+For apps created after September 9, 2024, the following URLs require verification:
+Terms of Service URL
+Privacy Policy URL
+Web or Desktop URL
+All apps that use the Content Posting API upload URL or the Link Sharing URL must verify these URLs, regardless of when the app was created.
+To verify URL properties, complete the following steps:
+
+Click the URL properties button at the top of your app page.
+
+Ensure you are verifying properties for your app in Production mode, then click Verify properties.
+Choose whether to verify your URL by Domain or URL prefix:
+For verification by Domain, enter your domain and subdomain name, then click Verify.
+For verification by URL prefix, enter your complete URL, then click Verify. Download the provided signature file, then upload it to your URL.
+Submit your app for review
+Before you integrate with our developer products, you must submit your app for review. Familiarize yourself with our developer guidelines and app review guidelines to understand our integration processes and requirements before submitting your changes for review.
+
+Follow these steps to submit your app for review.
+
+Go to the App review section on your app page and complete the required information for app submission.
+In detail, explain how each product and scope works within your app or website. For revisions, you must explain changes regarding the new configuration in this section.
+Upload at least one demo video that shows the complete end-to-end flow of the integrations. You may upload a maximum of 5 videos, up to 50 MB each.
+Click the Save button to save your changes.
+Once you are satisfied with your app configuration, click the Submit for review button.
+TikTok for Developers will start reviewing your app once it is submitted.
+
+App review status
+The status of your app review is visible under Production in the left navigation panel.
+
+Draft: Your app has not been submitted for review yet.
+In review: Your app has been submitted for review and approval is pending. No further changes can be made at this stage.
+If you want to make changes, click the Recall button to withdraw the app from review and return it to draft status.
+Live: Your current revision of the app was approved and integrations are live.
+If you want to make changes, click the Create revision button to create a Draft cloned from the Live version. You may modify this draft version without compromising your live configuration.
+Not approved: After reviewing your app, we determined it did not meet our criteria. Review comments will be displayed on your app page and History with suggested actions. Complete the suggested actions and resubmit your app for review.
+Once your app is approved and live, any subsequent changes must be submitted for review and approved to appear in the live release.
+
+
+
+
+
+
+
+Add a Sandbox
+Sandbox mode is a restricted environment that allows you to try out integrations without having to submit your app for review. You can create multiple sandboxes for your app to experiment with different configurations without compromising the live version of your app. You can create up to 5 sandboxes.
+
+Prerequisites
+Before registering your app, do the following:
+
+Create a TikTok developer account from our signup page using your email.
+Create or join an organization representing the owning group of the app. This step is highly recommended but not required.
+You will also need access to a URL decoder to authorize target users.
+
+Create a Sandbox
+This workflow demonstrates how to create your first sandbox.
+
+Go to the Manage apps page, then select an app or Connect an app if you don't have one yet.
+On the app page, switch the toggle next to your app's name to Sandbox.
+
+Click the Create Sandbox button, then enter a name. You can choose to clone an existing configuration from your app's production versions or another sandbox.
+
+Click Confirm to create the sandbox.
+Configure the sandbox as desired by editing App details and adding products.
+Note: Sandbox mode does not offer access to Content Posting API for public videos or Data Portability API.
+
+Click Apply changes to save changes and make your configuration take effect.
+To create another sandbox, click the [+] button (Create Sandbox) in the left navigation panel.
+
+
+Manage target users
+Adding target users to a sandbox allows them to try out your sandbox configurations. To add a TikTok account that you own as a target user, you must provide its login credentials. You can add up to 10 accounts.
+
+
+Go to Sandbox settings on the app page.
+Under Target users, click Add account. You will be redirected to log in to a TikTok account.
+Log in to the TikTok account and agree to the TikTok Developer Terms of Service.
+Your target users will be displayed on your app page after they have been added. Results may take up to an hour to show after you refresh the page.
+
+
+Authorize target users with Login Kit
+After you add target users, you may authorize them if you want to use Login Kit and the other products dependent on it. Authorization workflows for Web, Desktop, iOS, and Android are available in the Login Kit documentation.
+
+Import your Sandbox configuration
+You can import a sandbox's configuration to a Draft of your app in production. Doing so will overwrite the draft's existing configuration with the chosen sandbox configuration.
+
+
+Note: You can only import a sandbox configuration to a Draft in Production mode.
+
+On the app page, switch the toggle next to your app's name to Production.
+Click Draft in the left navigation panel.
+Click Import, then select the sandbox you want to import from.
+If you have a version of the app that has been approved and is live, you can revert back to that configuration by clicking Revert to Live version in the Import dropdown.
+
+When you are ready to submit your app, make sure that it follows our app review guidelines.
+
+For further inquiries or assistance, contact us through our Support form.
+
+
+
+
+
+
+App Review FAQ
+The first step to obtain access to our developer tools is to submit an app for review with your TikTok for Developers account. Our team reviews all applications and will either approve them or provide feedback with suggested updates. Please note that you will not have access to the APIs until your application has been approved. This page covers some frequently asked questions about the app review process.
+
+Frequently asked questions about app review
+How long does the app review process take?
+App review may take several days to two weeks after submission. If your app is not approved, contact us through our Support page for further guidance.
+
+What are the minimum requirements for submitting my app for approval?
+All app review criteria are stated in the app review guidelines.
+
+Does my mobile app need to be live on an app store?
+If you have a mobile app, it must be available in the Apple and/or Google Play App Stores.
+If you have a web application and are applying for Login Kit access, you must provide a valid redirect URI.
+What are the scopes that I can apply for?
+Visit our scopes documentation to learn more about available permissions.
+
+What should I put in the "Submit for review" text box?
+
+Explain how your app utilizes the TikTok for Developers APIs, for example:
+
+"We would like to enable users to quickly and securely sign into our app with their TikTok account"
+"We would like to add a "Share to TikTok" button to our app so our users can share their videos to TikTok"
+How can I track the status of my application?
+On the app page, you can view the status of your application under Production in the left navigation panel.
+
+Draft: Your app has not been submitted for review yet.
+In review: Your app has been submitted for review and approval is pending. No further changes can be made at this stage.
+Live: Your current revision of the app was approved and integrations are live.
+Not approved: After reviewing your app, we determined it did not meet our criteria. Click the history icon button at the top of the app page to access Review comments. Complete the suggested actions and resubmit your app for review.
+Once your app is approved and live, any subsequent changes must be submitted for review and approved to appear in the live release.
+
+Why was my app not approved?
+Apps are not approved for various reasons. Please review the application feedback in the Review comments available under your app's History. Once you have made edits to your application, be sure to resubmit your application.
+
+Contact us if you have questions relating to the feedback.
+
+Is TikTok for Developers compatible with apps built in React Native?
+Yes. Login Kit will work with web and React Native builds for Android and iOS apps. The same applies to all of our developer tools.
+
+How can I get access to the APIs?
+For each app, a TikTok for Developer application must be submitted to request API access. Please review our application criteria before applying. Once your application has been reviewed by our team and approved, your app status will show as Live and your app will have access to the products and scopes requested in the application.
+
+How can I test the APIs for my app that is still in development?
+Beta or development versions, incomplete apps, and test versions are not encouraged and will not be approved for integration with TikTok in most cases to safeguard the user experience.
+
+If you are launching a new app and would like to integrate with TikTok from the beginning, you are expected to undergo an audit and provide additional supporting information such as reasoning and your UX mockups. We reserve the right to reject or approve such unpublished apps in our sole discretion based on the app's credibility, benefits to TikTok users, and other factors. To start this process, apply for integration assessment for unreleased apps.
+
+What APIs offer Marketing and Ad Campaigns?
+TikTok for Developers products do not offer these functionalities. TikTok for Business offers Marketing and Ad Campaign APIs. Visit the TikTok for Business website for a list of their products.
+
+Can I increase my active user cap?
+Please contact us via our Support form to request an increase in your active user cap. Please note that your app must be in production to request and increase, and not all requests will be approved.
+
+Can I request an infinite user access token?
+User Access Tokens can be extended to a maximum of one year. For more information on how to change user access token lengths, please refer to the documentation on managing user access tokens.
+
+Where can I get support for bugs and error messages for my app that's in production?
+You may contact us via our Support form for further help on technical issues.
+
+Why are my posts private using the Content Posting API?
+All content posted by unaudited clients will be restricted to private viewing mode. Once you have successfully tested your integration, to lift the restrictions on content visibility, your API client must undergo an audit to verify compliance with our Terms of Service.
+
+
+
+
+
+
+App Review Guidelines
+Before you submit your app for review, make sure your app information is completely filled out and meets the criteria listed below. Check out our app review FAQ for answers to any additional questions you may have.
+
+Review criteria for app details
+For your app to receive approval, your app configuration must meet the following criteria:
+
+App name and icon
+The app must have a custom name. The app name will be shown on the authorization page for the app.
+The name should not include a reference to social media companies (for example, "TikTok app").
+The app name should match the app or website name and not describe your app. For example, do not add "Video Content Analytics Uploader" as the name.
+The app name must adhere to the TikTok Brand and Use Guidelines.
+The app icon must be a clear image.
+The app icon must not contain any sensitive or inappropriate content.
+The app icon must not be easily confused with another well-known brand icon.
+The app icon must be consistent with the app name or brand.
+Description
+A description of what your app or website does and how it works. This will be visible to the user.
+The intended purpose of your app must meet our developer guidelines.
+Apps must not be for private or personal use.
+Apps must not contain adult content.
+Apps that are still in development or testing will not be approved.
+Website URL
+A valid official website that houses information about your web and services.
+Your website URL cannot be a landing page or login page. You must have an externally facing fully developed website.
+Your Privacy Policy and Terms of Service links must be visible on the website URL without having to open a menu to view them, and the links must be active.
+Privacy Policy and Terms of Service
+A valid Privacy Policy and Terms of Service and must be visible on your official website.
+Additional platform-specific requirements:
+
+Web apps
+You must provide a valid redirect URI under the web app configuration section.
+
+App review information
+In the App review section, you must also provide the following required information for app submission:
+
+A detailed explanation of how each product and scope works within your app or website.
+For first-time app review, provide a detailed explanation of how each TikTok for Developers product is utilized to enrich the user experience.
+For follow-up revisions, provide a detailed explanation of how each new and old TikTok for Developers product is utilized to enrich the user experience.
+At least one demo video that shows the complete end-to-end flow of the up-to-date integrations. You may upload a maximum of 5 videos, up to 50 MB each.
+TikTok for Developers will start reviewing your app once it is submitted.
+
+
+Developer Guidelines
+We are excited that you are seeking to integrate your app with TikTok. As developers, you can help us inspire creativity and bring joy by providing awesome experiences for TikTok users. This page provides guidelines for you to better understand our integration processes and requirements.
+
+App review process
+To provide a safe and reliable experience for TikTok users, all apps seeking to integrate with our APIs and SDKs in Live are reviewed.
+
+If an app is in Live, it means it can integrate with our APIs and SDKs for authorized access to data of TikTok end users.
+
+After your apps are approved, requests for modification may require further reviews depending on the attributes being changed. Our review process may also provide feedback to improve your integration with TikTok.
+
+Submission requirements
+Make sure your app is functioning during our review process. You are required to provide demo accounts and capabilities to our approvers free of charge, if requested.
+For incomplete apps, beta or development versions, and test versions, you are encouraged to use Sandbox mode to test out our integrations.
+Follow our guidelines throughout the duration of your integration with TikTok. Any violations of our guidelines found through auditing, user complaints, or other means will likely lead to immediate revocation of your integration and a permanent ban on all future integrations by your account and business entity.
+Verify ownership of all configurations with a URL, including your Privacy Policy, Terms of Service, and more. Learn more about URL verification.
+Note: We do not provide an official review timeline or any guarantees for approval. While we do our best to accommodate all requests and communicate promptly, this is a manual process and response times may vary. We remind you to factor the review process into your launch timelines and planning.
+
+Developer Principles
+Provide great experiences
+By integrating with TikTok, you are helping us expand the ecosystem of experiences available to our users. Therefore, we expect your app to provide significant additional value to TikTok and its end users. Don't just build great experiences, maintain them! Even if your app is approved for integration, failure to maintain a quality experience can lead to revocation of your integration.
+
+Build awesome interfaces
+Great experiences start with easy to understand and intuitive interfaces. Bad experiences cause user frustration so we want to avoid them. All app UI must follow industry best practices for user experience and interface design. Additionally, to maintain diversity and inclusion standards across apps, be mindful of localized expectations such as language and prioritize accessibility capabilities.
+
+If your users are developers themselves, make sure your APIs and SDKs behave as expected based on their interface and model. Avoid overly complicated or confusing API contracts.
+
+Be reliable
+Apps with complaints of frequent outages, timeouts, or poor performance can be rejected or have their integration revoked. To avoid this, regularly track your latency, success rates, and service availability. Manage service incidents promptly and fix any bugs in your app. Treat issues related to data security and critical functionality (for example, payments) with urgency.
+
+Be trustworthy
+Great experiences are transparent with users and give them control of their data and content. Be very clear with users about the purpose of your app and your integration with TikTok. Provide mechanisms for users to contact you directly, and promptly address their concerns. Don't engage in any deceptive or misleading communication. Never misguide users into thinking that you are part of the TikTok app, or, for that matter, any other app or entity that doesn't belong to you. As a reminder, make sure you have read and comply with our Branding Requirements.
+
+Understand that the user's data belongs to them. You must safeguard their data. Don't share it with anyone without their proper consent.
+
+Here are some example behaviors to maintain trust:
+
+Never remove a creator's copyright mechanisms (such as watermarks) without consent.
+Protect the user's identity and anonymity.
+If you have access to a user's PII (Personally Identifiable Information), never share it with anyone without their consent.
+Follow all data sharing and privacy laws to build trust with users and governments.
+Set an accurate description, title, and icon for your app.
+Disclose your app's Terms of Service and Privacy Policy.
+Verify URL ownership.
+Provide all required data when configuring your app integration and developer profile.
+Note: Providing fake or incomplete data may lead to the rejection of your app and delays in your integration.
+
+TikTok Integration Maintenance Requirements
+You must actively maintain communication with TikTok when requested. Failure to respond to correspondence in a timely manner can lead to termination of your integration.
+Check your email filters and make sure our communications are not landing in your spam or junk mail folders.
+Any sensitive communication relating to topics including but not limited to security, privacy, compliance, and user deception must be addressed immediately regarding these matters.
+TikTok reserves the right to deprecate APIs and SDKs. You must prioritize and update your integration as new features are offered by TikTok for Developers.
+You will be given notice when backward incompatible changes are made to our APIs. You must prevent any user interfaces from being broken because of deprecated integrations by promptly migrating to newer APIs.
+For any security, privacy, and compliance related concerns, you must immediately acknowledge communication from TikTok and update your integration.
+Respect our API throttling limits. It goes without saying, don't use your integration to attack us, our users, or anyone else with denial of service attempts, spam, etc. That's a surefire way to get banned forever and find yourself in more trouble than you or we need.
+Terms and Policies
+Below you can find our Terms of Service and other policy documents.
+
+Developer Terms of Service
+Developer Data Sharing Agreement
+Branding Requirements
+Community Guidelines
+You are responsible for adhering to all policies and guidelines. TikTok reserves the right to reject your application for any reason, including failure to follow the guidelines mentioned in this document.
+
+
+
+General Guidelines
+Watermark Guidelines
+We expect you to avoid adding unwanted material to content posted to TikTok. That means your apps and integrations should not superimpose or otherwise include any brand name, logo, watermark, other promotional branding, link or promotional text, on or in any content which is shared to TikTok. Doing so is a violation of these guidelines, and may also lead to deleted content or disabled accounts.
+
+
+Direct Post API - Developer Guidelines
+Direct Post API enables developers to build "Share to TikTok" experiences in their app, which allows creators to share content directly to their TikTok profile. As a developer, you can use this API in an unverified status, but all content uploaded via this endpoint will be restricted to private viewing mode. To lift this restriction, your API client must undergo an audit to verify compliance with our Terms of Service.
+
+
+If your API client has not been audited, the following restrictions will apply:
+
+User cap: Unaudited API Clients can allow up to 5 users to post in a 24 hour window. All user accounts using the API client to post must be set to private at the time of posting.
+Private Viewership: Unaudited API Clients can only post contents in SELF_ONLY viewership. To make the contents publicly viewable later on, the account owner must first change their account visibility to public, and then change the privacy settings of each content to "Everyone."
+Additionally, both audited and unaudited API clients will be subject to the following caps:
+
+Creator cap: There will be a 24-hour active creator cap for each API client based on the usage estimates provided in the audit application form.
+Posting cap: There is a limit on the number of posts that can be made to a creator account in a 24-hour window via Direct Post API. The upper limit may vary among creators (typically around 15 posts per day/ creator account) and is shared across all API Clients using Direct Post.
+
+Intended Use
+1) API Clients should facilitate authentic creators to post original content to TikTok.
+
+Not acceptable: An app that copies arbitrary contents from other platforms to TikTok. ❌
+
+2) API Clients must not be limited to test applications and should be intended for a wide audience, not limited to internal groups/private use.
+
+Not acceptable: A utility tool to help upload contents to the account(s) you or your team manages. ❌
+
+
+Required UX Implementation in Your App
+1) API Clients must retrieve the latest creator info when rendering the Post to TikTok page.
+
+a. The upload page must display the creator's nickname, so users are aware of which TikTok account the content will be uploaded to.
+
+b. When the creator_info API returns that the creator can not make more posts at this moment, API Clients must stop the current publishing attempt and prompt users to try again later.
+
+c. When posting a video, API clients must check if the duration of the to-be-posted video follows the max_video_post_duration_sec returned in the creator_info API.
+
+
+2) API Clients must allow users to enter or select the following metadata for a post:
+
+a. Title
+
+b. Privacy Status, with the following mandatory requirements:
+
+The options listed in the UX must follow the privacy_level_options returned in the creator_info API.
+Users must manually select the privacy status from a dropdown and there should be no default value.
+c. Interaction Ability - Allow Comment, Duet, and Stitch - with the following style requirements:
+
+If the creator_info API returns that one or more of these interactions have been disabled in their app settings, your UX must disable and grey out the checkbox for the interaction.
+Users must manually turn on these interaction settings and none should be checked by default.
+Duet and Stitch features are not applicable to photo posts. So, for Photo Posts, only 'Allow Comment' can be displayed in the UX.
+NOTE: Before allowing users to post through your platform, there should be a declaration asking for a user's consent before the publish button. It should clearly state: "By posting, you agree to TikTok's Music Usage Confirmation"
+
+
+3) API Clients must allow users to disclose Commercial Content:
+
+a. Content Disclosure Setting - Indicate whether this content promotes yourself, a brand, product or service, with this feature turned off by default. Enabling this feature will display checkboxes for "Your brand" and "Branded content" below, allowing users to select their preferences.
+
+Your Brand: You are promoting yourself or your own business. This content will be classified as Brand Organic. If this option is selected by the user, a prompt should state: "Your photo/video will be labeled as 'Promotional content'"
+Branded Content: You are promoting another brand or a third party. This content will be classified as Branded Content. If this option is selected by the user, a prompt should state: "Your photo/video will be labeled as 'Paid partnership'"
+If both the above options are selected by the user, a prompt should state "Your photo/video will be labeled as 'Paid partnership'"
+It is a multiple selection, and at least one of the options above must be chosen to proceed with publishing. If the commercial content disclosure toggle is turned on but no options are selected, the publish button should be disabled. To make it easier for users to follow, hovering over will show a notification: "You need to indicate if your content promotes yourself, a third party, or both."
+
+b. Privacy Management:
+
+If a user wants to choose Branded Content, it is important to note that it can only be configured with visibility as public/friends.
+If the visibility setting is chosen as "private" (only me):
+Either the "Branded Content" option should be disabled, informing the user that visibility for branded content can't be private.
+OR, the visibility setting should be automatically switched to public if the user wants to choose Branded Content, informing the user about the same.
+Before selecting the privacy/visibility setting, if a user has turned on the commercial content disclosure toggle and checked the branded content option, then the "only me" permission should be disabled, and hovering over it will display a prompt stating, "Branded content visibility cannot be set to private."
+
+4) Compliance requirements:
+
+If the user is trying to post commercial content (i.e. commercial content toggle is turned on):
+
+When only "Your Brand" is checked, the declaration should be the same as mentioned above: "By posting, you agree to TikTok's Music Usage Confirmation."
+When only "Branded Content" is checked, the declaration should be changed to: "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation."
+Additionally, when both options are selected, the declaration should be: "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation."
+
+
+
+5) The users of API Clients must have full awareness and control of what is being posted to their TikTok accounts.
+
+a. API Clients should display a preview of the to-be-posted content.
+
+b. API Clients should not add promotional watermarks/logos to creators' content. Preset text, including any text in the title field or hashtags, should be allowed to be edited by the user before posting content.
+
+c. API Clients must only start sending content materials to TikTok after the user has expressly consent to the upload.
+
+d. API Clients must clearly notify users that after they finish publishing their content, it may take a few minutes for the content to process and be visible on their profile.
+
+e. API clients should poll the publish/status/fetch API or handle status update webhooks, so users can understand the status of their posts.
+
+
+Technical Considerations
+1) Keep client_secret confidential
+
+a. You must not share your API Credentials with any other third-party or embed your client_secret in open source projects.
+
+b. Maintain appropriate technical and administrative controls to ensure the security and confidentiality of client_secret.
+
+2) Choose efficient means to send contents to TikTok
+
+a. PULL_FROM_URL should be used when API Clients already have the to-be-posted contents on server-side file storage services.
+
+b. The supplied URL must be under the path of a domain or URL prefix API Clients have ownership on. The ownership needs to be verified through the Manage URL properties flow on the Manage Apps page in your TT4D app.
+
+c. FILE_UPLOAD should be used when the to-be-posted video is on the users' devices (PC, Mac, Switch, etc) of API Clients.
+
+d. If video resources are already on API Clients' servers, do not use FILE_UPLOAD; use PULL_FROM_URL instead.
+
+
+
+
+
+Rate Limits on API Requests
+TikTok API limits the number of requests you can send in a given timeframe. Limits for each API are set and enforced separately. Default limits are provided below.
+
+Request rate calculation is based on a one minute sliding window. If the number of requests exceeds the threshold, new requests will be throttled and a response will be returned with HTTP status 429 and error code rate_limit_exceeded.
+
+If your application needs higher limits, please contact us using our Support Page. We will review your request. If approved, rate limits will be increased.
+
+
+
+
+
+
+
+Error Handling
+Starting with TikTok API 2.0, error responses include error codes represented as readable strings with detailed error messages and a log ID. When contacting TikTok support team, these details must be provided.
+
+Error Struct
+Key
+
+Type
+
+Description
+
+code
+
+string
+
+The error category in string
+
+message
+
+string
+
+The detailed error description
+
+log_id
+
+string
+
+The unique id associated with every request for debugging purporse
+
+All Error Codes
+The following list provides v2 error codes, their corresponding HTTP status codes, and a description of the error including guidance on how to handle the issue. Error codes are sorted alphabetically.
+
+Error code
+
+Description
+
+HTTP status code
+
+access_token_invalid
+
+The access token is invalid or not found in the request. Please refresh the token and retry.
+
+
+This is the generic error code for TikTok internal errors. Please refer to the error message for details and notify TikTok support.
+
+The uploaded file does not meet API specifications. Please correct the file and try again.
+
+
+One or more fields in request is invalid. Please refer to the error message for details.
+
+Error Example
+{
+   "code":"access_token_invalid",
+   "message":"Access token is invalid, please refresh token and retry",
+   "log_id":"20220829194722CBE87ED59D524E727021"
+}
+
+
+
+
+
+
+
+Login Kit for Web
+This guide details how to enable authentication from your web app to TikTok. After successfully completing authentication with TikTok, developers can obtain an access_token for the TikTok user.
+
+Prerequisites
+Register your app
+Register your app following these steps. Then obtain a client key and secret from the developer portal on https://developers.tiktok.com under Manage apps.
+
+Configure redirect URI
+Redirect URI is required for web apps. After the user completes authorization with Login Kit on the web, they will be redirected to a URI provided by you. This redirect URI must be registered in the Login Kit product configuration for your app.
+
+The following are restrictions for registering redirect URIs.
+
+A maximum of 10 URIs is supported.
+The length of each URI must be less than 512 characters.
+URIs must be absolute and begin with https. For example:
+Correct: https://dev.example.com/auth/callback/
+Incorrect: dev.example.com/auth/callback/
+URIs must be static. Parameters will be denied. For example:
+Correct: https://dev.example.com/auth/callback/
+Incorrect: https://dev.example.com/auth/callback/?id=1
+URIs cannot include a fragment, or hash character (#):
+Correct: https://dev.example.com/auth/callback/
+Incorrect: https://dev.example.com/auth/callback/#100
+Integration Guide
+Implement the front-end code
+Get started by connecting your front-end login button to the server endpoint. The following is an example in HTML:
+
+<a href='{SERVER_ENDPOINT_OAUTH}'>Continue with TikTok</a>
+Implement the server code to handle authorization grant flow
+The server code must be responsible for the following:
+
+Ensuring that the client secret and refresh token are stored securely.
+Ensuring that the security for each user is protected by preventing request forgery attacks.
+Handling the refresh flow before access token expiry.
+Managing the access token request flow for each user.
+Redirect request to TikTok's authorization server
+Create an anti-forgery state token
+You must prevent request forgery attacks to protect the security of your users. The first step before making the redirect request to TikTok's authorization server is to create a unique session token to maintain the state between the request and callback.
+
+You will later match this unique session token with the authentication response to verify that the user is making the request and not a malicious attacker.
+
+One of the simple approaches to a state token is a randomly generated alphanumeric string constructed using a random-number generator. For example:
+
+let array = new Uint8Array(30); 
+const csrfState = window.crypto.getRandomValues(array);
+Initial redirect to TikTok's authorization page
+To make the initial redirect request to TikTok's authorization server, the following query parameters below must be added to the Authorization Page URL using the application/x-www-form-urlencoded format.
+
+For example, you can use an online URL encoder to encode parameters. Select UTF-8 as the destination character set.
+
+Parameter
+
+Type
+
+Description
+
+client_key
+
+String
+
+The unique identification key provisioned to the partner.
+
+scope
+
+String
+
+
+A comma (,) separated string of authorization scope(s). These scope(s) are assigned to your application on the TikTok for Developers website. They handle what content your application can and cannot access. If a scope is toggleable, the user can deny access to one scope while granting access to others.
+
+redirect_uri
+
+String
+
+The redirect URI that you requested for your application. It must match one of the redirect URIs you registered for the app.
+
+state
+
+String
+
+The state is used to maintain the state of your request and callback. This value will be included when redirecting the user back to the client. Check if the state returned in the callback matches what you sent earlier to prevent cross-site request forgery.
+
+The state can also include customized parameters that you want TikTok service to return.
+
+response_type
+
+String
+
+This value should always be set to code.
+
+disable_auto_auth
+
+int
+
+Controls whether the authorization page is automatically presented to users. When set to 0, skips the authorization page for valid sessions. When set to 1, always displays the authorization page.
+
+Redirect your users to the authorization page URL and supply the necessary query parameters. Note that the page can only be accessed through HTTPS.
+
+Type
+
+Description
+
+URL
+
+https://www.tiktok.com/v2/auth/authorize/
+
+Query parameters
+
+
+client_key=<client_key>&response_type=code&scope=<scope>&redirect_uri=<redirect_uri>&state=<state>
+
+Note: If you are an existing client and use https://www.tiktok.com/auth/authorize/ as the authorization page URL, please register a redirect URI for your app and migrate to the new URL mentioned above.
+
+The following is an example using Node, Express, and JavaScript:
+
+const express = require('express');
+const app = express();
+const fetch = require('node-fetch');
+const cookieParser = require('cookie-parser');
+const cors = require('cors');
+
+app.use(cookieParser());
+app.use(cors());
+app.listen(process.env.PORT || 5000).
+
+const CLIENT_KEY = 'your_client_key' // this value can be found in app's developer portal
+
+app.get('/oauth', (req, res) => {
+    const csrfState = Math.random().toString(36).substring(2);
+    res.cookie('csrfState', csrfState, { maxAge: 60000 });
+
+    let url = 'https://www.tiktok.com/v2/auth/authorize/';
+
+    // the following params need to be in `application/x-www-form-urlencoded` format.
+    url += '?client_key={CLIENT_KEY}';
+    url += '&scope=user.info.basic';
+    url += '&response_type=code';
+    url += '&redirect_uri={SERVER_ENDPOINT_REDIRECT}';
+    url += '&state=' + csrfState;
+
+    res.redirect(url);
+})
+TikTok prompts a users to log in or sign up
+The authorization page takes the user to the TikTok website if the user is not logged in. They are then prompted to log in or sign up for TikTok.
+
+TikTok prompts a user for consent
+After logging in or signing up, an authorization page asks the user for consent to allow your application to access your requested permissions.
+
+Manage authorization response
+If the user authorizes access, they will be redirected to redirect_uri with the following query parameters appended using application/x-www-form-urlencoded format:
+
+If this field is set, it will be a human-readable description about the error.
+
+Manage access token
+Using the code appended to your redirect_uri, you can obtain access_token for the user, which completes the flow for logging in with TikTok.
+
+See Manage User Access Tokens for related endpoints.
+
+
+
+
+
+
+Manage User Access Tokens with OAuth v2
+TikTok Login Kit manages the token life cycle, allowing you to integrate login and authentication flows directly in your application. A successful authorization flow grants you refreshable access tokens. Those tokens enable you to perform endpoint access with user permissions.
+
+Authorization scopes
+Most endpoints provided by TikTok for Developers require direct consent from TikTok users before you can invoke them. The permissions are granted on a scope level. Users have the rights to only agree to a subset of scopes you requested from them.
+
+The following are some example scopes:
+
+user.info.basic gives read-only access to a user's avatar and display name.
+video.list gives read-only access to a user's public TikTok videos.
+Learn more about scopes.
+
+Token security
+Tokens must be handled with caution. It is recommended that you store and manage all tokens on the server side.
+
+Access token is a user authorization token that can be used to directly access user information in the TikTok ecosystem.
+Refresh token is used to renew the access token.
+Endpoints For Web
+If you have already registered a redirect URI for your web app and use https://www.tiktok.com/v2/auth/authorize/ to authorize, please refer to the new generation user access token management API guide.
+
+If you are an existing client, have not registered a redirect URI for your web app and use https://www.tiktok.com/auth/authorize/ to authorize, please refer to the legacy user access token management API guide. To register a redirect URI, go to the Manage apps page of the TikTok for Developers website and migrate to the new endpoints as soon as possible.
+
+
+
+
+
+Login Kit with QR Code
+If you are using our deprecated v1 endpoint for QR code authorizations, please migrate to our v2 endpoint immediately. Learn more.
+
+Overview
+This guide will explain how to integrate with the Login Kit to facilitate user authorization via QR code login. Once an authenticated user authorizes your app, you can access their basic TikTok profile data such as their display name and avatar. Additional data access may require approval for additional scopes. Learn more about scopes.
+
+Prerequisites
+Obtain a client key and client secret by logging into the TikTok for Developers website. Then go to the Manage apps page and select your app.
+
+Security advisory: Verifying integrity using client_ticket
+The client_ticket mentioned throughout this guide enables you to verify the data integrity of the response. While your app may still function even if you don't validate the client_ticket, doing so introduces security risks. Therefore, it is highly recommended that you always verify that the client_ticket matches the one generated by you, and reject any response where this validation fails as it may have been compromised by a malicious attacker.
+
+Generating a client_ticket
+Your client_ticket can be any series of characters, letters, or symbols, as long as it is URL safe and the URL-encoded version is under 512 characters. The generation method is at your discretion as there are no complexity requirements. You may reuse the same client_ticket, but some randomness is recommended for security. You should persist the ticket for the entirety of the QR code process as it will be needed when checking the validity of the QR status.
+
+Integration
+Your web app must implement the following functionality on the server side:
+
+Generate a QR code.
+Request a QR code URL (see the below sections for API guidance).
+Generate a client_ticket.
+Insert the client ticket into the QR code URL.
+Render the URL.
+Display it to the user.
+Repeatedly check the QR code status and refresh or disable it accordingly (see the below sections for API guidance).
+Parse the response for the provided authorization code once the QR code status is changed to confirmed.
+Request an access token and refresh token from TikTok using the authorization code and client key.
+Notify the user of authorization success or failure.
+Use the access token to fetch authorized user data, and use the refresh token to extend the access token's expiration time.
+For more information on access and refresh tokens, see Manage User Access Tokens.
+
+Get QR Code
+POST https://open.tiktokapis.com/v2/oauth/get_qrcode/
+
+Description
+Request a QR code from TikTok.
+
+
+
+
+
+
+
+
+
+
+Tip: You can enable email notifications to get our latest product updates.
+
+New: Content Posting API now supports posting photos!
+
+Get Started
+This guide demonstrates how to use the Content Posting API to post content directly to TikTok.
+
+Prerequisites
+To successfully complete this tutorial, you will need the following:
+
+A valid video if you want to post videos:
+Ensure you have a video file in one of the supported formats, such as MP4 + H.264, stored on your local machine.
+Alternatively, you can provide the URL of a video from your verified domain or URL prefix. Learn how to verify your domain or URL prefix.
+Learn more about video restrictions.
+A valid photo if you want to post photos:
+You must provide a URL of a photo from your verified domain or URL prefix. Learn how to verify your domain or URL prefix.
+Learn more about photo restrictions.
+A registered app on the TikTok for Developers website.
+Add the Content Posting API product to your app as shown below.
+
+To enable the direct posting of content on authorized users' profiles, you need to enable the Direct Post configuration for the Content Posting API in your app, as shown below.
+
+Get approval and authorization of the video.publish scope. Learn more about scopes.
+Your app must be approved for the video.publish scope.
+The target TikTok user must have authorized your app for the video.publish scope.
+The access token and open ID of the TikTok user who authorized your app. Learn how to obtain the access token and open ID.
+Note: All content posted by unaudited clients will be restricted to private viewing mode. Once you have successfully tested your integration, to lift the restrictions on content visibility, your API client must undergo an audit to verify compliance with our Terms of Service.
+
+Post directly to TikTok
+This section demonstrates how to successfully post a video or photo to a creator's TikTok account.
+
+Query Creator Info
+To initiate a direct post to a creator's account, you must first use the Query Creator Info endpoint to get the target creator's latest information. For more information about why creator information is necessary, refer to these UX guidelines.
+
+Request:
+
+curl --location --request POST 'https://open.tiktokapis.com/v2/post/publish/creator_info/query/' \
+--header 'Authorization: Bearer act.example12345Example12345Example' \
+--header 'Content-Type: application/json; charset=UTF-8'
+Response:
+
+200 OK
+
+{
+   "data":{
+      "creator_avatar_url": "https://lf16-tt4d.tiktokcdn.com/obj/tiktok-open-platform/8d5740ac3844be417beeacd0df75aef1",
+      "creator_username": "tiktok",
+      "creator_nickname": "TikTok Official",
+      "privacy_level_options": ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"] 
+      "comment_disabled": false,
+      "duet_disabled": false,
+      "stitch_disabled": true,
+      "max_video_post_duration_sec": 300
+   },
+    "error": {
+         "code": "ok",
+         "message": "",
+         "log_id": "202210112248442CB9319E1FB30C1073F3"
+     }
+Post a video
+To initiate video upload on TikTok's server, you must invoke the Direct Post Video endpoint. You have the following two options:
+
+If you have the video file locally, set the source parameter to FILE_UPLOAD in your request.
+If the video is hosted on a URL, set the source parameter to PULL_FROM_URL.
+Example
+Example using source=FILE_UPLOAD:
+
+Request:
+
+curl --location 'https://open.tiktokapis.com/v2/post/publish/video/init/' \
+--header 'Authorization: Bearer act.example12345Example12345Example' \
+--header 'Content-Type: application/json; charset=UTF-8' \
+--data-raw '{
+  "post_info": {
+    "title": "this will be a funny #cat video on your @tiktok #fyp",
+    "privacy_level": "MUTUAL_FOLLOW_FRIENDS",
+    "disable_duet": false,
+    "disable_comment": true,
+    "disable_stitch": false,
+    "video_cover_timestamp_ms": 1000
+  },
+  "source_info": {
+      "source": "FILE_UPLOAD",
+      "video_size": 50000123,
+      "chunk_size":  10000000,
+      "total_chunk_count": 5
+  }
+}'
+Response:
+
+200 OK
+
+{
+    "data": {
+        "publish_id": "v_pub_file~v2-1.123456789",
+        "upload_url": "https://open-upload.tiktokapis.com/video/?upload_id=67890&upload_token=Xza123"    
+    },
+    "error": {
+         "code": "ok",
+         "message": "",
+         "log_id": "202210112248442CB9319E1FB30C1073F3"
+     }
+}
+
+Example using source=PULL_FROM_URL:
+
+Request:
+
+curl --location 'https://open.tiktokapis.com/v2/post/publish/video/init/' \
+--header 'Authorization: Bearer act.example12345Example12345Example' \
+--header 'Content-Type: application/json; charset=UTF-8' \
+--data-raw '{
+  "post_info": {
+    "title": "this will be a funny #cat video on your @tiktok #fyp",
+    "privacy_level": "MUTUAL_FOLLOW_FRIENDS",
+    "disable_duet": false,
+    "disable_comment": true,
+    "disable_stitch": false,
+    "video_cover_timestamp_ms": 1000
+  },
+  "source_info": {
+      "source": "PULL_FROM_URL",
+      "video_url": "https://example.verified.domain.com/example_video.mp4",
+  }
+}'
+Response:
+
+200 OK
+
+{
+    "data": {
+        "publish_id": "v_pub_url~v2.123456789"  
+    },
+    "error": {
+         "code": "ok",
+         "message": "",
+         "log_id": "202210112248442CB9319E1FB30C1073F4"
+     }
+}
+If you are using source=FILE_UPLOAD
+
+Extract the upload_url and publish_id from the response data.
+Send the video from your local filesystem to the extracted upload_url using a PUT request. The video processing will occur asynchronously once the upload is complete.
+curl --location --request PUT 'https://open-upload.tiktokapis.com/video/?upload_id=67890&upload_token=Xza123' \
+--header 'Content-Range: bytes 0-30567099/30567100' \
+--header 'Content-Type: video/mp4' \
+--data '@/path/to/file/example.mp4'
+With the publish_id returned earlier, check for status updates using the Get Post Status endpoint.
+
+curl --location 'https://open.tiktokapis.com/v2/post/publish/status/fetch/' \
+--header 'Authorization: Bearer act.example12345Example12345Example' \
+--header 'Content-Type: application/json; charset=UTF-8' \
+--data '{
+    "publish_id": "v_pub_url~v2.123456789"
+}'
+Post photos
+To initiate photo upload on TikTok's server, you must invoke the Content Posting API endpoint.
+
+Note:
+
+There are differences between the photo post endpoint and the existing video post endpoint.
+
+Use /v2/post/publish/content/init/ to upload photos instead of /v2/post/publish/inbox/video/init/
+The post_mode and media_type is required in request.body
+Example
+Request:
+
+curl --location 'https://open.tiktokapis.com/v2/post/publish/content/init/' \
+--header 'Authorization: Bearer act.example12345Example12345Example' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "post_info": {
+        "title": "funny cat",
+        "description": "this will be a #funny photo on your @tiktok #fyp",
+        "disable_comment": true,
+        "privacy_level": "PUBLIC_TO_EVERYONE",
+        "auto_add_music": true
+    },
+    "source_info": {
+        "source": "PULL_FROM_URL",
+        "photo_cover_index": 1,
+        "photo_images": [
+            "https://tiktokcdn.com/obj/example-image-01.webp",
+            "https://tiktokcdn.com/obj/example-image-02.webp"
+        ]
+    },
+    "post_mode": "DIRECT_POST",
+    "media_type": "PHOTO"
+}'
+Response:
+
+200 OK
+
+{
+    "data": {
+        "publish_id": "p_pub_url~v2.123456789"
+    },
+    "error": {
+         "code": "ok",
+         "message": "",
+         "log_id": "202210112248442CB9319E1FB30C1073F3"
+     }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Tip: You can enable email notifications to get our latest product updates.
+
+New: Content Posting API now supports sending photos!
+
+Get Started
+This guide shows you how to use the Content Posting API to upload content to TikTok.
+
+Prerequisites
+To successfully complete this tutorial, you will need the following:
+
+A valid video if you want to upload videos:
+Ensure you have a video file in one of the supported formats, such as MP4 + H.264, stored on your local machine.
+Alternatively, you can provide a URL of a video from your verified domain or URL prefix. Learn how to verify your domain or URL prefix.
+Learn more about video restrictions.
+A valid photo if you want to upload photos:
+You need to provide a URL of a photo from your verified domain or URL prefix. Learn how to verify your domain or URL prefix.
+Learn more about photo restrictions.
+A registered app on the TikTok for Developers website.
+Add the content posting API product to your app as shown below.
+
+Get approval and authorization of the video.upload scope. Learn more about scopes.
+Your app must be approved for the video.upload scope.
+The target TikTok user must have authorized your app for the video.upload scope.
+The access token and open ID of the TikTok user who authorized your app. Learn how to obtain the access token and open ID.
+
+
+Upload draft to TikTok
+This section demonstrates how to successfully upload videos or photos to TikTok for the user to review and post.
+
+You should inform users that they must click on inbox notifications to continue the editing flow in TikTok and complete the post.
+
+
+User notified of video upload
+
+
+User reviews and posts video
+
+Upload a video
+To initiate video upload on TikTok's servers, you must invoke the Content Posting API - Video Upload endpoint. You have the following two options:
+
+If you have the video file locally, set the source parameter to FILE_UPLOAD in your request.
+if the video is hosted on a URL, set the source parameter to PULL_FROM_URL.
+Example
+Example using source=FILE_UPLOAD:
+
+Request:
+
+curl --location 'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/' \
+--header 'Authorization: Bearer act.example12345Example12345Example' \
+--header 'Content-Type: application/json' \
+--data '{
+    "source_info": {
+        "source": "FILE_UPLOAD",
+        "video_size": exampleVideoSize,
+        "chunk_size" : exampleVideoSize,
+        "total_chunk_count": 1
+    }
+}'
+Response:
+
+200 OK
+
+{
+    "data": {
+        "publish_id": "v_inbox_file~v2.123456789",
+        "upload_url": "https://open-upload.tiktokapis.com/video/?upload_id=67890&upload_token=Xza123"    
+    },
+    "error": {
+         "code": "ok",
+         "message": "",
+         "log_id": "202210112248442CB9319E1FB30C1073F3"
+     }
+}
+
+
+Example using source=PULL_FROM_URL:
+
+Request:
+
+curl --location 'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/' \
+--header 'Authorization: Bearer act.example12345Example12345Example' \
+--header 'Content-Type: application/json' \
+--data '{
+    "source_info": {
+        "source": "PULL_FROM_URL",
+        "video_url": "https://example.verified.domain.com/example_video.mp4",
+    }
+}'
+Response:
+
+200 OK
+
+{
+    "data": {
+        "publish_id": "v_inbox_url~v2.123456789"
+    },
+    "error": {
+         "code": "ok",
+         "message": "",
+         "log_id": "202210112248442CB9319E1FB30C1073F4"
+     }
+}
+If you are using source=FILE_UPLOAD:
+
+Extract the upload_url and publish_id from the response data.
+Send the video from your local filesystem to the extracted upload_url using a PUT request. The video processing will occur asynchronously once the upload is complete.
+curl --location --request PUT 'https://open-upload.tiktokapis.com/video/?upload_id=67890&upload_token=Xza123' \
+--header 'Content-Range: bytes 0-30567099/30567100' \
+--header 'Content-Type: video/mp4' \
+--data '@/path/to/file/example.mp4'
+With the publish_id returned earlier, check for status updates using the Get Post Status endpoint.
+
+curl --location 'https://open.tiktokapis.com/v2/post/publish/status/fetch/' \
+--header 'Authorization: Bearer act.example12345Example12345Example' \
+--header 'Content-Type: application/json; charset=UTF-8' \
+--data '{
+    "publish_id": "v_inbox_file~v2.123456789"
+}'
+Upload photos
+To initiate photo upload on TikTok's server, you must invoke the Content Posting API endpoint.
+
+Note:
+
+There are differences between the photo post endpoint and the existing video post endpoint.
+
+Use /v2/post/publish/content/init/ to upload photos instead of /v2/post/publish/inbox/video/init/
+The post_mode and media_type are required parameters in request.body
+There are additional parameters supported, such as title and description.
+Example
+Request:
+
+curl --location 'https://open.tiktokapis.com/v2/post/publish/content/init/' \
+--header 'Authorization: Bearer act.example12345Example12345Example' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "post_info": {
+        "title": "funny cat",
+        "description": "this will be a #funny photo on your @tiktok #fyp"
+    },
+    "source_info": {
+        "source": "PULL_FROM_URL",
+        "photo_cover_index": 1,
+        "photo_images": [
+            "https://tiktokcdn.com/obj/example-image-01.webp",
+            "https://tiktokcdn.com/obj/example-image-02.webp"
+        ]
+    },
+    "post_mode": "MEDIA_UPLOAD",
+    "media_type": "PHOTO"
+}'
+Response:
+
+200 OK
+
+{
+    "data": {
+        "publish_id": "p_pub_url~v2.123456789"
+    },
+    "error": {
+         "code": "ok",
+         "message": "",
+         "log_id": "202210112248442CB9319E1FB30C1073F3"
+     }
+}
+
+
+
+
+
+
+
+
+New: Content Posting API now supports posting photos!
+
+Media Transfer Guide
+This guide explains the process of transferring media files to TikTok servers when using the Content Posting API.
+
+File upload
+Using this method, you can transfer your media to TikTok using HTTP. Upon initializing your video upload with source=FILE_UPLOAD, an upload_url will be returned. You must send the media binary to this URL.
+
+To learn how to send videos to TikTok servers and for details on the HTTP request (endpoint, request and response schema, and headers), see the API reference for the Upload Video endpoint or the Direct Post endpoint.
+
+Work with chunks
+Chunk restrictions
+The value of total_chunk_count should be equal to video_size divided by chunk_size, rounded down to the nearest integer.
+Each chunk must be at least 5 MB but no greater than 64 MB, except for the final chunk, which can be greater than chunk_size (up to 128 MB) to accommodate any trailing bytes.
+Videos with a total size less than 5 MB must be uploaded as a whole, with chunk_size equal to the entire video's byte size. Videos with a total size greater than 64 MB must be uploaded in multiple chunks.
+There must be a minimum of 1 chunk and a maximum of 1000 chunks.
+File chunks must be uploaded sequentially.
+Media transfer HTTP schema
+PUT {UPLOAD_URL} HTTP /1.1
+Content-Type: {MIME_TYPE}
+Content-Length: {BYTE_SIZE_OF_THIS_CHUNK}
+Content-Range: bytes {FIRST_BYTE}-{LAST_BYTE}/{TOTAL_BYTE_LENGTH}
+
+BINARY_FILE_DATA
+Examples
+Chunk upload
+In this example, there is a file with a size of 50,000,123 bytes. The chunk size is specified to be 10,000,000 bytes. The trailing 123 bytes is merged into the 10,000,000-byte chunk to meet the restriction that each chunk must be greater than 5 MB.
+
+Example UPLOAD_URL=https://upload.us.tiktokapis.com/video/?upload_id=67890&upload_token=chunkexample will be shared across all chunks.
+
+
+
+
+
+
+
+
+
+
+The following is the corresponding source_info for initializing video upload.
+
+"source_info": {
+      "source": "FILE_UPLOAD",
+      "video_size": 50000123
+      "chunk_size":  10000000
+      "total_chunk_count": 5
+  }
+Whole upload
+In this example, the media file is 4 MB, which must be uploaded as a whole in one request.
+
+
+
+
+
+
+
+
+
+The following is the corresponding source_info for initializing video upload.
+
+"source_info": {
+      "source": "FILE_UPLOAD",
+      "video_size": 4194304
+      "chunk_size":  4194304
+      "total_chunk_count": 1
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+The response header includes the following key-value pair indicating the number of bytes uploaded:
+
+Content-Range:bytes 0-{UPLOADED_BYTES}/{TOTAL_BYTE_LENGTH}.
+
+
+Pull from URL
+By initializing your content post using /init endpoints with source=PULL_FROM_URL, the TikTok server starts to download the media resource using the URL you provide. Learn more about getting post status.
+
+TikTok server's ingress bandwidth for file downloads can reach 100 Mbps.
+
+Prerequisites
+Ensure that the media URL you provided belongs to a path that you own. To confirm ownership, log into the TikTok for Developers website and add your Domain or URL Prefix property to your application in the URL properties widget as shown below. You must have manage or write access to the property.
+
+
+
+The media URL must use "https" and should not redirect to another URL.
+The URL must remain accessible for the entire duration of the download process, which times out one hour after the download task is initiated.
+Note: To conveniently test the Pull from URL feature, you can try this URL without any verification.
+
+Ownership verification rules
+Domain
+Definition
+A domain can be a base domain (for example, example.com) or a subdomain (for example, subdomain.example.com).
+
+Verification
+To verify domain ownership, it is recommended that you add a signature string to the domain's DNS records.
+
+Once the ownership of a domain is verified, all paths under that domain or its subdomains are considered owned by the developer application.
+
+For example, if you have verified the domain static.example.com, then URLs like https://video.static.example.com/tiktok/example.mp4 are considered verified, while URLs like https://example.com/videos/example.mp4 are still considered unverified.
+
+
+URL Prefix
+Definition
+A URL prefix consists of: https:// + host + path + /.
+
+The host must be a domain and should not be an IP address.
+
+Redirections are not followed. URLs that return HTTP 3xx are considered invalid.
+
+Verification
+Once a URL prefix's ownership is verified, all URLs with the exact prefix are considered owned by the developer application.
+
+For example, if you have already verified the domain https://example.com/videos/user/, then URLs like https://example.com/videos/user/123/example.mp4 are considered verified, while URLs like https://example.com/videos/2023/user/123/example.mp4 are still considered unverified.
+
+Cancel ongoing pull from URL tasks
+The API can cancel downloads for both Direct Post and Content Upload endpoints on a best-effort basis.
+
+While it is possible to cancel ongoing slow downloads, it is not feasible to cancel downloads that are nearing completion or already in the file processing state.
+
+Request
+POST /v2/post/publish/cancel/ HTTP /1.1
+Host: open.tiktokapis.com
+Authorization: Bearer {{AccessToken}}
+Content-Type: application/json; charset=UTF-8
+
+{
+    "publish_id": {PUBLISH_ID}
+}
+Response
+200 OK
+
+{
+    "error": {
+         "code": "ok",
+         "message": "",
+         "log_id": "202210112248442CB9319E1FB30C1073F3"
+     }
+}
+
+
+
+
+
+
+
+
+
+
+
+New: Content Posting API now supports posting photos!
+
+Query Creator Info
+Overview
+This API returns profile and permission information of the current user.
+
+When rendering the Export to TikTok page, your app must invoke the API and use the latest creator information returned to display the account's available privacy level options and video/photo interaction settings.
+
+
+
+
+
+
+
+Get Started
+This guide will show you how to apply for the Data Portability API and what you need to become fully integrated and approved to use the Data Portability API functionality.
+
+Prerequisites
+Before you start, you will need access to the following:
+
+A TikTok developer account on the TikTok for Developers website.
+A registered app on the TikTok for Developers website. The app must at least be in Staging status to generate an App ID (a numerical code that uniquely identifies your app).
+Screenshots of detailed UX mockups showing the user flow for your app's use case.
+Apply for access
+Go to the Manage apps page and select your app, or Connect an app if you don't have one yet.
+On the app page, click the Add products button under Products, then add Data Portability API.
+Add the Login Kit and Webhooks products to your app as well.
+On the Data Portability API product, view scopes, then click Apply to access the application for Data Portability API.
+Fill out the Data Portability API Application form and submit. Make sure to select all necessary scopes on the form.
+Wait for approval. You can typically expect to hear back within 3-4 weeks. You can check for scope approval status on the app page.
+Once you have received approval, you can choose which approved scopes to add to your app on the Data Portability API product.
+Fill out the information on the app page, including under Login Kit and Webhooks.
+Click Submit for review, and we will start reviewing your app.
+NOTE: You may submit your app for review before your Data Portability API Application is processed.
+
+Once you are approved for Login Kit, Webhooks, and the Data Portability API scopes, you can start using the Data Portability API functionality for your app.
+
+Get permission
+All the scopes for calling Data Portability APIs are in the form portability.<data type>.single and portability.<data type>.ongoing
+
+With <data type> being: all, activity, directmessages, and postsandprofile. There are eight available scopes, as described below.
+
+
+All data
+
+portability.all.single: Make a single request for all available data on the user's behalf
+portability.all.ongoing: Make ongoing requests for all available data on the user's behalf
+
+Posts and profile
+
+portability.postsandprofile.single: Make a single request for posts and profile data on the user's behalf
+portability.postsandprofile.ongoing: Make ongoing requests for posts and profile data on the user's behalf
+
+Activity
+
+portability.activity.single: Make a single request for activity data on the user's behalf
+portability.activity.ongoing: Make ongoing requests for activity data on the user's behalf
+
+Direct messages
+
+portability.directmessages.single: Make a single request for direct message data on the user's behalf
+portability.directmessages.ongoing: Make ongoing requests for direct message data on the user's behalf
+NOTE: Subsequent requests made using ongoing permission (or made with multiple one-time authorizations) will return the full data for the given scope.
+
+You can visit the Data Types page to see more detail about what information is included for each scope.
+
+Lifecycle of a data request
+Once authorized, making a data request for a given user involves a few steps:
+
+Request data
+Use the Add Data Request endpoint to start a data export. In your request, you should indicate the categories of data you're requesting (all_data, activity, video, profile, direct_message), which the user should have authorized permission for. If they haven't authorized permission, the response will include an error.
+(If desired) Check the status of an ongoing request
+Use the Check Status of Data Request endpoint to see the status of an ongoing request.
+(If desired) Cancel an ongoing request
+Use the Cancel Data Request endpoint to cancel a request. If the user has allowed you to make ongoing requests, you can make another request using the same token.
+Once a request is ready, we'll send notice to the callback URL you provided in the app page via webhook. We aim to provide data within a few seconds, minutes, or hours, depending on the data requested. However, this is not guaranteed, as unforeseen technical issues may cause delays.
+Once you receive the callback, you can download the data with a Download request. Data will be available to download for four days after it's been prepared.
+NOTE: You are not required to set up webhooks to receive notifications. Instead, you can check the status of the request and download the data once it is ready.
+
+
+
+
+
+
+
+
+
+
+
+Data Portability FAQ
+General
+Why do I need to fill out the Data Portability API Application form?
+TikTok needs to assess each application to ensure that requests are valid and are made by genuine companies or services. This is to ensure the privacy and security of user data.
+
+How does the Data Portability API Application differ from App Review?
+The Data Portability API is a functionality that developers can add to their apps. To protect user data privacy, developers must complete an application form and receive approval. App Review is a separate review of the developer app itself, to ensure that the app is eligible to integrate with our services. Learn more about the App Review process.
+
+Data Portability API Application
+What languages do you support on the application?
+Please submit your entire application in English, including the UX mockups and any other uploads.
+
+Can I apply for the Data Portability API before I submit my app or website for review?
+Yes, you can submit an application for the Data Portability API while your app is in Draft status.
+
+What if I cannot supply all the information being requested?
+You must complete all required fields to submit your application.
+
+What happens after I submit my application?
+TikTok will review your application, which may take 3 to 4 weeks from the application submission date. You will receive a notification email after your application is processed.
+
+Will a TikTok representative contact me about my application?
+A TikTok representative will assess your application, and if applicable, may reach out to request follow-up information with the email that you provide on your application form.
+
+What happens if I am not approved?
+If you are not approved, you can reapply at any time. Click the View scopes button under the Data Portability API product on the app page to access the application form.
+
+What should I do if I made a mistake or need to resubmit my application?
+Please submit a support ticket and select Data Portability API as the Topic.
+
+What happens after I go live with Data Portability API?
+TikTok reserves the right to periodically check that your application continues to match your app or website, and may revoke access if application terms are breached.
+
+What are the daily quota limits? Can I request an increase in the quota limit?
+Currently, the daily limit is set at 1000 requests per minute, allowing you to make up to 1000 requests of any given type per minute for the Data Portability API.
+
+If you believe a quota limit increase is necessary for your application, please contact us via Support and we'll take your request into consideration.
+
+Can I get a copy of my application?
+We are unable to supply a copy of your application and recommend that you make your own copy of the information that you provide for your reference.
+
+
+
+
+
+
+
+
+
+
+
+
+
+Data Portability Application Guidelines
+To ensure a successful submission to the Data Portability API, please review these guidelines for each question carefully, including the FAQ. If your application does not meet the criteria below, you may be required to resubmit your application or be requested to provide more details, which may delay your application's review.
+
+
+Application details
+
+Applicant name
+Enter the name of your representative or employee, rather than a business/organization name. TikTok may reach out to this person about your application via the email provided below.
+
+Applicant email address
+Use an email address that matches your business/organization domain. TikTok may reach out to this person about the application.
+
+Organization name
+Please ensure that your business/organization is accurately entered.
+
+Organization website
+Please check that your website is live and working as expected, and is not a holding page or otherwise incomplete website.
+
+TikTok representative email
+Optional: If you have a contact at TikTok you already work with, you can enter their email address here. We may reach out to them if there are issues with your application.
+
+App ID
+Please ensure your App ID is correct and matches the app that you intend to make a submission for (if you have multiple apps). To view a list of your apps and their corresponding App IDs, log in to your TikTok for Developers account, click the profile icon, then click Manage apps.
+
+Data scope & use case
+
+Data scope(s) required
+This selection must clearly match the description and UX mockups you provide.
+
+Provide a detailed explanation about how the requested data scope(s) will be used for your use case
+Explain in detail how your data scope is appropriate for the intended use case. Describe exactly how the UX flow demonstrated in your uploaded mockups matches your data scope(s).
+
+Upload high-fidelity UX mockups
+Your upload must match your previous answers and demonstrate the end-to-end user journey,. This includes showing four distinct screens that clearly illustrate each step outlined below.
+
+Your app must clearly inform users what data will be transferred to TikTok and for what purpose. By requiring high-fidelity UX mockups, TikTok aims to ensure that users are being provided with adequate information before proceeding with a transfer.
+
+
+
+TikTok connection page
+
+Show the initial option(s) where users can see "Connect to TikTok", or similar.
+Demonstrate where your users can select TikTok to connect it to your product or service.
+
+
+
+Connecting to TikTok
+
+Display to users that your service is connecting to TikTok.
+Give users the ability to "Proceed", "Go back", or similar.
+Clearly explain to the user what is happening, including an outline of the data being shared and an explanation of why this data is being requested.
+
+
+
+Confirmation of connection
+
+Show TikTok's login authorization page. This is TikTok's page that cannot be modified. However, please include this page in your UX mockups to demonstrate when it is expected to appear in the user journey.
+
+
+
+Final output / result
+
+Demonstrate confirmation that your app successfully connected to TikTok. If applicable, this page can also show the user output (synced data, complied data, and more).
+
+GDPR & Data subject requests
+
+Describe how you enable and respond to users making data subject requests
+Provide a detailed response that clearly outlines how users can make requests for their data and get a copy of it from your business/organization. Alternatively, you may provide a link to a page where this information is already outlined, such as your privacy policy.
+
+Do you wish to upload any supporting evidence or documents for data subject requests?
+Optional: For example, if you wish to upload a PDF version of your privacy policy to support your prior answer, you may do so here.
+
+Data protection policy and processes
+
+Outline or provide links to relevant documentation that explain your data protection policy and processes
+Please provide a detailed response or a link to a page where this information is already outlined, such as your privacy policy.
+
+Do you wish to upload any supporting evidence or documents for data policy or processes?
+Supplement your application with additional information, such as relevant legal or policy documents.
+
+
+
+
+
+
+
+
+
+
+
+
+
+Overview
+The Display API contains a set of HTTP-based APIs that your product can use to display a TikTok creator's videos and their profile information.
+
+Your platform's influencers can display their TikTok profile identities and videos to enrich content, attract more audiences, and enable their followers to view their TikTok videos without leaving your platform.
+
+Components
+Display API has three major APIs: /v2/user/info/, /v2/video/list/, and /v2/video/query/.
+
+/v2/user/info/: Get a TikTok user's basic profile information. This includes the user's open_id, avatar_url, display_name, profile_deep_link, and bio_description.
+
+/v2/video/list/: Get the metadata of a TikTok user's recently uploaded videos.
+
+/v2/video/query/: Get the metadata of TikTok a user's videos filtered by video Id.
+
+Permissions
+video.list: Read a user's public videos on TikTok.
+user.info.basic: Read a user's profile info (open id, avatar, display name, ...).
+Example Use Cases
+Display User's TikTok Profile
+Use the /v2/user/info/ API to get a TikTok user's profile data and then display their TikTok identity. In this example, when a visitor clicks the profile_deep_link, they will be redirected to the creator's profile page on the TikTok app or website.
+
+
+
+Display User's Self-Selected TikTok Videos
+Use the /v2/video/list/ and /v2/video/query/ APIs to get the metadata of a TikTok user's videos and integrate an embedded video player into your product. In addition, you can design features to allow users to select their TikTok videos to present on their profile and enable their followers to watch the video in webview.
+
+
+
+Display User's Recent TikTok Videos
+Use the /v2/video/list/ and /v2/video/query/ APIs to get the metadata of a TikTok user's videos and integrate an embedded video player into your product. In addition, you can design features to allow users to show their recent TikTok videos on your platform.
+
+
+Next Steps
+Get Started with Display API
+
+
+
+
+
+
+
+
+
+
+
+
+Get Started
+This guide will show you how to get an authorization code and an access token in order to utilize the Display APIs. We will use the Display APIs to display a TikTok user's profile and videos on your platform.
+
+Before You Start
+You will need access to:
+
+A TikTok developer account on TikTok Developer Portal
+Approval for both a Login Kit and TikTok API products
+Granted user.info.basic and video.list scopes for your app
+A TikTok account with a few posted videos
+Authorization
+Get an Authorization Code
+Follow these documents to integrate with our login kit, and use your TikTok account to authorize and get an access token. You will need to set scope=user.info.basic,video.list.
+
+
+Web
+After following one of the tutorials to get user authorization, you will be able to get an authorization code that looks like the following:
+
+wFPH5DePZMb07BPJvpWi-WotFlq1ISzFYQBDb9S9CBUQkGZRGW3zOAbYzhGXkoYkFx-aDeph0hTFk3l6ngGYuoixRvvZBWV1e3Q_BFoBELY*0!6410
+
+Get an Access Token
+Follow this tutorial to use the authorization code to retrieve the user's access token and open id.
+
+{
+    "data": {
+        "access_token": "act.example12345Example12345Example",
+        "captcha": "",
+        "desc_url": "",
+        "description": "",
+        "error_code": 0,
+        "expires_in": 86400,
+        "log_id": "20220714041044010002007735002037040BAF34",
+        "open_id": "abcdefgh-1a2b-123c4-ab12-abc123abc1234",
+        "refresh_expires_in": 31536000,
+        "refresh_token": "rft.example12345Example12345Example",
+        "scope": "user.info.basic"
+    },
+    "message": "success"
+}
+
+Display User's TikTok Profile
+Design and build a UI to host the TikTok account profile.
+Call GET /v2/user/info/ API using access_token to get user profile information.
+Example request:
+
+curl -L -X GET 'https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name' \
+-H 'Authorization: Bearer act.example12345Example12345Example'
+Example response:
+
+{
+   "data":{
+      "user":{
+         "avatar_url":"https://p19-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/b17f0e4b3a4f4a50993cf72cda8b88b8~c5_168x168.jpeg",
+         "open_id":"723f24d7-e717-40f8-a2b6-cb8464cd23b4",
+         "union_id":"c9c60f44-a68e-4f5d-84dd-ce22faeb0ba1",
+         "display_name": "Tik Toker"
+      }
+   },
+   "error":{
+      "code":"ok",
+      "message":"",
+      "log_id":"20220829194722CBE87ED59D524E727021"
+   }
+}
+Parse the returned profile information and display it in your UI.
+
+Display User's Recent TikTok Videos
+Design and build your interface to encourage users to authorize displaying their most recent TikTok videos on your platform.
+Call POST /v2/video/list/ using the access token to get a list of a specified user's most recent videos. The returned videos are sorted by their creation time in descending order.
+Example request:
+
+curl -L -X POST 'https://open.tiktokapis.com/v2/video/list/?fields=id,title,video_description,duration,cover_image_url,embed_link' \
+-H 'Authorization: Bearer act.example12345Example12345Example' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+    "max_count": 20
+}'
+Example response:
+
+{
+    "data": {
+        "videos": [
+            {
+                "id": "7080213458555737986",
+                "title": "video 1",
+                "video_description": "Test video 1",
+                "duration": 2,
+                "cover_image_url": "https://p16-sign-sg.tiktokcdn.com/tos-alisg-p-0037/49b5eb2713004dfa429eab84566e~tplv-noop.image?x-expires=1657851434&x-signature=FjrSxXTCWpQUM57Ao2SNsoLtf%2B0%3D",
+                "share_url": "https://www.tiktok.com/@user_id/video/7080213458555737986?utm_campaign=tt4d_open_api&utm_source=awbx37vxswqcvsf6",
+                "embed_link": "https://www.tiktok.com/static/profile-video?id=7080213458555737986&hide_author=1&utm_campaign=tt4d_open_api&utm_source=awbx37vxswqcvsf6",
+            },
+            {
+                "id": "7080217258545735586",
+                "title": "video 2",
+                "video_description": "Test video 2",
+                "duration": 3,
+                "cover_image_url": "https://p16-sign-sg.tiktokcdn.com/tos-alisg-p-0037/49b5eb2713004dfa422dab84566e~tplv-noop.image?x-expires=1657851434&x-signature=FjrSxXTCWpQUM57Ao2SNsoLtf%2B0%3D",
+                "share_url": "https://www.tiktok.com/@user_id/video/7080217258545735586?utm_campaign=tt4d_open_api&utm_source=awbx37vxswqcvsf6",
+                "embed_link": "https://www.tiktok.com/static/profile-video?id=7080217258545735586&hide_author=1&utm_campaign=tt4d_open_api&utm_source=awbx37vxswqcvsf6",
+            },
+            ...
+        ],
+        "cursor": 1646883959000,
+        "has_more": true
+    },
+    "error": {
+        "code":"ok",
+        "message":"",
+        "log_id":"20220829194722CBE87ED59D524E727021"
+    }
+}
+Use the URLs in embed_link to open webviews and display videos as needed.
+Schedule background jobs to keep the access token up-to-date using Refresh Token. This will fetch and update the user's recent TikTok videos every 12 hours.
+Display User's Self-Selected TikTok Videos
+Design and build a UI to encourage users to bring their TikTok videos to your platform.
+
+Call POST /v2/video/list/ using an access token to get a list of user's videos. This part is the same as displaying a user's recent TikTok videos.
+Design the UI to display the videos with cover_image_url and duration.
+Allow the user to select videos to add to your app. After they complete their selection, save the metadata of the user's selected videos. Design the UI to present user's TikTok videos.
+The cover_image_url will expire after some time, so we need to call POST /v2/video/query/ to query the video metadata filtered by video_id.
+Example request:
+
+curl -L -X POST 'https://open.tiktokapis.com/v2/video/query/?fields=id,cover_image_url,embed_link' \
+-H 'Authorization: Bearer act.example12345Example12345Example' \
+-H 'Content-Type: application/json' \
+--data-raw '{
+    "filters": {
+        "video_ids": [
+            "7077642457847994444",
+            "7080217258529732386"
+        ]
+    }
+}'
+Example response:
+
+{
+    "data": {
+        "videos": [
+            {
+                "cover_image_url": "https://p16-sign-sg.tiktokcdn.com/tos-alisg-p-0037/c5e4394893164bbf90605100e8bdd45c~tplv-noop.image?x-expires=1657852284&x-signature=e%2FMfIsqpUUUoXBe0mXuz5wVdfhc%3D",
+                "id": "7077642457847994444",
+                "embed_link": "https://www.tiktok.com/static/profile-video?id=7077642457847994444&hide_author=1&utm_campaign=tt4d_open_api&utm_source=awbx37vxswqcvsf6",
+            },
+            {
+                "cover_image_url": "https://p16-sign-sg.tiktokcdn.com/tos-alisg-p-0037/49b5eb2713004cc2be8a429eab84566e~tplv-noop.image?x-expires=1657852284&x-signature=kNFfMCgOsal78%2BpX8alQooUpNbo%3D",
+                "id": "7080217258529732386",
+                "embed_link": "https://www.tiktok.com/static/profile-video?id=7080217258529732386&hide_author=1&utm_campaign=tt4d_open_api&utm_source=awbx37vxswqcvsf6",
+            }
+        ],
+        "cursor": 0,
+        "has_more": false
+    },
+    "error": {
+        "code":"ok",
+        "message":"",
+        "log_id":"20220829194722CBE87ED59D524E727021"
+    }
+}
+Open a web view with the url embed_link to consume the video on user clicks. Users can now view TikTok videos on your platform to know more about the author.
+
+
+
+
+
+Get User Info
+There is a migration plan related to this API. Learn more here.
+
+Overview
+The /v2/user/info/ endpoint returns some basic information for a given TikTok user.
+
+
+
+Query Videos
+Overview
+Given an authorized user and a list of video IDs, the /v2/video/query/ endpoint verifies that the videos belong to the user and returns video details. It can be used to refresh the given videos' cover image URL TTL. Up to 20 video IDs can be included per request.
+
+
+
+
+
+
+
+
+
+
+
+About Research Tools
+TikTok's Research Tools allow independent and academic researchers who work for a non-profit institution to access certain data, including the following information about public account owners.
+
+Videos - Videos configured to "Everyone" for who can watch, and for such videos, the total number of likes, total number of comments, voice-to-text, subtitles, the time of creation and video length.
+Comments - comment text, and total number of likes, replies, and the time the comment was posted.
+Accounts - bios, profile pictures, liked videos, reposted videos, pinned videos, the total number of followers and the number of people who are followed by the account. The response also returns information on the followers and people followed by the account.
+Research Tools support research in areas such as misinformation, disinformation, violent extremism, social trends, and community building. In order to obtain access to TikTok's Research Tools, researchers must submit an application, be approved, and adhere to our TikTok Research Tools Terms of Service.
+
+Additional information about TikTok's Research Tools can be found on TikTok for Developers.
+
+
+
+
+
+
+
+
+
+
+
+
+Getting Started
+This guide will show you how to use the Research API. Learn how to use the Research API to query video data and fetch public TikTok account data in the following use case example.
+
+View your client registration
+Once your application is approved, a research client will be generated for your project. You can view your approved research projects here. Select a project from the list to see the research client details.
+
+The provided Client key and Client secret are required to connect to the Research API endpoints. The client key and secret are hidden by default but can be displayed by clicking the Display button (eye icon).
+
+The client secret is a credential used to authenticate your connection to TikTok's APIs. Do not share this with anyone!
+
+Obtain a client access token
+Once you have obtained the client key and secret for your project, generate a client access token. Add this access token in the authorization header of the http requests to connect to the Research API endpoints.
+
+Query TikTok public content data
+The cURL command below shows an example of how you can query the TikTok ID and like count of videos created in the US or Canada with the keyword hello world in the video description.
+
+ 
+curl -X POST \
+  'https://open.tiktokapis.com/v2/research/video/query/?fields=id,like_count' \
+  -H 'authorization: bearer clt.example12345Example12345Example' \
+  -d '{ 
+          "query": {
+              "and": [
+                   { "operation": "IN", "field_name": "region_code", "field_values": ["US", "CA"] },
+                   { "operation": "EQ", "field_name": "keyword", "field_values": ["hello world"] }
+               ]
+          }, 
+          "start_date": "20220615",
+          "end_date": "20220628",
+          "max_count": 10
+}'
+Query condition
+Similar to the WHERE clause in SQL, a condition can be used to filter data returned in a query operation. The above request is equivalent to the following SQL query:
+
+ SELECT id,like_count FROM video_table WHERE region_code IN ["US", "CA"] AND create_date > 20220615
+
+
+
+
+
+
+
+
+
+
+Note: approximate string matching (or fuzzy string searching) is used to match conditions.
+
+field_name
+The following are the field_name values:
+
+keyword
+create_date
+username
+region_code
+video_id
+hashtag_name
+music_id
+effect_id
+video_length
+operation
+The following are the operation values:
+
+IN: Tests if an expression matches any value in a list of values.EQ: Tests if an expression matches the specified value.GT: Tests if an expression is strictly greater than the specified value.GTE: Tests if an expression is greater than or equal to the specified value.LT: Tests if an expression is strictly less than the specified value.LTE: Tests if an expression is less than or equal to the specified value.
+
+AND, OR or NOT
+Conditions are grouped by the following boolean operators:
+
+AND: Displays a record if all the conditions separated by AND are TRUE.OR: Displays a record if any of the conditions separated by OR is TRUE.NOT: Displays a record if all the conditions separated by NOT are FALSE.
+
+Pagination
+If the total number of videos that match the query criteria is larger than the max number of videos that can be returned in a single request, the response data will be returned with different requests.
+
+
+
+
+
+
+
+
+First page
+When you send the first request, you do not need to set the search_id or cursor in the request body. In the http response, cursor and search_id are returned, which are used in the subsequent requests.
+
+Try out this request:
+
+curl -X POST \
+  'https://open.tiktokapis.com/v2/research/video/query/?fields=id,like_count' \
+  -H 'authorization: bearer clt.example12345Example12345Example' \
+  -d '{ 
+          "query": {
+              "and": [
+                   { "operation": "IN", "field_name": "region_code", "field_values": ["US", "IN"] },
+                   { "operation": "GT", "field_name": "hashtag_name", "field_values": ["hello"] }
+               ]
+          }, 
+          "start_date": "20220615",
+          "end_date": "20220628",
+          "max_count": 10
+}'
+The following example data is returned from the response.
+
+{
+    "data": {
+        "cursor": 10,
+        "has_more": true,
+        "search_id": "7160776277492814854",
+        "videos": [
+            ...
+        ]
+    },
+    "error": {
+        ...
+    }
+ }
+Next page
+With the cURL command below, you can get the next page of query results.
+
+curl -X POST \
+  'https://open.tiktokapis.com/v2/research/video/query/?fields=id,like_count' \
+  -H 'authorization: bearer clt.example12345Example12345Example' \
+  -d '{ 
+          "query": {
+              "and": [
+                   { "operation": "IN", "field_name": "region_code", "field_values": ["US", "IN"] },
+                   { "operation": "GT", "field_name": "hashtag_name", "field_values": ["hello"] }
+               ]
+          }, 
+          "max_count": 10,
+          "cursor": 10,
+          "start_date": "20220615",
+          "end_date": "20220628",
+          "search_id": "7160776277492814854",
+}'
+The following example data is returned from the response.
+
+{
+    "data": {
+        "cursor": 20,
+        "has_more": true,
+        "search_id": "7160776277492814854",
+        "videos": [
+            ...
+        ]
+    },
+    "error": {
+        ...
+    } 
+}
+Query TikTok public account information
+With the cURL command below, you can query public TikTok account information by a TikTok handle.
+
+curl --location --request POST 'https://open.tiktokapis.com/v2/research/user/info/?fields=display_name,bio_description,avatar_url,is_verified,follower_count,following_count,likes_count,video_count' \
+--header 'Authorization: bearer {{access_token}}' \
+--header 'Content-Type: text/plain' \
+--data-raw '{
+    "username": "joe1234567"
+}'
+
+
+
+
+
+
+The following example data is returned from the response.
+
+
+{
+    "data": {
+        "username": "joe1234567",
+        "video_count": 64,
+        "avatar_url": "https://my-awesome-avatar",
+        "display_name": "joe 1234567",
+        "follower_count": 111,
+        "likes_count": 4146,
+        "bio_description": "joe joe",
+        "following_count": 103,
+        "is_verified": false
+    },
+    "error": {
+        ...
+    }
+}
+
+
+
+
+
+
+
+
+Embed Player
+Introduction
+This embedded player consists of a TikTok post hosted inside of an inline frame (iframe) element. This player allows you to do the following:
+
+Customize the player by appending query parameters in the iframe URL. For example, you can display the music information of this video using the "description" parameter, or you can hide the video controls using the "controls" parameter.
+Control the player by messaging the HTML host to enable functionality like playing, pausing, muting, and more.
+See more on the custom options and messaging communication below.
+
+Get started
+First locate the TikTok post you want to embed in the player. The post URL follows this structure: www.tiktok.com/player/v1/{tiktok_post_id}.
+
+View the following example: https://www.tiktok.com/player/v1/6718335390845095173
+
+
+You can find the TikTok post ID on from the post URL. For example, 6718335390845095173 is the post ID from the URL https://www.tiktok.com/@scout2015/video/6718335390845095173
+
+Customize the player
+You can customize the player by choosing which playback interface elements should be hidden or displayed.
+
+For example, this URL displays the TikTok post's music info and the description: https://www.tiktok.com/player/v1/6718335390845095173?music_info=1&description=1
+
+
+
+
+Message the HTML host
+The HTML host communicates with the iframe embedded video page through the Window::postMessage method, where the message body is defined as follows:
+
+interface EmbeddedPlayerMessage<T> {
+  'x-tiktok-player': boolean; // Lets you know that this is an embed message.
+  value: T;
+  type: string; // Defines the message types below. 
+}
+
+
+
+
+
+
+Code example
+<html>
+<body>
+
+<h1>The iframe element</h1>
+
+<form action="javascript:seekTo(to)">
+  <label for="fname">Jump to (seconds)</label><br>
+  <input type="text" id="to" name="to" value="20"><br>
+</form>
+
+<iframe height="300" width= "400" src="https://www.tiktok.com/player/v1/6718335390845095173?&music_info=1&description=1" allow="fullscreen" title="test"></iframe>
+<br />
+
+<script>
+  // Receive messages 
+        window.addEventListener('message', (event) => {
+    // do something
+  });
+
+  // Send messages
+  function seekTo(to) {
+    const iframe = document.querySelector("iframe");
+    iframe.contentWindow.postMessage({type: "seekTo", value: Number(to.value), "x-tiktok-player": true}, '*');
+  }
+</script>
+
+</body>
+</html>
+
+
+
+
+
+Introduction
+Embedded Videos enable TikTok videos to be embedded into your articles or websites. This helps to foster storytelling, and provides proper attribution by showing the video creator, video description and background sound in the form of TikTok's custom player. It also links back to the corresponding content on TikTok.
+
+Embed from TikTok.com
+Follow these steps to get the embed code from a TikTok video:
+
+Open the video webpage on tiktok.com
+Example video webpage
+You must open this webpage in the browser from a non-mobile surface
+Click the Share button (right-facing arrow icon), and then click Embed
+From the popup window, simply copy and paste the code into the destination webpage, where you wish to attach the video. Voilà, the embedded video will automatically load on the page.
+
+Embedded videos support volume control during playback and provide recommended videos at the end of each playback.
+
+All buttons and texts on the embedded video are interactive. By tapping on them, the user will be linked directly to the corresponding content page on tiktok.com. The "Discover more on TikTok" button at the bottom of the embedded card will either link users to the Trending Page if the user is browsing on desktop, or deeplink users to the TikTok product page on the App Store / Google Play if browsing on a mobile device.
+
+A video's availability is consistent in and outside the TikTok app, as moderation standards and results are applied to both in-app content and embedded content. For example, if a video has been removed from the TikTok app, the same video in its embedded form on the web will no longer be accessible.
+
+Note: Some browsers in CN will forbid the use of TikTok's custom player and show the default player provided by the browser.
+
+Embedded for developers
+Programmatically, you may convert a TikTok's video URL into embedded video markup by using the oEmbed API. It allows you to get the embed code and additional information about the video associated with the webpage link provided.
+
+
+
+
+
+
+
+
+
+Response
+
+The response format follows the specification of https://oembed.com/, please check it out for more details.
+
+Example
+Request URL
+
+https://www.tiktok.com/oembed?url=https://www.tiktok.com/@scout2015/video/6718335390845095173
+Response Data
+
+{
+  "version": "1.0",
+  "type": "video",
+  "title": "Scramble up ur name & I’ll try to guess it😍❤️ #foryoupage #petsoftiktok #aesthetic",
+  "author_url": "https://www.tiktok.com/@scout2015",
+  "author_name": "Scout & Suki",
+  "width": "100%",
+  "height": "100%",
+  "html": "<blockquote class=\"tiktok-embed\" cite=\"https://www.tiktok.com/@scout2015/video/6718335390845095173\" data-video-id=\"6718335390845095173\" data-embed-from=\"oembed\" style=\"max-width: 605px;min-width: 325px;\" > <section> <a target=\"_blank\" title=\"@scout2015\" href=\"https://www.tiktok.com/@scout2015?refer=embed\">@scout2015</a> <p>Scramble up ur name & I’ll try to guess it😍❤️ <a title=\"foryoupage\" target=\"_blank\" href=\"https://www.tiktok.com/tag/foryoupage?refer=embed\">#foryoupage</a> <a title=\"petsoftiktok\" target=\"_blank\" href=\"https://www.tiktok.com/tag/petsoftiktok?refer=embed\">#petsoftiktok</a> <a title=\"aesthetic\" target=\"_blank\" href=\"https://www.tiktok.com/tag/aesthetic?refer=embed\">#aesthetic</a></p> <a target=\"_blank\" title=\"♬ original sound - 𝐇𝐚𝐰𝐚𝐢𝐢𓆉\" href=\"https://www.tiktok.com/music/original-sound-6689804660171082501?refer=embed\">♬ original sound - 𝐇𝐚𝐰𝐚𝐢𝐢𓆉</a> </section> </blockquote> <script async src=\"https://www.tiktok.com/embed.js\"></script>",
+  "thumbnail_width": 720,
+  "thumbnail_height": 1280,
+  "thumbnail_url": "https://p16.muscdn.com/obj/tos-maliva-p-0068/06kv6rfcesljdjr45ukb0000d844090v0200010605",
+  "provider_url": "https://www.tiktok.com",
+  "provider_name": "TikTok"
+}
+
+
+
+
+
+
+
+
+
+
+Introduction
+Creator Profile Embed allows TikTok creator profiles to be embedded into your articles or websites. With this tool you can showcase an overview of a creator's presence on TikTok, including the number of users who follow that creator, the number of users that creator follows, and the number of likes that creator has received across all of their TikTok videos. The embedded creator profile also contains a selection of up to ten of the creator's most recent videos. Like embedded videos, most of the components in an embedded creator profile link back to the corresponding pages on TikTok.com or the app.
+
+Private and underage accounts
+Private accounts and underage accounts cannot be embedded. In these cases, the share icon will be grayed out and won't be interactive. Accounts which are later set as "private" on TikTok will be shown as private on the embed profile card as well, as are underage accounts. Users who have not yet set their age in their TikTok profile are shown as private by default.
+
+Embed from TikTok.com
+You can get the embed code by visiting the creator's profile page on TikTok.com. Click the share icon and select "Embed" from the dropdown.
+
+
+See https://www.tiktok.com/@scout2015 to see this embed workflow
+
+Once you have clicked on this button, a popup card will appear with the embed code. Click "Copy code" to copy the entire embed code to your clipboard and paste it where you wish to display the creator profile card. The embedded profile card will automatically show up on your page.
+
+
+
+Creator Profile Embed can support a wide variety of screens. Videos will automatically play when moused over on desktop or when on-screen on mobile and can be scrolled to the side.
+
+
+
+
+
+
+
+
+Most of the components on the embedded creator profile are interactive. By clicking or tapping on them, the user will be linked directly to the corresponding content page on TikTok.com or the app. The "Open TikTok" button at the bottom of the embedded profile card will link users to the creator’s profile page, as will the avatar, username, metrics, and user description. Video cards contained within the embedded creator profile link to their respective videos in the webpage or the app.
+
+The same moderation standards apply to both in-app and embedded content. For example, if a video has been removed from the TikTok app, the same video in its embedded form on the web will no longer be accessible.
+
+Note: Some browsers in China will forbid the use of TikTok's custom player and show the default player provided by the browser.
+
+Embed for developers
+Programmatically, you may convert a TikTok creator profile URL into embedded markup by using the oEmbed API. It allows you to get the embed code and additional information about the creator profile associated with the webpage link provided.
+
+
+
+
+Response
+
+The response format follows the specification of https://oembed.com/, please check it out for more details.
+
+Example
+Request URL
+
+https://www.tiktok.com/oembed?url=https://www.tiktok.com/@scout2015
+Response Data
+
+{
+  "version":"1.0",
+  "type":"rich",
+  "title":"Scout, Suki & Stella's Creator Profile",
+  "author_url":"https://www.tiktok.com/@scout2015",
+  "author_name":"Scout, Suki & Stella",
+  "width":"100%",
+  "height":"100%",
+  "html":"<blockquote class=\"tiktok-embed\" cite=\"https://www.tiktok.com/@scout2015\" data-unique-id=\"scout2015\"  data-embed-type=\"creator\" style=\"max-width: 720px; min-width: 288px;\" data-embed-from=\"oembed\"> <section> <a target=\"_blank\" href=\"https://www.tiktok.com/@scout2015?refer=creator_embed\">@scout2015</a> </section> </blockquote> <script async src=\"https://www.tiktok.com/embed.js\"></script>",
+  "provider_url":"https://www.tiktok.com",
+  "provider_name":"TikTok"
+}

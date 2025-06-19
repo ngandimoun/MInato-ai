@@ -3,14 +3,14 @@
 
 import React, { createContext, useContext, useState } from "react";
 import { motion } from "framer-motion";
-import { MessageSquare, Settings, Brain, Bell, ShoppingBag } from "lucide-react"; // Added ShoppingBag icon
+import { MessageSquare, Settings, Brain, Bell, ShoppingBag, FileText } from "lucide-react"; // Added FileText icon
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button"; 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { NotificationsPanel } from "@/components/ui/notifications-panel";
 import { useAuth } from "@/context/auth-provider"; // Optional for user info
 
-type View = "chat" | "settings" | "memory" | "dashboard"; // Added dashboard view
+type View = "chat" | "settings" | "memory" | "dashboard" | "living-dossier"; // Added living-dossier view
 
 interface HeaderProps {
   currentView: View;
@@ -72,7 +72,8 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
   const navItems: { id: View; icon: React.ReactNode; label: string }[] = [
     { id: "chat", icon: <MessageSquare size={20} />, label: "Chat" },
     { id: "memory", icon: <Brain size={20} />, label: "Memory" },
-    { id: "dashboard", icon: <ShoppingBag size={20} />, label: "Dashboard" }, // Added Dashboard nav item
+    { id: "dashboard", icon: <ShoppingBag size={20} />, label: "Dashboard" },
+    { id: "living-dossier", icon: <FileText size={20} />, label: "Dossier" },
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },
   ];
 

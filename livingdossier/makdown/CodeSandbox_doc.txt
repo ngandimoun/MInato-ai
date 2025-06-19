@@ -1,0 +1,1525 @@
+Instant dev environments.
+
+CodeSandbox provides instant development environments that get you up and running quickly and keep you in flow.
+
+We provide dozens of templates to start from or the option to import your own repository or Sandbox.
+
+The code can run on either the browser or in a virutal machine (VM).
+
+
+VM Sandboxes
+VM Sandboxes are powerful and versatile. Offering support for a wide range of languages and frameworks, they're built to scale as your project grows. Learn more about VM Sandboxes and VM runtimes on the VM Sandboxes page.
+
+To use CodeSandbox for cloud development with a strong GitHub integration, we recommend using Repositories.
+
+
+
+Browser Sandboxes
+Browser Sandboxes are ideal for prototyping and sharing code snippets. When using Browser Sandboxes, your code is evaluated and run in our built-in execution environment. These client environments run entirely inside your browser and will continue to bundle your code even when you lose your connection to our servers.
+
+Browser Sandboxes each have their own bundler attached to them, which is configured to support a specific framework and emulate their official CLI tools. They are not one-to-one implementations and thus do not support advanced configurations like custom webpack configurations or ejecting. However, they are designed to mirror the default behavior of the framework.
+
+
+Editors
+Both VM & Browser Sandboxes run on a version of VS Code for the web. You can learn more about the editor on the Editors page.
+
+
+
+
+CodeSandbox Repositories
+CodeSandbox allows you to instantly spin up a cloud development environment for any branch in your GitHub repository. It has a focus on speed and collaboration and allows you to create a workspace to be experienced by multiple people at the same time.
+
+Tailored for your project
+Much like VM Sandboxes, repositories are run in CodeSandbox VMs that enhance productivity and make overall development more accessible for developers of all levels.
+
+
+Integrated with source control
+CodeSandbox brings a unique approach to cloud development by giving a dedicated VM to every branch, which can be shared with a URL. This means that you can share your branch and it will always be running, even if you’re offline.
+
+This feature is specially useful when you’re working on a branch and need to quickly review a PR. Don't worry about stashing, running yarn install, or rolling back migrations on your current branch. Just open the PR in a new window and start reviewing!
+
+
+A running environment in seconds
+When you press Create Branch, we automatically create a new branch and set up a development environment with running dev servers within a few seconds by cloning the VM you branch from. You can read more about how this works in our blog.
+
+If you are looking at someone’s PR and want to quickly test a suggestion, simply click Create Branch, write the code and share a link to your changes. If you’re happy with the changes, merge that into the existing PR. All of this in under a minute.
+
+
+Understanding repository imports
+CodeSandbox handles imported repositories on a per-workspace basis. This means that the changes made to a repository in one workspace will only be visible to users within that workspace until those changes are synced with GitHub.
+
+Because of the repository access permissions within a workspace, the following scenarios apply:
+
+When a repository gets imported to a workspace, that version of the repo can only be accessed by the workspace team members.
+When a repository gets opened as a public repo, the user opening it will get the public version of the repo, which is a standalone, read-only version that might not match up with a version of the same repo that has been imported to a workspace.
+
+
+At any given time, you can switch through the different available versions of the CodeSandbox repository by clicking the chevron icon next to the repo name on the top bar of the editor and then selecting a workspace under "Change workspace", as shown below.
+
+
+
+Import a repository
+If you haven't already imported a repository, you can do so by navigating to the Recent page in the dashboard and clicking + Repository.
+
+If you have already granted GH OAuth permissions, you will see a list of GitHub organizations that you are a part of. Select the organization containing the repository that you want to import and select the desired repo. If you don't see your repository, you may need to insert the GitHub URL into the input field (e.g. “codesandbox/test-sandbox”).
+
+
+OAuth permissions allow CodeSandbox to list the repositories you have access to as well as permissions to execute git actions that allow the editor to stay up-to-date as you code.
+The first time you import a repo can take a while. During the first time setup, we clone the repository into the VM and set up the folders for the project. However, after this setup, we will create a memory snapshot of the VM, which will ensure that all the following VM loads (& clones!) will be fast.
+
+At this stage, you will have the main branch of your repository imported into CodeSandbox. But before we dive into the environment setup, let's use the next chapter to look at how we handle branching.
+
+
+
+Repository & workflow setup
+Branching flow
+CodeSandbox has an opinionated flow when it comes to working with repositories, and you can see hints of this in the editor.
+
+As soon as you enter the editor, you will see the current branch name in the header. Every branch has its own VM and is available through a unique URL. For example, if two people visit the URL for the main branch, they will be able to see each other's cursor, terminals and DevTools.
+
+URLs for branches are predictable. So, if you want to open a specific branch, you can update the URL with the new branch name, and we'll import & create an environment for that branch automatically.
+
+
+On CodeSandbox, the main branch is protected by default. This means that it's read-only and will sync automatically with the branch on GitHub when new commits come in.
+
+To write some code, you have three options:
+
+(Recommended) Just start typing some code - we will create a new branch for you using seamless branching!
+Click the “Branch” button in the header.
+Toggle protection off for the main branch.
+
+
+When we create the new branch, we create a clone of the main VM and switch it to the new branch. This new VM is an exact copy of the original VM, down to the memory contents. Because of this, processes like dev servers are already started in the cloned VM.
+
+Tip: you can start a Postgres database on the main branch, seed some data in it, and then every new branch created from main will have that data available.
+
+
+Environment setup
+If this is your first time setting up this repository in CodeSandbox, you should notice an onboarding tool in the DevTool window. We highly recommend completing the setup steps, but if for any reason, you don't finish and want to find this tool again, you can see the option to resume these steps by accessing this button in the devtool menu.
+
+About the environment setup
+When you run your repository in CodeSandbox, you are running it on a micro virtual machine (microVM). This means that we need some basic configuration to set the environment in which your repository will run. To do this, we take advantage of the open-source Development Containers.
+
+In this section, we will walk through how to identify the best environment for your project and explain how each of the steps work together to create an automatic setup process for everyone accessing your repository in the future.
+
+
+Step 1: Select the environment
+When importing a repository for the first time, CodeSandbox will examine the files in the repo to determine the environment that it is running on. CodeSandbox will also check to see if the repository has pre-existing configuration files that can be used to run the repository.
+
+Based on the findings, you will see a few options to choose from.
+
+The auto-detected environment is a Dev Container template that is likely to work for your repository. If you want to configure your own Dev Container, you can use our Dev Container wizard to select a template and add features as needed to customize your Dev Container image.
+
+
+Step 2: Select setup tasks
+Setup tasks are a list of terminal commands that run when a VM boots or when a new commit comes in on a protected branch (like main). In this setup, you can select which terminal commands you would like to automatically run when booting a VM. By setting these tasks, you'll ensure that the environment works by default. Other developers won't have to figure out what setup to do, or what commands to run to get started.
+
+Tasks are not started as your user, but by a global user named pitcher-host.
+
+
+In this example, we auto-detected yarn install as a likely command from the package.json file.
+
+A run command is the terminal command to run the project–in this case, we will run yarn run dev to spin up the dev process.
+
+During the final step, this setting will generate a tasks.json file. There are many more ways to use this file for advanced configuration that are described on the Tasks page.
+
+
+
+Step 3: Set environment variables
+
+Several repositories require setting environment variables—either to connect to an external service or as the configuration of the environment itself.
+
+These environment variables will be encrypted and stored in our database. After you've set the environment variables, they will be available for any branch in the repository after a restart.
+
+You can learn more about our environment variable support under Secrets.
+
+Tip: If there is a .env.example file in the repository, this step will reference the variable names to help you determine which variables should be added.
+
+
+Step 4: Run your setup
+In this step, you can review your setup steps and make changes before running the environment. Once you have run your setup steps, you should see some new files added to your branch. After you have read through the files and adjusted the final details, you are ready to commit your changes and create your first PR.
+
+You can do this either by clicking “Create PR” in the header or by committing from the Git panel in the sidebar.
+
+New branches are not automatically created on GitHub. We only push the branch to GitHub when you create a commit or rename the branch.
+
+
+
+Git workflow
+Terminal
+When working locally, you likely use the terminal to interact with Git. On CodeSandbox, Git commands will work as expected with two exceptions, changing and renaming the branch.
+
+Each branch runs on its own virtual machine (VM). So instead of checking out a branch within the same VM, when you change a branch on CodeSandbox, we will navigate you to the branch running on its respective VM.
+
+However, if you currently use git checkout to update your branch from target, you will need to conform to the following:
+
+If you use checkout with rebase you should use the following command instead: git rebase origin/main my-current-branch. This is a more efficient way and bypasses the need for a checkout
+If you use merge you should use the upper left pill in the UI which appears automatically when you are behind your target
+If you need to rename the branch, please double click the name in the topbar and change it there.
+
+
+Source Control panel
+After you have made some changes to your code and saved them (⌘ + S or Ctrl + S), you will notice a notification next to the git icon on the left sidebar.
+
+Clicking that icon or using ⌃ ⇧ G or Ctrl + ⇧ + G reveals the Source Control panel, which will contain a list of your previous commits, as well as all uncommitted changes.
+
+
+New branches are not automatically created on GitHub. We only push the branch to GitHub when you create a commit or rename the branch.
+
+
+Committing changes
+Above the "Commit" button, you will find a text field where you can input a commit message. Then, when you click the "Commit" button, we commit the changes to the branch. Finally, when you click "Sync changes", the commit will sync to GitHub.
+
+You can also commit changes using the terminal. This is especially useful if you're working with a repository from GitLab or another non-GitHub git provider, as our git panel currently only supports GitHub repos.
+
+
+Creating a pull request
+After you have committed some changes, you can create a pull request, either using the "Create PR" button at the top right of the editor, or clicking on the "Create Pull Request" icon shown at the top of the Source Control panel.
+
+Then, you will be redirected to GitHub, where you will be able to add the final details of the PR.
+
+The left sidebar also contains a "GitHub Pull Requests" panel that allows you to create, view and manage PRs.
+
+
+Reviewing a PR
+CodeSandbox has a unique set of features that improve the PR review process.
+
+Setting this up requires some additional one-time configuration, so see more details about this setup and workflow on the code reviews page.
+
+
+
+Deployment Previews & GitHub App
+Now that you've configured your repository to work in CodeSandbox, we highly recommend that you also configure deployment previews.
+
+With deployment previews, CodeSandbox automatically adds a link to every PR you open, allowing anyone with access to the repo to open the PR on a preloaded development environment running in CodeSandbox. This is great for reviewing changes, testing the application, or quickly making changes to a PR.
+
+
+
+To enable deployment previews, you need to install the CodeSandbox GitHub App. You can do this by opening the command palette (⌘/Ctrl + Shift + P) and selecting “Install GitHub App”.
+
+After you've gone through the install steps, you should automatically get deployments for new PRs with a link to both the preview (if configured through tasks) and the development environment!
+
+There are more advantages to using the CodeSandbox GitHub App, like automatic dashboard syncing. You can learn more about this under GitHub App.
+
+
+
+
+VS Code Configuration
+CodeSandbox supports opening branches in VS Code Desktop. When you open the branch inside VS Code, you will have access to your own extensions, keybindings and themes.
+
+VS Code Desktop also has live collaboration. This means that you'll be able to work together with someone who has the same branch open inside the web editor.
+If you want to configure default VS Code extensions to be installed for your repository, you can create a new file called .vscode/recommendations.json.
+
+This is an example of how this file could look like:
+
+{
+  "recommendations": ["esbenp.prettier-vscode", "dbaeumer.vscode-eslint"]
+}
+When someone opens this VM in VS Code, we'll make sure that the extensions are preinstalled.
+
+
+
+When someone opens this VM in VS Code, we'll make sure that the extensions are preinstalled.
+
+If you want to have some personal extensions available in any CodeSandbox branch, you can update your own VS Code settings to reflect this. In your VS Code settings (we recommend opening the JSON version by clicking on the File icon in the top left), you can add these settings, for example, to automatically install these extensions when connecting to a VM:
+
+  "remote.SSH.defaultExtensions": [
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "GitHub.vscode-pull-request-github",
+    "GitHub.copilot",
+    "eamodio.gitlens"
+  ]
+
+
+
+Troubleshooting
+Permission errors while importing a project
+Verify your team's permission to open CodeSandbox Repositories.
+
+Verify your repository permissions on GitHub. You need to have write permission on GitHub to be able to import the project. Repositories where you only have read access can only be forked.
+
+Verify your GitHub permissions. CodeSandbox requires full git access to be able to import and commit. If you face any authentication errors, follow the steps listed below to reset your GitHub permissions.
+
+Resetting GitHub permissions
+Go to the Dashboard.
+
+Click on your avatar at the top right of the screen.
+
+Click on User Settings.
+
+
+
+Drafts
+Workspace members have access to a personal Sandbox drafts section in every workspace to which they belong. Drafts are intended to provide a space to test ideas before sharing them with the workspace.
+
+Drafts are the default location for all newly created Sandboxes. A location for a new Sandbox can be selected on creation or any time after the Sandbox has been created.
+
+Drafts inherit the default privacy specified in the workspace settings. By default, Sandboxes are created as public. However, if the workspace settings restrict the creation of public Sandboxes, drafts will be created as private.
+
+The drafts folder displays Sandboxes created by you, they can be shared with others according to their privacy setting. If you want the Sandbox to be easily discoverable by other workspace members, it is recommended to move the Sandbox out of drafts.
+
+
+
+
+
+Templates
+What are Templates?
+Templates are starting points for development environments that you create through CodeSandbox. When you pick a template, you create a fork of the original project. Forked templates are already set up with the configuration, file structure and installed dependencies. So you don't have to spend time doing this each time you begin working on something new. They are easily accessible from the "Create" modal.
+
+From the modal, CodeSandbox offers several official templates for several different programming languages.
+
+You can also create your own custom templates from your projects. So you can fully customize your development start points for your particular use case and preferences. Once a custom template has been created, you can use it to start new projects through the "Create" modal. Custom templates can also be added to workspaces so members can use them. Any custom templates you can access can be found in the Templates folder or under 'Workspace Templates' within the modal.
+
+How to make a custom template
+There are a few ways to create a template, but the main way is from within the "Sandbox Info" panel inside the editor. When viewing one of your Sandboxes, expand the "Sandbox Info" panel on the left. You will then see an edit icon in line with the "Sandbox Info" header. Just click the icon and then check the 'Template' box in the settings pane that opens on the right of the editor.
+
+You can also rename and set a description for the template from this interface, as well as configure the template privacy options. Private and Unlisted Templates are only available for Pro subscribers.
+
+
+
+
+You can also create templates from the Dashboard. You can do this by either dragging and dropping a Sandbox from any folder into "Templates" or using the right-click menu and selecting Make Sandbox a Template.
+
+The Templates folder will only appear once you have created your first custom template.
+
+Using Templates
+After you've made your first custom template, there are a few places from which you can access and use them. First, inside the "Create a Sandbox" modal, you will see a list of your templates under Workspace Templates. Clicking on one of these will fork the template and open it in the editor.
+
+
+
+
+You can also find all of your templates under the Templates folder on the Dashboard. Clicking on any of the templates in this folder will open it in the editor.
+
+Editing Templates
+When you first create a template it will be fully editable to allow you to quickly make any required changes. Once you're happy with the template, just open up the 'Template Info' settings using the instructions above. Then, check 'Frozen' and reload the page to prevent further changes. In order to make further changes to a template, you just need to uncheck 'Frozen' and reload the page again.
+Any time you try to save a change to a frozen template, it will automatically fork into a new environment.
+
+The 'Template Info' panel is in the same position as the 'Sandbox Info' panel prior to conversion.
+
+
+
+Deleting Templates
+There are a few ways in which you can "delete" a template. From the "Template Info" panel inside the editor, you can uncheck 'Template'. Doing this will convert the template back to a regular Sandbox and remove it from the "Create" modal.
+
+You can then delete the Sandbox from your Dashboard as you would normally.
+
+Alternatively, you can use the 'right click' template's options menu inside the Templates folder folder to select Convert to Sandbox.
+
+
+
+
+
+Create Sandboxes with the CLI & API
+This guide will show you how to create sandboxes using the CLI & API.
+
+CodeSandbox CLI
+You can import a local project into CodeSandbox by using our CLI.
+
+To install our CLI, run npm install -g codesandbox. Then import a project by running codesandbox {directory}.
+
+Example usage
+$ npm install -g codesandbox
+$ codesandbox ./
+
+
+
+Define API
+We offer an API that allows you to programmatically create a sandbox. This is useful for documentation, enabling you to generate a sandbox on the fly from code examples. You can call the endpoint https://codesandbox.io/api/v1/sandboxes/define both with a GET and with a POST request.
+
+Supported Parameters
+We currently support three extra parameters. The query accepts the same options as the embed options.
+
+
+
+How it works
+The API only needs one argument: files. This argument contains the files that will be contained in the sandbox.
+
+An example body would be:
+
+{
+  "files": {
+    "index.js": {
+      "content": "console.log('hello!')",
+      "isBinary": false
+    },
+    "package.json": {
+      "content": {
+        "dependencies": {}
+      }
+    }
+  }
+}
+
+
+
+
+Binary Files
+You can import binary files by setting isBinary to true and content as a URL to the file hosted externally. For example:
+
+{
+  "isBinary": true,
+  "content": "https://..."
+}
+
+
+
+
+Folders
+You can create folders by naming the file with a / in its name, allowing you to structure your application as you prefer:
+
+{
+  "files": {
+    "src/index.js": {
+      "content": "console.log('hello!')",
+      "isBinary": false
+    },
+    "package.json": {
+      "content": {
+        "dependencies": {}
+      }
+    }
+  }
+}
+
+
+
+
+
+This will create a file called index.js in your src folder.
+
+GET Request
+It's quite difficult to send the JSON parameters with a GET request. There is a chance of unescaped characters and the URL hits its limit of ~2000 characters quickly. That's why we first compress the files to a compressed lz-string. We offer a utility function in the codesandbox dependency for this. The implementation looks like this:
+import { getParameters } from 'codesandbox/lib/api/define';
+ 
+const parameters = getParameters({
+  files: {
+    'index.js': {
+      content: "console.log('hello')",
+    },
+    'package.json': {
+      content: { dependencies: {} },
+    },
+  },
+});
+ 
+const url = `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}`;
+
+
+POST Form
+You can do the exact same steps for a POST request, but instead of a URL, you'd show a form. With a POST request, you can create bigger sandboxes.
+
+
+
+Define without render
+If you want to define a new sandbox without getting it rendered, you can add ?json=1 to the request. For instance, https://codesandbox.io/api/v1/sandboxes/define?json=1. Instead of the render, the result will be JSON data providing you with the sandbox_id of the new sandbox.
+
+This is useful, for instance, if you need to create a new sandbox programmatically, so you can then embed it on your site (see Embed documentation).
+
+Both GET and POST requests are supported.
+
+
+
+XHR Request
+You can also create a sandbox using an XHR request, like using fetch. An example sandbox is
+
+
+
+
+Import Single Components
+You can import a local component into CodeSandbox by using our other CLI.
+
+You can install our CLI by running npm install -g codesandboxer-fs. Then you can export a project by running codesandboxer {filePath}.
+
+$ npm install -g codesandboxer-fs
+$ codesandboxer docs/examples/my-single-component.js
+This will print out the ID of a sandbox that does nothing but render the targeted component, along with a link to that sandbox. This will also bundle in other local files used by the component to ensure render.
+
+
+
+
+
+Import Using Codesandboxer
+Codesandboxer imports a single file from a git repository, along with supplemental files and dependencies.
+
+Using this creates an easy way to upload an example instead of an entire git repository. This enables you to easily share examples with others, or to link to editable versions of examples from a documentation website. React-codesandboxer is the main version, but there are also versions for VS Code, Atom, and BitBucket.
+
+
+
+How it works
+Below the surface, react-codesandboxer fetches the files it needs from GitHub or BitBucket, using a single file that will be rendered as the 'example' as an entry point, then uses the Define API to upload the necessary files into a new create-react-app sandbox.
+
+Check out the codesandboxer docs for information on how to implement it.
+
+
+
+
+import React, { Component } from 'react';
+import CodeSandboxer from 'react-codesandboxer';
+ 
+export default () => (
+  <CodeSandboxer
+    examplePath="examples/file.js"
+    gitInfo={{
+      account: 'noviny',
+      repository: 'react-codesandboxer',
+      host: 'github',
+    }}
+  >
+    {() => <button type="submit">Upload to CodeSandbox</button>}
+  </CodeSandboxer>
+);
+
+
+
+
+Import Using Remark-codesandbox
+Remark-codesandbox is a remark plugin for creating sandboxes directly from code blocks in documentation. Developed by CodeSandbox community member Kai Hao, it supports popular platforms including MDX, Gatsby, Storybook Docs, docz etc. Learn more about it in their documentation.
+
+
+
+Sandbox information inference
+When importing, we infer sandbox settings based on several files in a repository.
+
+
+If you want to override any of these settings, you can create a template.json in the .codesandbox folder. You can find more info about this setting on the Synced Templates page.
+
+
+
+
+
+Embedding
+What is an Embed?
+An embed lets you include a running sandbox in your documentation, blog post, or website.
+
+Embedding Sandboxes
+Sandbox embeds enhance the learning and reading experience for anyone by providing a practical, interactive, and hassle-free way to explore and experiment with code examples. In addition, embeds allow users to interact with code examples directly from an article or blog post, from where users can directly run, modify, and experiment with the code in a live environment. Also, embeds can be a great solution if you want to show examples of applications.
+
+Embeds for Sandboxes are currently in beta.
+
+
+
+Generate an Embed URL
+You can generate a URL to embed by clicking the Share button inside the editor of a Sandbox and then clicking on 'Copy embed code'.
+
+This will give you HTML code with an iFrame that you can paste into your content.
+
+
+
+
+Example Embed
+Below is an example of the iFrame to embed a React sandbox:
+
+<iframe
+  style={{
+    width: "100%",
+    height: 900,
+    outline: "1px solid #252525",
+    border: 0,
+    borderRadius: 8,
+    marginBottom: 16,
+    zIndex: 100
+  }}
+  src="https://codesandbox.io/p/sandbox/react-new?file=/src/index.js"
+></iframe>
+
+
+
+
+
+This code outputs the following embed:
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+
+import App from "./App";
+
+const rootElement = document.getElementById("root");
+const root = createRoot(rootElement);
+
+root.render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+);
+
+
+
+
+Limitations
+As Sandbox embeds are in beta, some more advanced options are currently unavailable.
+
+Notably, the embed viewer cannot change the sandbox before forking it, so inline editing is not currently supported on these embeds.
+
+Additionally, Sandbox embeds still lack some of the customization options available in legacy sandbox embeds.
+
+
+
+
+Using a Custom NPM Registry
+The custom private npm registry setting makes it possible for Sandboxes in your workspace portal to retrieve npm packages from your own npm registry. You can access the settings here.
+
+Configuration
+You can configure your private npm registry in your Team Settings.
+
+
+
+Registry Host
+This can be either GitHub, npm or Custom. When choosing GitHub, we'll prefill the registry host with the GitHub Registry. When choosing npm, we'll prefill the host with the npm registry url. When choosing Custom you have the option to define the npm registry host yourself.
+
+Auth Type
+Npm supports two types of authentication: Basic and Bearer. More recent implementations use Bearer by default. You can see which type you need by looking at your .npmrc. If your .npmrc is showing something similar to this:
+
+_auth={token}
+
+
+
+
+This means that you should use Basic auth. Artifactory often defaults to Basic auth.
+
+If your .npmrc is showing something along the lines of this:
+
+//registry.npmjs.org/:_authToken={token}
+You need to opt for Bearer auth. Any configuration that uses _authToken needs Bearer auth.
+
+
+
+
+Auth Token
+This is the token that we'll use to connect to your registry. This token is encrypted and stored in our database using an external key, we also don't share this key with anyone else who has access to your sandbox. Read more about that below.
+
+Specific Scopes
+We only use your private registry for the packages that are behind specified scopes. For example, if you defined @acme as an enabled scope, we only use the registry to fetch packages that have this scope (like @acme/design-system). For all other packages we'll use the public registry.
+
+
+Security
+It's important to us to keep the information and tokens of the npm registry private, because of this we've added some extra measures to ensure that nothing can leak.
+
+Persisting Auth Token
+The auth token is stored in our database in an encrypted form, using a key that's rolled and not available to the database itself. Even if our database would be compromised, your auth token would be encrypted and inaccessible.
+
+
+
+Single-Sandbox Key
+We never send the auth token to the browser. Instead, we give every editor of the sandbox a key that only gives them access to that specific sandbox. If they want to retrieve a package from the private npm registry, they will have to ask our API. The API will fetch the auth token, request the npm registry on behalf of the user and return the response to the user.
+
+The advantage of this approach is that whenever you revoke access to an editor of the sandbox, they also won't have access to your private npm registry anymore. There's no need to re-roll tokens, as tokens are generated based on a sandbox-user combination.
+
+
+
+
+Common Questions
+Can I share a public sandbox with a private package?
+No, we only enable private registries on sandboxes that are private. The main reason for this lies in the fact that we execute most sandboxes in the browser. Because of this, we need to download the npm dependencies to the browser to execute your code. If you would share a public sandbox containing a private package with someone, they would need to download that private package to execute the sandbox. Someone savvy enough would be able to extract the files from memory and read your private package in that case.
+
+We want to prevent this from accidentally happening, which is why we only allow private sandboxes to have access to the private registry. If you do want to share a public sandbox containing a private package, you can add the .tgz to the sandbox and link to it from the package.json by referring to it as file:package-tar-name.tgz in the version field.
+
+
+
+Our npm registry is behind a VPN, what can I do?
+Since we use a proxy to access the npm registry, we don't support registries behind a VPN out of the box. However, we do have three solutions:
+
+Solution 1: bypass the proxy We can bypass the proxy on our service to let the browser fetch from the registry directly. This is not enabled by default for everyone - please request this be turned on. The disadvantage of this approach is that you have to share your registry auth token with everyone who has access to the sandbox. Also, to make this work, you need to add CORS headers to your registry so the browser can fetch the packages directly from our origin.
+
+Solution 2: whitelist the proxy Another solution is to whitelist the IP range of our proxy. We make sure that we keep the same IP for our proxy. Please request these details.
+
+
+Solution 3: self-host the proxy A third option is to self-host the proxy in your network, and letting the proxy communicate with our API server to validate the tokens that are sent in. We can help get you setup with this.
+
+
+
+
+Can I use a .npmrc file?
+To make sure that credentials don't accidentally get shared with collaborators of a sandbox, we don't support reading credentials from a .npmrc file. We recommend you to put the auth token in the workspace configuration instead, so that it's encrypted and only shared with the admin of the workspace.
+
+
+Does this work with container sandboxes?
+Container Sandboxes are sandboxes that run on a Docker container instead of the browser. We're still working on adding support for private npm registries in our container sandboxes. To make private packages work in a container sandbox you could either drop the .tgz file manually in the sandbox, or use a .npmrc.
+
+
+
+Synced Templates
+What are synced templates?
+Synced templates are templates that are created from a GitHub repository, or a folder in a GitHub repository. A synced template stays in sync with its source, so when you create a commit in the GitHub repository, the template will automatically update with the new contents on the next access.
+
+Because synced templates stay in sync with their source, you can't edit a synced template in CodeSandbox. If you want to edit the template, you must commit to the source repository. You could consider that GitHub is the "owner" of the template.
+
+
+How is a synced template different from CodeSandbox Repositories?
+CodeSandbox also has Repositories, which are also imported from GitHub repositories. However, there is a key difference between synced templates and repositories.
+
+Repositories are meant for working on a repository. We introduce a workflow to create new branches and pull requests. Synced templates allow you to create a VM Sandbox/Sandbox template from a repository (or folder), and are meant to be used as a template for new projects (or for sharing as an example with others).
+
+
+A good rule of thumb is that if you want to work on a repository, you should import a repository. If you want to create a template from a repository, you should create a synced template from a GitHub repository.
+
+
+Creating a synced template
+A synced template runs code from a GitHub branch in CodeSandbox and keeps the changes synced with remote. A synced template can be either type of Sandbox. You can tell the difference by the way the URL is constructed:
+
+A synced template as a VM Sandbox will look something like this: codesandbox.io/p/devbox/github.
+A synced template as a Browser Sandbox will look something like this: codesandbox.io/p/sandbox/github.
+As explained below, you can create synced templates directly from the GitHub URL or through our GitHub importer tool.
+
+
+Directly from the GitHub URL
+First, visit the GitHub repository or folder from which you want to create a synced template. The URL should look like https://github.com/owner/repo for a repository and https://github.com/owner/repo/tree/main/folder for a folder.
+
+Then, replace github.com with githubbox.com and press Enter.
+
+This will redirect you to a URL that looks like https://codesandbox.io/p/devbox/github/owner/repo or https://codesandbox.io/p/devbox/github/owner/repo/tree/main/folder, which is the location of the newly created synced template!
+
+Using our GitHub importer
+Go to our "Repo Import" modal and click on "Import template". Enter the GitHub URL you want to import in the input field and press "Open URL". This will redirect you to the location of the synced template.
+
+Using a Browser Extension
+We have browser extensions for Chrome and Firefox, which add an 'Open in CodeSandbox' button to GitHub repo pages. This makes it easy to import existing projects from GitHub into CodeSandbox.
+
+Configuring a title, icon & description
+By default, we try to infer a synced template's name, description and icon based on the files in the repository. However, you can also configure this manually.
+
+
+
+You can configure a title, description and template icon for your synced template in a file called .codesandbox/template.json in your synced template. This file is a JSON file that contains the following properties:
+
+title: The title of the template
+description: The description of the template
+iconUrl: The icon of the template. This should be a URL to a 64x64 PNG or JPEG image.
+tags: The tags that will be used for search results. This should be an array of strings.
+published: Whether the template is published. If this is set to false, the template will not be visible in the template search.
+
+
+
+An example template.json could look like this:
+
+// .codesandbox/template.json
+{
+  "title": "My Template",
+  "description": "This is my template",
+  "iconUrl": "https://example.com/icon.png",
+  "tags": ["react", "typescript"],
+  "published": true
+}
+All fields are optional—we will infer the missing fields from the repository contents.
+
+After you've created this file and opened the synced template at least once, you can find it in the template search by searching for the title or description.
+
+
+VM behavior of synced templates
+We try to automatically detect from your repository contents whether your project is more suited for a browser or VM Sandbox.
+
+To force the template to load as a VM Sandbox, you can create a .devcontainer/devcontainer.json file in your repository. This file should contain a valid Dev Container configuration that we'll use to build your VM Sandbox.
+
+We use memory snapshotting to resume a VM quickly when someone visits it. To ensure that visitors of your VM Sandbox will always get the latest contents of your GitHub repository, we base the memory snapshot on the latest commit of your repository or folder.
+
+
+This means that if you create a new commit in your repository, we will discard the memory snapshot of the synced template and will start the VM Sandbox from scratch on next visit. During the VM boot, we will download the latest file contents from the repository. This ensures that visitors to your VM Sandbox will always get the latest contents of your GitHub repository, but it also means that the first visit of your VM Sandbox after a commit can be slower than usual (only for memory; we do still keep the filesystem between invalidations).
+
+
+
+Live Sessions
+What are live sessions?
+Live sessions enable the creation of a temporary open session in a VM Sandbox, which allows you to invite any user with a CodeSandbox account to join the VM Sandbox and collaborate live. A live session can include unlimited users.
+
+The key difference between live sessions and the default live collaboration of VM Sandboxes is that live sessions don't require invited users to be part of the workspace to which the VM Sandbox belongs.
+
+As such, live sessions are especially useful for:
+
+Education: hosting a coding lesson in the classroom or online.
+Hackathons: building something live with an assorted group of collaborators.
+Coding interviews: inviting a candidate for a live coding exercise during recruitment.
+
+
+
+Permissions
+The VM Sandbox creator can control access to the live session in two ways.
+
+Granular permission levels: the permission level of each invited user can be changed between "Read-only" or "Editor".
+
+Default permission: there's also the option to define the default permission level applied to all users who join the session. If the default level is changed mid-session, it will only apply to users who join after that last change.
+
+
+Starting a live session
+Live sessions can be started from any VM Sandbox following these steps:
+
+Click Share on the top right of the editor.
+(Optional) Change the desired default permission level if needed.
+Click on Go live.
+Copy and share the provided live session URL with others.
+Run the live session and remember to click Stop session when it ends.
+
+
+DevTools
+The CodeSandbox DevTools panel aggregates a series of tools that allow you to work faster and more efficiently. Among these tools, you will find Previews, Tasks and Shared Terminals.
+
+
+Previews
+Any previews associated with your project, namely those spun up by tasks, will be accessible in a port listed under Previews in the DevTools tab. Each preview will show a tag next to it to identify its associated task, or show Unconfigured if no task is tied to it.
+
+Clicking on a listed preview will open it on the right side of the editor.
+
+You can also see the list of ports in the terminal panel under the Ports tab at the bottom of the editor.
+
+
+Tasks
+Tasks set in the tasks.json file will be listed in the DevTools tab. This lists all the configured tasks and allow you to run, stop or restart them. Any tasks that are running will display a Running... tag next to them.
+
+Shared Terminals
+Any active shared terminals will be listed under Shared Terminals in the DevTools tab. These are a specific type of terminal that is managed by Pitcher, which means that other users with access to the project can see them.
+
+
+From this tab, you can also create new shared terminals, which will open in the Terminal tab at the bottom of the editor.
+
+
+Interactive Readme
+CodeSandbox supports running tasks directly from Markdown.
+
+
+To configure the interactive Readme:
+
+Define a task using the configuration file. Use the same shell command used in the tasks.json file in the markdown code block.
+
+
+If there is a match, CodeSandbox will render a play icon next to the command in the interactive view.
+
+Interactive tasks can be run by any user with read access to your project.
+
+
+Preview
+
+When you run a task that opens a server on a port, that port will be attached to the Task, turning it into a preview-type DevTool. A list of all available previews is shown at the top of the DevTools tab. When opened, a preview will, by default, be displayed on the right side of the editor in a new tab.
+
+As explained below, CodeSandbox automatically proxies the preview into a publicly-accessible URL using a structure similar to https://:id-3000.csb.app. This URL can be opened and shared with others to get standalone version of the preview.
+
+
+Primary Preview
+Because a project may have several different previews, you can manually mark a specific one as a primary preview. One way to achieve that is by clicking the three dots icon at the right of the preview window and then click on "Set as primary preview".
+
+Primary previews will open by default when the project is spun up.
+
+
+Preview Utilities
+Previews come with a few built-in utilities that make it easier to interact with previews and edit their underlying code. These are presented as icons at the right side of the preview's address bar and will be described below in the order in which they are shown.
+
+
+Element Inspector
+The element inspector allows quickly finding the source code of a specific element shown in the preview. After clicking on the element inspector icon to activate it, you can then click an element on the preview to automatically open the corresponding code in the editor on the left.
+
+This utility is only available on projects with certain stacks.
+
+
+Chrome DevTools
+CodeSandbox previews also provide a built-in Chrome DevTools utility.
+
+This provides all the debugging functionality from Chrome DevTools, including the Elements, Console, Sources, Network and Application tabs.
+
+Because this utility is powered by Chrome, it is not available on non-Chrome browsers such as Firefox and Safari.
+
+
+
+Opening preview on a new tab
+The preview utility shown at the very right simply allows you to open a standalone preview in a new browser tab.
+
+How do Previews work?
+WebSocket Override
+We’ve patched WebSocket to ensure that the right URL is always accessed when opening a websocket. In case you try to access http://localhost:3000 using a websocket, we’ll rewrite it to https://:id-3000.csb.app so the socket automatically connects to the right URL.
+
+This will often make hot module reloading work out of the box for frameworks like Vite.
+
+
+
+Service Worker Proxy
+If possible, we try to install a service worker in the preview that will proxy requests to localhost:3000 to the corresponding dev URL. The service worker only proxies URLs that are going to localhost, or URLs that go to e.g. https://:id-3000.csb.app:4000.
+
+
+
+Configuring the Proxy
+The service worker proxy is enabled by default, but you can turn it off in two ways:
+
+Configure the dev server to respond with the x-csb-no-sw-proxy header when sending HTML responses (any value is possible)
+Or, set csbLocalProxyEnabled to false in the localStorage: localStorage.setItem('csbLocalProxyEnabled', 'false');.
+When the x-csb-no-sw-proxy header is set, we automatically add localStorage.setItem('csbLocalProxyEnabled', 'false'); to the returned HTML from the dev server.
+
+
+
+Task
+Tasks allow you to define commands (like yarn start) that can run at specific moments, such as during the project's setup, at a VM's startup, or when they are manually run. These tasks are shared between all the clients connected to the project where they're configured.
+
+You can use tasks for multiple purposes. The most common ones include:
+
+installing the project's dependencies at the VM's startup.
+running a preview.
+running a linter.
+running tests.
+Note that tasks are only supported in our VM Sandboxes and repositories.
+
+
+Default configuration
+By default, CodeSandbox tries to infer scripts from the package.json file in your project's root folder. In addition, you can always use the Environment setup DevTool to set any shell script to run your projects.
+
+
+Adding and configuring tasks
+Tasks are specified in the .codesandbox/tasks.json configuration file in your project. Below is an example of a configuration:
+
+{
+  "$schema": "https://codesandbox.io/schemas/tasks.json",
+  "setupTasks": ["yarn install", "yarn build"],
+  "tasks": {
+    "install-dependencies": {
+      "name": "Install Dependencies",
+      "command": "yarn install"
+    },
+    "start-app": {
+      "name": "Run Dev Server",
+      "command": "yarn start",
+      "runAtStart": true
+    }
+  }
+}
+To add a new task, create a new entry in the tasks array as exemplified above.
+
+
+
+Checking these files into a repository's version control is recommended to ensure that every collaborator has a similar editing experience. This configuration can be tracked and additional changes can be made to specific branches. In addition, once the file is merged into your main branch, every new branch will follow the same configuration.
+
+Setup tasks
+Setup tasks are an array of commands that will run sequentially before the workspace is ready to start your application. If no value is provided, installing dependencies will be the default task (CodeSandbox will detect which package manager you use).
+
+
+{
+  "$schema": "https://codesandbox.io/schemas/tasks.json",
+  "setupTasks": [
+    {
+      "name": "Installing Dependencies",
+      "command": "yarn install"
+    },
+    {
+      "name": "Building Workspace",
+      "command": "yarn build"
+    }
+  ]
+}
+
+
+
+Configuring task ports
+You can assign ports to tasks. Normally we try to automatically detect ports assigned to a task, but there are three advantages to defining them manually using the preview field:
+
+We'll automatically eagerly a preview for this port when opening the project.
+If the port is not opened, and you try to open it using our preview, we give the option to open the task assigned to the port.
+The GitHub App will automatically add the link to the preview in a comment for every pull request, and we'll create deployments for them.
+The preview object has two fields: port and optional prLink. The port field defines the port that this task opens, and the prLink defines how PRs should link to this port. The possible options are direct and devtool.
+
+
+With direct, you will directly open the preview URL from the PR.
+
+With devtool, you will open the preview URL with an experimental devtool inside the preview.
+
+Here's an example:
+
+{
+  "$schema": "https://codesandbox.io/schemas/tasks.json",
+  "tasks": {
+    "dev-server": {
+      "name": "Start Dev Server",
+      "command": "yarn dev",
+      // With the `preview` field set, the GitHub App will also add a link
+      // to that preview to PRs, and it will become part of a GitHub
+      // deployment:
+      "preview": {
+        "port": 4000,
+        // This next field is optional:
+        "prLink": "direct"
+      }
+    }
+  }
+}
+
+
+
+
+Manually running, stopping and restarting tasks
+The DevTools panel lists all tasks and allows you to manually run, stop and restart a task (these options are shown when you hover any given task from the displayed list).
+
+Examples
+Single page application
+{
+  "$schema": "https://codesandbox.io/schemas/tasks.json",
+  "tasks": {
+    "run-dev": {
+      "name": "App",
+      "command": "yarn run dev",
+      "runAtStart": true
+    }
+  }
+}
+
+
+Mono-repo with multiple front-ends
+{
+  "$schema": "https://codesandbox.io/schemas/tasks.json",
+  "tasks":{
+    "build":{
+      "name":"Build Workspace",
+      "command":"yarn build:workspace"
+    },
+    "homepage":{
+      "name":"Homepage",
+      "command":"yarn workspace homepage dev",
+      "runAtStart":true
+    },
+    "docs":{
+      "name":"Docs",
+      "command":"yarn workspace docs dev"
+    },
+    "admin":{
+      "name":"Admin",
+      "command":"yarn workspace admin dev"
+    },
+    "dashboard":{
+      "name":"Dashboard",
+      "command":"yarn workspace dashboard dev"
+    }
+  }
+}
+
+
+Reference
+JSON Schema for tasks.json
+
+
+
+
+
+
+Terminal
+CodeSandbox Repositories Terminal
+
+One of the benefits of working on VM Sandboxes and repositories is the ability to use terminals without ever leaving the web editor. Terminals run inside CodeSandbox VMs and behave like your local terminals, accepting any commands you are used to running, such as:
+
+git operations
+bash scripts
+package-management commands
+start servers
+You can find all terminals listed at the right of the "Tasks and Terminals" panel, shown at the bottom of the editor. When you click a listed terminal, it will automatically open the TERMINAL tab at the bottom of the editor, where you can run commands.
+
+CodeSandbox provides three different types of terminals:
+
+Native terminals: These are the 'standard' type of terminal that you would usually find in a code editor like VS Code Desktop. These terminals are private to you, so other collaborators will not see any commands you run there. Native terminals are managed by VS Code Web.
+Task terminals: When you run a Task, it will run on a dedicated task terminal. Typically, you can identify these task terminals because they will be named according to the name of the corresponding task (e.g., dev). Task terminals are managed by Pitcher, an internal CodeSandbox service.
+Shared terminals: These terminals are identical in functionality to native terminals, with the main difference that they can be seen by other collaborators. They can be especially useful when someone on your team encounters errors or has a hard time fixing a problem—you can quickly jump in and instantly understand what is going on. Shared terminals can only be created and opened from the Shared Terminals section of the DevTools panel, which shows a list of all active shared terminals. Shared terminals are managed by Pitcher, an internal CodeSandbox service.
+Managing terminals
+You can add and remove terminals using the options at the right of the "Tasks and Terminals" panel, shown at the bottom of the editor.
+
+
+
+
+
+Upload static files
+You can upload static files (images, documents, videos, etc.) to your projects in CodeSandbox. To use this feature, drag the desired files from your computer and drop them into the file explorer on the sidebar. The files will then be automatically uploaded.
+
+Alternatively, you can use the icons shown at the right of the WORKSPACE heading (top of the file explorer), right-click the file explorer, or press $mod+alt+F to open the file input.
+
+Sidebar upload
+
+Upload limits
+CodeSandbox file upload limits vary depending on the runtime and plan.
+
+For Sandboxes, the limits are:
+
+50 MB total storage per user with a Free account.
+1000 MB total storage per user with a Pro account.
+The limits for Sandboxes are not specific to each Sandbox; they are shared across all Sandboxes created by the same user.
+
+You can check your current Sandbox storage usage from your Dashboard by clicking your user avatar at the top right and then "Storage".
+
+For VM Sandboxes and repositories, the limits are:
+
+20 GB total storage per VM Sandbox or repository branch for all workspaces.
+You can check your VM Sandbox storage usage by clicking the CodeSandbox icon at the top left of the editor and then "Virtual machine". This will open a new DevTool displaying the current VM usage, including storage.
+
+
+
+
+
+Codeium code autocomplete
+Codeium is an incredible AI-powered developer toolkit. Their code completion tool provides single and multi-line code generation with multiple suggestions to choose from. It supports 70+ programming languages, so it’s a perfect fit with our VM Sandboxes, which can also run any type of project.
+
+Codeium example
+
+Getting started
+Codeium code completion is now available for free to every CodeSandbox user on VM Sandboxes, Sandboxes and repositories
+
+If you have your AI settings enabled, you will get AI autocomplete working in your code immediately. Note that we enable AI permission toggles by default on free workspaces. If you do not have have access to Codeium, visit the workspace portal and enable the AI settings
+
+Settings and configuration
+In the workspace settings, you will see an option to turn on AI for VM Sandboxes and Repositories in the workspace. If you want to override these settings for a particular Repository or VM Sandbox, you can open the editor, navigate to Settings > Editor and turn off the AI option. This will deactivate AI for all users accessing the VM Sandbox or repo.
+
+
+
+Getting Started
+All CodeSandbox AI tools are available to Free and Pro users. To enable these features, admins need to grant permissions in the workspace settings.
+
+AI Permissions
+
+Once you grant AI permissions, you are accepting Codeium's terms and conditions. You can read more about their terms of service on the Codeium website.
+
+Here is a short list of their security & privacy policies:
+
+Opt-out for code snippet telemetry.
+Never train generative models on private code.
+SOC 2 compliance.
+No training on non-permissively licensed code.
+Running AI
+Once permissions have been granted, you need to restart the VMs for the changes to take effect. You can do this by selecting Restart Branch in the main menu. If you are in a VM Sandbox, the option will read Restart Sandbox.
+
+
+
+
+
+Preview URLs
+When you work with CodeSandbox, every port opened by your dev server is available behind a URL that looks like this:
+
+https://{id}-{port}.csb.app
+For example, while writing this blog post I'm previewing my changes at https://rfjmrz-3000.csb.app.
+
+This is different compared to working on your local machine, where the dev server is often available behind http://localhost:{port}. We'll guide you through how you can integrate more easily with the new URL structure.
+
+Automatic Proxy
+We're injecting code automatically in the preview to proxy localhost:3000 and similar requests coming from the preview (e.g. your frontend code) to the right hostname. You can learn more about that in the Preview page.
+
+Generating preview URLs
+Unlike localhost URLs, csb.app URLs differ per branch. The advantage of this approach is that you can share a preview URL with a co-worker and start working on a new branch while they check out your work. However, it does require some additional configuration to support this.
+
+JavaScript library
+We've created a (zero-dependency) JavaScript library that simplifies getting the current hostname. You can install the library by running one of the following three commands:
+
+npm i @codesandbox/utils
+pnpm i @codesandbox/utils
+yarn add @codesandbox/utils
+After installing the library, you can get the preview URL for the current VM like so:
+
+import { getCodeSandboxHost } from '@codesandbox/utils';
+ 
+const port = 3000;
+const previewUrl = `https://${getCodeSandboxHost(port)}`;
+This library works both in the frontend and in the backend. In the frontend it will base the preview id on the current URL, in the backend it will use hostname to determine the current preview id.
+
+Here's a running example:
+
+
+Using hostname
+You can programmatically get the current branch or VM Sandbox ID by checking the hostname of the machine. This is guaranteed to work between live clones of VMs as well.
+
+You can use this to generate a preview URL, here's an example in JavaScript:
+
+const hostname = require('os').hostname;
+const port = 3000;
+ 
+const previewUrl = `https://${hostname}-${port}.csb.app`;
+Or alternatively you can run hostname as a shell command to get the latest hostname.
+
+Using RegEx in the browser
+If you want to get the current preview id in the frontend, and you don't want to use the JavaScript library mentioned earlier, you can use a RegEx based on the current URL to get the current preview id. Like so:
+
+const REGEX = /(?<id>\w{5,6})-(?<port>\d{1,5})\.(?<hostname>.*)/;
+ 
+function getPreviewUrl(port) {
+  const currentUrl = location.host;
+  const currentMatch = currentUrl.match(REGEX);
+ 
+  if (!currentMatch?.groups) {
+    return undefined;
+  }
+  const { id, hostname } = currentMatch.groups;
+ 
+  if (!id || !port || !hostname) {
+    return undefined;
+  }
+ 
+  return `${id}-${port}.${hostname}`;
+}
+The same code can be found here.
+
+Using environment variables
+CodeSandbox exposes two environment variables inside the VM that you can use to determine the hostname:
+
+CSB_BASE_PREVIEW_HOST, this is csb.app by default
+CODESANDBOX_HOST, this is :id-$PORT.csb.app by default, for example: rfjmrz-$PORT.csb.app.
+When you create a live clone of a VM, its environment variables will not update until you restart the process using the environment variables.
+
+Let's say you have a server using CODESANDBOX_HOST running in the main branch, and you create a new branch by cloning the VM of the main branch. The cloned branch will still use the old CODESANDBOX_HOST. You'd have to restart the server to get the new version.
+
+You can do this automatically by setting "restartOn": { "branch": true } for the server task. You can learn more about this on the Tasks page.
+
+Generally we recommend to use hostname instead of environment variables, as using environment variables requires restarting the task on every fork.
+
+Forwarding Ports
+You can also opt to forward the ports to localhost. The disadvantage is that anyone would have to forward the port to localhost to see the preview, but it requires zero configuration.
+
+You can do this by opening the project inside VSCode, and clicking on "Ports" in the bottom panel. From there you can forward any HTTP or TCP port to your machine.
+
+Common Troubleshooting
+"Invalid Host/Origin header"
+The Webpack dev server is by default configured to only allow requests originating from localhost. Because of this, Webpack will reject requests from the preview with an "Invalid Host/Origin header" error.
+
+You can fix this by updating the Webpack configuration.
+
+Webpack 4
+For Webpack 4, you'd need to add this to your devServer entry in your webpack configuration:
+
+disableHostCheck: true
+Webpack 5
+For Webpack 5, you'd need to add this to your devSever entry in your webpack configuration:
+
+allowedHosts: ".csb.app",
+CORS Headers
+If a frontend server runs on a different port or branch than the backend server, and CORS is enabled, the backend will have to return CORS headers based on the caller URL.
+
+There are two ways to approach this. If the server runs in the same branch/instance as the frontend, you can use the current preview id, like so:
+
+const express = require('express')
+const cors = require('cors')
+const { getCodeSandboxHost } = require('@codesandbox/utils')
+const app = express()
+ 
+const FRONTEND_PORT = 3000
+app.use(cors({
+    origin: getCodeSandboxHost(FRONTEND_PORT)
+}))
+If the frontend and backend run in different branches or instances, you will need to use dynamic checking on csb.app. In Express this can be done like so:
+
+const express = require('express')
+const cors = require('cors')
+const app = express()
+ 
+const FRONTEND_PORT = 3000
+app.use(cors({
+    origin: /\.csb\.app$/
+}))
+OAuth Login
+Adding support for OAuth sign in depends on the provider that you're looking to support. Some OAuth providers support wildcard subdomains, which will make it work with CodeSandbox.
+
+We recommend setting up a special subdomain for wildcard subdomains, like {id}-{port}.{org}.csb.app. At CodeSandbox we support this on a request-basis. Send an e-mail to hello@codesandbox.io to request access
+If the provider does not support wildcard subdomains, we recommend using another sign in method, like username/password based sign in or token-based login.
+
+
+
+
+
+
+
+GitHub App
+The CodeSandbox GitHub App allows you to streamline your development and review process.
+
+It brings a higher level of integration between CodeSandbox and GitHub, with several benefits to your project:
+
+Automatically add links to open your code in CodeSandbox or jump right into a preview of the running code from any pull request.
+Add previews of the running code as Deployments in the GitHub UI, enabling access for reviewers and CI tools.
+We're always looking for ways to make CodeSandbox a seamless part of your development workflow, and our GitHub App can really accelerate how you review PRs.
+
+Pull Request Links
+The integration between CodeSandbox and GitHub allows you to automatically add links to each pull request to accelerate the review process.
+
+GitHub and CodeSandbox Integration
+
+Open in Web Editor
+This link opens the branch in the CodeSandbox web editor.
+
+Because branches running in CodeSandbox are fully collaborative, you will be able to see any running previews, tests, or other DevTools that the PR's author left open to assist with the review process.
+
+Open in VS Code Extension
+If VS Code (or VS Code Insiders) is your preferred development environment, you can open the branch directly from this link, which uses remote-ssh.
+
+Open Preview(s)
+These links will take you directly to a preview environment—or a standalone DevTool of a running preview task—depending on your task configuration.
+
+Deployments
+If your project has preview tasks configured, CodeSandbox can add Deployments to GitHub for easy access to running previews.
+
+These deployments provide easy access for individuals, as well as programmatic access for CI tasks using the GitHub API. Look for entries like the following:
+
+{
+    // Deployment fields...
+    "environment": "CodeSandbox (Task Name)",
+    "payload": {
+        "provider": "CodeSandbox",
+        "codesandbox": {
+            "preview_url": "...",
+            "shortid": "...",
+            "task": "..."
+        }
+    }
+}
+Don't worry if you have other services creating deployments for your project; CodeSandbox will only manage deployments with "provider": "CodeSandbox" in the payload.
+
+For more complicated projects, CodeSandbox will create one deployment for each task configured with a preview.
+
+Make sure to configure the preview field in your tasks for them to show up in the deployments.
+
+Installing the CodeSandbox GitHub App
+Installing GitHub Apps
+
+The CodeSandbox GitHub App can be installed by...
+
+An individual user, for some or all of the repositories owned by that user.
+An organization admin, for some or all of the repositories in that organization.
+A repository admin, for that specific repository.
+However, it is possible to request the installation of the CodeSandbox GitHub App in repositories where you don't have the necessary permissions. Organization owners and repository admins will receive a notification on GitHub and via email asking them to approve or deny the request.
+
+Whenever you open a repository that doesn't have the CodeSandbox GitHub App configured, you will see a modal (as pictured above) with an "Install GitHub App" button, which will take you through the setup.
+
+You can check the status of the installation at any time by navigating to a repository on CodeSandbox, clicking the CodeSandbox icon on the top left, then going to Project Settings, and finally checking the details shown under Install GitHub App.
+
+CodeSandbox GitHub App install status
+
+Alternatively, you can configure the CodeSandbox GitHub App through its official GitHub App Page.
+
+Privacy and Permissions
+Our GitHub App allows CodeSandbox to retrieve some information about your GitHub account and, in some circumstances, to make changes on GitHub on your behalf.
+
+You can select specific repositories or grant access to all repositories in an organization. This selection can be changed at any time in the GitHub Settings.
+
+For more information, check out the GitHub App documentation.
+
+FAQs
+I approved a GitHub OAuth App when I created my CodeSandbox account. Why do I need another GitHub integration?
+This GitHub App is different from the OAuth integration required by Sandboxes and Repositories. The OAuth integration allows CodeSandbox to import repositories from GitHub, while the CodeSandbox GitHub App allows CodeSandbox to provide the features listed above.
+
+Why is the CodeSandbox GitHub App asking for additional permissions after I've already installed it?
+Occasionally, we need to modify the permissions of the CodeSandbox GitHub App in order to support new features. GitHub requires users to approve the new permissions before they take effect.
+
+Following are some additional details about changes we've made:
+
+31 August 2022: Added deployments permission in order to add a deployment to the GitHub UI for each preview task. This feature will only be active if (1) branch deployments are enabled for the project, and (2) task previews are configured in .codesandbox/tasks.json.
+You can review the App's permissions at any time by choosing Configure from the official CodeSandbox GitHub App Page.
+
+
+
+
+
+
+Storybook Addon
+The @codesandbox/storybook-addon allows you to open the code from a story in a Sandbox with the click of a button.
+
+This integration allows you to transform design system documentation into interactive example. We have found this incredibly useful for interactive learning and for sharing bug reproductions.
+
+Connecting Storybook to your workspace
+All Sandboxes created from the Storybook addon will be created within the workspace that is listed in the configuration.
+
+Anyone opening a Sandbox from the addon will need to be a part of the workspace in order to access the Sandbox. Luckily organization domains make it very easy for new users to join automatically.
+
+If a workspace has an organzation domain, when a new user opens a Sandbox from a Storybook addon, they will be asked to join the workspace if they have an account with an email that matches the domain of the organization.
+
+You can find a step-by-step guide for setting a domain on the Organization documentation.
+
+Configuration
+// .storybook/main.js
+ 
+module.exports = {
+  // ...
+  addons: ['@codesandbox/storybook-addon'],
+};
+ 
+Storybook configuration (required)
+
+To run the addon, you'll need to configure it in your Storybook's .storybook/preview.js file.
+
+// .storybook/preview.js
+ 
+const preview: Preview = {
+  parameters: {
+    codesandbox: {
+      /**
+       * @required
+       * Workspace API key from codesandbox.io/t/permissions.
+       * This sandbox is created inside the given workspace
+       * and can be shared with team members.
+       */
+      apiToken: <api-token>,
+ 
+      /**
+       * @required
+       * Dependencies list to be installed in the sandbox.
+       *
+       * @note You cannot use local modules or packages since
+       * this story runs in an isolated environment (sandbox)
+       * inside CodeSandbox. As such, the sandbox doesn't have
+       * access to your file system.
+       *
+       * Example:
+       */
+      dependencies: {
+        "@radix-ui/themes": "latest",
+        "@myscope/mypackage": "1.0.0",
+      },
+ 
+      /**
+       * @required
+       * CodeSandbox will try to import all components by default from
+       * the given package, in case `mapComponent` property is not provided.
+       *
+       * This property is useful when your components imports are predictable
+       * and come from a single package and entry point.
+       */
+      fallbackImport: "@radix-ui/themes",
+ 
+      /**
+       * @optional
+       * All required providers to run the sandbox properly,
+       * such as themes, i18n, store, and so on.
+       *
+       * @note Remember to use only the dependencies listed above.
+       *
+       * Example:
+       */
+      provider: `import { Theme } from "@radix-ui/themes";
+        import '@radix-ui/themes/styles.css';
+ 
+        export default ThemeProvider = ({ children }) => {
+          return (
+            <Theme>
+              {children}
+            </Theme>
+          )
+        }`,
+    },
+  },
+};
+ 
+export default preview;
+Story configuration (recommended)
+import type { Meta, StoryObj } from "@storybook/react";
+ 
+const meta: Meta<typeof Button> = {
+  title: "Example/Button",
+  component: Button,
+  parameters: {
+    codesandbox: {
+     /**
+       * To import all components used within each story in
+       * CodeSandbox, provide all necessary packages and modules.
+       *
+       * Given the following story:
+       * ```js
+       * import Provider from "@myscope/mypackage";
+       * import { Button } from "@radix-ui/themes";
+       * import "@radix-ui/themes/styles.css";
+       * ```
+       *
+       * You need to map all imports to the following:
+       */
+      mapComponent: {
+        // Example of default imports
+        "@myscope/mypackage": "Provider",
+ 
+        // Example of named functions
+        "@radix-ui/themes": ["Button"],
+ 
+        // Example of static imports
+        "@radix-ui/themes/styles.css": true,
+      },
+ 
+      /**
+       * @note You cannot use local modules or packages since
+       * this story runs in an isolated environment (sandbox)
+       * inside CodeSandbox. As such, the sandbox doesn't have
+       * access to your file system.
+       */
+    },
+  },
+};
+
+Make sure to provide the necessary values for apiToken and any additional dependencies or providers required for your specific setup.
+
+For now, this addon only supports the Component Story Format (CSF) stories format.
+
+Additional Notes
+Ensure that you have proper permissions and access rights to the CodeSandbox workspace specified in the configuration.
+Verify the correctness of the dependencies and providers listed in the configuration to ensure the sandbox runs smoothly.
+
+
+
+
+
+
+
+
+
+
+
+
+Tailscale
+At CodeSandbox, we use Tailscale to manage network access for private resources, including some of the services that make up CodeSandbox. As you work on an application in CodeSandbox Repositories, you might want to grant it access to private resources on your network. Tailscale can help.
+
+You can try Tailscale for free by following their Quickstart guide. Throughout this documentation, we'll assume you have a tailnet called example-tailnet.ts.net (which you should replace with your name).
+
+Motivation
+Many applications exist as part of a collection of services. Sometimes we can isolate an application from other services during development, but this isn't always possible. Just because you develop in CodeSandbox, however, doesn't mean you can't connect your application to private services running in your organization's network.
+
+Integrating with Tailscale provides containers running in a CodeSandbox Repository environment with access to your private resources. Combined with Tailscale's MagicDNS and ACLs, you can develop your application as if it were hosted in the same network as your other services — without compromising security.
+
+Creating an Auth Key
+Integrating a CodeSandbox Repository with Tailscale requires an auth key, a secret you embed in the CodeSandbox environment to allow registration on your network. Admins can create them on the auth key page of the Tailscale admin console.
+
+The auth key you give to CodeSandbox should be:
+
+Reusable, so you don't encounter issues when forking a new branch,
+Ephemeral, so you don't have to clean up old branches from your tailnet, and
+Pre-authorized, so you don't have to wait for someone to approve a new branch before you start developing.
+Depending on your tailnet setup, you may also want it to be:
+
+Tagged, so CodeSandbox environments are automatically labeled and access-controlled via Tailscale's ACLs.
+Setting up your Repository
+Tailscale currently works in CodeSandbox Repository environments by adding a container to a Dockerized application setup (for example, using docker-compose). The additional container runs the Tailscale client and provides networking for the other containers.
+
+Environment Variables
+Before launching the new container, it is necessary to add the Tailscale auth key as an environment variable. With a branch open in the Repository editor, go to the CodeSandbox menu, and choose Env variables. Throughout the rest of this documentation, we will assume you named the variable TS_AUTHKEY. Restart any existing branches to update the running environment.
+
+Docker Container
+In a setup using Docker Compose, we can add the tailscale image as an additional service beside our application. Here's an example docker-compose.yml file with the Tailscale service:
+
+services:
+  tailscale:
+    image: tailscale/tailscale
+    cap_add:
+      - net_admin
+      - net_raw
+      - sys_module
+    command: "tailscaled --state=mem:"
+    volumes:
+      - "/dev/net/tun:/dev/net/tun"
+ 
+  myapp:
+    # ...
+    network_mode: service:tailscale
+This runs the latest tailscale image with a few customizations. Then, it instructs the application container to use the Tailscale container's network using network_mode.
+
+After this setup, docker-compose up will start the application and Tailscale containers, but it will not immediately initiate a connection. For this, a separate command is necessary:
+
+docker-compose exec tailscale tailscale up --authkey=${TS_AUTHKEY} --accept-routes --hostname=csb-${HOSTNAME}
+Luckily, both of these steps can be automated. The following example .codesandbox/tasks.json runs each of these commands as tasks every time a new branch is created:
+
+{
+  "$schema": "https://codesandbox.io/schemas/tasks.json",
+  "tasks": {
+    "docker-compose up": {
+      "name": "Docker Compose",
+      "command": "docker-compose up",
+      "restartOn": {
+        "branch": true
+      },
+      "runAtStart": true
+    },
+    "tailscale": {
+      "name": "Connect Tailscale",
+      "command": "docker-compose exec tailscale tailscale up --accept-routes --authkey=${TS_AUTHKEY} --hostname=csb-${HOSTNAME}",
+      "restartOn": {
+        "branch": true
+      },
+      "runAtStart": true
+    }
+  }
+}
+Putting all of this together, CodeSandbox will automatically start your application using Docker Compose, include a Tailscale container, and initiate a connection based on your Auth Key. The running application will have access to private resources on your tailnet.
+
+If you enjoy using CodeSandbox and Tailscale, and would like to see deeper integration between these products in the future, please let us know using our contact form!

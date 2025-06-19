@@ -1,0 +1,846 @@
+# ===================================================================
+# Minato Strategic Component Library v12.0
+# The Universal Intelligence Agent Edition
+# This is the single, complete, and unabridged strategic brain.
+# It has been re-architected to intelligently orchestrate and deploy
+# Minato's full suite of tools, including BrowserTool, Serper, Tavily,
+# Finnhub, AlphaVantage, RedditTool, HackerNewsTool, and all other
+# specialized APIs for unparalleled analytical depth and actionability.
+# All previous domain expertise remains intact and is now enhanced
+# by this superior tool-use strategy.
+# ===================================================================
+
+# ===== 1. CORE STRATEGIC PRINCIPLES =====
+# Foundational, first-principle insights that guide the overall strategy.
+# ===================================================================
+
+insights:
+  - id: insight_domain_specific_empathy
+    description: "Establishes the core principle of adapting language, pain points, and solutions to the specific user domain (e.g., Startup Founder, HNW Investor, Creative Technologist, Parent, Energy Developer)."
+    type: insight
+    base_score: 100
+    triggers: [{keyword: "all", weight: 5}]
+    text: "CRITICAL INSIGHT: We must operate with Domain-Specific Empathy. The needs of a creative developer (aesthetics, technical execution) are fundamentally different from those of a parent planning for education (long-term security), an energy developer (IRR, regulatory risk), or an investor (capital preservation). All subsequent analysis must use the language and address the unique pressures of the user's specific world."
+
+  - id: insight_lean_startup_mvp
+    description: "Advises a lean, validation-first approach for new ventures to eliminate busywork and focus on what matters."
+    type: insight
+    base_score: 90
+    triggers: [{keyword: "new product", weight: 50}, {keyword: "dropshipping", weight: 50}, {keyword: "starting", weight: 30}, {keyword: "SaaS idea", weight: 40}]
+    text: "CRITICAL INSIGHT: To eliminate busywork and focus on what truly matters, we must first validate your core idea with minimal cost. Our initial plan will focus on a lean MVP (Minimum Viable Product) to test market demand using social media and simple landing pages before investing heavily."
+
+  - id: insight_local_business_focus
+    description: "Advises focusing on hyperlocal discovery for brick-and-mortar businesses like shops, restaurants, or pharmacies."
+    type: insight
+    base_score: 90
+    triggers: [{keyword: "local business", weight: 70}, {keyword: "restaurant", weight: 70}, {keyword: "shop", weight: 70}, {keyword: "pharmacy", weight: 70}, {keyword: "brick and mortar", weight: 70}]
+    text: "CRITICAL INSIGHT: For a physical business, your immediate priority is discoverability in your geographical area. Our strategy will heavily prioritize optimizing your Google Business Profile using the PlaceSearchTool, gathering local reviews via BrowserTool, and appearing on maps via MapLinkTool."
+
+# ===== 2. EXECUTIVE & SYNTHESIS LAYER =====
+# For high-level, C-suite ready summaries and core arguments.
+# ===================================================================
+
+executive_synthesis_tasks:
+  - id: generate_executive_summary
+    description: "Creates a concise, high-impact summary of all findings for executive review. Focuses on the 'so what?'."
+    type: llm_task
+    base_score: 100
+    triggers: [{keyword: "report", weight: 50}, {keyword: "summary", weight: 60}, {keyword: "all", weight: 20}]
+    prompt: "You are a senior partner at a top-tier consulting firm. Synthesize all the provided analysis ({all_task_outputs}) into a single-page Executive Summary. Start with the primary recommendation. Follow with 3-5 bulleted key findings, each supported by a critical data point from a specific tool (e.g., Finnhub, BrowserTool, Tavily). Conclude with a statement on the strategic implications. The language must be clear, direct, and authoritative."
+
+# ===== 3. PROBLEM & MARKET VALIDATION (MULTI-DOMAIN) =====
+# Validating the core business idea, problem, and market demand before scaling.
+# =================================================================
+
+problem_and_market_validation_tasks:
+  - id: articulate_core_problem_statement
+    description: "Defines the core problem the user's idea solves, tailored to their specific industry."
+    type: llm_task
+    base_score: 98
+    triggers: [{keyword: "validate idea", weight: 90}, {keyword: "business sense", weight: 90}, {keyword: "new product", weight: 70}]
+    prompt: "You are a seasoned Product Manager and multi-domain strategist. The user is in the '{user_domain}' field with a solution for '{topic}'. Reframe this into a clear Problem Statement. Define WHO has this problem (e.g., 'a solo practice lawyer', 'a clinical pharmacist', 'a hotel owner', 'a convenience shop manager', 'a tech founder'), WHAT the problem is, WHY it's a significant pain point in their specific context, and WHERE they experience this pain. Crucially, quantify the 'Cost of Inaction' for this specific persona."
+
+  - id: perform_unfiltered_market_sentiment_analysis
+    description: "Analyzes what real people are saying across domain-specific online communities using the best available tools."
+    type: orchestration_task
+    base_score: 95
+    triggers: [{keyword: "what people feel", weight: 90}, {keyword: "market sentiment", weight: 80}, {keyword: "pain points", weight: 80}]
+    goal: "Synthesize real-world sentiment. Use the problem statement to generate queries. **Strategy:** 1) Use `RedditTool` and `HackerNewsTool` for structured community data. 2) Use `BrowserTool` to search and scrape niche forums, blog comments, and TikTok for 'raw' unfiltered opinions. 3) Use `Serper_WebSearchTool` to find articles discussing these pain points. Synthesize all findings into a structured report: **Common Frustrations**, **Desired Outcomes**, and **Unmet Needs**, citing the source platform for each point."
+
+  - id: analyze_market_trends_and_buzz
+    description: "Checks the real-time pulse of the market using trend data and news analysis."
+    type: api_task
+    tool_name: "NewsAggregatorTool"
+    base_score: 90
+    triggers: [{keyword: "market trend", weight: 90}, {keyword: "what's going on", weight: 90}, {keyword: "market pulse", weight: 80}]
+    goal: "Using the core problem keywords, query the `NewsAggregatorTool` for significant articles (last 3 months) and `Tavily` (search_depth: advanced) for trend analysis. Output a summary of the trend direction (Growing, Stable, Declining) and a synopsis of the 3 most important recent events shaping the market narrative."
+
+  - id: conduct_market_opportunity_valuation
+    description: "Creates a Value Proposition Canvas and estimates the economic value of solving the market need."
+    type: llm_task
+    base_score: 92
+    triggers: [{keyword: "market value", weight: 90}, {keyword: "business need", weight: 80}, {keyword: "opportunity size", weight: 80}]
+    prompt: "You are a Venture Capital Analyst. You have market size data ({tam_som_data}) and sentiment analysis ({sentiment_analysis_data}). Create a structured Value Proposition Canvas (Customer Pains, Gains, Jobs vs. Your Solution's Pain Relievers, Gain Creators, Products). Then, provide a qualitative assessment of the market opportunity (Niche, Substantial, or Transformational) with a one-paragraph justification."
+
+  - id: evaluate_problem_solution_fit
+    description: "Critically evaluates how well the user's proposed solution fits the validated problem."
+    type: llm_task
+    base_score: 98
+    triggers: [{keyword: "evaluate solution", weight: 95}, {keyword: "check fit", weight: 90}, {keyword: "enhance my idea", weight: 90}]
+    prompt: "You are a skeptical but fair product critic from a top-tier VC firm. You have the full context: problem statement, customer voice, and the user's solution '{topic}'. Generate a 'Problem-Solution Fit Scorecard' (markdown table) rating the solution from 1-10 on: **High-Value Problem**, **Market Awareness**, **Differentiation**, and **Feasibility**. Provide a justification for each score. Conclude with a final verdict ('Strong Fit', 'Potential, Needs Refinement', or 'Poor Fit') and list **three specific, actionable recommendations** to enhance the solution."
+
+# ===== 4. MACRO & MARKET ANALYSIS FRAMEWORKS =====
+# Applying established strategic frameworks for a 360-degree market view.
+# =====================================================================
+
+market_analysis_tasks:
+  - id: perform_pestle_analysis
+    description: "Generates a PESTLE analysis to understand macro-environmental factors."
+    type: llm_task
+    base_score: 85
+    triggers: [{keyword: "market entry", weight: 80}, {keyword: "strategic plan", weight: 60}, {keyword: "external factors", weight: 90}]
+    prompt: "You are a Senior Business Strategist. Based on all gathered data ({all_task_outputs}), including `PublicHolidayTool` for social context and `NewsAggregatorTool` for political/economic news, conduct a comprehensive PESTLE analysis for the {topic} industry in {location}. For each of the six factors, identify 2-3 key trends or issues and explain their potential impact. Present in a markdown table."
+
+  - id: perform_porters_five_forces_analysis
+    description: "Analyzes the competitive structure of an industry using Porter's Five Forces model."
+    type: llm_task
+    base_score: 90
+    triggers: [{keyword: "industry analysis", weight: 90}, {keyword: "competitive landscape", weight: 80}, {keyword: "profitability", weight: 70}]
+    prompt: "You are a strategy consultant. Using all available data ({all_task_outputs}), perform a Porter's Five Forces analysis for the {topic} industry. For each force, assess it as Low, Medium, or High, and provide a 2-sentence justification. Conclude with an overall assessment of industry attractiveness."
+    
+  - id: analyze_total_addressable_market
+    description: "Estimates the Total Addressable Market (TAM), Serviceable Addressable Market (SAM), and Serviceable Obtainable Market (SOM)."
+    type: code_execution_task
+    runtime_environment: "python"
+    base_score: 80
+    triggers: [{keyword: "market size", weight: 90}, {keyword: "business plan", weight: 70}, {keyword: "investment", weight: 60}]
+    goal: "Generate a Python script using pandas and plotly. Use provided market data ({market_data_csv}) to calculate TAM, SAM, and SOM, stating assumptions in comments. Output a JSON with the values and a Base64 encoded waterfall/funnel chart visualizing the market sizing."
+
+# ===== 5. COMPANY, PRODUCT & COMPETITIVE ANALYSIS =====
+# Deep dive into a specific entity and its competitive positioning.
+# ======================================================================
+
+company_analysis_tasks:
+  - id: generate_automated_swot_analysis
+    description: "Generates a SWOT analysis based on all gathered data, citing sources for each point."
+    type: llm_task
+    base_score: 80
+    triggers: [{keyword: "SWOT", weight: 80}, {keyword: "company analysis", weight: 50}, {keyword: "strategic plan", weight: 40}]
+    prompt: "You are a business strategist. Based on all provided context ({all_task_outputs}), generate a comprehensive SWOT analysis. Present in four quadrants. Each point must be a concise insight directly tied to the data, citing its source (e.g., '10-K Risk Factors from Finnhub', 'Market Sentiment from RedditTool', 'Competitor pricing from BrowserTool')."
+
+  - id: analyze_pricing_strategy
+    description: "Analyzes competitor pricing models and recommends a data-driven pricing strategy."
+    type: orchestration_task
+    base_score: 85
+    triggers: [{keyword: "pricing", weight: 80}]
+    goal: "You are a pricing strategy expert. **Strategy:** 1) Use `BrowserTool` to visit the websites of top 3 competitors and scrape their pricing pages. 2) Use an LLM to analyze the scraped data ({scraped_pricing_data}) and the user's proposed price ({user_price}). 3) Recommend a pricing strategy (Value, Competitive, Premium) with justification. 4) Generate a Python script for a Streamlit app with a slider for the user's price and a chart modeling potential revenue against competitors."
+
+  - id: analyze_competitive_moat
+    description: "Assesses the durability of a company's competitive advantages (its 'moat')."
+    type: llm_task
+    base_score: 90
+    triggers: [{keyword: "competitive advantage", weight: 90}, {keyword: "moat", weight: 90}, {keyword: "due diligence", weight: 70}]
+    prompt: "You are a long-term value investor. Evaluate the company's competitive moat based on all available information ({all_task_outputs}). Assess the strength of its moat across: Network Effects, Intangible Assets (use `Tavily` patent search), Cost Advantages, and Switching Costs. Rate each category (None, Weak, Moderate, Strong) with data-backed justification. Conclude with an overall moat rating and its likely trend (widening, stable, or shrinking)."
+
+  - id: create_competitor_feature_matrix
+    description: "Generates a detailed matrix comparing features, pricing, and market position of key competitors."
+    type: orchestration_task
+    base_score: 85
+    triggers: [{keyword: "competitor analysis", weight: 90}, {keyword: "feature comparison", weight: 80}, {keyword: "SaaS", weight: 70}]
+    goal: "You are a Product Marketing Manager. **Strategy:** 1) Use `Serper_WebSearchTool` to identify the top 3-4 competitors. 2) Use `BrowserTool` with the 'investigate_entity' operation on each competitor's website to extract key features and marketing language. 3) Use an LLM to assemble the scraped data into a detailed markdown comparison matrix. Rows should be key features/attributes. Columns should be the user's company and competitors. Add a final 'Strategic Positioning' row with a one-sentence summary for each."
+
+  - id: analyze_comparative_locations
+    description: "Performs a side-by-side analysis of two or more geographic locations for market entry or expansion."
+    type: orchestration_task
+    base_score: 95
+    triggers: [{keyword: "vs", weight: 90}, {keyword: "compare locations", weight: 90}, {keyword: "market entry", weight: 70}]
+    goal: "You are a world-class location strategist. For each location: 1) Use `PlaceSearchTool` to analyze business density. 2) Use `GeocodingTool` for precise coordinates. 3) Use `WeatherTool` and `PublicHolidayTool` for operational context. 4) Use `Tavily` to research local regulations and cost of living. 5) Use an LLM to synthesize this data into a comparative analysis table. Conclude with a scored ranking and a strategic recommendation."
+
+# ===== 6. CUSTOMER & BUYER IDENTIFICATION =====
+# Defines and finds potential customers, users, and buyers.
+# ============================================================
+
+customer_identification_tasks:
+  - id: define_ideal_customer_profile
+    description: "Creates a detailed Ideal Customer Profile (ICP) and Buyer Persona to guide targeted prospecting."
+    type: llm_task
+    base_score: 95
+    triggers: [{keyword: "find customers", weight: 90}, {keyword: "potential buyers", weight: 90}, {keyword: "target audience", weight: 80}]
+    prompt: "You are a world-class go-to-market strategist. Based on the validated problem from the 'Problem & Market Validation' stage, create a detailed Ideal Customer Profile (ICP). If B2B, define company size, industry, geography, job titles. If B2C, define demographics, interests, online behaviors. This ICP must be directly informed by the users who expressed the most pain in the sentiment analysis."
+
+  - id: find_b2b_leads_from_linkedin
+    description: "Searches LinkedIn for companies and key personnel matching the Ideal Customer Profile."
+    type: browser_task
+    base_score: 85
+    triggers: [{keyword: "B2B leads", weight: 90}, {keyword: "find companies", weight: 80}, {keyword: "corporate clients", weight: 80}]
+    goal: "Execute `BrowserTool` with operation 'find_leads'. Set `lead_platform` to 'LinkedIn', `search_topic` to the ICP's industry/size, and `lead_criteria` to the target job titles. The tool will perform the advanced search and scrape a list of the top 20 results containing Company Name, Individual's Name, Job Title, and a link to their LinkedIn profile."
+
+  - id: find_leads_from_job_postings
+    description: "Scans job boards to find companies with a budgeted need, identified by their hiring patterns."
+    type: browser_task
+    base_score: 90
+    triggers: [{keyword: "B2B leads", weight: 70}, {keyword: "find customers", weight: 70}, {keyword: "budgeted need", weight: 90}]
+    goal: "You are a sales intelligence analyst. Use `BrowserTool` to search major job boards (LinkedIn Jobs, Indeed) for the job roles defined in the ICP. Scrape a list of the top 20 companies currently hiring for these roles, along with the job title and location. This provides a list of companies with a confirmed, immediate, and budgeted need."
+    
+  - id: find_leads_on_x_twitter
+    description: "Scans X (Twitter) for users expressing a need or pain point in real-time."
+    type: browser_task
+    base_score: 88
+    triggers: [{keyword: "Twitter leads", weight: 90}, {keyword: "X leads", weight: 90}]
+    goal: "Execute `BrowserTool` with operation 'find_leads'. Set `lead_platform` to 'Twitter', `search_topic` to keywords from the ICP and identified pain points (e.g., 'recommend a {product_category}'), and `lead_criteria` to buying intent signals (e.g., 'frustrated with', 'how do you solve'). The tool will scrape the top 15 most relevant, recent tweets, capturing the username, tweet text, and a direct link for immediate engagement."
+
+  - id: find_smb_leads_on_tiktok
+    description: "Identifies small business owners and entrepreneurs on TikTok discussing relevant business challenges."
+    type: browser_task
+    base_score: 80
+    triggers: [{keyword: "TikTok leads", weight: 80}, {keyword: "small business owner", weight: 90}, {keyword: "shop owner", weight: 80}]
+    goal: "Execute `BrowserTool` with operation 'find_leads'. Set `lead_platform` to 'TikTok', `search_topic` to business-owner hashtags (e.g., #smallbiz, #entrepreneur), and `lead_criteria` to problem-related keywords (e.g., 'inventory management', 'social media marketing'). The tool will scrape the top 10 creator profiles that match the ICP, providing their username, profile link, and the text from a relevant video post."
+
+# ===== 7. GO-TO-MARKET ACTIVATION & SALES ENABLEMENT =====
+# Generates the assets and plans needed to actively engage and convert prospects.
+# =========================================================================
+
+go_to_market_tasks:
+  - id: generate_prospect_briefing_dossier
+    description: "Creates a one-page intelligence briefing on a specific target company for hyper-personalized outreach."
+    type: orchestration_task
+    base_score: 95
+    triggers: [{keyword: "prepare for meeting", weight: 90}, {keyword: "briefing", weight: 80}, {keyword: "target account", weight: 80}]
+    goal: "You are a top-tier Sales Development Representative. For target company '{company_name}': 1) Use `Tavily` to find recent press releases and funding news. 2) Use `FinnhubTool` for financials if public. 3) Use `BrowserTool` ('investigate_entity') to scan their website's 'About Us' and 'Blog' sections. 4) Use an LLM to synthesize findings into a one-page dossier with: Key Initiatives, Pain Points, Key Contacts, and a compelling 'Hook' for outreach."
+
+  - id: generate_personalized_outreach_sequence
+    description: "Writes a multi-touch, personalized email and LinkedIn outreach sequence for a specific prospect."
+    type: llm_task
+    base_score: 90
+    triggers: [{keyword: "outreach email", weight: 90}, {keyword: "cold email", weight: 80}, {keyword: "prospecting", weight: 80}]
+    prompt: "You are a sales copywriting expert. Using the ICP ({icp_data}) and 'Common Frustrations' from the market sentiment report, write a 3-touch outreach sequence. The messaging must resonate deeply with the validated customer pains, lead with empathy, introduce the solution as a 'painkiller', and end with a low-friction call-to-action."
+
+  - id: generate_lead_magnet_content
+    description: "Creates a valuable piece of content (e.g., blog post, whitepaper) to attract and nurture leads."
+    type: orchestration_task
+    base_score: 85
+    triggers: [{keyword: "content marketing", weight: 80}, {keyword: "lead magnet", weight: 90}, {keyword: "blog post", weight: 70}]
+    goal: "You are an expert Content Marketer. **Strategy:** 1) Use an LLM to draft a 750-word blog post titled 'Tired of [Insert Frustration]? Here's How to Fix It', based on market sentiment data. 2) Use `PexelsSearchTool` to find a compelling, royalty-free header image for the post. 3) Conclude the post by positioning '{user_product}' as the ideal solution."
+
+  - id: create_sales_discovery_call_script
+    description: "Generates a structured script and talking points for a sales discovery call."
+    type: llm_task
+    base_score: 88
+    triggers: [{keyword: "sales call", weight: 90}, {keyword: "discovery script", weight: 90}, {keyword: "prepare for meeting", weight: 80}]
+    prompt: "You are a veteran Sales Coach. Create a comprehensive discovery call script. The 'Pain-Finding Questions' section must be directly based on the 'Common Frustrations' and 'Unmet Needs' discovered during market validation. Include sections for opening, qualifying (BANT), pain-finding, value proposition, objection handling, and closing."
+
+  - id: generate_lead_capture_landing_page
+    description: "Generates the code for a simple, high-converting lead capture landing page."
+    type: project_sandbox_task
+    runtime_environment: "javascript"
+    base_score: 85
+    triggers: [{keyword: "landing page", weight: 90}, {keyword: "lead capture", weight: 80}, {keyword: "marketing campaign", weight: 60}]
+    goal: "You are an expert front-end developer specializing in conversion rate optimization. Generate a complete, self-contained Next.js application using Tailwind CSS for a lead capture landing page for the '{lead_magnet_title}'. It must feature: A compelling headline, 3-4 benefit-oriented bullet points, a visually distinct CTA section with an email input and a 'Download Now' button. The design must be clean, modern, and mobile-first."
+
+# ===== 8. CREATIVE & SCIENTIFIC VISUALIZATION (NEW SPECIALIZED LAYER) =====
+# An end-to-end engine for building creative and data-driven web applications.
+# =========================================================================
+
+creative_visualization_tasks:
+  - id: acquire_elemental_spectral_data
+    description: "Researches and acquires the principal electromagnetic emission spectra data for elements in the periodic table."
+    type: browser_task
+    base_score: 98
+    triggers: [{keyword: "periodic chart", weight: 90}, {keyword: "electromagnetic frequency", weight: 90}]
+    goal: "You are a research scientist. Scrape reliable physics data sources (e.g., NIST Atomic Spectra Database, Wikipedia tables) to gather the principal emission line frequency for elements 1 through 92. The output must be a structured JSON file mapping each element's symbol (e.g., 'H', 'He', 'Li') to its frequency in Terahertz (THz)."
+
+  - id: define_frequency_conversion_model
+    description: "Defines the precise mathematical model for converting light frequencies to quantized musical notes."
+    type: llm_task
+    base_score: 96
+    triggers: [{keyword: "audible range", weight: 80}, {keyword: "quantize", weight: 80}]
+    prompt: "You are a physicist and music theorist. Based on the scraped data, create a technical specification for converting light frequencies to audible, musical notes. The document must define: **1. Octave Division Algorithm:** A clear formula for repeatedly halving a frequency until it falls within the target piano range (e.g., 100Hz to 1200Hz). **2. Equal Temperament Quantization:** The precise formula to 'snap' the resulting frequency to the nearest half-step on a standard Western piano scale (A4 = 440Hz). Provide a clear, step-by-step example calculation for a sample element."
+
+  - id: design_audio_synthesis_patch
+    description: "Designs the specific audio patch to create a pleasant, soft, pad-like sound."
+    type: llm_task
+    base_score: 95
+    triggers: [{keyword: "oscillator", weight: 70}, {keyword: "pad and soft", weight: 80}]
+    prompt: "You are a professional sound designer. Design a Web Audio API 'patch' to produce a pleasant, soft, melodious pad sound. The specification must include: **1. Oscillators:** A combination of two `OscillatorNode`s (e.g., one 'sine' and one 'triangle' wave). **2. Detuning:** A slight detuning of the second oscillator (e.g., 5-8 cents) to create a rich chorus effect. **3. ADSR Envelope:** Specific Attack, Decay, Sustain, and Release times for a `GainNode` to create a soft 'swell' and gentle fade-out. **4. Filtering:** A `BiquadFilterNode` (low-pass) to remove harsh high frequencies and create warmth."
+
+  - id: generate_interactive_periodic_table_sonification_app
+    description: "Generates the complete, interactive web application with all specified features."
+    type: project_sandbox_task
+    runtime_environment: "javascript"
+    base_score: 100
+    triggers: [{keyword: "interactive web app", weight: 95}, {keyword: "periodic symbol", weight: 90}, {keyword: "javascript audio context", weight: 80}]
+    goal: "You are an expert full-stack developer specializing in creative coding, data visualization, and the Web Audio API. Generate a complete, self-contained web application (a single HTML file with embedded CSS and JavaScript) that brings the entire project to life. The application must: **1. Render the Periodic Table:** Use CSS Grid to create a visually appealing and accurate layout of the elements. **2. Implement the Core Logic:** Use the `{spectral_data_json}` and the `{frequency_model_spec}` to calculate the correct musical note for each element on page load. **3. Implement Audio Synthesis:** Use the `{audio_patch_spec}` to create the sound synthesis function. When an element is clicked, it should play its corresponding note. **4. Create UI Controls:** Include a master volume slider and a prominent 'Stop All Sounds' button. **5. Display Information:** When an element is clicked, display a small info box showing its name, symbol, the original light frequency, the converted audio frequency, and the final quantized musical note. **6. Be Aesthetically Pleasing:** Use a clean, modern design with smooth transitions and clear labeling."
+
+# ===== 9. EDUCATION & LEGACY PLANNING (NEW SPECIALIZED LAYER) =====
+# Specialized analysis and dynamic modeling for long-term education funding.
+# ========================================================================
+
+education_planning_tasks:
+  - id: define_education_goal_and_parameters
+    description: "Defines the specific education funding goal, timeframe, and key parameters for one or more children."
+    type: llm_task
+    base_score: 98
+    triggers: [{keyword: "children's education", weight: 95}, {keyword: "plan for education", weight: 90}, {keyword: "college fund", weight: 80}]
+    prompt: "You are a Certified Financial Planner specializing in education planning. The user wants to plan for their children's education. Based on their query '{user_query}', extract and structure the initial parameters. If information is missing, ask clarifying questions. Output a 'Goal Definition' summary including: **Child's Name(s)**, **Current Age(s)**, **Target Education Level** (e.g., University, Private High School), **Desired Institution Type** (e.g., Public In-State, Private, International), and **Target Enrollment Age** (e.g., 18)."
+
+  - id: research_education_cost_data
+    description: "Performs live research to find current tuition, fees, and living costs for specified types of institutions."
+    type: browser_task
+    base_score: 95
+    triggers: [{keyword: "tuition", weight: 80}, {keyword: "living costs", weight: 80}]
+    goal: "You are a research analyst for a financial planning firm. Based on the 'Goal Definition' ({goal_definition_data}), use `BrowserTool` to search for 'tuition and fees at {university_name or institution_type}' and 'average student living cost in {city}'. Synthesize this into a structured data object with fields for 'annual_tuition', 'annual_fees', and 'annual_living_cost'. This data will serve as the default for the financial model."
+
+  - id: develop_education_savings_investment_strategy
+    description: "Recommends a suitable investment strategy and account types based on the user's timeframe and goals."
+    type: llm_task
+    base_score: 94
+    triggers: [{keyword: "investment returns", weight: 70}, {keyword: "savings", weight: 70}]
+    prompt: "You are a Senior Financial Advisor. Based on the time horizon (Target Enrollment Age - Current Age), recommend an appropriate investment strategy. Propose a risk-based asset allocation (e.g., 'For a 15-year horizon, an 80% Equity / 20% Fixed Income allocation is appropriate, gradually becoming more conservative.'). Suggest suitable account types (e.g., 'A 529 Plan offers tax advantages for education in the US. A general brokerage account with low-cost index funds is a flexible alternative.'). Provide default expected annual returns for 'Conservative', 'Balanced', and 'Aggressive' portfolios."
+
+  - id: generate_interactive_education_savings_model
+    description: "Creates a dynamic, interactive financial model for the user to plan and track their education savings goal."
+    type: project_sandbox_task
+    runtime_environment: "python"
+    base_score: 100
+    triggers: [{keyword: "model", weight: 95}, {keyword: "children's education", weight: 90}, {keyword: "graph", weight: 80}]
+    goal: "You are an expert full-stack developer specializing in financial tools. Generate a complete, self-contained Streamlit application that serves as an interactive Education Savings Planner. The application must include: **1. Inputs:** Sliders or input boxes for 'Current Savings', 'Monthly Contribution', 'Child's Current Age', 'Expected Annual Investment Return (%)', and 'Education Cost Inflation Rate (%)'. **2. Cost Section:** Inputs for 'Annual Tuition' and 'Living Costs', pre-filled with the researched data ({education_cost_data}). **3. Live Research Button:** A button labeled 'Research Costs for a Specific University'. When clicked, it should allow the user to input a university name, trigger a new research task, and update the cost fields with the new data. **4. Outputs:** A year-by-year cash flow table showing contributions, investment growth, total savings, and projected costs. A clear Plotly chart visualizing 'Projected Savings vs. Funding Goal' over time, with a final annotation showing the projected surplus or shortfall at the target date."
+
+  - id: synthesize_education_funding_plan
+    description: "Compiles all analyses into a final, actionable education funding plan for the user."
+    type: llm_task
+    base_score: 100
+    triggers: [{keyword: "children's education", weight: 90}, {keyword: "plan", weight: 80}]
+    prompt: "You are a Certified Financial Planner delivering a formal recommendation. You have the goal definition, cost data, investment strategy, and the results from the interactive model ({education_model_results}). Synthesize this into a clear, empathetic, and actionable **Education Funding Plan**. Structure the document with: **1. Goal Summary.** **2. Projected Costs & Funding Status:** State clearly whether there is a projected surplus or shortfall. **3. Recommended Strategy:** Summarize the monthly savings and investment allocation needed. **4. Actionable Next Steps:** Provide a checklist, e.g., '1. Open a [recommended account type]. 2. Set up an automatic monthly transfer of [amount]. 3. Review this plan annually or when circumstances change.'."
+
+# ===== 10. RENEWABLE ENERGY PROJECT FINANCE & STRATEGY (NEW SPECIALIZED LAYER) =====
+# Specialized analysis for the financial and strategic viability of renewable energy projects.
+# =====================================================================================
+
+renewable_energy_tasks:
+  - id: project_energy_yield_and_performance
+    description: "Projects the annual energy yield of a solar farm based on geographical and technical data."
+    type: api_task
+    tool_name: "pvgis_solar_data"
+    base_score: 98
+    triggers: [{keyword: "solar farm", weight: 90}, {keyword: "energy yield", weight: 90}, {keyword: "Wales", weight: 90}]
+    goal: "You are a Solar Energy Engineer. For a '{project_size_mw}MW' solar farm in '{location}', query a photovoltaic geographical information system (like PVGIS) to get the average solar irradiance data (GHI). Assume standard system losses (e.g., 14%) and a modern panel degradation rate (e.g., 0.5%/year). Calculate and output the projected **Year 1 Energy Production (in GWh)** and a 25-year production forecast table."
+
+  - id: analyze_revenue_streams_and_market
+    description: "Analyzes all potential revenue streams including energy sales and environmental credits."
+    type: orchestration_task
+    base_score: 96
+    triggers: [{keyword: "financial viability", weight: 80}, {keyword: "carbon credit", weight: 90}]
+    goal: "You are an Energy Market Analyst specializing in the UK. **Strategy:** 1) Use `Tavily` to research current UK PPA prices and wholesale electricity rates. 2) Use `Serper_WebSearchTool` to find the current value of UK ETS allowances. 3) Use an LLM to synthesize this data and the projected energy yield ({energy_yield_data}) into a revenue forecast, broken down by PPA sales, merchant sales, and carbon credits."
+
+  - id: evaluate_regulatory_and_tax_incentives
+    description: "Identifies all applicable government grants, tax credits, and regulatory incentives for the project."
+    type: browser_task
+    base_score: 95
+    triggers: [{keyword: "tax incentives", weight: 90}, {keyword: "solar farm", weight: 80}]
+    goal: "You are a policy advisor for a renewable energy fund. For a solar project in '{location}', use `BrowserTool` to search the UK government, Welsh government, and Ofgem websites for all relevant support schemes. Identify and detail any applicable **Capital Allowances**, **Investment Tax Credits**, **Contracts for Difference (CfD)** auction eligibility, or other direct grants. Provide a summary of how each incentive would financially benefit the project."
+
+  - id: develop_procurement_and_capex_strategy
+    description: "Proposes an optimal procurement strategy for hardware and estimates the total capital expenditure."
+    type: llm_task
+    base_score: 94
+    triggers: [{keyword: "procurement strategies", weight: 90}, {keyword: "solar farm", weight: 80}]
+    prompt: "You are a Chief Procurement Officer for a major utility. For a '{project_size_mw}MW' solar project, develop a procurement strategy. Analyze the current global market for solar panels, inverters, and mounting systems. Propose a sourcing strategy (e.g., 'Utilize Tier 1 Chinese panels for cost-effectiveness vs. European panels for lower supply chain risk'). Then, create a detailed **Capital Expenditure (CAPEX) estimate**, breaking down the cost per MW for panels, inverters, civil works, and grid connection. Provide a total estimated project cost."
+
+  - id: generate_dynamic_project_finance_model
+    description: "Creates an interactive financial model to assess the project's long-term financial viability."
+    type: project_sandbox_task
+    runtime_environment: "python"
+    base_score: 100
+    triggers: [{keyword: "dynamic financial modelling", weight: 95}, {keyword: "financial viability", weight: 90}]
+    goal: "You are a Project Finance expert. Generate a comprehensive, interactive Streamlit application to model the solar farm's financials over 25 years. The model must integrate all previous outputs: energy yield, revenue projections, opex, capex, and incentives. It must include user-adjustable sliders for key assumptions like **Discount Rate**, **PPA Price (£/MWh)**, **Debt-to-Equity Ratio**, and **Interest Rate**. The output dashboard must clearly display the project's **IRR (Internal Rate of Return)**, **NPV (Net Present Value)**, **Payback Period**, and **DSCR (Debt Service Coverage Ratio)**."
+
+  - id: synthesize_investment_viability_report
+    description: "Compiles all analyses into a final, board-level 'Go/No-Go' investment thesis."
+    type: llm_task
+    base_score: 100
+    triggers: [{keyword: "financial viability", weight: 95}, {keyword: "solar farm", weight: 80}]
+    prompt: "You are the Head of Renewable Investments presenting to an investment committee. You have all the specialized reports: Energy Yield, Revenue Analysis, CAPEX Strategy, and the output from the Dynamic Financial Model ({project_finance_model_data}). Synthesize this into a definitive **Investment Viability Report**. Structure it with: **1. The Verdict:** A clear 'Recommendation: Project is Financially Viable' or 'Not Viable'. **2. Executive Summary:** A paragraph summarizing the project's returns and risks. **3. Key Financial Drivers:** The top 3 factors influencing profitability (e.g., PPA price, government incentives). **4. Primary Risks:** The top 3 risks to the project's success (e.g., grid connection delays, falling power prices). **5. Final Recommendation:** A clear 'Proceed to next stage' or 'Decline investment' statement with justification."
+
+# ===== 11. VENTURE CREATION & LAUNCHPAD (SPECIALIZED LAYER) =====
+# An end-to-end engine for researching, building, and launching a new company.
+# =========================================================================
+
+venture_creation_tasks:
+  - id: analyze_market_leaders_and_disruptors
+    description: "Analyzes the world's largest and fastest-growing companies to identify macro trends and success patterns."
+    type: orchestration_task
+    base_score: 98
+    triggers: [{keyword: "launch me a company", weight: 90}, {keyword: "crack the code", weight: 90}, {keyword: "biggest companies", weight: 80}]
+    goal: "You are a lead analyst at a venture capital firm. **Strategy:** 1) Use `Serper_WebSearchTool` to find lists of 'Fortune 100' and 'Inc. 5000' companies. 2) Use `BrowserTool` to scrape their industries and business models from their websites. 3) Use an LLM to synthesize this vast data into a concise report on **'Meta-Themes for Success in the Current Economy'**, identifying the top 5 recurring themes."
+
+  - id: generate_data_driven_business_idea
+    description: "Synthesizes market analysis into a concrete, high-potential business idea with a clear path to monetization."
+    type: llm_task
+    base_score: 96
+    triggers: [{keyword: "create a business idea", weight: 90}, {keyword: "launch me a company", weight: 80}]
+    prompt: "You are a partner at a startup incubator like Y Combinator. You have the 'Meta-Themes for Success' report ({success_themes_data}). Your job is to generate a fundable business idea. Propose **three distinct business concepts** derived from these themes. For each concept, provide: **1. The Idea:** A clear, one-sentence pitch. **2. The Problem:** The specific pain point it solves. **3. The Target Audience:** A niche group of initial customers. **4. The Monetization Strategy:** How it will make money (e.g., subscription tiers, usage-based pricing). **5. The $10k/Month Path:** A quick calculation of what's needed to hit the goal (e.g., 'Requires 200 customers at $50/month')."
+
+  - id: generate_mvp_website_and_app_code
+    description: "Creates the code for a functional MVP website and a placeholder app structure for the chosen business idea."
+    type: project_sandbox_task
+    runtime_environment: "javascript"
+    base_score: 95
+    triggers: [{keyword: "make a website", weight: 90}, {keyword: "make an app", weight: 90}]
+    goal: "You are an expert full-stack developer. Based on the chosen business idea '{selected_business_idea}', generate a complete, self-contained Next.js application using Tailwind CSS to serve as the Minimum Viable Product (MVP) website. The site must include: a compelling landing page with a clear value proposition, a features section, a simple pricing page, and a prominent call-to-action for an email list signup. Additionally, provide the basic file structure for a React Native app, including navigation and placeholder screens for key features."
+
+  - id: create_organic_marketing_launch_plan
+    description: "Develops a zero-budget, high-leverage marketing plan for the first 90 days to achieve initial traction."
+    type: llm_task
+    base_score: 94
+    triggers: [{keyword: "get free marketing", weight: 90}, {keyword: "launch the whole thing", weight: 80}]
+    prompt: "You are a seasoned Growth Hacker. Your goal is to get the first 1,000 users for '{selected_business_idea}' with a budget of zero. Create a tactical 90-day 'Free Marketing' plan. Include a week-by-week schedule covering: **Pre-Launch:** Building an initial email list. **Launch Week:** A detailed plan for launching on Product Hunt using `BrowserTool` and posting on `HackerNewsTool`. **Content Marketing:** A list of the first 5 blog post titles that solve a real problem for the target audience. **Community Engagement:** Identify the top 3 subreddits using `RedditTool` to participate in authentically. **Social Media:** A simple content strategy for one key social platform."
+
+  - id: synthesize_venture_launch_playbook
+    description: "Compiles all analyses and strategies into a comprehensive, week-by-week launch playbook."
+    type: llm_task
+    base_score: 100
+    triggers: [{keyword: "launch me a company", weight: 95}, {keyword: "launch the whole thing", weight: 90}]
+    prompt: "You are a Y Combinator Partner guiding a new founder. You have all the components: the Idea, the MVP plan, and the Marketing plan. Synthesize these into a definitive **Venture Launch Playbook**. Structure the playbook into a 12-month roadmap with clear, quarterly milestones for **Product Development**, **Marketing & Growth**, and **Revenue**. Explicitly detail the actions for 'Month 1' through 'Month 3'. The playbook's ultimate goal is to provide a step-by-step guide to reaching the '$10,000/month' revenue target within the first year."
+
+# ===== 12. WEALTH MANAGEMENT & FAMILY OFFICE STRATEGY (SPECIALIZED LAYER) =====
+# Elite advisory for High-Net-Worth individuals and their professional managers.
+# ============================================================================
+
+wealth_management_tasks:
+  - id: define_client_mandate_and_risk_profile
+    description: "Defines the HNW client's investment goals, risk tolerance, and constraints, forming the basis of the relationship."
+    type: llm_task
+    base_score: 98
+    triggers: [{keyword: "wealth management", weight: 90}, {keyword: "HNW", weight: 90}, {keyword: "family office", weight: 80}, {keyword: "private banking", weight: 80}]
+    prompt: "You are a Senior Private Banker at Goldman Sachs Private Wealth Management. The user is either a wealthy individual or their manager. Your first step is to establish the Client Mandate. Based on the user's query, infer and structure their profile. If information is missing, state the questions you would ask: 'To advise you properly, I need to understand your goals (e.g., Capital Preservation, Balanced Growth, Aggressive Growth), time horizon, liquidity needs, and attitude towards risk. For example, are you comfortable with illiquid investments for higher potential returns?' Output a structured 'Client Mandate' summary."
+
+  - id: analyze_existing_investment_portfolio
+    description: "Conducts a diagnostic analysis of a client's existing portfolio to identify risks and opportunities."
+    type: code_execution_task
+    runtime_environment: "python"
+    base_score: 95
+    triggers: [{keyword: "analyze portfolio", weight: 90}, {keyword: "my investments", weight: 80}]
+    goal: "You are a Portfolio Analyst at a multi-family office. The user has provided their portfolio data ({portfolio_data_csv}). Generate a Python script using pandas and plotly to create a 'Portfolio Diagnostic Report'. The report must include: 1) A breakdown of asset allocation by class (Equities, Fixed Income, Cash, Alternatives). 2) A Concentration Risk analysis identifying any single positions over 10% of the portfolio. 3) A geographical and sector diversification analysis. The output should be a JSON summary and a Base64 encoded image of the asset allocation chart."
+
+  - id: develop_strategic_asset_allocation_model
+    description: "Proposes an optimal, long-term asset allocation model based on the client's mandate."
+    type: llm_task
+    base_score: 96
+    triggers: [{keyword: "asset allocation", weight: 90}, {keyword: "investment strategy", weight: 80}]
+    prompt: "You are the Chief Investment Officer (CIO) of a major endowment. Based on the Client Mandate ({client_mandate_data}) and the Diagnostic Report ({portfolio_diagnostic_data}), propose a new Strategic Asset Allocation. Select a model (e.g., '60/40 Balanced', '70/30 Growth', 'All-Weather'). Present the target allocation as a markdown table with percentages for asset classes like Global Equities, Fixed Income, Cash, and Alternatives. Provide a clear, concise justification for this specific allocation based on the client's risk profile and goals."
+
+  - id: evaluate_alternative_investments
+    description: "Identifies and explains suitable alternative investments beyond public stocks and bonds."
+    type: llm_task
+    base_score: 92
+    triggers: [{keyword: "alternative investments", weight: 80}, {keyword: "private equity", weight: 70}, {keyword: "hedge funds", weight: 70}]
+    prompt: "You are the Head of Alternative Investments at a private bank. The client's proposed allocation includes a slice for 'Alternatives'. Based on their wealth level and risk tolerance, recommend and explain 2-3 suitable alternative asset classes. Options include: **Private Equity/Venture Capital**, **Private Credit**, **Hedge Funds**, **Real Estate (Direct/Funds)**, and **Collectibles (Art, Wine)**. For each recommendation, explain the investment thesis, typical lock-up period (illiquidity), and potential role in the portfolio (e.g., 'return enhancer', 'diversifier')."
+
+  - id: structure_tax_and_legacy_plan
+    description: "Proposes high-level strategies for tax optimization and wealth transfer."
+    type: llm_task
+    base_score: 94
+    triggers: [{keyword: "tax optimization", weight: 80}, {keyword: "estate planning", weight: 80}, {keyword: "trusts", weight: 70}]
+    prompt: "You are a Trust and Estate Planning Attorney advising a family office. Based on the client's profile, outline key wealth structuring concepts for discussion. Do not give legal advice, but explain the strategic purpose of: **Trusts** (e.g., Revocable Living Trusts for probate avoidance, Irrevocable Trusts for estate tax reduction), **Philanthropic Vehicles** (e.g., Donor-Advised Funds vs. a Private Foundation), and **Tax-Efficient Investing Strategies** (e.g., tax-loss harvesting, asset location between taxable and tax-advantaged accounts)."
+
+  - id: synthesize_investment_policy_statement_and_proposal
+    description: "Compiles all analyses into a formal Investment Policy Statement (IPS) and client proposal."
+    type: llm_task
+    base_score: 100
+    triggers: [{keyword: "wealth management", weight: 90}, {keyword: "investment proposal", weight: 80}]
+    prompt: "You are the Lead Relationship Manager presenting to a high-net-worth client. You have all the specialized reports: the Mandate, Portfolio Diagnostic, Strategic Allocation, and Structuring Briefs. Synthesize this into a formal Investment Policy Statement (IPS) and Proposal. The document must be structured professionally: **1. Client Mandate & Objectives.** **2. Review of Current Financial Situation.** **3. Proposed Investment Strategy & Strategic Asset Allocation.** **4. Role of Alternative Investments.** **5. High-Level Wealth Structuring & Legacy Considerations.** **6. Proposed Implementation Plan & Next Steps.**"
+
+# ===== 13. PERSONAL FINANCE & WEALTH STRATEGY (SPECIALIZED LAYER) =====
+# Specialized analysis for personal financial health, major purchases, and wealth planning.
+# =====================================================================================
+
+personal_finance_tasks:
+  - id: analyze_personal_financial_health
+    description: "Conducts a holistic analysis of a user's financial situation to establish a baseline."
+    type: llm_task
+    base_score: 98
+    triggers: [{keyword: "salary", weight: 90}, {keyword: "savings", weight: 90}, {keyword: "debt", weight: 80}, {keyword: "my finances", weight: 80}]
+    prompt: "You are a Certified Financial Planner (CFP). The user has provided their financial details: Salary '{salary}', Savings '{savings}', and potentially other debts. First, establish a baseline. Calculate their estimated monthly take-home pay (assume a standard tax rate). Then, calculate their **Savings-to-Income Ratio** and their current **Emergency Fund Status** (e.g., 'The $10k savings represents approximately 3 months of essential living expenses'). Present this as a concise 'Financial Snapshot'."
+
+  - id: assess_major_purchase_affordability
+    description: "Evaluates the affordability of a major purchase, like a car, using established financial rules and calculating the total cost of ownership."
+    type: llm_task
+    base_score: 96
+    triggers: [{keyword: "buy a car", weight: 95}, {keyword: "buy a house", weight: 80}, {keyword: "afford", weight: 80}]
+    prompt: "You are a prudent financial advisor. The user wants to buy a '{item_name}' for '{item_price}'. Using the user's Financial Snapshot ({financial_snapshot_data}), evaluate this purchase. For a car, apply the **20/4/10 rule** (20% down payment, finance for no more than 4 years, total monthly auto costs under 10% of gross income). Then, estimate the **Total Cost of Ownership (TCO)** for the first year, including estimated insurance, fuel, and maintenance. Conclude with a clear affordability verdict based on these metrics."
+
+  - id: evaluate_impact_on_financial_goals
+    description: "Analyzes how the proposed purchase will impact the user's savings and long-term financial security."
+    type: llm_task
+    base_score: 95
+    triggers: [{keyword: "savings", weight: 80}, {keyword: "buy", weight: 70}]
+    prompt: "You are a financial coach. Based on the purchase assessment ({purchase_affordability_data}), illustrate the direct impact on the user's financial health. Specifically, show: **Impact on Savings** (e.g., 'A $4k down payment would reduce your savings by 40%, from $10k to $6k'). **Impact on Emergency Fund** ('This would reduce your emergency fund from 3 months to 1.8 months, placing you in a high-risk position if you lose your income'). **Impact on Cash Flow** ('The estimated monthly payment of $X and TCO of $Y would consume Z% of your monthly take-home pay')."
+
+  - id: develop_financial_scenarios_and_options
+    description: "Generates alternative, responsible financial strategies for the user to consider."
+    type: llm_task
+    base_score: 98
+    triggers: [{keyword: "what can I do", weight: 90}, {keyword: "options", weight: 80}]
+    prompt: "You are a solutions-oriented financial planner. Based on the affordability and impact analysis, the initial plan is not advisable. Propose three distinct, actionable alternative scenarios for the user. Present them clearly: **Scenario A: The Patient Path** (Detail a plan to save for a larger down payment over X months). **Scenario B: The Prudent Purchase Path** (Identify a more affordable, reliable used car in a lower price bracket and model its affordability). **Scenario C: The Income Growth Path** (Suggest 2-3 realistic ways the user could increase their income to make the purchase more comfortable in the future). For each scenario, list the pros and cons."
+
+  - id: synthesize_personal_financial_plan
+    description: "Compiles all analyses into a final, empathetic, and actionable financial recommendation."
+    type: llm_task
+    base_score: 100
+    triggers: [{keyword: "tell me what to do", weight: 90}, {keyword: "my finances", weight: 80}]
+    prompt: "You are an empathetic but firm Certified Financial Planner presenting a final recommendation. You have all the analyses: the snapshot, the affordability check, the impact assessment, and the alternative scenarios. Synthesize this into a clear, supportive, and actionable plan. Start with a direct but gentle verdict on the original idea. Then, walk the user through the recommended scenario, providing a step-by-step checklist. Conclude with an encouraging statement about taking control of their financial future. The tone must be empowering, not judgmental."
+
+# ===== 14. EMERGING MARKET REAL ESTATE INTELLIGENCE (SPECIALIZED LAYER) =====
+# Specialized analysis for high-value real estate investment in emerging markets.
+# =========================================================================
+
+real_estate_intelligence_tasks:
+  - id: assess_country_macroeconomic_and_political_risk
+    description: "Provides a top-down analysis of the target country's economic and political stability."
+    type: orchestration_task
+    base_score: 98
+    triggers: [{keyword: "invest in country", weight: 90}, {keyword: "real estate", weight: 80}, {keyword: "Accra", weight: 90}, {keyword: "Ghana", weight: 90}]
+    goal: "You are a Chief Investment Strategist. **Strategy:** 1) Use `Tavily` to search for recent reports from the World Bank, IMF, and Fitch on '{country}'. 2) Use `IPLocateTool` to get currency data. 3) Use an LLM to synthesize this into a country risk report: Economic Outlook, Political Stability, and Currency Risk. Conclude with an overall Country Risk Rating: A (Low) to D (High)."
+
+  - id: analyze_local_real_estate_market_dynamics
+    description: "Conducts a deep-dive analysis of the specific city's real estate market."
+    type: browser_task
+    base_score: 95
+    triggers: [{keyword: "real estate market", weight: 90}, {keyword: "Accra", weight: 90}]
+    goal: "You are a Senior Analyst at JLL. For '{city}, {country}', use `BrowserTool` to search local real estate reports, property portals (e.g., Meqasa in Ghana), and business news. Scrape and synthesize data on: **Average Price/sqm** by key neighborhood, **Rental Yields** (Residential vs. Commercial), **Vacancy Rates**, and **Key Ongoing Projects**."
+
+  - id: identify_prime_investment_sub_sectors_and_locations
+    description: "Identifies the most promising real estate sub-sectors and neighborhoods for investment."
+    type: llm_task
+    base_score: 96
+    triggers: [{keyword: "where to invest", weight: 80}, {keyword: "real estate opportunities", weight: 80}]
+    prompt: "You are a top-tier Real Estate Development Strategist. Based on the country risk report ({country_risk_data}) and the local market analysis ({local_market_data}), identify and rank the top 3 investment opportunities in '{city}'. For each opportunity, specify the **Sub-Sector** (e.g., High-End Residential, Logistics/Warehousing, Student Housing), the **Prime Location(s)**, the **Target Tenant Profile** (e.g., Expats, Multinational Corporations, University Students), and the **Core Thesis** for why it's a compelling opportunity. Example: '1. High-end residential apartments in Airport Residential Area. Targets expats and high-net-worth locals. Thesis: Strong rental demand, dollar-denominated leases offer currency protection.'"
+
+  - id: develop_capital_allocation_and_phasing_strategy
+    description: "Proposes a strategy for deploying a large capital investment over time."
+    type: llm_task
+    base_score: 94
+    triggers: [{keyword: "capital allocation", weight: 80}, {keyword: "200 million", weight: 90}]
+    prompt: "You are a Real Estate Investment Fund Manager. The user has '{investment_amount}' to deploy in '{city}'. Based on the identified opportunities ({investment_opportunities_data}), propose a Capital Allocation and Phasing Strategy. Detail a 3-phase plan: **Phase 1: Entry & De-risking** (Amount, Activity - e.g., land acquisition, legal due diligence, forming local partnerships). **Phase 2: Core Development** (Amount, Activity - e.g., construction of primary project). **Phase 3: Diversification & Scale** (Amount, Activity - e.g., developing a second project or acquiring existing assets). Justify the phased approach."
+
+  - id: generate_project_level_financial_pro_forma
+    description: "Creates an interactive financial model for a specific real estate development project."
+    type: project_sandbox_task
+    runtime_environment: "python"
+    base_score: 95
+    triggers: [{keyword: "financial model", weight: 70}, {keyword: "real estate forecast", weight: 80}]
+    goal: "Generate a Streamlit application for a real estate pro forma forecast. Use the market data ({local_market_data}) to set defaults. The model must include user-adjustable inputs for: **Land Cost**, **Construction Cost/sqm**, **Gross Floor Area**, **Projected Rental Rate/sqm**, **Operating Expense Ratio**, and **Exit Cap Rate**. The output should be a 10-year forecast showing Net Operating Income (NOI), Cash Flow, and key return metrics (IRR, Cash-on-Cash Return, Equity Multiple)."
+
+  - id: synthesize_investment_committee_memo
+    description: "Compiles all analyses into a final, board-level 'Go/No-Go' investment proposal."
+    type: llm_task
+    base_score: 100
+    triggers: [{keyword: "investment memo", weight: 90}, {keyword: "tell me", weight: 80}, {keyword: "good idea", weight: 80}]
+    prompt: "You are the Head of Global Real Estate Investments, presenting to the firm's Investment Committee. You have all the specialized reports: Country Risk, Local Market Data, Opportunities, Capital Allocation Plan, and Financial Projections. Synthesize this into a definitive Investment Memo for a '${investment_amount}' allocation to '{city}'. Structure it with: 1. **Recommendation:** A clear 'Approve funding' or 'Reject proposal'. 2. **Executive Summary:** A powerful paragraph summarizing the entire thesis. 3. **The Opportunity:** Why this market, this city, and this strategy now? 4. **Key Risks & Mitigations:** A clear-eyed view of the top 3 risks (e.g., political, currency, execution) and how you plan to mitigate them. 5. **Financial Summary:** Highlight the projected IRR and Equity Multiple. 6. **Next Steps:** Outline immediate actions upon approval (e.g., 'Engage local legal counsel XYZ', 'Submit formal offer for the identified land parcel')."
+
+# ===== 15. BESPOKE TRAVEL & ITINERARY PLANNING (SPECIALIZED LAYER) =====
+# Specialized analysis for crafting unique, safe, and personalized travel experiences for any purpose.
+# =========================================================================
+
+bespoke_travel_tasks:
+  - id: define_travel_purpose_and_style
+    description: "Defines the user's core travel intent, style, and constraints to guide the entire planning process."
+    type: llm_task
+    base_score: 100
+    triggers: [{keyword: "travel", weight: 80}, {keyword: "trip", weight: 80}, {keyword: "vacation", weight: 80}, {keyword: "honeymoon", weight: 80}]
+    prompt: "You are an expert travel consultant. Analyze the user's request: '{user_query}'. Extract and define the core travel parameters. Output a structured summary including: **Travel Purpose** (e.g., Honeymoon, Solo Adventure, Family Vacation, Cultural Immersion, Relaxing Getaway), **Travel Style** (e.g., Luxury, Budget-conscious, Adventurous, Eco-friendly), **Key Constraints** (e.g., Not Crowded, Safe, Specific Dates, Budget), and **Traveler Profile** (e.g., Couple, Family with young children, Solo traveler). This output will guide all subsequent steps."
+
+  - id: discover_rare_gem_locations
+    description: "Identifies unique, uncrowded, and safe locations that match the user's specific travel purpose and style."
+    type: llm_task
+    base_score: 98
+    triggers: [{keyword: "travel", weight: 80}, {keyword: "not crowded", weight: 95}, {keyword: "rare", weight: 95}]
+    prompt: "You are the senior editor for Condé Nast Traveler, specializing in off-the-beaten-path destinations. Based on the defined travel profile ({travel_purpose_data}), brainstorm and filter down to the top 2 candidate locations in '{region_1}' or '{region_2}' that perfectly match the user's needs. For a 'Solo Adventure', you might suggest 'Svaneti, Georgia'. For a 'Luxury Relaxing Getaway', you might suggest 'a private villa on Milos, Greece'. Provide a one-paragraph justification for each choice, highlighting why it aligns with the user's specific purpose, style, and constraints."
+
+  - id: assess_traveler_safety_and_logistics
+    description: "Conducts a traveler-centric safety and logistical assessment for a specific location."
+    type: browser_task
+    base_score: 96
+    triggers: [{keyword: "travel", weight: 80}, {keyword: "safe", weight: 90}]
+    goal: "You are a travel security consultant. For the shortlisted location '{location}', use `BrowserTool` to search for official government travel advisories (e.g., US State Department), health recommendations (CDC), visa requirements for the user's nationality, and local transport safety reviews. Synthesize this into a concise 'Traveler Briefing': **Overall Safety Rating**, **Health & Vaccinations**, **Visa Requirements**, and **Logistical Notes**."
+
+  - id: curate_accommodations_and_experiences
+    description: "Finds unique accommodations and experiences tailored to the user's travel purpose, avoiding mass-market options."
+    type: orchestration_task
+    base_score: 95
+    triggers: [{keyword: "accommodation", weight: 80}, {keyword: "activities", weight: 80}, {keyword: "recipe", weight: 50}]
+    goal: "You are a luxury travel concierge. For '{location}', use `BrowserTool` to search high-end travel blogs and boutique directories for unique stays. Scrape 2-3 top recommendations for accommodations. Then, use `EventFinderTool` for local events. For a food-focused trip, use `RecipeSearchTool` to find a local cooking class. Synthesize 5-7 **Curated Experiences** that align with the trip's purpose."
+
+  - id: build_custom_travel_itinerary
+    description: "Constructs a detailed, day-by-day travel itinerary with logistics and budget estimates, tailored to the trip's purpose."
+    type: llm_task
+    base_score: 98
+    triggers: [{keyword: "itinerary", weight: 80}]
+    prompt: "You are a Master Itinerary Planner. You have all the curated data: location, safety brief, accommodation, and experiences. Construct a logical and well-paced 10-day itinerary for '{location}' that is perfectly aligned with the '{travel_purpose}'. The plan must be presented in a day-by-day markdown format. Include: **Travel & Transfers**, **Accommodation Details**, **Morning/Afternoon/Evening Activities** (mixing pre-booked experiences with leisure time appropriate for the travel style), and **Dining Suggestions**. Provide a high-level estimated budget breakdown at the end."
+
+  - id: synthesize_travel_proposal_document
+    description: "Presents one or more competing, fully-realized travel proposals for the user to choose from, tailored to any travel purpose."
+    type: llm_task
+    base_score: 100
+    triggers: [{keyword: "travel", weight: 90}, {keyword: "tell me", weight: 80}]
+    prompt: "You are the Director of a bespoke travel agency. You have one or more complete, detailed itineraries ({generated_itineraries}). Your final task is to present these to the client in a compelling proposal. For each option, write a beautiful, evocative summary that captures the 'soul' of the trip and why it's perfect for their specific '{travel_purpose}'. Create a dynamic title for each proposal (e.g., 'Proposal One: An Adventurous Solo Journey Through Patagonia' or 'Proposal Two: A Relaxing Family Escape to the Amalfi Coast'). Conclude with a summary table comparing the options on **Vibe**, **Activity Level**, **Budget**, and **Best For...** to help the user make their final decision."
+
+# ===== 16. HOSPITALITY & LOCAL COMMERCE INTELLIGENCE (SPECIALIZED LAYER) =====
+# For businesses like hotels, restaurants, pharmacies, and retail shops.
+# =========================================================================
+
+hospitality_intelligence_tasks:
+  - id: analyze_local_demand_and_events
+    description: "Forecasts tourist/local customer volume and identifies key local events impacting demand."
+    type: api_task
+    tool_name: "EventFinderTool"
+    base_score: 98
+    triggers: [{keyword: "tourism", weight: 90}, {keyword: "flux", weight: 90}, {keyword: "hotel demand", weight: 80}, {keyword: "shop traffic", weight: 80}]
+    goal: "For '{location}' during '{time_period}', query the `EventFinderTool` for the official event calendar, major conferences, and concerts. Use `Serper_WebSearchTool` (type: news) to check for other major local happenings. Synthesize this into a demand forecast (High, Medium, Low) with key driving factors for pricing and staffing decisions."
+
+  - id: recommend_dynamic_pricing_and_promotions
+    description: "Recommends a dynamic pricing strategy based on demand and competitor analysis."
+    type: orchestration_task
+    base_score: 95
+    triggers: [{keyword: "price", weight: 90}, {keyword: "room rate", weight: 80}, {keyword: "promotion", weight: 70}]
+    goal: "You are a Revenue Manager. **Strategy:** 1) Use `PlaceSearchTool` to find direct competitors. 2) Use `BrowserTool` to scrape their pricing for the target period. 3) Use an LLM to analyze this data against your demand forecast ({local_demand_data}). 4) Conclude with a specific, actionable pricing and promotion strategy (e.g., 'Increase price by 15% during festival week; offer a 'buy 2, get 1 free' deal on slow Tuesdays.')."
+
+  - id: generate_product_or_service_enhancements
+    description: "Recommends new products, menus, or services based on local trends and competitor weaknesses."
+    type: browser_task
+    base_score: 92
+    triggers: [{keyword: "food", weight: 80}, {keyword: "menu", weight: 80}, {keyword: "service to add", weight: 90}, {keyword: "improve", weight: 70}]
+    goal: "You are a Hospitality/Retail Consultant. For '{location}', use `BrowserTool` to search local food/shopping blogs, competitor menus/product lists, and analyze negative reviews of competitors on Google/TripAdvisor. Synthesize this into 2-3 concrete recommendations for new offerings. Example for Hotel: 'Rooftop Bar Concept with local craft cocktails.' Example for Shop: 'Stock mobile power banks and umbrellas, as tourists often complain about needing them.'"
+
+# ===== 17. SPORTS INTELLIGENCE & PLAYER SCOUTING (SPECIALIZED LAYER) =====
+# Specialized 360-degree analysis for professional athletes as assets.
+# =========================================================================
+
+sports_intelligence_tasks:
+  - id: analyze_player_market_valuation
+    description: "Determines a player's market valuation by synthesizing data from multiple industry sources."
+    type: browser_task
+    base_score: 98
+    triggers: [{keyword: "buy player", weight: 90}, {keyword: "player valuation", weight: 90}, {keyword: "Saka", weight: 90}, {keyword: "transfer", weight: 80}]
+    goal: "You are a Director of Football. For player '{player_name}', use `BrowserTool` to scrape valuation data from Transfermarkt, CIES Football Observatory, and recent news articles about contract status and rumored interest. Synthesize this into a valuation report: **Estimated Market Value:** A realistic price range. **Comparable Transfers:** List 2-3 recent transfers of similar players. **Valuation Drivers:** Key factors influencing the price (age, contract length, performance trajectory)."
+
+  - id: analyze_on_field_performance_metrics
+    description: "Conducts a deep-dive analysis of a player's on-field statistics and contributions."
+    type: api_task
+    tool_name: "SportsInfoTool"
+    base_score: 95
+    triggers: [{keyword: "player performance", weight: 80}, {keyword: "contribution on the fields", weight: 90}]
+    goal: "You are a Chief Performance Analyst. For '{player_name}', use `SportsInfoTool` to fetch advanced metrics for the last two seasons. Use an LLM to analyze and present the data in a structured report with sections for: **Attacking Output** (Goals, Assists, xG, xA), **Creative Play** (Key Passes, Successful Dribbles), and **Defensive Contributions** (Tackles, Interceptions). The final output should include a conceptual heatmap showing their primary areas of operation."
+
+  - id: assess_player_injury_history_and_risk
+    description: "Evaluates a player's physical condition and injury history to assess investment risk."
+    type: browser_task
+    base_score: 96
+    triggers: [{keyword: "injury history", weight: 90}, {keyword: "player risk", weight: 80}]
+    goal: "You are a club's Head of Medical. Use `BrowserTool` to scrape the complete injury history for '{player_name}' from sources like Transfermarkt (injury type, date, duration). Analyze this data to identify patterns. Provide a summary including: **Total Games Missed**, **Major Injuries** (any over 30 days), **Recurring Issues**, and a final **Physical Risk Assessment** (Low, Medium, High) with a brief justification."
+
+  - id: evaluate_tactical_fit_and_adaptability
+    description: "Analyzes how a player would tactically fit into the buying club's system."
+    type: llm_task
+    base_score: 94
+    triggers: [{keyword: "adaptability", weight: 90}, {keyword: "tactical fit", weight: 90}]
+    prompt: "You are a world-class Head Coach. The user's club plays a '{buying_club_system}'. You have the player profile for '{player_name}' ({player_performance_data}). Analyze his **Positional Versatility**, suitability for your system's demands, potential **Synergies** with key players, and any potential **Conflicts**. Conclude with a Tactical Fit Score (1-10) and a summary of how you would integrate him."
+
+  - id: forecast_commercial_and_brand_impact
+    description: "Estimates the potential revenue and brand growth a player can bring to the club."
+    type: llm_task
+    base_score: 92
+    triggers: [{keyword: "potential revenue", weight: 90}, {keyword: "ticket sales", weight: 80}, {keyword: "brand", weight: 70}]
+    prompt: "You are a Chief Commercial Officer. Based on '{player_name}''s profile, analyze his marketability (social media, endorsements, national team status). Provide a forecast on his commercial impact: **Merchandise Sales:** Estimated % increase. **New Market Penetration:** Ability to attract fans from specific regions. **Sponsorship Value:** Potential to increase value of club sponsorships."
+
+  - id: synthesize_transfer_recommendation_dossier
+    description: "Compiles all analyses into a final, board-level 'Go/No-Go' recommendation."
+    type: llm_task
+    base_score: 100
+    triggers: [{keyword: "good idea", weight: 90}, {keyword: "360 view analytics", weight: 100}]
+    prompt: "You are the Sporting Director presenting to the club's board. You have all the specialized reports: Valuation, Performance, Medical Risk, Tactical Fit, and Commercial Impact for '{player_name}'. Synthesize this into a final, definitive dossier. Structure it with: 1. **The Verdict:** 'Recommendation: Proceed with Offer' or 'Do Not Pursue'. 2. **Executive Summary**. 3. **Strengths/Opportunities**. 4. **Weaknesses/Risks**. 5. **Proposed Offer Structure**."
+
+# ===== 18. DATA ACQUISITION: PRIMARY & PUBLIC SOURCES =====
+# Acquiring foundational documents and public web data.
+# ===================================================================
+
+primary_source_acquisition_tasks:
+  - id: find_google_established_entities
+    description: "Finds established companies, organizations, or concepts using Google search."
+    type: api_task
+    tool_name: "Serper_WebSearchTool"
+    base_score: 60
+    triggers: [{keyword: "all", weight: 10}]
+    goal: "Execute a 'general' search for '{topic} companies', '{topic} market leaders', and '{topic} industry report'. Scrape the name, URL, and meta description from the top 10 organic search results using the integrated crawler."
+
+  - id: acquire_regulatory_and_financial_filings
+    description: "Retrieves key regulatory and financial documents (e.g., 10-K, 10-Q) for public companies."
+    type: api_task
+    tool_name: "FinnhubTool"
+    base_score: 85
+    triggers: [{keyword: "public company", weight: 90}, {keyword: "stock", weight: 80}, {keyword: "due diligence", weight: 70}, {keyword: "financials", weight: 60}]
+    goal: "For company ticker '{ticker}', fetch the most recent 10-K and last two 10-Q reports. Extract the 'Risk Factors' and 'Management's Discussion and Analysis (MD&A)' sections."
+    
+  - id: acquire_academic_and_patent_data
+    description: "Searches academic (Google Scholar, PubMed) and patent databases for deep technical insights."
+    type: api_task
+    tool_name: "Tavily"
+    base_score: 80
+    triggers: [{keyword: "technology", weight: 80}, {keyword: "scientific research", weight: 80}, {keyword: "patent", weight: 90}, {keyword: "medicine", weight: 70}]
+    goal: "Execute a 'scholar' and 'patents' search on Tavily for '{topic}'. Scrape abstracts of the top 5 most cited papers from the last 3 years and the 5 most relevant recent patents."
+
+  - id: find_google_maps_local_entities
+    description: "Finds direct physical entities (competitors, resources) on Google Maps."
+    type: api_task
+    tool_name: "PlaceSearchTool"
+    base_score: 50
+    triggers: [{keyword: "local", weight: 70}, {keyword: "restaurant", weight: 80}, {keyword: "shop", weight: 70}, {keyword: "city", weight: 60}]
+    goal: "Search for '{topic}' near '{location}'. Extract the name, address, rating, number of reviews, and category for the top 15 listed results."
+
+# ===== 19. DATA ACQUISITION: HUMAN & EXPERT CONTEXT =====
+# Understanding what people, experts, and customers are thinking and saying.
+# =========================================================================
+
+human_context_tasks:
+  - id: find_social_media_creators_and_influencers
+    description: "Identifies key influencers and content creators in a specific niche on TikTok and Instagram."
+    type: browser_task
+    base_score: 80
+    triggers: [{keyword: "influencer marketing", weight: 80}, {keyword: "creators", weight: 70}, {keyword: "skincare", weight: 60}, {keyword: "fashion", weight: 60}]
+    goal: "Use `BrowserTool` ('find_leads' operation) to search TikTok and Instagram for '{topic} creators' and '#{topic}'. Scrape the top 10 creator profiles, including username, follower count, a sample of recent content, and a link to their profile."
+
+  - id: find_youtube_video_guides_and_case_studies
+    description: "Finds the best explanatory videos, strategic guides, and case studies on YouTube."
+    type: api_task
+    tool_name: "YouTubeSearchTool"
+    base_score: 70
+    triggers: [{keyword: "explain", weight: 70}, {keyword: "learn", weight: 70}, {keyword: "how to", weight: 60}, {keyword: "case study", weight: 50}]
+    goal: "Find the top 5 most authoritative and highly-rated videos explaining '{topic}'. Prioritize in-depth strategic guides for business topics and content from reputable communicators for scientific topics."
+
+  - id: identify_key_opinion_leaders_and_experts
+    description: "Identifies and summarizes the views of recognized industry experts, analysts, and journalists."
+    type: orchestration_task
+    base_score: 85
+    triggers: [{keyword: "expert opinion", weight: 80}, {keyword: "industry analysis", weight: 70}, {keyword: "thought leader", weight: 70}]
+    goal: "Use `Serper_WebSearchTool` to search for 'interview with {topic} expert', 'report by {leading_analyst_firm} on {topic}'. Use its integrated crawler to scrape the key takeaways from the top 3-5 most authoritative articles, interviews, or reports, then use an LLM to summarize."
+
+  - id: analyze_earnings_call_transcripts
+    description: "Analyzes earnings call transcripts to extract management sentiment and strategic priorities."
+    type: api_task
+    tool_name: "AlphaVantageTool"
+    base_score: 90
+    triggers: [{keyword: "public company", weight: 90}, {keyword: "stock analysis", weight: 80}, {keyword: "management sentiment", weight: 80}]
+    goal: "Fetch the last two earnings call transcripts for '{ticker}'. Use an LLM to summarize: 1) Management's key strategic themes. 2) Tone analysis (optimistic, cautious, defensive). 3) The most challenging questions asked by analysts and how they were answered."
+
+# ===== 20. DATA ACQUISITION: SPECIALIZED API DATA =====
+# Direct API calls to structured, domain-specific data sources.
+# ===================================================================
+
+specialized_data_tasks:
+  - id: get_financial_market_data
+    description: "Retrieves detailed financial statements, real-time stock data, and key metrics from a financial API."
+    type: api_task
+    tool_name: "FinnhubTool"
+    base_score: 70
+    triggers: [{keyword: "stock", weight: 80}, {keyword: "investment", weight: 60}, {keyword: "public company", weight: 70}]
+    goal: "Fetch financial statements (quarterly), key metrics (P/E, EPS, Beta), latest company news, and analyst price targets for the stock ticker '{ticker}'."
+    
+  - id: get_geospatial_location_data
+    description: "Retrieves detailed IP-based geolocation data for a location."
+    type: api_task
+    tool_name: "IPLocateTool"
+    base_score: 60
+    triggers: [{keyword: "location", weight: 40}, {keyword: "country", weight: 50}]
+    goal: "Get detailed geolocation data for '{location}', including country, currency, and primary languages, to provide localized context."
+    
+  - id: get_sports_data
+    description: "Retrieves team stats, player performance data, and match odds from a sports data API."
+    type: api_task
+    tool_name: "SportsInfoTool"
+    base_score: 70
+    triggers: [{keyword: "sports", weight: 80}, {keyword: "football", weight: 70}, {keyword: "match", weight: 60}]
+    goal: "Fetch detailed performance statistics for player '{player_name}' and tactical data for team '{team_name}', including recent match results and upcoming fixtures."
+
+# ===== 21. QUANTITATIVE, RISK & SCENARIO MODELING =====
+# Predictive and probabilistic analysis for future-proofing strategy.
+# ======================================================================
+
+quantitative_modeling_tasks:
+  - id: generate_interactive_financial_forecast
+    description: "Creates an interactive 3-statement financial model to forecast performance and cash flow."
+    type: project_sandbox_task
+    runtime_environment: "python"
+    base_score: 90
+    triggers: [{keyword: "financial model", weight: 80}, {keyword: "forecast", weight: 70}, {keyword: "operating plan", weight: 60}]
+    goal: "Generate a Streamlit application that provides an interactive 3-statement financial forecast (Income Statement, Balance Sheet, Cash Flow). Use provided data ({financial_data}). Create sliders for key growth drivers (e.g., 'Customer Growth Rate', 'Avg. Revenue Per User'). The app must project 36 months of financials and include a prominent KPI dashboard (e.g., Gross Margin, Cash Runway) and a chart that visually alerts for negative cash flow."
+
+  - id: generate_monte_carlo_simulation_model
+    description: "Runs a Monte Carlo simulation to model the probability distribution of future outcomes."
+    type: project_sandbox_task
+    runtime_environment: "python"
+    base_score: 95
+    triggers: [{keyword: "risk analysis", weight: 80}, {keyword: "probabilistic forecast", weight: 90}, {keyword: "monte carlo", weight: 100}]
+    goal: "You are a quantitative analyst. Generate a Streamlit application that performs a Monte Carlo simulation. Define key input variables with uncertainty (e.g., 'Market Growth Rate') as distributions. Allow the user to set the parameters. Run 10,000 simulations to forecast a key metric like 'Year 3 Net Profit'. Display the results as a histogram showing the distribution of possible outcomes and state the probability of achieving a user-defined target."
+
+  - id: perform_pre_mortem_analysis
+    description: "Proactively identifies potential points of failure by imagining the project has failed."
+    type: llm_task
+    base_score: 90
+    triggers: [{keyword: "risk management", weight: 80}, {keyword: "project planning", weight: 70}, {keyword: "pre-mortem", weight: 100}]
+    prompt: "You are a seasoned project manager and risk analyst. Facilitate a 'Pre-Mortem' analysis. The premise is: 'It's 18 months in the future, and this initiative has failed spectacularly.' Based on all identified risks, weaknesses, and threats ({all_task_outputs}), generate a plausible narrative of how this failure occurred. Then, categorize the root causes (e.g., Market Misjudgment, Technical Failure, Competitive Pressure). For each category, propose one specific, actionable mitigation strategy we can implement today."
+
+# ===== 22. TACTICAL & OPERATIONAL PLANNING =====
+# For creating concrete, actionable plans for execution.
+# =======================================================
+
+planning_tasks:
+  - id: generate_social_media_campaign_plan
+    description: "Creates a tactical, week-by-week plan for a social media campaign."
+    type: llm_task
+    base_score: 90
+    triggers: [{keyword: "social media campaign", weight: 80}]
+    prompt: "You are a social media marketing director. Based on the ICP and market sentiment, create a concise, actionable 4-week content plan. For each week, define a content theme that addresses a customer pain point, suggest specific post ideas (e.g., video, poll, carousel), recommend the best platform to focus on, and suggest one key metric to track for that week."
+    
+  - id: generate_growth_share_matrix
+    description: "Performs a Growth-Share (BCG) matrix analysis for a portfolio of products or business units."
+    type: code_execution_task
+    runtime_environment: "python"
+    base_score: 70
+    triggers: [{keyword: "portfolio", weight: 80}, {keyword: "resource allocation", weight: 70}]
+    goal: "Generate a Python script using pandas and plotly. Load the provided portfolio data ({portfolio_data_csv}) containing 'market_growth_rate' and 'relative_market_share' for each product/unit. Create a classic Growth-Share Matrix scatter plot, categorizing and labeling each item as a 'Star', 'Cash Cow', 'Question Mark', or 'Pet'. The script should output a Base64 encoded image of the interactive chart."
+
+# ===== 23. VISUALIZATION & REPORTING (The "Living Dossier") =====
+# Generating the final, interactive, and board-ready output.
+# =========================================================================
+
+reporting_and_visualization_tasks:
+  - id: synthesize_final_report_structure
+    description: "Assembles all analysis into a comprehensive, hierarchical JSON structure for reporting."
+    type: llm_task
+    base_score: 100
+    triggers: [{keyword: "all", weight: 100}]
+    prompt: "You are Minato, a Strategic AI Partner. You have just completed a vast array of research and analysis tasks. Here is the complete set of raw results:\n\n{all_task_outputs}\n\nYour final and most critical task is to structure all of this information into a logical, hierarchical narrative. Create a single, comprehensive JSON object to serve as the backbone for the final report. Include dynamic sections based on the query, such as 'executiveSummary', 'creativeProjectPlaybook', 'educationFundingPlan', 'renewableEnergyViabilityReport', 'ventureLaunchPlaybook', 'investmentPolicyStatement', 'personalFinancialPlan', 'investmentCommitteeMemo', 'travelProposal', 'playerScoutingDossier', 'hospitalityDeepDive', 'problemValidation', 'marketAnalysis', 'competitiveLandscape', 'customerLeads', 'goToMarketPlan', 'financialAndRiskModels', and 'strategicRecommendations'. This JSON is the definitive 'single source of truth'."
+
+  - id: generate_interactive_dashboard_report
+    description: "Generates a full, multi-tab interactive dashboard report in a live, shareable format."
+    type: project_sandbox_task
+    runtime_environment: "python"
+    base_score: 100
+    triggers: [{keyword: "all", weight: 90}, {keyword: "report", weight: 80}, {keyword: "dashboard", weight: 80}]
+    goal: "You are an expert full-stack developer and data visualization specialist. Generate a complete, self-contained Streamlit application that serves as the final 'Living Dossier'. Use the master report JSON ({final_report_json}) as your single source of truth. The application must be structured with a sidebar for navigation corresponding to the top-level keys in the JSON. All charts, tables, and models (using embedded `MapLinkTool` for locations, etc.) must be presented within their respective tabs. Ensure the UI is clean, professional, and enables intuitive drill-down into the data."
+
+  - id: generate_printable_board_ready_report
+    description: "Generates a polished, static, print-ready PDF report suitable for a board meeting."
+    type: code_execution_task
+    runtime_environment: "python"
+    base_score: 85
+    triggers: [{keyword: "PDF report", weight: 80}, {keyword: "board meeting", weight: 90}, {keyword: "printable", weight: 70}]
+    goal: "You are a data reporting specialist. Take the final structured JSON ({final_report_json}) and generate a professionally formatted PDF document using libraries like `reportlab` or `weasyprint`. The report must include a title page, table of contents, headers/footers with page numbers, and follow the hierarchical structure of the JSON. Embed static versions of the key charts (sourced from `PexelsSearchTool` for cover art if applicable) and format tables cleanly."
+
+  - id: generate_sleek_website_report
+    description: "Generates a premium, marketing-focused report as a Next.js application for a 'wow' user experience."
+    type: project_sandbox_task
+    runtime_environment: "javascript"
+    base_score: 85
+    triggers: [{keyword: "website", weight: 60}, {keyword: "marketing report", weight: 70}, {keyword: "premium", weight: 70}]
+    goal: "You are an expert Next.js developer specializing in high-end data storytelling with Shadcn/ui and Framer Motion. Take the final structured data ({final_report_json}) and generate a complete, self-contained Next.js application that serves as a beautiful, narrative-driven 'Living Dossier'. The UI must be exceptionally clean, modern, and use scroll-triggered animations and interactive components (like embedded `YouTubeSearchTool` videos or `MapLinkTool` maps) to guide the user through the strategic story. This is the 'showcase' version of the report."

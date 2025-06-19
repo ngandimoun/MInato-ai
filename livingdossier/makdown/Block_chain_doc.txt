@@ -1,0 +1,722 @@
+API Documentation
+
+Intro
+
+SoChain has provided fast, reliable APIs for the Bitcoin, Dogecoin, Litecoin networks and their testnets since 2014, and is used by various developers and instititions of varying sizes. This iteration (v3) is our fastest API to date with response times averaging just 5ms.
+
+This API is fit for developing a wide variety of blockchain applications, and analytics services.
+
+Available Networks
+
+Network	Acronym	
+Bitcoin	BTC
+The main Bitcoin network. Coins hold real world value.
+Dogecoin	DOGE
+The main Dogecoin network. Coins hold real world value.
+Litecoin	LTC
+The main Litecoin network. Coins hold real world value.
+Bitcoin Testnet	BTCTEST
+The Bitcoin Test network (Testnet). Development purposes only. Coins do not hold value.
+Dogecoin Testnet	DOGETEST
+The Dogecoin Test network (Testnet). Development purposes only. Coins do not hold value.
+Litecoin Testnet	LTCTEST
+The Litecoin Testnet network (Testnet). Development purposes only. Coins do not hold value.
+Getting an API Key
+
+To access the API, you will need an API Key. This API Key must not be published client-side, it is for your eyes only.
+
+To get an API Key, login or sign up.
+
+Manage Your Account
+
+To manage your account, login here.
+
+Accessing the API
+
+You will access the API using GET or POST HTTPS requests. Here's an example in cURL:
+
+
+$ curl "https://chain.so/api/v3/balance/{{network}}/{{address}}" -H "API-KEY: {{api_key}}"
+Response Format
+
+API responses will tell you whether an API call succeeded or failed.
+
+When your API call succeeds, you will get an HTTP Code 200 response of the following format:
+
+
+{
+  "status": "success",
+  "data": {
+    ...
+  }
+}
+When your API call fails, you will get an HTTP Code 401, 404, or 429 response of the following format:
+
+
+{
+  "status": "fail",
+  "data": {
+    "error_message": "..."
+  }
+}
+All responses will be of content type "application/json".
+
+Available Endpoints
+
+Get an Address's transactions
+
+ENDPOINT GET
+
+
+/api/v3/transactions/{{network}}/{{address}}/{{page}}
+DESCRIPTION
+
+Each address on the blockchain has a set of transactions. These are either transactions performed by it to send coins, or transactions in which it has received coins from other addresses. This endpoint helps you get list of those transactions, in descending order (time). This endpoint is paginated: upto 10 results are returned per page.
+
+RESPONSE FIELDS
+
+
+transactions	An array of transactions.
+hash	The transaction ID.
+value_sent	The amount of coins sent by the address.
+value_received	The amount of coins received by the address.
+balance_change	The change in balance of coins as a result of this transaction for this address.
+time	The time at which this transaction was seen or confirmed.
+block	The height of the block at which this transaction was confirmed.
+price	The approximate price of the coin in USD when this transaction occurred or was confirmed.
+EXAMPLE REQUEST & RESPONSE
+
+
+	
+$ curl "https://chain.so/api/v3/transactions/BTC/bc1qxhmdufsvnuaaaer4ynz88fspdsxq2h9e9cetdj/1" \
+	-H "API-KEY: {{api_key}}"
+{
+  "status": "success",
+  "data": {
+    "transactions": [
+      {
+        "hash": "8ef8cecb5e394c40962f02ed2a7f8a3cf027365484860acc0aeed93477493698",
+        "value_sent": "0.00000000",
+        "value_received": "6.40156792",
+        "balance_change": "6.40156792",
+        "time": 1672527188,
+        "block": 769784,
+        "price": {
+          "value": "16510.55000000",
+          "currency": "USD"
+        }
+      },
+      ...
+    ]
+  }
+}
+Get an Address's transaction counts
+
+ENDPOINT GET
+
+
+/api/v3/transaction_counts/{{network}}/{{address}}
+DESCRIPTION
+
+An address can perform any number of transactions, and receive any number of transactions. This endpoint tells you a summarized count of those transactions.
+
+RESPONSE FIELDS
+
+
+sent	Number of transactions in which this address was a sender.
+received	Number of transaction in which this address was a recipient.
+total	Total number of transactions for this address.
+EXAMPLE REQUEST & RESPONSE
+
+
+	
+$ curl "https://chain.so/api/v3/transaction_counts/BTC/bc1qxhmdufsvnuaaaer4ynz88fspdsxq2h9e9cetdj" \
+	-H "API-KEY: {{api_key}}"
+{
+  "status": "success",
+  "data": {
+    "sent": 559,
+    "received": 2669,
+    "total": 2669
+  }
+}
+Get an Address's unspent outputs
+
+ENDPOINT GET
+
+
+/api/v3/unspent_outputs/{{network}}/{{address}}/{{page}}
+DESCRIPTION
+
+An address's balance is the sum of coins in its unspent outputs. This endpoint gives you a list of those unspent outputs, in ascending order (time). This endpoint is paginated: upto 10 results are returned per page.
+
+RESPONSE FIELDS
+
+
+outputs	An array of unspent outputs.
+hash	The transaction ID containing the unspent output.
+index	The index of the output in the containing transaction.
+script	The output's script (hexadecimal).
+address	The address that can spend these coins.
+value	The coins contained in this output.
+block	If confirmed, this is the block height at which this transaction was confirmed. If unconfirmed, this value will be null.
+tx_hex	The hexadecimal string of the complete transaction in which this output appears.
+EXAMPLE REQUEST & RESPONSE
+
+
+	
+$ curl "https://chain.so/api/v3/unspent_outputs/BTC/bc1qxhmdufsvnuaaaer4ynz88fspdsxq2h9e9cetdj/1" \
+	-H "API-KEY: {{api_key}}"
+{
+  "status": "success",
+  "data": {
+    "outputs": [
+      {
+        "hash": "2d4abbd5999fc085206eaf9ee3c1e2a9124b31b31c1352a048f716f9c20ef3b0",
+        "index": 0,
+        "script": "001435f6de260c9f3bdee47524c473a6016c0c055cb9",
+        "address": "bc1qxhmdufsvnuaaaer4ynz88fspdsxq2h9e9cetdj",
+        "value": "275.78922333",
+        "block": 758002,
+        "tx_hex": "010000000001024fdb918768a69e7f2e307317e5c0b52e6aa2c3e4de55e66172e46015c63e06b10100000000ffffffff7d18d4fcab05d5129a3f9ab965949680c2673b43447f153c8d1158c22dc0ef880000000000ffffffff025df5d46b0600000016001435f6de260c9f3bdee47524c473a6016c0c055cb9070eb8f803000000160014a797b869a758dc2ca637a78b4736c668cc500bf80247304402200cbb2e7736ed2eeb797d4a2435224ca5efdac88160553b79a2a12c8e421925e20220425a6add22ec2d576208b96ef2bd73340f388c30573093683cb270db685277d701210311b632764ac2014e090bb4cfc41cd77bc6389a54c0db3785e3cb68e2c2ce3e84024730440220620e6686ca4dc793cf1d419df498e3f1451d3a8edd003dca92551516fb380ecd02205a95c4dac65425398d68dda0d4d28119d835b8f305dbfce0548f37840c61751e01210311b632764ac2014e090bb4cfc41cd77bc6389a54c0db3785e3cb68e2c2ce3e8400000000"
+      },
+      ...
+    ]
+  }
+}
+Get an Address's balance
+
+ENDPOINT GET
+
+
+/api/v3/balance/{{network}}/{{address}}
+DESCRIPTION
+
+This endpoint provides an address's balance due to confirmed, and unconfirmed, transactions.
+
+RESPONSE FIELDS
+
+
+confirmed	The balance of coins due to confirmed transactions.
+unconfirmed	The balance of coins due to unconfirmed transactions. Can be negative.
+EXAMPLE REQUEST & RESPONSE
+
+
+	
+$ curl "https://chain.so/api/v3/balance/BTC/bc1qxhmdufsvnuaaaer4ynz88fspdsxq2h9e9cetdj" \
+	-H "API-KEY: {{api_key}}"
+{
+  "status": "success",
+  "data": {
+    "confirmed": "906.56537730",
+    "unconfirmed": "0.00000000"
+  }
+}
+Get an Address's summary
+
+ENDPOINT GET
+
+
+/api/v3/address_summary/{{network}}/{{address}}
+DESCRIPTION
+
+This endpoint provides basic statistics for an address.
+
+RESPONSE FIELDS
+
+
+txs_sent	Number of transactions in which this address was a sender.
+txs_received	Number of transactions in which this address was a recipient.
+txs_total	Total number of transactions in which this address appears.
+confirmed_balance	Balance of coins due to confirmed transactions.
+unconfirmed_balance	Balance of coins due to unconfirmed transactions. Can be negative.
+confirmed_received	Total coins received in all confirmed transactions.
+EXAMPLE REQUEST & RESPONSE
+
+
+	
+$ curl "https://chain.so/api/v3/address_summary/BTC/bc1qxhmdufsvnuaaaer4ynz88fspdsxq2h9e9cetdj" \
+	-H "API-KEY: {{api_key}}"
+{
+  "status": "success",
+  "data": {
+    "txs_sent": 559,
+    "txs_received": 2669,
+    "txs_total": 2669,
+    "confirmed_balance": "906.56537730",
+    "unconfirmed_balance": "0.00000000",
+    "confirmed_received": "116622.01235991"
+  }
+}
+Check if Address is valid
+
+ENDPOINT GET
+
+
+/api/v3/is_valid_address/{{network}}/{{address}}
+DESCRIPTION
+
+This endpoint tells you whether an address is valid on the given network. This should typically be done on your own server/client, but here's a helper endpoint if necessary.
+
+RESPONSE FIELDS
+
+
+is_valid	True if address valid on the network, false otherwise.
+EXAMPLE REQUEST & RESPONSE
+
+
+	
+$ curl "https://chain.so/api/v3/is_valid_address/BTC/bc1qxhmdufsvnuaaaer4ynz88fspdsxq2h9e9cetdj" \
+	-H "API-KEY: {{api_key}}"
+{
+  "status": "success",
+  "data": {
+    "is_valid": true
+  }
+}
+Get Transaction data
+
+ENDPOINT GET
+
+
+/api/v3/transaction/{{network}}/{{hash}}
+DESCRIPTION
+
+This endpoint provides data for a given transaction ID.
+
+RESPONSE FIELDS
+
+
+hash	The transaction ID.
+confirmations	Number of times this transaction has been confirmed.
+size	Size of transaction in bytes.
+vsize	Size of transaction in bytes without signature scripts. Relevant for SegWit transactions.
+weight	The weight of the transaction. Each block has limited weight units (otherwise called block space).
+version	Serialization version used by this transaction.
+locktime	Lock time for this transaction. Relevant if CheckLockTimeVerify used.
+block_hash	The hash of the block in which transaction was confirmed, if any.
+block_height	The height of the block in which transaction was confirmed, if any.
+time	The approximate time this transaction appeared on the network or was confirmed.
+inputs_n	Number of inputs in this transaction.
+inputs_value	Sum of coins spent by inputs in this transaction.
+outputs_n	Number of outputs in this transaction.
+outputs_value	Sum of coins received in outputs for this transaction.
+inputs	An ordered array of inputs.
+outputs	An ordered array of outputs.
+index	Index of the input or output.
+value	Coins in the input or output.
+address	The address of the sender (input) or recipient (output).
+scriptSig	The signature script in assembly (asm) and hexadecimal (hex) for the input.
+witness	The witnesses for the input. Relevant for SegWit spenders.
+previous_output	The transaction ID (hash) and output index used for the input.
+type	The script type for the output.
+script	The output's script in assembly (asm) and hexadecimal (hex).
+spent	The transaction ID (hash) and input index for the spending transaction, if any.
+fee	The network fee paid by this transaction. Sum of inputs minus sum of outputs for non-coinbase transactions.
+price	The approximate price of the coin in USD when this transaction occurred or was confirmed.
+EXAMPLE REQUEST & RESPONSE
+
+
+	
+$ curl "https://chain.so/api/v3/transaction/BTC/597bafa25fcbb081467bdeb030a42bf441dbfcc054bdcfad31a829d7db5d931f" \
+	-H "API-KEY: {{api_key}}"
+{
+  "status": "success",
+  "data": {
+    "hash": "597bafa25fcbb081467bdeb030a42bf441dbfcc054bdcfad31a829d7db5d931f",
+    "confirmations": 4,
+    "size": 380,
+    "vsize": 190,
+    "weight": 758,
+    "version": 1,
+    "locktime": 0,
+    "block_hash": "0000000000000000000717afe429887e2967094d6e17c2b22b54cf0e33debb69",
+    "block_height": 769781,
+    "time": 1672525387,
+    "inputs_n": 1,
+    "inputs_value": "0.66579765",
+    "inputs": [
+      {
+        "index": 0,
+        "value": "0.66579765",
+        "address": "bc1qwqdg6squsna38e46795at95yu9atm8azzmyvckulcc7kytlcckxswvvzej",
+        "scriptSig": {
+          "hex": "",
+          "asm": ""
+        },
+        "witness": [
+          "",
+          "30440220018433af266f34446613cf4f476c97211e35b006c648510c6e4f4f52479503b702206490e52f7ae42fcc932ee1cc8c1b4d2db44bbc89267a535ed52d5438cb4ed9d201",
+          "30440220084e1f306aecec3c797b1097908b74e0e706cdd508e7a74833f02b1450336067022063523e4519446d1591367fc9695f5996020fdd3a075aa1a5cf671610a860c70701",
+          "52210375e00eb72e29da82b89367947f29ef34afb75e8654f6ea368e0acdfd92976b7c2103a1b26313f430c4b15bb1fdce663207659d8cac749a0e53d70eff01874496feff2103c96d495bfdd5ba4145e3e046fee45e84a8a48ad05bd8dbb395c011a32cf9f88053ae"
+        ],
+        "previous_output": {
+          "hash": "eb4fdf3627d92379557cfbc296c520271378978d4a9204a5ce13b51a6bb40b81",
+          "index": 1
+        }
+      }
+    ],
+    "outputs_n": 2,
+    "outputs_value": "0.66489765",
+    "outputs": [
+      {
+        "index": 0,
+        "value": "0.15526090",
+        "type": "scripthash",
+        "address": "39KPyDkWXeEE9UXkSNPXkv5tbgqZfxHhqv",
+        "script": {
+          "hex": "a91453aa4220caf513cc2850ed4deb2662a729350a5987",
+          "asm": "OP_HASH160 53aa4220caf513cc2850ed4deb2662a729350a59 OP_EQUAL"
+        },
+        "spent": {
+          "hash": "2fbe643e9bf9370d08786f9146b9032f355558f5d50e6f367e76bfdc65b44bf6",
+          "index": 3
+        }
+      },
+      {
+        "index": 1,
+        "value": "0.50963675",
+        "type": "witness_v0_scripthash",
+        "address": "bc1qwqdg6squsna38e46795at95yu9atm8azzmyvckulcc7kytlcckxswvvzej",
+        "script": {
+          "hex": "0020701a8d401c84fb13e6baf169d59684e17abd9fa216c8cc5b9fc63d622ff8c58d",
+          "asm": "0 701a8d401c84fb13e6baf169d59684e17abd9fa216c8cc5b9fc63d622ff8c58d"
+        },
+        "spent": null
+      }
+    ],
+    "fee": "0.00090000",
+    "price": {
+      "value": "16537.65000000",
+      "currency": "USD"
+    }
+  }
+}
+Summary of latest blocks
+
+ENDPOINT GET
+
+
+/api/v3/latest_blocks_summary/{{network}}
+DESCRIPTION
+
+This endpoint provides a basic summary of the last 10 blocks for the given network.
+
+RESPONSE FIELDS
+
+
+blocks	An array of blocks, descending order of appearance.
+height	The height at which the block appeared.
+miner	The address of the miner, if determinable.
+time	The timestamp recorded by the block.
+num_txs	Number of transactions confirmed by the block.
+difficulty	The difficulty at which this block was mined.
+size	The size in bytes of the block in the blockchain.
+weight	Units of weight consumed by this block and its transactions.
+version	Protocol version used by the block.
+reward_and_fees	Sum of miner reward (subsidy) and fees collected by the miner.
+price	The approximate price of the coin in USD when this block appeared.
+EXAMPLE REQUEST & RESPONSE
+
+
+	
+$ curl "https://chain.so/api/v3/latest_blocks_summary/BTC" \
+	-H "API-KEY: {{api_key}}"
+{
+  "status": "success",
+  "data": {
+    "blocks": [
+      {
+        "height": 769784,
+        "miner": "bc1qxhmdufsvnuaaaer4ynz88fspdsxq2h9e9cetdj",
+        "time": 1672527188,
+        "num_txs": 3129,
+        "difficulty": "35364065900457",
+        "size": 1455151,
+        "weight": 3992836,
+        "version": 806608896,
+        "reward_and_fees": "6.40156792",
+        "price": {
+          "value": "16510.55000000",
+          "currency": "USD"
+        }
+      },
+      ...
+    ]
+  }
+}
+Get block data
+
+ENDPOINT GET
+
+
+/api/v3/block/{{network}}/{{block_hash_or_height}}
+DESCRIPTION
+
+This endpoint provides data for a given block hash.
+
+RESPONSE FIELDS
+
+
+hash	The block's hash.
+height	The height at which this block appears in the network's blockchain.
+previous_block_hash	The hash of the previous block in the blockchain.
+next_block_hash	The hash of the next block in the blockchain, if any.
+is_orphan	Whether or not the block was orphaned.
+difficulty	The difficulty at which this block was mined.
+time	The timestamp recorded by the block.
+confirmations	Number of times this block has been confirmed.
+merkleroot	The merkleroot of transactions contained in this block.
+num_txs	Number of transactions confirmed by this block.
+reward	The miner reward (subsidy) in this block.
+fees	The transaction fees collected by the miner of this block.
+value_out	The sum of outputs in all transactions of this block.
+version	The protocol version used by the block.
+nonce	The nonce used by the block.
+bits	Compressed target of the block.
+txs	An array of transaction IDs (hashes) for this block's transactions.
+size	The size of this block in bytes.
+weight	Units of weight consumed by this block.
+price	The approximate price of the coin in USD when this block appeared.
+EXAMPLE REQUEST & RESPONSE
+
+
+	
+$ curl "https://chain.so/api/v3/block/BTC/769784" \
+	-H "API-KEY: {{api_key}}"
+{
+  "status": "success",
+  "data": {
+    "hash": "00000000000000000002c8e5b14ba637c797b77d38eb47e633e57f424e6862e4",
+    "height": 769784,
+    "previous_block_hash": "0000000000000000000702f415a7e5a739d9a4b82dcd171a1f25df3110907ed1",
+    "next_block_hash": null,
+    "is_orphan": false,
+    "difficulty": "35364065900457.12",
+    "time": 1672527188,
+    "confirmations": 1,
+    "merkleroot": "0b4e0878982a60cbd108baaf9865ca37031c0debc3fc125d05322318f7dd9dc7",
+    "num_txs": 3129,
+    "reward": "6.25000000",
+    "fees": "0.15156792",
+    "value_out": "8165.72847929",
+    "version": 806608896,
+    "nonce": 1540456790,
+    "bits": "1707f590",
+    "txs": [
+      "8ef8cecb5e394c40962f02ed2a7f8a3cf027365484860acc0aeed93477493698",
+      ...
+    ],
+    "size": 1455151,
+    "weight": 3992836,
+    "price": {
+      "value": "16510.55000000",
+      "currency": "USD"
+    }
+  }
+}
+Get the latest block's hash
+
+ENDPOINT GET
+
+
+/api/v3/best_block_hash/{{network}}
+DESCRIPTION
+
+This endpoint provides the block hash of the last block indexed by SoChain for the given network.
+
+RESPONSE FIELDS
+
+
+hash	The latest block's hash.
+EXAMPLE REQUEST & RESPONSE
+
+
+	
+$ curl "https://chain.so/api/v3/best_block_hash/BTC" \
+	-H "API-KEY: {{api_key}}"
+{
+  "status": "success",
+  "data": {
+    "hash": "00000000000000000002c8e5b14ba637c797b77d38eb47e633e57f424e6862e4"
+  }
+}
+Get price
+
+ENDPOINT GET
+
+
+/api/v3/price/{{network}}/{{unix_timestamp}}
+DESCRIPTION
+
+This endpoint provides the price of the network's native coin at a given UNIX timestamp. If no timestamp provided, then this endpoint returns the latest price.
+
+RESPONSE FIELDS
+
+
+value	The number of units of the given currency that equal 1 unit of the network's native coin.
+currency	The currency for the price quote.
+EXAMPLE REQUEST & RESPONSE
+
+
+	
+$ curl "https://chain.so/api/v3/price/BTC/1672533478" \
+	-H "API-KEY: {{api_key}}"
+{
+  "status": "success",
+  "data": {
+    "value": "16524.31000000",
+    "currency": "USD"
+  }
+}
+Get network info
+
+ENDPOINT GET
+
+
+/api/v3/network_info/{{network}}
+DESCRIPTION
+
+This endpoint provides basic statistics for the given network. Data for mempool depends on what our nodes see, and may vary across nodes / explorers / APIs.
+
+RESPONSE FIELDS
+
+
+block_count	Total number of blocks in this network's blockchain.
+best_block_hash	The latest block's hash.
+hashrate	The network's mining hashrate (hashes per second) at the last block.
+mempool	Object containing information about the mempool (pool of confirmed transactions).
+mempool_txs	Number of transactions awaiting confirmation.
+mempool_size	Total size of the transactions (bytes) in the mempool.
+updated_at	Timestamp of when the mempool data was last updated.
+blocks	Array of expected block composition for the next 6 blocks.
+block_num	Number of blocks from now. 1 means next block.
+min_fee_rate	Minimum fee rate (sats or units per vbyte) expected in this block.
+max_fee_rate	Maximum fee rate (sats or units per vbyte) expected in this block.
+median_fee_rate	Median fee rate (sats or units per vbyte) expected in this block.
+min_fee_rate_possible	Minimum possible fee rate (sats or units per vbyte) to get into this block.
+weight	Expected weight of this block.
+size	Expected size (bytes) of this block.
+num_txs	Expected number of transactions in this block.
+EXAMPLE REQUEST & RESPONSE
+
+
+	
+$ curl "https://chain.so/api/v3/network_info/BTC" \
+	-H "API-KEY: {{api_key}}"
+{
+  "status": "success",
+  "data": {
+    "block_count": 771377,
+    "best_block_hash": "00000000000000000001f6766f09112c07948dfef0ea4db799fc2055a1240c7c",
+    "hashrate": "315803897647702500000.0",
+    "mempool": {
+      "mempool_txs": 5748,
+      "blocks": [
+        {
+          "min_fee_rate": 3,
+          "max_fee_rate": 434,
+          "weight": 3999798,
+          "block_num": 1,
+          "size": 1154243,
+          "num_txs": 2182,
+          "min_fee_rate_possible": 3,
+          "median_fee_rate": 7
+        },
+        {
+          "min_fee_rate": 1,
+          "max_fee_rate": 3,
+          "weight": 3999863,
+          "block_num": 2,
+          "size": 1146096,
+          "num_txs": 616,
+          "min_fee_rate_possible": 1,
+          "median_fee_rate": 2
+        },
+        {
+          "min_fee_rate": 1,
+          "max_fee_rate": 1,
+          "weight": 3999731,
+          "block_num": 3,
+          "size": 1001094,
+          "num_txs": 73,
+          "min_fee_rate_possible": 1,
+          "median_fee_rate": 1
+        },
+        {
+          "min_fee_rate": 1,
+          "max_fee_rate": 1,
+          "weight": 3999933,
+          "block_num": 4,
+          "size": 1000253,
+          "num_txs": 69,
+          "min_fee_rate_possible": 1,
+          "median_fee_rate": 1
+        },
+        {
+          "min_fee_rate": 1,
+          "max_fee_rate": 1,
+          "weight": 3999718,
+          "block_num": 5,
+          "size": 1000382,
+          "num_txs": 67,
+          "min_fee_rate_possible": 1,
+          "median_fee_rate": 1
+        },
+        {
+          "min_fee_rate": 1,
+          "max_fee_rate": 1,
+          "weight": 3999903,
+          "block_num": 6,
+          "size": 1002614,
+          "num_txs": 86,
+          "min_fee_rate_possible": 1,
+          "median_fee_rate": 1
+        }
+      ],
+      "mempool_size": 60151459,
+      "updated_at": 1673403230
+    }
+  }
+}
+Get account info
+
+ENDPOINT GET
+
+
+/api/v3/account_info
+DESCRIPTION
+
+Get basic information for your account.
+
+RESPONSE FIELDS
+
+
+last_login_at	Timestamp of last dashboard access.
+plan	Hash containing plan information.
+name	Name of the subscribed plan.
+max_daily_requests	Number of maximum API requests allowed per day.
+current_period_ends_at	Timestamp of current subscription period's end.
+will_renew_at_period_end	Whether or not the plan will renew at end of current subscription period.
+num_requests_used	Hash containing number of requests used.
+today	Number of requests used so far today. Date starts at UTC start of day.
+yesterday	Number of requests used yesterday. Date ends at UTC end of day.
+EXAMPLE REQUEST & RESPONSE
+
+
+	
+$ curl "https://chain.so/api/v3/account_info" \
+	-H "API-KEY: {{api_key}}"
+{
+  "last_login_at": 1674691560,
+  "plan": {
+    "name": "behemoth",
+    "max_daily_requests": 500000,
+    "current_period_ends_at": 1679717206,
+    "will_renew_at_period_end": true
+  },
+  "num_requests_used": {
+    "today": 9,
+    "yesterday": 2
+  }
+}

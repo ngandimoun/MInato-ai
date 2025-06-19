@@ -342,15 +342,7 @@ export class Orchestrator {
     apiContext: Record<string, any>,
     userState: UserState | null,
     history: ChatMessage[]
-  ): Promise<{ 
-    messages: ChatMessage[]; 
-    lastSuccessfulStructuredData: AnyToolStructuredData | null; 
-    allSuccessfulStructuredData: AnyToolStructuredData[];
-    llmUsage: null; 
-    toolResultsSummary: string; 
-    clarificationQuestion?: string | null; 
-    clarificationDetails?: any 
-  }> {
+  ): Promise<{ messages: ChatMessage[]; lastSuccessfulStructuredData: AnyToolStructuredData | null; llmUsage: null; toolResultsSummary: string; clarificationQuestion?: string | null; clarificationDetails?: any }> {
     const logPrefix = `ToolExecutor User:${userId.substring(0, 8)} Sess:${apiContext?.sessionId?.substring(0, 6)}`;
     const toolResultsMessages: ChatMessage[] = [];
     const structuredDataMap: Map<string, AnyToolStructuredData | null> = new Map();
@@ -1971,8 +1963,6 @@ Respond in STRICT JSON format:
     });
     const settledResults = await Promise.allSettled(executionPromises);
     let lastSuccessfulStructuredData: AnyToolStructuredData | null = null;
-    // Collection of all successful structured data
-    const allSuccessfulStructuredData: AnyToolStructuredData[] = [];
     // Track tools that need special transition handling
     let needsStripeOnboarding = false;
     let savedProductDetails: any = null;
@@ -2039,12 +2029,7 @@ Respond in STRICT JSON format:
           structuredDataMap.has(callId)
         ) {
           const data = structuredDataMap.get(callId);
-          if (data) {
-            // Store as last successful data (for backward compatibility)
-            lastSuccessfulStructuredData = data;
-            // Add to our collection of all successful structured data
-            allSuccessfulStructuredData.push(data);
-          }
+          if (data) lastSuccessfulStructuredData = data;
         }
       } else if (result.status === "rejected") {
         logger.error(`${logPrefix} Unexpected parallel exec error for tool call ${originalRoutedCall.tool_name}:`, result.reason);
@@ -2101,8 +2086,6 @@ Respond in STRICT JSON format:
           // Update structured data
           if (onboardingResult.structuredData) {
             lastSuccessfulStructuredData = onboardingResult.structuredData as AnyToolStructuredData;
-            // Also add to the allSuccessfulStructuredData array
-            allSuccessfulStructuredData.push(onboardingResult.structuredData as AnyToolStructuredData);
           }
         }
       } catch (error) {
@@ -2154,8 +2137,6 @@ Respond in STRICT JSON format:
           // Update structured data
           if (paymentLinkResult.structuredData) {
             lastSuccessfulStructuredData = paymentLinkResult.structuredData as AnyToolStructuredData;
-            // Also add to the allSuccessfulStructuredData array
-            allSuccessfulStructuredData.push(paymentLinkResult.structuredData as AnyToolStructuredData);
           }
         }
       } catch (error) {
@@ -2163,16 +2144,7 @@ Respond in STRICT JSON format:
       }
     }
     
-    // Use allSuccessfulStructuredData if it has multiple items, otherwise use lastSuccessfulStructuredData for backward compatibility
-    return { 
-      messages: toolResultsMessages, 
-      lastSuccessfulStructuredData, 
-      allSuccessfulStructuredData,
-      llmUsage: null, 
-      toolResultsSummary: toolResultsSummaryParts.join("\n") || "Tools processing completed.", 
-      clarificationQuestion, 
-      clarificationDetails 
-    };
+    return { messages: toolResultsMessages, lastSuccessfulStructuredData, llmUsage: null, toolResultsSummary: toolResultsSummaryParts.join("\n") || "Tools processing completed.", clarificationQuestion, clarificationDetails };
   }
   public async runOrchestration(
     userId: string,
@@ -2195,7 +2167,7 @@ Respond in STRICT JSON format:
     }
     logger.info(`--- ${turnIdentifier} Starting Orchestration Run (Planning: ${PLANNING_MODEL_NAME_ORCH}, Chat/Vision: ${CHAT_VISION_MODEL_NAME_ORCH}) ---`);
     // Initialisation des variables
-    let finalStructuredResult: AnyToolStructuredData | AnyToolStructuredData[] | null = null;
+    let finalStructuredResult: AnyToolStructuredData | null = null;
     let finalResponseText: string | null = null;
     let responseIntentType: string | null = "neutral";
     let ttsInstructionsForFinalResponse: string | null = null;
@@ -2562,22 +2534,7 @@ Respond in STRICT JSON format:
           history
         );
         toolExecutionMessages = executionResult.messages; // Assignation à la variable de la portée supérieure
-        
-        // Use allSuccessfulStructuredData if it has multiple items, otherwise use lastSuccessfulStructuredData for backward compatibility
-        if (executionResult.allSuccessfulStructuredData && executionResult.allSuccessfulStructuredData.length > 0) {
-          if (executionResult.allSuccessfulStructuredData.length === 1) {
-            // For single tool results, keep the existing behavior
-            finalStructuredResult = executionResult.allSuccessfulStructuredData[0];
-          } else {
-            // For multiple tool results, use the array
-            finalStructuredResult = executionResult.allSuccessfulStructuredData;
-            logger.info(`[${turnIdentifier}] Multiple tool results (${executionResult.allSuccessfulStructuredData.length}) detected and will be rendered`);
-          }
-        } else {
-          // Fallback to the lastSuccessfulStructuredData for backward compatibility
-          finalStructuredResult = executionResult.lastSuccessfulStructuredData;
-        }
-        
+        finalStructuredResult = executionResult.lastSuccessfulStructuredData;
         currentTurnToolResultsSummary = executionResult.toolResultsSummary;
         clarificationQuestionForUser = executionResult.clarificationQuestion ?? null;
         clarificationDetailsForUser = executionResult.clarificationDetails ?? null;
@@ -2626,7 +2583,7 @@ Respond in STRICT JSON format:
       // retrievedMemoryContext est déjà initialisé au début de la fonction
       const entitiesForMemorySearch: string[] = [textQueryForRouter.substring(0, 70)];
       // Ensure finalStructuredResult is not null and has a title property (with type safety)
-      if (finalStructuredResult && !Array.isArray(finalStructuredResult) && typeof (finalStructuredResult as any).title === 'string') {
+      if (finalStructuredResult && typeof (finalStructuredResult as any).title === 'string') {
         entitiesForMemorySearch.push((finalStructuredResult as any).title);
       }
       if (entitiesForMemorySearch.length > 0 && entitiesForMemorySearch.some(e => e.trim() !== "")) {
@@ -2764,7 +2721,7 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
       routedTools.planned_tools[0].tool_name === "HackerNewsTool"
     ) {
       // If finalStructuredResult is missing or not hn_stories, wrap it
-      if (!finalStructuredResult || (typeof finalStructuredResult === "object" && !Array.isArray(finalStructuredResult) && finalStructuredResult.result_type !== "hn_stories")) {
+      if (!finalStructuredResult || (typeof finalStructuredResult === "object" && finalStructuredResult.result_type !== "hn_stories")) {
         finalStructuredResult = {
           result_type: "hn_stories",
           source_api: "hackernews",
@@ -2782,7 +2739,6 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
       finalResponseText &&
       finalStructuredResult &&
       typeof finalResponseText === "string" &&
-      !Array.isArray(finalStructuredResult) &&
       (finalStructuredResult as any).result_type === "news_articles"
     ) {
       return {
