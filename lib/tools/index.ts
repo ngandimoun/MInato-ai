@@ -6,17 +6,8 @@ import { MemoryTool } from "./MemoryTool";
 
 // --- Import Tool Implementations ---
 import { WebSearchTool } from "./WebSearchTool";
-import { YouTubeSearchTool } from "./YouTubeSearchTool";
-import { PexelsSearchTool } from "./PexelsSearchTool";
-import { RecipeSearchTool } from "./RecipeSearchTool";
-import { DateTimeTool } from "./DateTimeTool";
-import { HackerNewsTool } from "./HackerNewsTool";
-import { RedditTool } from "./RedditTool";
-import { SportsInfoTool } from "./SportsInfoTool";
-import { EventFinderTool } from "./EventFinderTool";
 import { GoogleCalendarReaderTool } from "./GoogleCalendarReaderTool";
 import { GoogleGmailReaderTool } from "./GoogleGmailReaderTool";
-import { NewsAggregatorTool } from "./NewsAggregatorTool";
 import { ReminderReaderTool } from "./ReminderReaderTool";
 import { ReminderSetterTool } from "./ReminderSetterTool";
 import { ProactiveReminderTool } from "./ProactiveReminderTool";
@@ -28,15 +19,6 @@ import { StripePaymentLinkTool } from "./StripePaymentLinkTool";
 // The key MUST match the 'name' property of the tool instance. Aliases are handled in resolveToolName only.
 export const tools: { [key: string]: BaseTool } = {
   WebSearchTool: Object.assign(new WebSearchTool(), { timeoutMs: 8000, maxCallsPerSession: 5, rateLimits: { perMinute: 5, perHour: 20 } }),
-  YouTubeSearchTool: Object.assign(new YouTubeSearchTool(), { timeoutMs: 10000, maxCallsPerSession: 3, rateLimits: { perMinute: 3, perHour: 10 } }),
-  PexelsSearchTool: new PexelsSearchTool(),
-  RecipeSearchTool: new RecipeSearchTool(),
-  NewsAggregatorTool: new NewsAggregatorTool(),
-  DateTimeTool: new DateTimeTool(),
-  HackerNewsTool: new HackerNewsTool(),
-  RedditTool: new RedditTool(),
-  SportsInfoTool: new SportsInfoTool(),
-  EventFinderTool: new EventFinderTool(),
   GoogleCalendarReaderTool: Object.assign(new GoogleCalendarReaderTool(), { enabled: false }),
   GoogleGmailReaderTool: Object.assign(new GoogleGmailReaderTool(), { enabled: false }),
   ReminderReaderTool: new ReminderReaderTool(),
@@ -136,134 +118,6 @@ export const toolAliases: { [key: string]: string } = {
   "googleit": "WebSearchTool",
   "searchonline": "WebSearchTool",
   "queryweb": "WebSearchTool",
-
-  // NewsAggregatorTool Aliases
-  "news": "NewsAggregatorTool",
-  "newstool": "NewsAggregatorTool",
- // Duplicate "newstool" removed below
-  "latestnews": "NewsAggregatorTool",
-  "headlines": "NewsAggregatorTool",
-  "headline": "NewsAggregatorTool",
-  // New aliases
-  "newssearch": "NewsAggregatorTool",
-  "current_events": "NewsAggregatorTool",
-  "topstories": "NewsAggregatorTool",
-  "breakingnews": "NewsAggregatorTool",
-  "getnews": "NewsAggregatorTool",
-  "dailynews": "NewsAggregatorTool",
-  "todaysnews": "NewsAggregatorTool",
-  "fetchnews": "NewsAggregatorTool",
-  "newssearchtool": "NewsAggregatorTool",
-  "newssearch_tool": "NewsAggregatorTool",
-
-  // YouTubeSearchTool Aliases
-  "youtube": "YouTubeSearchTool",
-  "youtubesearch": "YouTubeSearchTool",
-  "findvideo": "YouTubeSearchTool",
-  // New aliases
-  "yt": "YouTubeSearchTool",
-  "vidsearch": "YouTubeSearchTool",
-  "playvideo": "YouTubeSearchTool",
-  "watch": "YouTubeSearchTool",
-  "searchyoutube": "YouTubeSearchTool",
-  "ytsearch": "YouTubeSearchTool",
-  "videosearch": "YouTubeSearchTool",
-  "findyoutube": "YouTubeSearchTool",
-
-  // PexelsSearchTool Aliases
-  "image": "PexelsSearchTool",
-  "findimage": "PexelsSearchTool",
-  "pexels": "PexelsSearchTool",
-  // New aliases
-  "imgsearch": "PexelsSearchTool",
-  "imagesearch": "PexelsSearchTool",
-  "getimage": "PexelsSearchTool",
-  "searchimage": "PexelsSearchTool",
-  "picturesearch": "PexelsSearchTool",
-  "findpicture": "PexelsSearchTool",
-  "photosearch": "PexelsSearchTool",
-  "pexelssearch": "PexelsSearchTool",
-  "fetchimage": "PexelsSearchTool",
-
-  // RecipeSearchTool Aliases
-  "recipe": "RecipeSearchTool",
-  "findrecipe": "RecipeSearchTool",
-  "cook": "RecipeSearchTool",
-  // New aliases
-  "recipes": "RecipeSearchTool",
-  "foodsearch": "RecipeSearchTool",
-  "cooking": "RecipeSearchTool",
-  "mealplan": "RecipeSearchTool",
-  "getrecipe": "RecipeSearchTool",
-  "searchrecipe": "RecipeSearchTool",
-  "findmeal": "RecipeSearchTool",
-  "whattocook": "RecipeSearchTool",
-  "fetchrecipe": "RecipeSearchTool",
-
-  // DateTimeTool Aliases
-  "datetime": "DateTimeTool",
-  "currenttime": "DateTimeTool",
-  "time": "DateTimeTool",
-  // New aliases
-  "datetimeinfo": "DateTimeTool",
-  "date": "DateTimeTool",
-  "getdate": "DateTimeTool",
-  "gettime": "DateTimeTool",
-  "whattimeisit": "DateTimeTool",
-  "todaydate": "DateTimeTool",
-  "currentdatetime": "DateTimeTool",
-  "now": "DateTimeTool",
-
-  // HackerNewsTool Aliases
-  "hackernews": "HackerNewsTool",
-  // "HackerNewsTool": "HackerNewsTool", // Canonical name, not needed as alias if resolveToolName handles it
-  "hn": "HackerNewsTool",
-  // New aliases
-  "hnnews": "HackerNewsTool",
-  "ycombinatornews": "HackerNewsTool",
-  "technews_hn": "HackerNewsTool", // to distinguish from general tech news
-  "hnsearch": "HackerNewsTool",
-  "gethackernews": "HackerNewsTool",
-  "hacker_news": "HackerNewsTool",
-
-  // RedditTool Aliases
-  "reddit": "RedditTool",
-  "redditsearch": "RedditTool",
-  // New aliases
-  "redditposts": "RedditTool",
-  "searchreddit": "RedditTool",
-  "findonreddit": "RedditTool",
-  "getreddit": "RedditTool",
-  "askreddit": "RedditTool", // Common subreddit, might be used as a general search term
-
-  // SportsInfoTool Aliases
-  "sports": "SportsInfoTool",
-  "sportinfo": "SportsInfoTool",
-  "gameresult": "SportsInfoTool",
-  "nextgame": "SportsInfoTool",
-  // New aliases
-  "sport": "SportsInfoTool",
-  "sportssearch": "SportsInfoTool",
-  "sportsscores": "SportsInfoTool",
-  "matchresults": "SportsInfoTool",
-  "livescores": "SportsInfoTool",
-  "getsportsinfo": "SportsInfoTool",
-  "sportsupdates": "SportsInfoTool",
-  "score": "SportsInfoTool",
-
-  // EventFinderTool Aliases
-  "eventfinder": "EventFinderTool",
-  "findevent": "EventFinderTool",
-  "ticketmaster": "EventFinderTool", // Could be specific, but often used generally
-  // New aliases
-  "events": "EventFinderTool",
-  "eventsearch": "EventFinderTool",
-  "findevents": "EventFinderTool",
-  "upcomingevents": "EventFinderTool",
-  "concerts": "EventFinderTool",
-  "shows": "EventFinderTool",
-  "localevents": "EventFinderTool",
-  "find_event": "EventFinderTool", // Underscore version
 
   // GoogleCalendarReaderTool Aliases
   "calendar": "GoogleCalendarReaderTool",

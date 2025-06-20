@@ -9,53 +9,6 @@ const toolNameMap: { [key: string]: string } = {
   "googlesearch": "WebSearchTool",
   "find": "WebSearchTool",
 
-  // NewsAggregatorTool Aliases
-  "news": "NewsAggregatorTool",
-  "newstool": "NewsAggregatorTool",
-  "NewsTool": "NewsAggregatorTool",
-  "latestnews": "NewsAggregatorTool",
-  "headlines": "NewsAggregatorTool",
-
-  // YouTubeSearchTool Aliases
-  "youtube": "YouTubeSearchTool",
-  "youtubesearch": "YouTubeSearchTool",
-  "findvideo": "YouTubeSearchTool",
-
-  // PexelsSearchTool Aliases
-  "image": "PexelsSearchTool",
-  "findimage": "PexelsSearchTool",
-  "pexels": "PexelsSearchTool",
-
-  // RecipeSearchTool Aliases
-  "recipe": "RecipeSearchTool",
-  "findrecipe": "RecipeSearchTool",
-  "cook": "RecipeSearchTool",
-
-  // DateTimeTool Aliases
-  "datetime": "DateTimeTool",
-  "currenttime": "DateTimeTool",
-  "time": "DateTimeTool",
-
-  // HackerNewsTool Aliases
-  "hackernews": "HackerNewsTool",
-  "HackerNewsTool": "HackerNewsTool",
-  "hn": "HackerNewsTool",
-
-  // RedditTool Aliases
-  "reddit": "RedditTool",
-  "redditsearch": "RedditTool",
-
-  // SportsInfoTool Aliases
-  "sports": "SportsInfoTool",
-  "sportinfo": "SportsInfoTool",
-  "gameresult": "SportsInfoTool",
-  "nextgame": "SportsInfoTool",
-
-  // EventFinderTool Aliases
-  "eventfinder": "EventFinderTool",
-  "findevent": "EventFinderTool",
-  "ticketmaster": "EventFinderTool",
-
   // GoogleCalendarReaderTool Aliases
   "calendar": "GoogleCalendarReaderTool",
   "googlecalendar": "GoogleCalendarReaderTool",

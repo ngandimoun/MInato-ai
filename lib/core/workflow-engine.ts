@@ -168,9 +168,6 @@ export class WorkflowEngine {
               return `${arg}${reqArgs.includes(arg) ? '*' : ''}${enumNote}`;
             }).join(', ');
             let extraNote = '';
-            if (t.name === 'NewsAggregatorTool' && argsSchemaObj.properties && argsSchemaObj.properties['sources'] && argsSchemaObj.properties['sources'].enum) {
-              extraNote = `\n  NOTE: Always provide a value for 'sources'. If unsure, use '${argsSchemaObj.properties['sources'].enum[0]}'.`;
-            }
             if (t.name === 'WebSearchTool' && argsSchemaObj.properties && argsSchemaObj.properties['mode'] && argsSchemaObj.properties['mode'].enum) {
               extraNote += `\n  NOTE: Always provide a value for 'mode'. If unsure, use '${argsSchemaObj.properties['mode'].enum[0]}'.`;
             }

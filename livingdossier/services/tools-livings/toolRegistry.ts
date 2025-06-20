@@ -5,10 +5,7 @@ import { Serper_WebSearchTool } from './Serper_WebSearchTool';
 import { BrowserTool } from './BrowserTool';
 import { AlphaVantageTool } from './AlphaVantageTool';
 import { FinnhubTool } from './FinnhubTool';
-import { YouTubeSearchTool } from './YouTubeSearchTool';
-import { PexelsSearchTool } from './PexelsSearchTool';
 import { LocationSearchTool } from './LocationSearchTool';
-import { WeatherTool } from './WeatherTool';
 import { WikipediaTool } from './WikipediaTool';
 import { NewsApiTool } from './NewsApiTool';
 import { TwitterSearchTool } from './TwitterSearchTool';
@@ -36,10 +33,7 @@ const registry: ToolRegistry = {
   BrowserTool: new BrowserTool(),
   AlphaVantageTool: new AlphaVantageTool(),
   FinnhubTool: new FinnhubTool(),
-  YouTubeSearchTool: new YouTubeSearchTool(),
-  PexelsSearchTool: new PexelsSearchTool(),
   LocationSearchTool: new LocationSearchTool(),
-  WeatherTool: new WeatherTool(),
   WikipediaTool: new WikipediaTool(),
   NewsApiTool: new NewsApiTool(),
   TwitterSearchTool: new TwitterSearchTool(),

@@ -6,12 +6,7 @@ import { motion } from "framer-motion";
 import { logger } from "@/memory-framework/config";
 import type { 
   AnyToolStructuredData, 
-  DateTimeStructuredOutput, 
-  EventFinderStructuredOutput, 
   CachedImageList, 
-  CachedSingleRecipe, 
-  RedditStructuredOutput, 
-  SportsStructuredOutput, 
   CachedVideoList, 
   MemoryToolResult, 
   ReminderResult, 
@@ -21,23 +16,13 @@ import { isStructuredData } from "@/lib/types";
 
 // Import your new tool cards
 
-import { DateTimeCard } from "../tool-cards/DateTimeCard";
-import { EventFinderCard } from "../tool-cards/EventFinderCard";
-import { PexelsCard } from "../tool-cards/PexelsCard";
-import { RedditCard } from "../tool-cards/RedditCard";
-import { SportsInfoCard } from "../tool-cards/SportsInfoCard";
-import { YouTubeSearchCard } from "../tool-cards/YouTubeSearchCard";
 import { MemoryToolCard } from "../tool-cards/MemoryToolCard";
 import { ReminderReaderCard } from "../tool-cards/ReminderReaderCard";
 import { GoogleCalendarCard } from "../tool-cards/GoogleCalendarCard";
 import { GoogleGmailCard } from "../tool-cards/GoogleGmailCard";
 
 import { WebSearchCard } from "../tool-cards/WebSearchCard"; // ADD THIS IMPORT
-import { RecipeCard } from "../tool-cards/RecipeCard";
 import { GenericToolCard } from "../tool-cards/GenericToolCard";
-
-import { NewsAggregatorCard } from "../tool-cards/NewsAggregatorCard"; 
-import { HackerNewsCard } from "../tool-cards/HackerNewsCard";
 
 import ReminderConfirmationCard from "../tool-cards/ReminderConfirmationCard";
 import { TikTokCard } from '../tool-cards/TikTokCard';
@@ -145,65 +130,9 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
       }
       break;
     
-    // DateTime Tool
-    case "datetime_info":
-      contentToRender = <DateTimeCard data={parsedData as DateTimeStructuredOutput} />;
-      break;
-    
-    // EventFinder Tool  
-    case "event_list":
-      contentToRender = <EventFinderCard data={parsedData as EventFinderStructuredOutput} />;
-      break;
-    
-    // HackerNews Tool
-    case "hn_stories":
-      contentToRender = <HackerNewsCard data={parsedData as any} />;
-      break;
-    
     // Memory Tool
     case "internal_memory_result":
       contentToRender = <MemoryToolCard data={parsedData as MemoryToolResult} />;
-      break;
-    
-    // NewsAggregator Tool  
-    case "news_articles":
-      contentToRender = <NewsAggregatorCard data={parsedData as NewsArticleList} />;
-      break;
-    
-    // Pexels Tool
-    case "image_list":
-      if (parsedData.source_api === "pexels_photo") {
-        contentToRender = <PexelsCard data={parsedData as CachedImageList} />;
-      } else {
-        contentToRender = <GenericToolCard data={parsedData} />;
-      }
-      break;
-    
-    // Recipe Tool
-    case "recipe":
-    case "recipe_detail":
-      contentToRender = <RecipeCard data={parsedData as CachedSingleRecipe} />;
-      break;
-    
-    // Reddit Tool
-    case "reddit_posts":
-      contentToRender = <RedditCard data={parsedData as RedditStructuredOutput} />;
-      break;
-    
-    // SportsInfo Tool
-    case "sports_info":
-      contentToRender = <SportsInfoCard data={parsedData as SportsStructuredOutput} />;
-      break;
-    
-    // YouTube Tool
-    case "video_list":
-      if (parsedData.source_api === "youtube") {
-        contentToRender = <YouTubeSearchCard data={parsedData as CachedVideoList} />;
-      } else if (parsedData.source_api === "serper_tiktok") {
-        contentToRender = <TikTokCard data={parsedData as CachedVideoList} />;
-      } else {
-        contentToRender = <GenericToolCard data={parsedData} />;
-      }
       break;
     
     // TikTok directly

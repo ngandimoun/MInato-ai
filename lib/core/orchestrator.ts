@@ -1822,7 +1822,7 @@ Respond in STRICT JSON format:
         // The following searchToolsRequiringQuery, YouTubeSearchTool, SportsInfoTool, RedditTool blocks should be OUTSIDE and AFTER the EventFinderTool block.
 
         const searchToolsRequiringQuery = [
-          "YouTubeSearchTool", "NewsAggregatorTool", "HackerNewsTool", "WebSearchTool", "MemoryTool", "PexelsSearchTool", "RecipeSearchTool"
+          "WebSearchTool", "MemoryTool"
         ];
 
         // Improved fallback for user input
@@ -1832,33 +1832,25 @@ Respond in STRICT JSON format:
           (!actualToolArgs.query || typeof actualToolArgs.query !== 'string' || actualToolArgs.query.trim() === "") &&
           userInputForFallback && typeof userInputForFallback === 'string' && userInputForFallback.trim()
         ) {
-          // --- BEGIN: ADVANCED CLEANING FOR YOUTUBE QUERIES ---
-          let cleanedUserInputForYouTube = userInputForFallback;
-          if (typeof cleanedUserInputForYouTube === 'string') {
+          // --- BEGIN: ADVANCED CLEANING FOR SEARCH QUERIES ---
+          let cleanedUserInput = userInputForFallback;
+          if (typeof cleanedUserInput === 'string') {
             // Remove leading Minato references
-            cleanedUserInputForYouTube = cleanedUserInputForYouTube.replace(/^(hey |ok |hi |hello )?minato[,:]?\s*/i, "");
+            cleanedUserInput = cleanedUserInput.replace(/^(hey |ok |hi |hello )?minato[,:]?\s*/i, "");
             // Remove generic prefixes
-            cleanedUserInputForYouTube = cleanedUserInputForYouTube.replace(/^(show|find|get|search|play|watch|tell|give) (me )?(about|for|the|a|an)? ?/i, "");
-            cleanedUserInputForYouTube = cleanedUserInputForYouTube.replace(/^(video|videos|clip|clips) (about|for|on)? ?/i, "");
-            cleanedUserInputForYouTube = cleanedUserInputForYouTube.replace(/^about /i, "");
+            cleanedUserInput = cleanedUserInput.replace(/^(show|find|get|search|tell|give) (me )?(about|for|the|a|an)? ?/i, "");
+            cleanedUserInput = cleanedUserInput.replace(/^about /i, "");
             // Remove trailing tool/implementation hints
-            cleanedUserInputForYouTube = cleanedUserInputForYouTube.replace(/(using|with|via) (the)?youtube(api|searchtool)?( tool)?(\.|,)?\s*$/i, "");
-            cleanedUserInputForYouTube = cleanedUserInputForYouTube.replace(/(using|with|via) [^.,;!?]+(\.|,)?\s*$/i, "");
+            cleanedUserInput = cleanedUserInput.replace(/(using|with|via) [^.,;!?]+(\.|,)?\s*$/i, "");
             // Remove trailing polite words
-            cleanedUserInputForYouTube = cleanedUserInputForYouTube.replace(/\b(please|thanks|thank you)[.!?, ]*$/i, "");
-            cleanedUserInputForYouTube = cleanedUserInputForYouTube.trim();
+            cleanedUserInput = cleanedUserInput.replace(/\b(please|thanks|thank you)[.!?, ]*$/i, "");
+            cleanedUserInput = cleanedUserInput.trim();
           }
           // --- END: ADVANCED CLEANING ---
-          logger.warn(`${logPrefix} Tool '${canonicalToolName}' called by Router without 'query'. Using cleaned fallback user input as query: "${String(cleanedUserInputForYouTube).substring(0,50)}..."`);
-          actualToolArgs.query = String(cleanedUserInputForYouTube);
+          logger.warn(`${logPrefix} Tool '${canonicalToolName}' called by Router without 'query'. Using cleaned fallback user input as query: "${String(cleanedUserInput).substring(0,50)}..."`);
+          actualToolArgs.query = String(cleanedUserInput);
         }
-        // --- PATCH: Ensure YouTubeSearchTool always has a valid 'limit' ---
-        if (
-          canonicalToolName === "YouTubeSearchTool" &&
-          (actualToolArgs.limit === undefined || actualToolArgs.limit === null || isNaN(Number(actualToolArgs.limit)))
-        ) {
-          actualToolArgs.limit = 5;
-        }
+
         // Add query length validation
         if (searchToolsRequiringQuery.includes(canonicalToolName) && actualToolArgs.query) {
           const maxQueryLength = 200;
