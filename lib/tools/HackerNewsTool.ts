@@ -139,44 +139,47 @@ You are an expert parameter extractor for Minato's HackerNewsTool which fetches 
 
 Given this user query about Hacker News: "${userInput.replace(/\"/g, '\\"')}"
 
-COMPREHENSIVE ANALYSIS GUIDELINES:
+CRITICAL ANALYSIS GUIDELINES:
 
-1. FILTER TYPE DETECTION:
-   - Identify if user wants "top", "new", "best", "ask", "show", or "job" stories
-   - Look for keywords like "trending" (→top), "latest" (→new), "best", "Ask HN", "Show HN", "jobs"
-   - Default to "top" if unspecified but implied by context
-
-2. SEARCH QUERY EXTRACTION - CRITICAL:
-   - Extract MEANINGFUL KEYWORDS from the user's query, not the entire raw string
-   - Remove filler words like "some", "on", "about", "for", "the", "a", "an", "in", "of", "with"
-   - Focus on IMPORTANT TERMS: nouns, technical terms, company names, technologies
-   - For complex queries, identify the CORE TOPICS being searched for
-   - Join extracted keywords with spaces to form a clean search query
+1. INTELLIGENT SEARCH QUERY EXTRACTION - MOST IMPORTANT:
+   - Extract ONLY the meaningful keywords that represent what the user wants to search for
+   - Remove ALL filler words: "find", "me", "some", "on", "about", "for", "the", "a", "an", "in", "of", "with", "from", "hacker", "news", "posts", "stories", "articles", "discussions"
+   - Focus ONLY on the CORE TOPIC: technologies, companies, concepts, trends
+   - Join meaningful keywords with spaces to form a clean search query
    
-   Examples of query extraction:
+   EXAMPLES - PAY ATTENTION TO THIS:
+   - "find me some startup trends on hacker news" → "startup trends"
    - "some startup ai voice trends on" → "startup ai voice trends"
    - "articles about machine learning in healthcare" → "machine learning healthcare"
    - "posts on rust programming language" → "rust programming language"
    - "discussions about the latest javascript frameworks" → "javascript frameworks"
    - "what are people saying about openai" → "openai"
+   - "show me crypto news" → "crypto"
+   - "find AI startup discussions" → "AI startup"
+
+2. FILTER TYPE DETECTION:
+   - Look for explicit filter requests: "Ask HN" → "ask", "Show HN" → "show", "jobs" → "job"
+   - Look for keywords: "trending/popular" → "top", "latest/recent" → "new", "best" → "best"
+   - If no specific filter mentioned and user has a search query, use null (search mode)
+   - Default to "top" only if browsing without search terms
 
 3. TIME RANGE ANALYSIS:
-   - For "top" stories, determine desired time range: "hour", "day", "week", "month", "year", "all"
-   - Map expressions like "today" to "day", "this week" to "week", etc.
+   - For "top" stories, determine time range: "hour", "day", "week", "month", "year", "all"
+   - Map expressions: "today" → "day", "this week" → "week", "recent" → "day"
    - Default to "day" for top stories if unspecified
 
 4. RESULT LIMIT DETERMINATION:
-   - Identify how many stories the user wants (1-10)
-   - Map expressions like "a few" to 3, "several" to 5, etc.
-   - Default to 5 if unspecified
+   - Extract number of stories wanted (1-10)
+   - Map expressions: "a few" → 5, "several" → 7, "many" → 8
+   - Default to 8 for better variety
 
 OUTPUT FORMAT: JSON object with these fields:
-- "query": (string|null) CLEANED search terms with meaningful keywords only, null if browsing lists
-- "filter": (string|null) One of: "top", "new", "best", "ask", "show", "job", or null if unspecified
-- "time": (string|null) For top stories: "hour", "day", "week", "month", "year", "all", or null if unspecified
-- "limit": (number|null) Number of stories (1-10) or null if unspecified
+- "query": (string|null) CLEANED search keywords ONLY - no filler words, null if just browsing lists
+- "filter": (string|null) One of: "top", "new", "best", "ask", "show", "job", or null for search mode
+- "time": (string|null) For top stories: "hour", "day", "week", "month", "year", "all", or null
+- "limit": (number|null) Number of stories (1-10) or null for default
 
-IMPORTANT: For the query field, extract only meaningful keywords, not the full user input.
+CRITICAL: The query field should contain ONLY the core search terms, not the full user input!
 
 RESPOND ONLY WITH THE JSON OBJECT.`;
 
@@ -226,11 +229,27 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       if (extractedParams.limit && input.limit === undefined) {
         input.limit = extractedParams.limit;
       }
+
+      // Fallback heuristics if LLM extraction didn't work well
+      if (!input.query || input.query.trim() === '' || input.query.includes('find') || input.query.includes('some')) {
+        const rawInput = input._rawUserInput.toLowerCase();
+        
+        // Extract meaningful keywords using regex patterns
+        const meaningfulWords = rawInput
+          .replace(/\b(find|me|some|on|about|for|the|a|an|in|of|with|from|hacker|news|posts|stories|articles|discussions|show|get|want|looking|search)\b/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        if (meaningfulWords && meaningfulWords.length > 2) {
+          input.query = meaningfulWords;
+          logger.debug(`[HackerNewsTool] Applied fallback query extraction: "${meaningfulWords}"`);
+        }
+      }
     }
 
     const effectiveQuery = (typeof input.query === "string" && input.query.trim() !== "") ? input.query.trim() : undefined;
     const effectiveFilter = effectiveQuery ? undefined : (typeof input.filter === "string" && input.filter.trim() !== "" ? input.filter : "top");
-    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 5 : Math.max(1, Math.min(input.limit, 10));
+    const effectiveLimit = (input.limit === null || input.limit === undefined) ? 8 : Math.max(1, Math.min(input.limit, 10));
     const effectiveTime = (typeof input.time === "string" && input.time.trim() !== "") ? input.time : (effectiveFilter === "top" ? "day" : undefined);
     const userNameForResponse = input.context?.userName || "friend";
 

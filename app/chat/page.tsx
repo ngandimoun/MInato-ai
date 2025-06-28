@@ -6,13 +6,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChatInterface } from "@/components/chat/chat-interface";
 import { SettingsPanel } from "@/components/settings/settings-panel";
 import { MemoryPanel } from "@/components/memory/memory-panel";
-import { LivingDossierPanel } from "@/components/living-dossier/living-dossier-panel";
 import { Header } from "@/components/header";
 import { useAuth } from "@/context/auth-provider"; 
 import { logger } from "@/memory-framework/config";
 import { useRouter, useSearchParams } from "next/navigation";
 
-type View = "chat" | "settings" | "memory" | "dashboard" | "living-dossier"; // Added living-dossier view
+type View = "chat" | "settings" | "memory" | "dashboard"; // Added dashboard view
 
 export default function ChatPage() { 
   const [currentView, setCurrentView] = useState<View>("chat");
@@ -23,7 +22,7 @@ export default function ChatPage() {
   // Handle initial view based on query parameters
   useEffect(() => {
     const viewParam = searchParams.get('view');
-    if (viewParam && ['chat', 'settings', 'memory', 'living-dossier'].includes(viewParam)) {
+    if (viewParam && ['chat', 'settings', 'memory'].includes(viewParam)) {
       setCurrentView(viewParam as View);
     }
   }, [searchParams]);
@@ -97,19 +96,6 @@ export default function ChatPage() {
               className="h-full"
             >
               <MemoryPanel onClose={() => setCurrentView("chat")} />
-            </motion.div>
-          )}
-
-          {currentView === "living-dossier" && (
-            <motion.div
-              key="living-dossier"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="h-full"
-            >
-              <LivingDossierPanel onClose={() => setCurrentView("chat")} />
             </motion.div>
           )}
         </AnimatePresence>

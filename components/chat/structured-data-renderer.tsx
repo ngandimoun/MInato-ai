@@ -11,6 +11,7 @@ import type {
   CachedImageList, 
   CachedSingleRecipe, 
   RedditStructuredOutput, 
+  RedditLeadGeneratorOutput,
   SportsStructuredOutput, 
   CachedVideoList, 
   MemoryToolResult, 
@@ -25,6 +26,7 @@ import { DateTimeCard } from "../tool-cards/DateTimeCard";
 import { EventFinderCard } from "../tool-cards/EventFinderCard";
 import { PexelsCard } from "../tool-cards/PexelsCard";
 import { RedditCard } from "../tool-cards/RedditCard";
+import { RedditLeadGeneratorCard } from "../tool-cards/RedditLeadGeneratorCard";
 import { SportsInfoCard } from "../tool-cards/SportsInfoCard";
 import { YouTubeSearchCard } from "../tool-cards/YouTubeSearchCard";
 import { MemoryToolCard } from "../tool-cards/MemoryToolCard";
@@ -118,8 +120,9 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
     parsedData &&
     typeof parsedData === 'object' &&
     'result_type' in parsedData &&
-    ['product_list', 'web_snippet', 'answerBox', 'knowledgeGraph', 'recipe', 'recipe_detail'].includes(parsedData.result_type as string) &&
-    (!('source_api' in parsedData) || parsedData.source_api !== 'youtube'); // Exclude YouTube videos
+    ['product_list', 'web_snippet', 'answerBox', 'knowledgeGraph'].includes(parsedData.result_type as string) &&
+    (!('source_api' in parsedData) || parsedData.source_api !== 'youtube') && // Exclude YouTube videos
+    (!('source_api' in parsedData) || parsedData.source_api !== 'themealdb'); // Exclude recipe results
 
   if (isTikTokVideoList || isTikTokVideo) {
     return <TikTokCard data={parsedData as CachedVideoList} />;
@@ -188,6 +191,11 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
     // Reddit Tool
     case "reddit_posts":
       contentToRender = <RedditCard data={parsedData as RedditStructuredOutput} />;
+      break;
+    
+    // Reddit Lead Generator Tool
+    case "reddit_leads":
+      contentToRender = <RedditLeadGeneratorCard data={parsedData as RedditLeadGeneratorOutput} />;
       break;
     
     // SportsInfo Tool

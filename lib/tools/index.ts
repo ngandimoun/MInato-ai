@@ -12,6 +12,7 @@ import { RecipeSearchTool } from "./RecipeSearchTool";
 import { DateTimeTool } from "./DateTimeTool";
 import { HackerNewsTool } from "./HackerNewsTool";
 import { RedditTool } from "./RedditTool";
+import { RedditLeadGeneratorTool } from "./RedditLeadGeneratorTool";
 import { SportsInfoTool } from "./SportsInfoTool";
 import { EventFinderTool } from "./EventFinderTool";
 import { GoogleCalendarReaderTool } from "./GoogleCalendarReaderTool";
@@ -35,6 +36,7 @@ export const tools: { [key: string]: BaseTool } = {
   DateTimeTool: new DateTimeTool(),
   HackerNewsTool: new HackerNewsTool(),
   RedditTool: new RedditTool(),
+  RedditLeadGeneratorTool: new RedditLeadGeneratorTool(),
   SportsInfoTool: new SportsInfoTool(),
   EventFinderTool: new EventFinderTool(),
   GoogleCalendarReaderTool: Object.assign(new GoogleCalendarReaderTool(), { enabled: false }),
@@ -235,6 +237,18 @@ export const toolAliases: { [key: string]: string } = {
   "findonreddit": "RedditTool",
   "getreddit": "RedditTool",
   "askreddit": "RedditTool", // Common subreddit, might be used as a general search term
+
+  // RedditLeadGeneratorTool Aliases
+  "redditleads": "RedditLeadGeneratorTool",
+  "findleads": "RedditLeadGeneratorTool",
+  "leadgen": "RedditLeadGeneratorTool",
+  "leadgeneration": "RedditLeadGeneratorTool",
+  "redditprospecting": "RedditLeadGeneratorTool",
+  "prospecting": "RedditLeadGeneratorTool",
+  "redditoutreach": "RedditLeadGeneratorTool",
+  "socialmedialeads": "RedditLeadGeneratorTool",
+  "generateleads": "RedditLeadGeneratorTool",
+  "scanlead": "RedditLeadGeneratorTool",
 
   // SportsInfoTool Aliases
   "sports": "SportsInfoTool",

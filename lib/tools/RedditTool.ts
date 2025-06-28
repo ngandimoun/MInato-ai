@@ -121,37 +121,77 @@ export class RedditTool extends BaseTool {
   }
 
   private async extractRedditParameters(userInput: string): Promise<RedditInput> {
-    // Enhanced extraction prompt for Reddit
+    // Enhanced extraction prompt for Reddit with intelligent subreddit mapping
     const extractionPrompt = `
 You are an expert parameter extractor for Minato's RedditTool which fetches posts from Reddit subreddits.
 
 Given this user query about Reddit content: "${userInput.replace(/\"/g, '\\"')}"
 
-COMPREHENSIVE ANALYSIS GUIDELINES:
+CRITICAL SUBREDDIT MAPPING RULES:
 
-1. SUBREDDIT EXTRACTION:
-   - Extract the subreddit name that the user wants to view (e.g., "AskReddit", "worldnews")
+1. INTELLIGENT SUBREDDIT EXTRACTION - PRIORITIZE SPECIFIC SUBREDDITS:
+   NEVER default to "all" unless the query is extremely generic like "show me reddit posts"
+   
+       Map specific topics to their BEST subreddits:
+    * AI/Artificial Intelligence/Machine Learning/ChatGPT/GPT/LLM → "MachineLearning" (primary choice for AI)
+    * AI news/AI updates/AI developments → "artificial" 
+    * Tech/Technology news/tech trends → "technology"
+    * Programming/coding/software development → "programming"
+    * Web development/JavaScript/Python/coding help → "webdev"
+    * News/current events/world news → "worldnews"
+    * Gaming/games/video games → "gaming"
+    * Science/scientific research → "science"
+    * Politics/political news/politicians/Trump/Biden/elections/government → "politics"
+    * Conservative politics/Republican → "Conservative"
+    * Liberal politics/Democrat → "democrats"
+    * Funny/humor/memes/jokes → "funny"
+    * Movies/films/cinema → "movies"
+    * Music/songs/artists → "Music"
+    * Sports/athletics/teams → "sports"
+    * Crypto/Bitcoin/Cryptocurrency/blockchain → "CryptoCurrency"
+    * Stocks/Investing/Finance/trading → "investing"
+    * Food/Cooking/Recipes/cuisine → "food"
+    * Startups/entrepreneurship/business → "startups"
+    * Ask questions/advice → "AskReddit"
+    * Today I learned/facts → "todayilearned"
+    * Life tips/advice → "LifeProTips"
+    * Shower thoughts → "Showerthoughts"
+    * Data/statistics/visualization → "dataisbeautiful"
+    * Photography/photos → "pics"
+
+   - If user explicitly mentions a subreddit (e.g., "r/AskReddit"), use that exact subreddit
    - Remove "r/" prefix if present
-   - Default to "all" only if no specific subreddit is mentioned
+   - For AI-related queries, ALWAYS prefer "MachineLearning" over "all"
 
 2. FILTER TYPE DETERMINATION:
-   - Determine the filter type based on context: "hot", "new", "top", "rising", "controversial"
-   - Look for explicit mentions like "top posts", "hot in r/pics", "new threads"
+   - Look for explicit mentions: "top posts" → "top", "hot content" → "hot", "new threads" → "new", "trending" → "rising"
+   - For news/current events/recent developments, prefer "hot"
+   - For "best of" or "popular" requests, use "top"
+   - For latest/newest content, use "new"
    - Default to "hot" if no specific filter is mentioned
 
 3. TIME PERIOD EXTRACTION (for "top" and "controversial" filters):
-   - Identify time period: "hour", "day", "week", "month", "year", "all"
-   - Look for time indicators like "this week", "this month", "all time"
+   - Map time indicators: "today" → "day", "this week" → "week", "this month" → "month", "all time" → "all"
    - Only include if filter is "top" or "controversial"
-   - Default to "day" for "top" filter and "all" for "controversial" if not specified
+   - Default to "week" for "top" filter to get good variety
 
 4. RESULT LIMIT DETERMINATION:
-   - Extract the number of posts the user wants (1-25)
-   - Map expressions like "a few" to 3, "several" to 5, etc.
-   - Default to 5 if unspecified
+   - Extract specific numbers mentioned
+   - Map expressions: "a few" → 5, "several" → 8, "many" → 12, "lots" → 15
+   - Default to 8 for good variety
+
+ EXAMPLES:
+ - "find me some post about ai on reddit" → {"subreddit": "MachineLearning", "filter": "hot", "time": null, "limit": 8}
+ - "show me top AI posts this week" → {"subreddit": "MachineLearning", "filter": "top", "time": "week", "limit": 8}
+ - "latest tech news" → {"subreddit": "technology", "filter": "new", "time": null, "limit": 8}
+ - "funny posts" → {"subreddit": "funny", "filter": "hot", "time": null, "limit": 8}
+ - "crypto discussions" → {"subreddit": "CryptoCurrency", "filter": "hot", "time": null, "limit": 8}
+ - "find some post on reddit about trump" → {"subreddit": "politics", "filter": "hot", "time": null, "limit": 8}
+ - "trump news" → {"subreddit": "politics", "filter": "hot", "time": null, "limit": 8}
+ - "political discussions" → {"subreddit": "politics", "filter": "hot", "time": null, "limit": 8}
 
 OUTPUT FORMAT: JSON object with these fields:
-- "subreddit": (string) Name of subreddit without "r/" prefix
+- "subreddit": (string) Name of subreddit without "r/" prefix - NEVER use "all" unless query is extremely generic
 - "filter": (string) One of: "hot", "new", "top", "rising", "controversial"
 - "time": (string|null) Only for "top" or "controversial" filters: "hour", "day", "week", "month", "year", "all"
 - "limit": (number) Number of posts (1-25)
@@ -159,10 +199,10 @@ OUTPUT FORMAT: JSON object with these fields:
 RESPOND ONLY WITH THE JSON OBJECT.`;
 
     const defaultInput: RedditInput = {
-      subreddit: "all",
+      subreddit: "popular", // Changed from "all" to "popular" for better default content
       filter: "hot",
       time: null,
-      limit: 5,
+      limit: 8,
     };
 
     try {
@@ -193,6 +233,8 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
         "gpt-4o-mini"
       );
       
+      logger.info(`[RedditTool] LLM extraction result: ${JSON.stringify(extractionResult)}`);
+      
       // Ensure we have a valid result with all required fields
       if (extractionResult && 'subreddit' in extractionResult && 'filter' in extractionResult) {
         const result: RedditInput = {
@@ -200,9 +242,44 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
           ...extractionResult
         };
         
+        // Enhanced subreddit selection with intelligent fallbacks
+        if (!result.subreddit || result.subreddit === "all") {
+          logger.info(`[RedditTool] Applying fallback logic for subreddit: "${result.subreddit}" with input: "${userInput}"`);
+          // Apply intelligent topic-based fallbacks
+          const lowerInput = userInput.toLowerCase();
+          if (lowerInput.includes('ai') || lowerInput.includes('artificial intelligence') || lowerInput.includes('machine learning') || lowerInput.includes('chatgpt') || lowerInput.includes('gpt') || lowerInput.includes('llm')) {
+            result.subreddit = "MachineLearning";
+            logger.info(`[RedditTool] Fallback detected AI keywords → MachineLearning`);
+          } else if (lowerInput.includes('trump') || lowerInput.includes('biden') || lowerInput.includes('politic') || lowerInput.includes('election') || lowerInput.includes('government') || lowerInput.includes('democrat') || lowerInput.includes('republican') || lowerInput.includes('congress') || lowerInput.includes('senate')) {
+            result.subreddit = "politics";
+            logger.info(`[RedditTool] Fallback detected political keywords → politics`);
+          } else if (lowerInput.includes('tech') || lowerInput.includes('technology')) {
+            result.subreddit = "technology";
+            logger.info(`[RedditTool] Fallback detected tech keywords → technology`);
+          } else if (lowerInput.includes('program') || lowerInput.includes('coding') || lowerInput.includes('software')) {
+            result.subreddit = "programming";
+            logger.info(`[RedditTool] Fallback detected programming keywords → programming`);
+          } else if (lowerInput.includes('news') || lowerInput.includes('current events')) {
+            result.subreddit = "worldnews";
+            logger.info(`[RedditTool] Fallback detected news keywords → worldnews`);
+          } else if (lowerInput.includes('crypto') || lowerInput.includes('bitcoin') || lowerInput.includes('cryptocurrency')) {
+            result.subreddit = "CryptoCurrency";
+            logger.info(`[RedditTool] Fallback detected crypto keywords → CryptoCurrency`);
+          } else if (lowerInput.includes('funny') || lowerInput.includes('humor') || lowerInput.includes('meme')) {
+            result.subreddit = "funny";
+            logger.info(`[RedditTool] Fallback detected humor keywords → funny`);
+          } else if (lowerInput.includes('gaming') || lowerInput.includes('games')) {
+            result.subreddit = "gaming";
+            logger.info(`[RedditTool] Fallback detected gaming keywords → gaming`);
+          } else {
+            result.subreddit = "popular"; // Better default than "all"
+            logger.info(`[RedditTool] Fallback using default → popular`);
+          }
+        }
+        
         // Apply time defaults based on filter if not specified
         if ((result.filter === "top" || result.filter === "controversial") && !result.time) {
-          result.time = result.filter === "top" ? "day" : "all";
+          result.time = result.filter === "top" ? "week" : "all"; // Changed default from "day" to "week" for better variety
         }
         
         // Ensure limit is between 1-25
@@ -212,6 +289,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
           result.limit = 25;
         }
         
+        logger.info(`[RedditTool] Final extracted parameters: ${JSON.stringify(result)}`);
         return result;
       }
       
@@ -225,28 +303,28 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
   async execute(input: RedditInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
     const logPrefix = "[RedditTool]";
     
+    logger.info(`${logPrefix} Execute called with input: ${JSON.stringify(input)}`);
+    
     // If input is from natural language, extract parameters
     if (input._rawUserInput && typeof input._rawUserInput === 'string') {
       try {
         const extractedParams = await this.extractRedditParameters(input._rawUserInput);
         
-        // Only use extracted parameters if they're not already specified
-        if (extractedParams.subreddit && !input.subreddit) {
-          input.subreddit = extractedParams.subreddit;
-        }
-        if (extractedParams.filter && !input.filter) {
-          input.filter = extractedParams.filter;
-        }
-        if (extractedParams.time && !input.time) {
-          input.time = extractedParams.time;
-        }
-        if (extractedParams.limit && !input.limit) {
-          input.limit = extractedParams.limit;
-        }
+        // Use extracted parameters, prioritizing them over defaults
+        input.subreddit = extractedParams.subreddit || input.subreddit;
+        input.filter = extractedParams.filter || input.filter;
+        input.time = extractedParams.time || input.time;
+        input.limit = extractedParams.limit || input.limit;
       } catch (error) {
         logger.error(`${logPrefix} Error extracting parameters:`, error);
         // Continue with default values if extraction fails
       }
+    }
+    
+    // Simple fallback: if subreddit is still "all", default to "popular" for better content
+    if (input.subreddit === "all") {
+      logger.info(`${logPrefix} Converting "all" to "popular" for better content quality`);
+      input.subreddit = "popular";
     }
     
     // Apply user preferences if available
@@ -254,9 +332,10 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       const prefs = input.context.userState.workflow_preferences;
       
       // If user didn't specify a subreddit and has preferred subreddits, use the first one
+      // But only if we still have "all" or empty - don't override intelligent extractions
       if (prefs.redditPreferredSubreddits && 
           prefs.redditPreferredSubreddits.length > 0 && 
-          (!input.subreddit || input.subreddit === "all")) {
+          (!input.subreddit || input.subreddit === "all" || input.subreddit === "popular")) {
         input.subreddit = prefs.redditPreferredSubreddits[0];
         logger.debug(`${logPrefix} Applied user's preferred subreddit: ${input.subreddit}`);
       }
@@ -314,7 +393,17 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       const apiPosts = data.data.children.filter(child => child.kind === "t3" && child.data && !child.data.stickied).map(child => child.data);
       if (apiPosts.length === 0) {
         const timeSuffix = time ? ` for the past ${time}` : "";
-        const msg = `Minato didn't find any non-stickied posts in r/${subreddit} for ${userNameForResponse} with filter '${filter}'${timeSuffix}. Try a different filter?`;
+        let suggestion = "";
+        if (subreddit === "MachineLearning") {
+          suggestion = " Try checking r/artificial or r/ArtificialIntelligence instead?";
+        } else if (subreddit === "artificial") {
+          suggestion = " Try checking r/MachineLearning or r/technology instead?";
+        } else if (filter === "top") {
+          suggestion = " Try changing the time period or using 'hot' posts instead?";
+        } else {
+          suggestion = " Try a different filter like 'new' or 'top'?";
+        }
+        const msg = `No posts found in r/${subreddit} with filter '${filter}'${timeSuffix}, ${userNameForResponse}.${suggestion}`;
         this.log("info", `${logPrefix} ${msg}`);
         return { result: msg, structuredData: outputStructuredData };
       }
@@ -331,12 +420,76 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
 
       this.log("info", `${logPrefix} Fetched ${outputStructuredData.count} valid posts.`);
       const firstPost = outputStructuredData.posts[0];
-      let resultString = `Okay ${userNameForResponse}, I found some interesting posts on r/${subreddit}! For example, there's one titled "${firstPost.title.substring(0, 70)}..." by u/${firstPost.author || 'someone'}`;
-      if (firstPost.score !== null) resultString += ` with ${firstPost.score} upvotes.`;
-      if (outputStructuredData.count > 1) {
-          resultString += ` There are ${outputStructuredData.count - 1} more. I can show you the list!`;
+      
+      // Create contextual response based on subreddit and user query
+      let contextualIntro = "";
+      let emoji = "📋";
+      
+      if (subreddit === "MachineLearning") {
+        contextualIntro = "Found some great AI & Machine Learning discussions from r/MachineLearning";
+        emoji = "🤖";
+      } else if (subreddit === "artificial") {
+        contextualIntro = "Here are the latest AI developments from r/artificial";
+        emoji = "🧠";
+      } else if (subreddit === "technology") {
+        contextualIntro = "Here are the hottest tech trends from r/technology";
+        emoji = "💻";
+      } else if (subreddit === "worldnews" || subreddit === "news") {
+        contextualIntro = "Here are current news stories from r/worldnews";
+        emoji = "📰";
+      } else if (subreddit === "programming") {
+        contextualIntro = "Here are some programming discussions from r/programming";
+        emoji = "👨‍💻";
+      } else if (subreddit === "politics") {
+        contextualIntro = "Here are some political discussions from r/politics";
+        emoji = "🏛️";
+      } else if (subreddit === "Conservative") {
+        contextualIntro = "Here are some conservative discussions from r/Conservative";
+        emoji = "🇺🇸";
+      } else if (subreddit === "democrats") {
+        contextualIntro = "Here are some democratic discussions from r/democrats";
+        emoji = "🗳️";
+      } else if (subreddit === "CryptoCurrency") {
+        contextualIntro = "Here are the latest crypto discussions from r/CryptoCurrency";
+        emoji = "₿";
+      } else if (subreddit === "investing") {
+        contextualIntro = "Here are some investing insights from r/investing";
+        emoji = "📈";
+      } else if (subreddit === "food") {
+        contextualIntro = "Here are some delicious food posts from r/food";
+        emoji = "🍕";
+      } else if (subreddit === "gaming") {
+        contextualIntro = "Here are some gaming discussions from r/gaming";
+        emoji = "🎮";
+      } else if (subreddit === "funny") {
+        contextualIntro = "Here are some funny posts from r/funny";
+        emoji = "😂";
+      } else if (subreddit === "popular") {
+        contextualIntro = "Here are some popular posts trending on Reddit";
+        emoji = "🔥";
       } else {
-          resultString += " What do you think?";
+        contextualIntro = `Here are some interesting posts from r/${subreddit}`;
+        emoji = "📋";
+      }
+      
+      // More informative response with filter and time context
+      let filterContext = "";
+      if (filter === "top" && time) {
+        filterContext = ` (top posts from the past ${time})`;
+      } else if (filter === "new") {
+        filterContext = " (newest posts)";
+      } else if (filter === "rising") {
+        filterContext = " (trending posts)";
+      } else if (filter === "hot") {
+        filterContext = " (hot posts)";
+      }
+      
+      let resultString = `${contextualIntro}${filterContext}, ${userNameForResponse}! The top post is "${firstPost.title.substring(0, 80)}..." by u/${firstPost.author || 'someone'}`;
+      if (firstPost.score !== null) resultString += ` (${firstPost.score} upvotes)`;
+      if (outputStructuredData.count > 1) {
+          resultString += `. Found ${outputStructuredData.count} posts total - check them out below! ${emoji}`;
+      } else {
+          resultString += ` ${emoji}`;
       }
       return { result: resultString, structuredData: outputStructuredData };
     } catch (error: any) {

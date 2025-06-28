@@ -1280,15 +1280,8 @@ export async function runEnhancedOrchestration(
                   enhancedApiContext.isSkillLearningQuery = true;
                   
                   // Parse XML to extract key details
-                  try {
-                    const { parseSkillLearningPlanFromXml } = require('../utils/xml-processor');
-                    const parsedPlan = parseSkillLearningPlanFromXml(skillLearningResult.plan);
-                    if (parsedPlan) {
-                      enhancedApiContext.parsedSkillLearningPlan = parsedPlan;
-                    }
-                  } catch (parseError) {
-                    logger.warn(`${logPrefix} Error parsing skill learning plan XML:`, parseError);
-                  }
+                  // Store the raw plan since xml-processor is not available
+                  enhancedApiContext.parsedSkillLearningPlan = skillLearningResult.plan;
                   
                   // Add enhanced reasoning for skill learning as well
                   try {
@@ -1299,24 +1292,8 @@ export async function runEnhancedOrchestration(
                     
                     // Extract tool information from the skill learning plan
                     let parallelToolsInfo = "";
-                    try {
-                      const { parseSkillLearningPlanFromXml } = require('../utils/xml-processor');
-                      const parsedPlan = parseSkillLearningPlanFromXml(skillLearningResult.plan);
-                      
-                      if (parsedPlan && parsedPlan.tool_orchestration && parsedPlan.tool_orchestration.parallel_groups) {
-                        parsedPlan.tool_orchestration.parallel_groups.forEach((group: any, index: number) => {
-                          parallelToolsInfo += `Group ${index + 1}: Skill Learning\n`;
-                          if (group.tools) {
-                            group.tools.forEach((tool: any) => {
-                              parallelToolsInfo += `Tool: ${tool.tool_name || 'Unknown'}\n`;
-                              parallelToolsInfo += `Purpose: ${tool.purpose || 'Skill learning assistance'}\n\n`;
-                            });
-                          }
-                        });
-                      }
-                    } catch (parseError) {
-                      logger.warn(`${logPrefix} Error parsing skill learning plan for reasoning:`, parseError);
-                    }
+                    // Use basic tool information since xml-processor is not available
+                    parallelToolsInfo = "Skill learning tools will be used for this learning plan";
                     
                     // Generate the enhanced reasoning
                     const enhancedReasoningResult = await generateEnhancedReasoning(
@@ -1498,16 +1475,8 @@ export async function runEnhancedOrchestration(
                   enhancedApiContext.newsAggregationPlan = newsAggregationResult.plan;
                   enhancedApiContext.isNewsAggregationQuery = true;
                   
-                  // Parse XML to extract key details
-                  try {
-                    const { parseNewsDeepDivePlanFromXml } = require('../utils/xml-processor');
-                    const parsedPlan = parseNewsDeepDivePlanFromXml(newsAggregationResult.plan);
-                    if (parsedPlan) {
-                      enhancedApiContext.parsedNewsAggregationPlan = parsedPlan;
-                    }
-                  } catch (parseError) {
-                    logger.warn(`${logPrefix} Error parsing news aggregation plan XML:`, parseError);
-                  }
+                  // Store the raw plan since xml-processor is not available
+                  enhancedApiContext.parsedNewsAggregationPlan = newsAggregationResult.plan;
                 }
               }
               
@@ -1536,16 +1505,8 @@ export async function runEnhancedOrchestration(
                   enhancedApiContext.focusActivity = focusModeResult.focusActivity;
                   enhancedApiContext.focusDuration = focusModeResult.duration;
                   
-                  // Parse XML to extract key details
-                  try {
-                    const { parseFocusModePlanFromXml } = require('../utils/xml-processor');
-                    const parsedPlan = parseFocusModePlanFromXml(focusModeResult.plan);
-                    if (parsedPlan) {
-                      enhancedApiContext.parsedFocusModePlan = parsedPlan;
-                    }
-                  } catch (parseError) {
-                    logger.warn(`${logPrefix} Error parsing focus mode plan XML:`, parseError);
-                  }
+                  // Store the raw plan since xml-processor is not available
+                  enhancedApiContext.parsedFocusModePlan = focusModeResult.plan;
                   
                   // Generate enhanced reasoning for focus mode as well
                   try {
@@ -1556,20 +1517,8 @@ export async function runEnhancedOrchestration(
                     
                     // Extract tool information from the focus mode plan
                     let parallelToolsInfo = "";
-                    try {
-                      const { parseFocusModePlanFromXml } = require('../utils/xml-processor');
-                      const parsedPlan = parseFocusModePlanFromXml(focusModeResult.plan);
-                      
-                      if (parsedPlan && parsedPlan.tool_orchestration && parsedPlan.tool_orchestration.parallel_group) {
-                        const tools = parsedPlan.tool_orchestration.parallel_group.tool || [];
-                        (Array.isArray(tools) ? tools : [tools]).forEach((tool: any) => {
-                          parallelToolsInfo += `Tool: ${tool.tool_name || 'Unknown'}\n`;
-                          parallelToolsInfo += `Purpose: ${tool.purpose || 'Focus enhancement'}\n\n`;
-                        });
-                      }
-                    } catch (parseError) {
-                      logger.warn(`${logPrefix} Error parsing focus mode plan for reasoning:`, parseError);
-                    }
+                    // Use basic tool information since xml-processor is not available
+                    parallelToolsInfo = "Focus enhancement tools will be used for this session";
                     
                     // Generate the enhanced reasoning
                     const enhancedReasoningResult = await generateEnhancedReasoning(
@@ -1621,16 +1570,8 @@ export async function runEnhancedOrchestration(
                   enhancedApiContext.proactiveSuggestionPlan = proactiveSuggestionsResult.plan;
                   enhancedApiContext.hasProactiveSuggestions = true;
                   
-                  // Parse XML to extract key details
-                  try {
-                    const { parseProactiveSuggestionPlanFromXml } = require('../utils/xml-processor');
-                    const parsedPlan = parseProactiveSuggestionPlanFromXml(proactiveSuggestionsResult.plan);
-                    if (parsedPlan) {
-                      enhancedApiContext.parsedProactiveSuggestions = parsedPlan;
-                    }
-                  } catch (parseError) {
-                    logger.warn(`${logPrefix} Error parsing proactive suggestions XML:`, parseError);
-                  }
+                  // Store the raw plan since xml-processor is not available
+                  enhancedApiContext.parsedProactiveSuggestions = proactiveSuggestionsResult.plan;
                 }
               }
             } catch (error) {

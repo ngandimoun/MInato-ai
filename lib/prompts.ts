@@ -45,6 +45,7 @@ TOOL SELECTION HIERARCHY - CRITICAL FOR ACCURATE ROUTING:
    - For news and current events → Use NewsAggregatorTool (NOT WebSearchTool)
    - For recipes and cooking → Use RecipeSearchTool (NOT WebSearchTool)
    - For Reddit content → Use RedditTool (NOT WebSearchTool)
+- For Reddit lead generation → Use RedditLeadGeneratorTool to find potential customers
    - For tech/programming news → Use HackerNewsTool (NOT WebSearchTool)
    - For images and photos → Use PexelsSearchTool (NOT WebSearchTool)
    - For events and activities → Use EventFinderTool (NOT WebSearchTool)
@@ -106,6 +107,7 @@ SPECIFIC TOOL GUIDANCE WITH EXAMPLES:
   Example 3: "Show HN posts this week" → { filter: "show", time: "week" }
 
 - RedditTool: Use for community discussions, opinions, and specialized topic forums.
+- RedditLeadGeneratorTool: Use for finding potential customers/leads on Reddit with AI analysis and message generation.
   Example 1: "What's trending on r/technology?" → { subreddit: "technology", filter: "hot" }
   Example 2: "Show me top posts from the cooking subreddit this month" → { subreddit: "cooking", filter: "top", time: "month" }
   Example 3: "Find new posts about gardening on Reddit" → { subreddit: "gardening", filter: "new" }
@@ -190,6 +192,17 @@ IMPORTANT: For StripeSellerOnboardingTool, only pass the following parameters:
   Example 1: "When is the next Lakers game?" → { teamName: "Los Angeles Lakers", queryType: "next_game" }
   Example 2: "What was the score of the last Arsenal match?" → { teamName: "Arsenal", queryType: "last_game" }
   Example 3: "Tell me about Manchester United" → { teamName: "Manchester United", queryType: "team_info" }
+
+- RedditTool: Use for general Reddit browsing, fetching posts from specific subreddits for reading/entertainment.
+  Example 1: "Show me posts from r/programming" → { subreddit: "programming", filter: "hot", limit: 5 }
+  Example 2: "What's trending on Reddit?" → { subreddit: "all", filter: "hot", limit: 10 }
+  Example 3: "Check r/worldnews for latest updates" → { subreddit: "worldnews", filter: "new", limit: 5 }
+
+- RedditLeadGeneratorTool: Use specifically for LEAD GENERATION, finding potential customers/prospects on Reddit.
+  CRITICAL: Use this tool when users ask for "leads", "prospects", "potential customers", "find people interested in", "outreach", "marketing", "sales", or want to "generate DMs/comments".
+  Example 1: "Find leads for my SaaS product" → { searchPrompt: "people looking for SaaS solutions", subreddits: ["entrepreneur", "startups"], productOrService: "SaaS platform", targetAudience: "startup founders" }
+  Example 2: "Find people interested in fitness coaching" → { searchPrompt: "users seeking fitness advice or personal training", subreddits: ["fitness", "loseit"], productOrService: "fitness coaching", targetAudience: "fitness enthusiasts" }
+  Example 3: "Generate leads for web design services" → { searchPrompt: "people needing websites or web development help", subreddits: ["webdev", "entrepreneur"], productOrService: "web design services", targetAudience: "business owners" }
 
 {userName} asked: {userQuery}
 

@@ -53,7 +53,7 @@ USE_DYNAMIC_PERSONALIZATION_AUDIO=false
 The system is implemented across several files:
 
 - `lib/prompts.ts`: Contains the XML-structured prompt templates and NLU disambiguation prompts
-- `lib/utils/xml-processor.ts`: Handles parsing XML-structured content, including NLU analysis
+
 - `lib/types/index.ts`: Contains TypeScript interfaces for the XML planning system and NLU types
 - `lib/core/orchestrator.ts`: Implements the orchestration methods
 - `lib/core/nlu-disambiguation.ts`: Implements the NLU disambiguation system

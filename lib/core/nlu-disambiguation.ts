@@ -9,10 +9,8 @@ import {
   XmlToolRanking
 } from "@/lib/types";
 import { appConfig, injectPromptVariables } from "../config";
-import { MINATO_NLU_INTENT_DISAMBIGUATION_PROMPT_TEMPLATE } from "../prompts";
-import { parseNluAnalysisFromXml } from '../utils/xml-processor';
 import { CompanionCoreMemory } from "../../memory-framework/core/CompanionCoreMemory";
-import { summarizeUserStateForWorkflow } from "./helpers";
+import { summarizeUserState } from "./helpers";
 import { generateStructuredJson } from "../providers/llm_clients";
 import { stripSystemPrefixes } from "./helpers";
 import { featureFlags } from "../config";
@@ -202,29 +200,62 @@ export async function analyzeUserQuery(
     
     logger.info(`${logPrefix} Running NLU analysis`);
     
-    // Call the LLM with structured prompt
-    const nluResponse = await generateStructuredJson<string | { error: string }>(
+    // Create a JSON schema for NLU analysis
+    const nluSchema = {
+      type: "object",
+      properties: {
+        original_query: { type: "string" },
+        disambiguated_query: { type: "string" },
+        entities: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              type: { type: "string" },
+              reference_type: { type: "string" },
+              linked_to: { type: "string" }
+            }
+          }
+        },
+        references: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              expression: { type: "string" },
+              resolved_to: { type: "string" },
+              confidence: { type: "string" }
+            }
+          }
+        },
+        implicit_needs: {
+          type: "array",
+          items: { type: "string" }
+        },
+        true_intent: { type: "string" }
+      },
+      required: ["original_query", "disambiguated_query", "true_intent"]
+    };
+
+    // Call the LLM with structured JSON schema
+    const nluResponse = await generateStructuredJson<XmlNluAnalysis>(
       NLU_SYSTEM_PROMPT,
       cleanQuery,
-      { type: "string" }, // Expecting XML string response
+      nluSchema,
       "minato_nlu_disambiguation",
       history,
       (appConfig.openai.planningModel || "gpt-4o-mini"),
       userId
     );
     
-    // Parse the XML response
-    if (typeof nluResponse === 'string') {
-      const analysis = parseNluAnalysisFromXml(nluResponse);
-      
-      if (analysis) {
-        logger.info(`${logPrefix} NLU analysis successful, disambiguated query: "${analysis.disambiguated_query}"`);
-        return analysis;
-      } else {
-        logger.warn(`${logPrefix} Failed to parse NLU analysis XML: ${nluResponse.substring(0, 100)}...`);
-      }
+    // Check the response
+    if (nluResponse && typeof nluResponse === 'object' && !('error' in nluResponse)) {
+      const analysis = nluResponse as XmlNluAnalysis;
+      logger.info(`${logPrefix} NLU analysis successful, disambiguated query: "${analysis.disambiguated_query}"`);
+      return analysis;
     } else if (nluResponse && typeof nluResponse === 'object' && 'error' in nluResponse) {
-      logger.warn(`${logPrefix} NLU analysis failed: ${nluResponse.error}`);
+      logger.warn(`${logPrefix} NLU analysis failed: ${(nluResponse as any).error}`);
     } else {
       logger.warn(`${logPrefix} NLU analysis failed, unexpected response type: ${typeof nluResponse}`);
     }

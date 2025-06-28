@@ -342,7 +342,15 @@ export class Orchestrator {
     apiContext: Record<string, any>,
     userState: UserState | null,
     history: ChatMessage[]
-  ): Promise<{ messages: ChatMessage[]; lastSuccessfulStructuredData: AnyToolStructuredData | null; llmUsage: null; toolResultsSummary: string; clarificationQuestion?: string | null; clarificationDetails?: any }> {
+  ): Promise<{ 
+    messages: ChatMessage[]; 
+    lastSuccessfulStructuredData: AnyToolStructuredData | null; 
+    allSuccessfulStructuredData: AnyToolStructuredData[];
+    llmUsage: null; 
+    toolResultsSummary: string; 
+    clarificationQuestion?: string | null; 
+    clarificationDetails?: any 
+  }> {
     const logPrefix = `ToolExecutor User:${userId.substring(0, 8)} Sess:${apiContext?.sessionId?.substring(0, 6)}`;
     const toolResultsMessages: ChatMessage[] = [];
     const structuredDataMap: Map<string, AnyToolStructuredData | null> = new Map();
@@ -740,35 +748,61 @@ Example 2 JSON:
               const extractionPrompt = `You are an expert sports information assistant. Given the user query: "${cleanedUserInputForFallback.replace(/"/g, '\"')}"
 
 Your tasks are:
-1. Ignore any references to the tool, API, or the assistant's name (e.g., 'using TheSportsDB', 'with SportsInfoTool', 'minato', etc.).
-2. Extract the most likely sports team name (e.g., "Arsenal", "Los Angeles Lakers", "Manchester United"). If the query is about a match between two teams (e.g., 'arsenal vs utd'), extract both team names as a string joined by ' vs ' (e.g., 'Arsenal vs Manchester United').
-3. Determine the type of information requested: one of "next_game", "last_game", or "team_info". Use "team_info" if the user just wants general info, "next_game" for the next scheduled match, or "last_game" for the most recent result or score. If the query is about a match between two teams, prefer "last_game" or "next_game" as appropriate.
+1. Ignore any references to the tool, API, or the assistant's name (e.g., 'using TheSportsDB', 'with SportsInfoTool', 'sporttool', 'minato', etc.).
+2. Extract the most likely sports team name from the query. IMPORTANT RULES:
+   - For tournament/competition queries (e.g., "FIFA Club World Cup", "Champions League", "World Cup"), try to identify a specific team if mentioned, otherwise return null
+   - For team vs team queries (e.g., 'arsenal vs utd'), extract ONLY the first team mentioned
+   - Remove filler words like "the", "next", "game", "of", "on", etc.
+   - Focus on actual team names, not competitions or tournaments
+   - Translate non-English team names to English equivalents
+
+3. Determine the type of information requested: one of "next_game", "last_game", or "team_info":
+   - "next_game" for upcoming matches, schedules, "when play", "next match"
+   - "last_game" for recent results, scores, "last match", "result"
+   - "team_info" for general team information, stats, "about", "tell me about"
+
+EXAMPLES:
+Query: "When is Arsenal's next match?"
+JSON: { "teamName": "Arsenal", "queryType": "next_game" }
+
+Query: "Tell me about the Lakers."
+JSON: { "teamName": "Los Angeles Lakers", "queryType": "team_info" }
+
+Query: "What was the last result for Manchester United?"
+JSON: { "teamName": "Manchester United", "queryType": "last_game" }
+
+Query: "arsenal vs utd last game"
+JSON: { "teamName": "Arsenal", "queryType": "last_game" }
+
+Query: "the next game of the fifa club world cup"
+JSON: { "teamName": null, "queryType": "next_game" }
+
+Query: "Real Madrid next game in Champions League"
+JSON: { "teamName": "Real Madrid", "queryType": "next_game" }
+
+Query: "Barcelona football stat"
+JSON: { "teamName": "Barcelona", "queryType": "team_info" }
+
+Query: "hey the next game of the fifa club world cup on sporttool"
+JSON: { "teamName": null, "queryType": "next_game" }
+
+Query: "Spain vs France last game"
+JSON: { "teamName": "Spain", "queryType": "last_game" }
 
 Respond in STRICT JSON format:
 {
-  "teamName": "string (the team name, or 'TeamA vs TeamB' if a match is referenced)",
+  "teamName": "string|null (specific team name only, null for tournament-only queries)",
   "queryType": "string (one of: 'next_game', 'last_game', 'team_info')"
 }
 
-Examples:
-Query: "When is Arsenal's next match?"
-JSON: { "teamName": "Arsenal", "queryType": "next_game" }
-Query: "Tell me about the Lakers."
-JSON: { "teamName": "Los Angeles Lakers", "queryType": "team_info" }
-Query: "What was the last result for Manchester United?"
-JSON: { "teamName": "Manchester United", "queryType": "last_game" }
-Query: "minato giving the last score of arsenal vs utd"
-JSON: { "teamName": "Arsenal vs Manchester United", "queryType": "last_game" }
-Query: "give the next game of madrid"
-JSON: { "teamName": "Real Madrid", "queryType": "next_game" }
-`;
-              const llmResult = await generateStructuredJson<{ teamName: string; queryType: string } | { error: string }>(
+CRITICAL: If no specific team can be identified (e.g., tournament-only queries), set teamName to null.`;
+              const llmResult = await generateStructuredJson<{ teamName: string | null; queryType: string } | { error: string }>(
                 extractionPrompt,
                 cleanedUserInputForFallback,
                 {
                   type: "object",
                   properties: {
-                    teamName: { type: "string" },
+                    teamName: { type: ["string", "null"] },
                     queryType: { type: "string", enum: ["next_game", "last_game", "team_info"] }
                   },
                   required: ["teamName", "queryType"],
@@ -784,14 +818,15 @@ JSON: { "teamName": "Real Madrid", "queryType": "next_game" }
                 llmResult &&
                 typeof llmResult === "object" &&
                 !llmResult.hasOwnProperty("error") &&
-                (llmResult as { teamName: string }).teamName &&
-                typeof (llmResult as { teamName: string }).teamName === "string" &&
-                (llmResult as { teamName: string }).teamName.trim() !== "" &&
                 (llmResult as { queryType: string }).queryType &&
                 typeof (llmResult as { queryType: string }).queryType === "string"
               ) {
-                actualToolArgs.teamName = (llmResult as { teamName: string }).teamName.trim();
-                actualToolArgs.queryType = (llmResult as { queryType: string }).queryType.trim();
+                const extracted = llmResult as { teamName: string | null; queryType: string };
+                // Only set teamName if it's a valid string
+                if (extracted.teamName && typeof extracted.teamName === "string" && extracted.teamName.trim() !== "") {
+                  actualToolArgs.teamName = extracted.teamName.trim();
+                }
+                actualToolArgs.queryType = extracted.queryType.trim();
               }
             } catch (e) {
               logger.warn(`${logPrefix} LLM sports query extraction failed: ${((e as any).message) || e}`);
@@ -818,6 +853,20 @@ JSON: { "teamName": "Real Madrid", "queryType": "next_game" }
               else if (/last|previous|result|score/i.test(cleanedUserInputForFallback)) actualToolArgs.queryType = "last_game";
               else actualToolArgs.queryType = "team_info";
             }
+            
+            // Enhanced handling for tournament/competition queries
+            if (!actualToolArgs.teamName && cleanedUserInputForFallback) {
+              const tournamentKeywords = ['fifa', 'world cup', 'champions league', 'premier league', 'la liga', 'serie a', 'bundesliga', 'olympics', 'euro', 'copa america'];
+              const hasTournamentKeyword = tournamentKeywords.some(keyword => 
+                cleanedUserInputForFallback.toLowerCase().includes(keyword)
+              );
+              
+              if (hasTournamentKeyword) {
+                // For tournament-only queries, provide helpful guidance
+                logger.info(`[SportsInfoTool] Tournament-only query detected: "${cleanedUserInputForFallback}"`);
+                // We'll let the tool handle this case and provide appropriate messaging
+              }
+            }
           }
         }
         // --- END: SportsInfoTool-specific fallback for required arguments ---
@@ -825,6 +874,11 @@ JSON: { "teamName": "Real Madrid", "queryType": "next_game" }
         if (canonicalToolName === "RedditTool") {
           // If subreddit is missing, try to infer using LLM or fallback
           const missingSubreddit = !actualToolArgs.subreddit || typeof actualToolArgs.subreddit !== 'string' || actualToolArgs.subreddit.trim() === "";
+          if (missingSubreddit) {
+            logger.info(`${logPrefix} RedditTool missing subreddit, applying orchestrator extraction logic for: "${userInputForFallback}"`);
+          } else {
+            logger.info(`${logPrefix} RedditTool already has subreddit: "${actualToolArgs.subreddit}"`);
+          }
           if (missingSubreddit) {
             // --- BEGIN: ADVANCED CLEANING FOR REDDIT QUERIES ---
             let cleanedUserInputForReddit = userInputForFallback;
@@ -849,15 +903,23 @@ JSON: { "teamName": "Real Madrid", "queryType": "next_game" }
 
 Your tasks are:
 1. Ignore any references to the tool, API, or the assistant's name (e.g., 'using RedditTool', 'with Reddit API', 'minato', etc.).
-2. Extract the most likely subreddit (e.g., 'technology', 'gadgets', 'ai', 'all', etc.). If the query is general or doesn't specify a subreddit, use 'all'.
-3. If the user query is a search (e.g., 'find ai gadget'), extract the search keywords as 'query'.
-4. Determine the filter: one of 'hot', 'new', 'top', or 'rising'. If not specified, use 'hot'.
-5. If the filter is 'top', extract the time period if present (e.g., 'day', 'week', etc.), else use 'day'.
-6. Set limit to 5 unless the user specifies otherwise.
+2. Extract the most likely subreddit based on topic keywords:
+   - AI/Machine Learning/ChatGPT/GPT → "MachineLearning"
+   - Politics/Trump/Biden/Election/Government → "politics"
+   - Technology/Tech → "technology"
+   - Crypto/Bitcoin/Cryptocurrency → "CryptoCurrency"
+   - Gaming/Games → "gaming"
+   - Programming/Coding → "programming"
+   - News/Current Events → "worldnews"
+   - Funny/Humor/Memes → "funny"
+   - Only use "all" if the query is extremely general
+3. Determine the filter: one of 'hot', 'new', 'top', or 'rising'. If not specified, use 'hot'.
+4. If the filter is 'top', extract the time period if present (e.g., 'day', 'week', etc.), else use 'week'.
+5. Set limit to 8 unless the user specifies otherwise.
 
 Respond in STRICT JSON format:
 {
-  "subreddit": "string (the subreddit, e.g., 'technology', 'all', etc.)",
+  "subreddit": "string (the specific subreddit based on topic, NOT 'all' unless extremely general)",
   "filter": "string (one of: 'hot', 'new', 'top', 'rising')",
   "time": "string|null (one of: 'hour', 'day', 'week', 'month', 'year', 'all', or null)",
   "limit": "number (1-10)"
@@ -865,11 +927,15 @@ Respond in STRICT JSON format:
 
 Examples:
 Query: "using reddit tool find ai gadget"
-JSON: { "subreddit": "all", "filter": "hot", "time": null, "limit": 5 }
+JSON: { "subreddit": "MachineLearning", "filter": "hot", "time": null, "limit": 8 }
 Query: "show me top posts from technology this week"
-JSON: { "subreddit": "technology", "filter": "top", "time": "week", "limit": 5 }
+JSON: { "subreddit": "technology", "filter": "top", "time": "week", "limit": 8 }
 Query: "find memes on reddit"
-JSON: { "subreddit": "memes", "filter": "hot", "time": null, "limit": 5 }
+JSON: { "subreddit": "funny", "filter": "hot", "time": null, "limit": 8 }
+Query: "find some post about trump"
+JSON: { "subreddit": "politics", "filter": "hot", "time": null, "limit": 8 }
+Query: "crypto discussions"
+JSON: { "subreddit": "CryptoCurrency", "filter": "hot", "time": null, "limit": 8 }
 `;
               const llmResult = await generateStructuredJson<{ subreddit: string; filter: string; time: string|null; limit: number } | { error: string }>(
                 extractionPrompt,
@@ -915,12 +981,24 @@ JSON: { "subreddit": "memes", "filter": "hot", "time": null, "limit": 5 }
               const subredditMatch = cleanedUserInputForReddit.match(/r\/(\w{3,21})/i);
               if (subredditMatch) {
                 actualToolArgs.subreddit = subredditMatch[1];
-              } else if (/meme/i.test(cleanedUserInputForReddit)) {
-                actualToolArgs.subreddit = "memes";
-              } else if (/ai|gadget|tech|robot|machine/i.test(cleanedUserInputForReddit)) {
+              } else if (/trump|biden|politic|election|government|democrat|republican|congress|senate/i.test(cleanedUserInputForReddit)) {
+                actualToolArgs.subreddit = "politics";
+              } else if (/ai|artificial intelligence|machine learning|chatgpt|gpt|llm/i.test(cleanedUserInputForReddit)) {
+                actualToolArgs.subreddit = "MachineLearning";
+              } else if (/crypto|bitcoin|cryptocurrency|blockchain/i.test(cleanedUserInputForReddit)) {
+                actualToolArgs.subreddit = "CryptoCurrency";
+              } else if (/gaming|games|video games/i.test(cleanedUserInputForReddit)) {
+                actualToolArgs.subreddit = "gaming";
+              } else if (/programming|coding|software|development/i.test(cleanedUserInputForReddit)) {
+                actualToolArgs.subreddit = "programming";
+              } else if (/meme|funny|humor|joke/i.test(cleanedUserInputForReddit)) {
+                actualToolArgs.subreddit = "funny";
+              } else if (/tech|technology|gadget|robot|machine/i.test(cleanedUserInputForReddit)) {
                 actualToolArgs.subreddit = "technology";
+              } else if (/news|current events/i.test(cleanedUserInputForReddit)) {
+                actualToolArgs.subreddit = "worldnews";
               } else {
-                actualToolArgs.subreddit = "all";
+                actualToolArgs.subreddit = "popular";
               }
               // Fallback filter
               if (!actualToolArgs.filter) {
@@ -935,13 +1013,13 @@ JSON: { "subreddit": "memes", "filter": "hot", "time": null, "limit": 5 }
                 else if (/month/i.test(cleanedUserInputForReddit)) actualToolArgs.time = "month";
                 else if (/year/i.test(cleanedUserInputForReddit)) actualToolArgs.time = "year";
                 else if (/all time|alltime|all/i.test(cleanedUserInputForReddit)) actualToolArgs.time = "all";
-                else actualToolArgs.time = "day";
+                else actualToolArgs.time = "week"; // Changed from "day" to "week" for better variety
               } else if (!actualToolArgs.time) {
                 actualToolArgs.time = null;
               }
               // Fallback limit
               if (!actualToolArgs.limit || typeof actualToolArgs.limit !== 'number') {
-                actualToolArgs.limit = 5;
+                actualToolArgs.limit = 8; // Changed from 5 to 8 for better variety
               }
             }
           }
@@ -956,7 +1034,7 @@ JSON: { "subreddit": "memes", "filter": "hot", "time": null, "limit": 5 }
           let cleanedUserInputForPexels = userInputForFallback;
           if (typeof cleanedUserInputForPexels === 'string') {
             cleanedUserInputForPexels = cleanedUserInputForPexels.replace(/^(hey |ok |hi |hello )?minato[,:]?\s*/i, "");
-            cleanedUserInputForPexels = cleanedUserInputForPexels.replace(/^(use|using|show|find|get|search|tell|give|provide|suggest|recommend) (me )?(about|for|the|a|an)? ?/i, "");
+            cleanedUserInputForPexels = cleanedUserInputForPexels.replace(/^(use|using|show|find|get|search|tell|give|provide|suggest|recommend) (me )?(about|for|the|a |an )? ?/i, "");
             cleanedUserInputForPexels = cleanedUserInputForPexels.replace(/^(pexels|pexel|pexels tool|pexel tool|pexels api|pexel api|pexels search|pexel search|image|images|photo|photos|picture|pictures|media) (about|for|on)? ?/i, "");
             cleanedUserInputForPexels = cleanedUserInputForPexels.replace(/^about /i, "");
             cleanedUserInputForPexels = cleanedUserInputForPexels.replace(/(using|with|via) (the)?pexels(api|tool)?( tool)?(\.|,)?\s*$/i, "");
@@ -965,28 +1043,47 @@ JSON: { "subreddit": "memes", "filter": "hot", "time": null, "limit": 5 }
             cleanedUserInputForPexels = cleanedUserInputForPexels.trim();
           }
           try {
-            const extractionPrompt = `You are an expert image search assistant. Given the user query: "${cleanedUserInputForPexels.replace(/"/g, '\"')}"
-        Your tasks are:
-        1. Ignore any references to the tool, API, or the assistant's name (e.g., 'using PexelsTool', 'with Pexels API', 'minato', etc.).
-        2. Extract the most likely search query for images (e.g., 'nature', 'cat', 'city skyline').
-        3. If the user specifies a number of images, extract it as 'limit' (between 1 and 5). Otherwise, use 3.
-        4. If the user specifies orientation (landscape, portrait, square), extract it. Otherwise, use null.
-        5. If the user specifies size (large, medium, small), extract it. Otherwise, use null.
-        Respond in STRICT JSON format:
-        {
-          "query": "string (the concise search query, required)",
-          "limit": "number (1-5, default 3)",
-          "orientation": "string|null (landscape, portrait, square, or null)",
-          "size": "string|null (large, medium, small, or null)"
-        }
-        Examples:
-        Query: "find 2 landscape images of cats on pexels"
-        JSON: { "query": "cats", "limit": 2, "orientation": "landscape", "size": null }
-        Query: "pexels tool show me a small portrait photo of a city skyline"
-        JSON: { "query": "city skyline", "limit": 3, "orientation": "portrait", "size": "small" }
-        Query: "get nature images"
-        JSON: { "query": "nature", "limit": 3, "orientation": null, "size": null }
-        `;
+            const extractionPrompt = `You are an expert parameter extractor for Minato's PexelsSearchTool which searches for high-quality images on Pexels.
+
+Given this user query about images: "${cleanedUserInputForPexels.replace(/"/g, '\"')}"
+
+COMPREHENSIVE ANALYSIS GUIDELINES:
+
+1. IMAGE QUERY IDENTIFICATION:
+   - Extract the core subject or theme the user wants images of (e.g., "mountains", "ananas", "city at night")
+   - Focus on the visual content desired, not incidental phrases
+   - For complex requests, identify the main visual subject
+   - PRESERVE exact keywords like "ananas" (pineapple), "nature", "cats", etc.
+   - Do NOT remove letters from search terms
+
+2. ORIENTATION PREFERENCE DETECTION:
+   - Determine if user explicitly or implicitly wants "landscape", "portrait", or "square" images
+   - Look for clues like "horizontal", "vertical", "wide", "tall", etc.
+   - Default to null (any orientation) if not specified
+
+3. SIZE PREFERENCE ANALYSIS:
+   - Identify if user has a preference for "large", "medium", or "small" images
+   - Map expressions like "high-resolution" to "large", "medium-sized" to "medium", etc.
+   - Default to null (any size) if not specified
+
+4. RESULT LIMIT DETERMINATION:
+   - Identify how many images the user wants (1-5)
+   - Map expressions like "a couple" to 2, "a few" to 3, "several" to 4, etc.
+   - Default to 3 if unspecified
+
+CRITICAL EXAMPLES:
+- "give me ananas image on pexel" → query: "ananas" (NOT "nanas")
+- "find some cats photos" → query: "cats"
+- "show me nature pictures" → query: "nature"
+- "get tropical fruit images" → query: "tropical fruit"
+
+OUTPUT FORMAT: JSON object with these fields:
+- "query": (string) The exact visual subject to search for - preserve all letters!
+- "orientation": (string|null) One of: "landscape", "portrait", "square", or null
+- "size": (string|null) One of: "large", "medium", "small", or null  
+- "limit": (number) Number of images (1-5), default 3
+
+RESPOND ONLY WITH THE JSON OBJECT.`;
             const llmResult = await generateStructuredJson<{ query: string; limit: number; orientation: string|null; size: string|null } | { error: string }>(
               extractionPrompt,
               cleanedUserInputForPexels,
@@ -1036,8 +1133,37 @@ JSON: { "subreddit": "memes", "filter": "hot", "time": null, "limit": 5 }
             else if (/medium/i.test(cleanedUserInputForPexels)) size = "medium";
             else if (/small/i.test(cleanedUserInputForPexels)) size = "small";
             actualToolArgs.size = size;
-            let query = cleanedUserInputForPexels.replace(/\b(\d+|landscape|portrait|square|large|medium|small)\b/gi, "").replace(/\s+/g, " ").trim();
-            actualToolArgs.query = query || "nature";
+            // Enhanced keyword extraction for Pexels queries
+            let query = cleanedUserInputForPexels;
+            
+            // Remove orientation and size keywords but preserve the main search terms
+            query = query.replace(/\b(landscape|portrait|square|large|medium|small)\b/gi, "");
+            // Remove number specifications but be careful not to remove numbers that are part of search terms
+            query = query.replace(/\b(\d+)\s*(image|images|photo|photos|picture|pictures)?\b/gi, "");
+            // Clean up extra spaces
+            query = query.replace(/\s+/g, " ").trim();
+            
+            // Fallback heuristics for better keyword extraction
+            if (!query || query.length < 2) {
+              // Try to extract meaningful keywords from the original input
+              const rawInput = userInputForFallback || '';
+              // Enhanced fallback keyword extraction - preserve important terms
+              const meaningfulKeywords = rawInput
+                .replace(/\b(give|me|some|find|get|search|show|on|tool|api)\b/gi, '') // Remove filler words but keep "image", "photo" etc.
+                .replace(/\b(pexel|pexels)\b/gi, '') // Remove tool references
+                .replace(/\b(image|images|photo|photos|picture|pictures)\b/gi, '') // Remove generic image words
+                .replace(/\s+/g, ' ')
+                .trim();
+              
+              if (meaningfulKeywords && meaningfulKeywords.length > 1) {
+                query = meaningfulKeywords;
+                logger.debug(`[PexelsSearchTool Orchestrator] Applied fallback query extraction: "${query}"`);
+              } else {
+                query = "nature"; // Final fallback
+              }
+            }
+            
+            actualToolArgs.query = query;
           }
           if (actualToolArgs.limit === undefined || actualToolArgs.limit === null || isNaN(Number(actualToolArgs.limit))) actualToolArgs.limit = 3;
           if (actualToolArgs.orientation === undefined) actualToolArgs.orientation = null;
@@ -1261,39 +1387,70 @@ JSON: { "query": "", "random": true }
         if (canonicalToolName === "HackerNewsTool") {
           const missingQuery = !actualToolArgs.query || typeof actualToolArgs.query !== 'string' || actualToolArgs.query.trim() === "";
           const missingFilter = !actualToolArgs.filter || typeof actualToolArgs.filter !== 'string' || actualToolArgs.filter.trim() === "";
-          let cleanedUserInputForHN = userInputForFallback;
-          if (typeof cleanedUserInputForHN === 'string') {
-            // Remove leading Minato references
-            cleanedUserInputForHN = cleanedUserInputForHN.replace(/^(hey |ok |hi |hello )?minato[,:]?\s*/i, "");
-            // Remove generic prefixes
-            cleanedUserInputForHN = cleanedUserInputForHN.replace(/^(show|find|get|search|fetch|give|tell|list|display|use|using|with) (me )?(about|for|the|a|an)? ?/i, "");
-            // Remove tool invocation phrases
-            cleanedUserInputForHN = cleanedUserInputForHN.replace(/(use|using|with|via) (the )?(hacker ?news|hn)( tool| api)?(\.|,)?\s*/gi, "");
-            cleanedUserInputForHN = cleanedUserInputForHN.replace(/(hacker ?news|hn)( tool| api)?(\.|,)?\s*/gi, "");
-            // Remove generic story/news words
-            cleanedUserInputForHN = cleanedUserInputForHN.replace(/^(stories|posts|news|items|results) (about|for|on)? ?/i, "");
-            cleanedUserInputForHN = cleanedUserInputForHN.replace(/^about /i, "");
-            // Remove trailing polite words
-            cleanedUserInputForHN = cleanedUserInputForHN.replace(/\b(please|thanks|thank you)[.!?, ]*$/i, "");
-            cleanedUserInputForHN = cleanedUserInputForHN.trim();
-          }
-          if (missingQuery && missingFilter && cleanedUserInputForHN) {
-            // List of generic words/phrases and assistant names
-            const genericWords = [
-              "fetch", "show", "get", "find", "display", "list", "stories", "posts", "news", "items", "results", "hacker news", "hn", "illuminato", "minato", "please", "thanks", "thank you"
-            ];
-            let cleanedLower = cleanedUserInputForHN.toLowerCase().replace(/[.,!?]/g, " ");
-            for (const word of genericWords) {
-              cleanedLower = cleanedLower.replace(new RegExp(`\\b${word}\\b`, "gi"), " ");
+          
+          if (missingQuery && missingFilter && userInputForFallback) {
+            // Enhanced keyword extraction for HackerNews
+            const rawInput = typeof userInputForFallback === 'string' ? userInputForFallback.toLowerCase() : '';
+            
+                         // Priority keyword detection for better search accuracy
+             if (rawInput.includes('startup') || rawInput.includes('startups')) {
+               const startupKeywords = rawInput
+                 .replace(/\b(find|me|some|on|about|for|the|a|an|in|of|with|from|hacker|news|hackernews|hacker news|hn|posts|stories|articles|discussions|show|get|want|looking|search|trends|trend)\b/g, '')
+                 .replace(/\s+/g, ' ')
+                 .trim();
+              
+              if (startupKeywords && startupKeywords.length > 2) {
+                actualToolArgs.query = startupKeywords;
+                actualToolArgs.filter = null;
+                logger.debug(`[HackerNewsTool Orchestrator] Applied startup keyword extraction: "${startupKeywords}"`);
+              } else {
+                actualToolArgs.query = "startup";
+                actualToolArgs.filter = null;
+              }
             }
-            cleanedLower = cleanedLower.replace(/\s+/g, " ").trim();
-            const isGeneric = cleanedLower.length < 2;
-            if (isGeneric) {
-              actualToolArgs.filter = "top";
-              actualToolArgs.query = null;
-            } else {
-              actualToolArgs.query = cleanedUserInputForHN;
-              actualToolArgs.filter = null;
+            // AI/ML/Tech keyword detection
+            else if (rawInput.match(/\b(ai|artificial intelligence|machine learning|ml|deep learning|neural|tech|technology|programming|coding|software|development)\b/)) {
+              const techKeywords = rawInput
+                .replace(/\b(find|me|some|on|about|for|the|a|an|in|of|with|from|hacker|news|hackernews|hacker news|hn|posts|stories|articles|discussions|show|get|want|looking|search)\b/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+              
+              if (techKeywords && techKeywords.length > 2) {
+                actualToolArgs.query = techKeywords;
+                actualToolArgs.filter = null;
+                logger.debug(`[HackerNewsTool Orchestrator] Applied tech keyword extraction: "${techKeywords}"`);
+              }
+            }
+            // Crypto/blockchain detection
+            else if (rawInput.match(/\b(crypto|cryptocurrency|bitcoin|ethereum|blockchain|defi|nft|web3)\b/)) {
+              const cryptoKeywords = rawInput
+                .replace(/\b(find|me|some|on|about|for|the|a|an|in|of|with|from|hacker|news|hackernews|hacker news|hn|posts|stories|articles|discussions|show|get|want|looking|search)\b/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+              
+              if (cryptoKeywords && cryptoKeywords.length > 2) {
+                actualToolArgs.query = cryptoKeywords;
+                actualToolArgs.filter = null;
+                logger.debug(`[HackerNewsTool Orchestrator] Applied crypto keyword extraction: "${cryptoKeywords}"`);
+              }
+            }
+            // General meaningful keyword extraction
+            else {
+              const meaningfulKeywords = rawInput
+                .replace(/\b(find|me|some|on|about|for|the|a|an|in|of|with|from|hacker|news|hackernews|hacker news|hn|posts|stories|articles|discussions|show|get|want|looking|search|hey|hi|hello|minato|please|thanks|thank|you)\b/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+              
+              if (meaningfulKeywords && meaningfulKeywords.length > 2) {
+                actualToolArgs.query = meaningfulKeywords;
+                actualToolArgs.filter = null;
+                logger.debug(`[HackerNewsTool Orchestrator] Applied general keyword extraction: "${meaningfulKeywords}"`);
+              } else {
+                // Default to top stories if no meaningful keywords found
+                actualToolArgs.filter = "top";
+                actualToolArgs.query = null;
+                logger.debug(`[HackerNewsTool Orchestrator] No meaningful keywords found, defaulting to top stories`);
+              }
             }
           } else {
             if (missingQuery && !missingFilter) {
@@ -1307,17 +1464,20 @@ JSON: { "query": "", "random": true }
               actualToolArgs.query = null;
             }
           }
+          
           // Always set sensible defaults for time and limit if missing
           if (!("time" in actualToolArgs) || actualToolArgs.time === undefined || actualToolArgs.time === null || (typeof actualToolArgs.time === 'string' && actualToolArgs.time.trim() === "")) {
             if (actualToolArgs.filter === "top") {
-              actualToolArgs.time = "day";
+              actualToolArgs.time = "week"; // Changed from "day" to "week" for better variety
             } else {
               actualToolArgs.time = null;
             }
           }
           if (actualToolArgs.limit === undefined || actualToolArgs.limit === null || isNaN(Number(actualToolArgs.limit))) {
-            actualToolArgs.limit = 5;
+            actualToolArgs.limit = 8; // Changed from 5 to 8 for better variety
           }
+          
+          logger.info(`${logPrefix} HackerNewsTool parameters after fallback: ${JSON.stringify(actualToolArgs)}`);
         }
         // --- END: HackerNewsTool-specific fallback for required arguments ---
         // --- BEGIN: EventFinderTool-specific fallback for required arguments ---
@@ -1886,6 +2046,29 @@ Respond in STRICT JSON format:
             return { role: "tool" as const, tool_call_id: callId, name: canonicalToolName, content: `Error: Tool '${canonicalToolName}' could not execute (missing required 'subreddit' argument).` };
           }
         }
+        if (canonicalToolName === "RedditLeadGeneratorTool" && tool.argsSchema.required?.includes("searchPrompt") && (!actualToolArgs.searchPrompt || typeof actualToolArgs.searchPrompt !== 'string' || actualToolArgs.searchPrompt.trim() === "")) {
+          if (userInputForFallback && typeof userInputForFallback === 'string' && userInputForFallback.trim()) {
+            logger.warn(`${logPrefix} RedditLeadGeneratorTool called by Router without 'searchPrompt'. Using fallback user input: "${String(userInputForFallback).substring(0,50)}..."`);
+            actualToolArgs.searchPrompt = String(userInputForFallback);
+            actualToolArgs._rawUserInput = String(userInputForFallback);
+          } else {
+            logger.error(`${logPrefix} RedditLeadGeneratorTool requires 'searchPrompt', but Router didn't provide it. Skipping.`);
+            toolResultsSummaryParts.push(`Error: Tool '${canonicalToolName}' skipped (missing searchPrompt).`);
+            return { role: "tool" as const, tool_call_id: callId, name: canonicalToolName, content: `Error: Tool '${canonicalToolName}' could not execute (missing required 'searchPrompt' argument).` };
+          }
+        }
+        if (canonicalToolName === "RedditLeadGeneratorTool" && tool.argsSchema.required?.includes("subreddits") && (!actualToolArgs.subreddits || !Array.isArray(actualToolArgs.subreddits) || actualToolArgs.subreddits.length === 0)) {
+          if (userInputForFallback && typeof userInputForFallback === 'string' && userInputForFallback.trim()) {
+            logger.warn(`${logPrefix} RedditLeadGeneratorTool called by Router without 'subreddits'. Using default AI/tech subreddits for query: "${String(userInputForFallback).substring(0,50)}..."`);
+            // Default to AI/tech subreddits for lead generation
+            actualToolArgs.subreddits = ["MachineLearning", "artificial", "technology", "startups"];
+            actualToolArgs._rawUserInput = String(userInputForFallback);
+          } else {
+            logger.error(`${logPrefix} RedditLeadGeneratorTool requires 'subreddits', but Router didn't provide them. Skipping.`);
+            toolResultsSummaryParts.push(`Error: Tool '${canonicalToolName}' skipped (missing subreddits).`);
+            return { role: "tool" as const, tool_call_id: callId, name: canonicalToolName, content: `Error: Tool '${canonicalToolName}' could not execute (missing required 'subreddits' argument).` };
+          }
+        }
         if (canonicalToolName === "EventFinderTool" && tool.argsSchema.required?.includes("keyword") && 
           (!actualToolArgs.keyword || typeof actualToolArgs.keyword !== 'string' || actualToolArgs.keyword.trim() === "") &&
           (!actualToolArgs.classificationName && !actualToolArgs.location) 
@@ -1905,6 +2088,25 @@ Respond in STRICT JSON format:
           return { role: "tool" as const, tool_call_id: callId, name: canonicalToolName, content: `Error: Tool '${canonicalToolName}' could not execute due to invalid arguments even after attempting fallback.` };
         }
         logger.info(`${logPrefix} Executing tool '${canonicalToolName}' (ID: ${callId.substring(0, 6)}) from Router with final Args: ${JSON.stringify(actualToolArgs).substring(0, 100)}`);
+        
+        // Translate non-English text arguments to English before sending to tools
+        const translatedArgs = { ...actualToolArgs };
+        const textArgumentFields = ['query', 'searchPrompt', 'keyword', 'teamName', 'subreddit', 'searchQuery', 'prompt', 'text', 'message', 'description', 'title'];
+        
+        for (const field of textArgumentFields) {
+          if (translatedArgs[field] && typeof translatedArgs[field] === 'string' && translatedArgs[field].trim()) {
+            try {
+              const translationResult = await translateToEnglishForTools(translatedArgs[field], userId);
+              if (translationResult.wasTranslated) {
+                logger.info(`${logPrefix} Translated '${field}' from ${translationResult.detectedLanguage || 'unknown'} to English: "${translatedArgs[field]}" -> "${translationResult.translatedText}"`);
+                translatedArgs[field] = translationResult.translatedText;
+              }
+            } catch (error) {
+              logger.warn(`${logPrefix} Failed to translate '${field}': ${error}. Using original text.`);
+            }
+          }
+        }
+        
         const abortController = new AbortController();
         const timeoutDuration = (typeof tool.timeoutMs === 'number')
           ? tool.timeoutMs
@@ -1916,7 +2118,7 @@ Respond in STRICT JSON format:
         }, timeoutDuration);
         try {
           const toolInput: ToolInput = {
-            ...(actualToolArgs as Record<string, any>),
+            ...(translatedArgs as Record<string, any>),
             userId,
             lang: apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0],
             sessionId: apiContext?.sessionId,
@@ -1935,7 +2137,7 @@ Respond in STRICT JSON format:
           logToolExecution({
             toolName: canonicalToolName,
             aliasUsed: toolNameFromRouter !== canonicalToolName ? toolNameFromRouter : undefined,
-            arguments: actualToolArgs,
+            arguments: translatedArgs,
             result: output.result,
             error: output.error,
             userId,
@@ -1953,7 +2155,7 @@ Respond in STRICT JSON format:
           logToolExecution({
             toolName: canonicalToolName,
             aliasUsed: toolNameFromRouter !== canonicalToolName ? toolNameFromRouter : undefined,
-            arguments: actualToolArgs,
+            arguments: translatedArgs,
             error: errorMsg,
             userId,
             success: false,
@@ -1963,6 +2165,8 @@ Respond in STRICT JSON format:
     });
     const settledResults = await Promise.allSettled(executionPromises);
     let lastSuccessfulStructuredData: AnyToolStructuredData | null = null;
+    // Collection of all successful structured data
+    const allSuccessfulStructuredData: AnyToolStructuredData[] = [];
     // Track tools that need special transition handling
     let needsStripeOnboarding = false;
     let savedProductDetails: any = null;
@@ -2029,7 +2233,12 @@ Respond in STRICT JSON format:
           structuredDataMap.has(callId)
         ) {
           const data = structuredDataMap.get(callId);
-          if (data) lastSuccessfulStructuredData = data;
+          if (data) {
+            // Store as last successful data (for backward compatibility)
+            lastSuccessfulStructuredData = data;
+            // Add to our collection of all successful structured data
+            allSuccessfulStructuredData.push(data);
+          }
         }
       } else if (result.status === "rejected") {
         logger.error(`${logPrefix} Unexpected parallel exec error for tool call ${originalRoutedCall.tool_name}:`, result.reason);
@@ -2086,6 +2295,8 @@ Respond in STRICT JSON format:
           // Update structured data
           if (onboardingResult.structuredData) {
             lastSuccessfulStructuredData = onboardingResult.structuredData as AnyToolStructuredData;
+            // Also add to the allSuccessfulStructuredData array
+            allSuccessfulStructuredData.push(onboardingResult.structuredData as AnyToolStructuredData);
           }
         }
       } catch (error) {
@@ -2137,6 +2348,8 @@ Respond in STRICT JSON format:
           // Update structured data
           if (paymentLinkResult.structuredData) {
             lastSuccessfulStructuredData = paymentLinkResult.structuredData as AnyToolStructuredData;
+            // Also add to the allSuccessfulStructuredData array
+            allSuccessfulStructuredData.push(paymentLinkResult.structuredData as AnyToolStructuredData);
           }
         }
       } catch (error) {
@@ -2144,7 +2357,16 @@ Respond in STRICT JSON format:
       }
     }
     
-    return { messages: toolResultsMessages, lastSuccessfulStructuredData, llmUsage: null, toolResultsSummary: toolResultsSummaryParts.join("\n") || "Tools processing completed.", clarificationQuestion, clarificationDetails };
+    // Use allSuccessfulStructuredData if it has multiple items, otherwise use lastSuccessfulStructuredData for backward compatibility
+    return { 
+      messages: toolResultsMessages, 
+      lastSuccessfulStructuredData, 
+      allSuccessfulStructuredData,
+      llmUsage: null, 
+      toolResultsSummary: toolResultsSummaryParts.join("\n") || "Tools processing completed.", 
+      clarificationQuestion, 
+      clarificationDetails 
+    };
   }
   public async runOrchestration(
     userId: string,
@@ -2167,7 +2389,7 @@ Respond in STRICT JSON format:
     }
     logger.info(`--- ${turnIdentifier} Starting Orchestration Run (Planning: ${PLANNING_MODEL_NAME_ORCH}, Chat/Vision: ${CHAT_VISION_MODEL_NAME_ORCH}) ---`);
     // Initialisation des variables
-    let finalStructuredResult: AnyToolStructuredData | null = null;
+    let finalStructuredResult: AnyToolStructuredData | AnyToolStructuredData[] | null = null;
     let finalResponseText: string | null = null;
     let responseIntentType: string | null = "neutral";
     let ttsInstructionsForFinalResponse: string | null = null;
@@ -2534,7 +2756,22 @@ Respond in STRICT JSON format:
           history
         );
         toolExecutionMessages = executionResult.messages; // Assignation à la variable de la portée supérieure
-        finalStructuredResult = executionResult.lastSuccessfulStructuredData;
+        
+        // Use allSuccessfulStructuredData if it has multiple items, otherwise use lastSuccessfulStructuredData for backward compatibility
+        if (executionResult.allSuccessfulStructuredData && executionResult.allSuccessfulStructuredData.length > 0) {
+          if (executionResult.allSuccessfulStructuredData.length === 1) {
+            // For single tool results, keep the existing behavior
+            finalStructuredResult = executionResult.allSuccessfulStructuredData[0];
+          } else {
+            // For multiple tool results, use the array
+            finalStructuredResult = executionResult.allSuccessfulStructuredData;
+            logger.info(`[${turnIdentifier}] Multiple tool results (${executionResult.allSuccessfulStructuredData.length}) detected and will be rendered`);
+          }
+        } else {
+          // Fallback to the lastSuccessfulStructuredData for backward compatibility
+          finalStructuredResult = executionResult.lastSuccessfulStructuredData;
+        }
+        
         currentTurnToolResultsSummary = executionResult.toolResultsSummary;
         clarificationQuestionForUser = executionResult.clarificationQuestion ?? null;
         clarificationDetailsForUser = executionResult.clarificationDetails ?? null;
@@ -2583,7 +2820,7 @@ Respond in STRICT JSON format:
       // retrievedMemoryContext est déjà initialisé au début de la fonction
       const entitiesForMemorySearch: string[] = [textQueryForRouter.substring(0, 70)];
       // Ensure finalStructuredResult is not null and has a title property (with type safety)
-      if (finalStructuredResult && typeof (finalStructuredResult as any).title === 'string') {
+      if (finalStructuredResult && !Array.isArray(finalStructuredResult) && typeof (finalStructuredResult as any).title === 'string') {
         entitiesForMemorySearch.push((finalStructuredResult as any).title);
       }
       if (entitiesForMemorySearch.length > 0 && entitiesForMemorySearch.some(e => e.trim() !== "")) {
@@ -2721,7 +2958,7 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
       routedTools.planned_tools[0].tool_name === "HackerNewsTool"
     ) {
       // If finalStructuredResult is missing or not hn_stories, wrap it
-      if (!finalStructuredResult || (typeof finalStructuredResult === "object" && finalStructuredResult.result_type !== "hn_stories")) {
+      if (!finalStructuredResult || (typeof finalStructuredResult === "object" && !Array.isArray(finalStructuredResult) && finalStructuredResult.result_type !== "hn_stories")) {
         finalStructuredResult = {
           result_type: "hn_stories",
           source_api: "hackernews",
@@ -2739,6 +2976,7 @@ ${videoContextString ? `\n${videoContextString}` : ''}`;
       finalResponseText &&
       finalStructuredResult &&
       typeof finalResponseText === "string" &&
+      !Array.isArray(finalStructuredResult) &&
       (finalStructuredResult as any).result_type === "news_articles"
     ) {
       return {
@@ -3138,4 +3376,84 @@ function stripSystemPrefixes(input: string): string {
   input = input.replace(/^\[MEDIA UPLOAD: The user has shared media content\. Please respond to the content directly in conversation, don't use tools\.\]\s*/i, '');
   
   return input;
+}
+
+// Translation function to detect and translate non-English text to English for tools
+async function translateToEnglishForTools(
+  text: string,
+  userId: string
+): Promise<{ translatedText: string; wasTranslated: boolean; detectedLanguage?: string }> {
+  if (!text || typeof text !== 'string' || text.trim().length === 0) {
+    return { translatedText: text, wasTranslated: false };
+  }
+
+  // Simple heuristic to detect if text is likely English
+  const englishWords = /\b(the|and|or|but|in|on|at|to|for|of|with|by|from|up|about|into|through|during|before|after|above|below|between|among|under|over|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|can|must|shall|get|got|make|made|take|took|come|came|go|went|see|saw|know|knew|think|thought|say|said|tell|told|give|gave|find|found|want|wanted|need|needed|use|used|work|worked|call|called|try|tried|ask|asked|turn|turned|move|moved|live|lived|show|showed|play|played|run|ran|walk|walked|look|looked|seem|seemed|feel|felt|become|became|leave|left|put|put|mean|meant|keep|kept|let|let|begin|began|help|helped|talk|talked|turn|turned|start|started|might|right|new|good|high|small|large|next|early|young|important|few|public|bad|same|able)\b/gi;
+  
+  const matches = text.match(englishWords);
+  const englishWordCount = matches ? matches.length : 0;
+  const totalWords = text.split(/\s+/).length;
+  const englishRatio = totalWords > 0 ? englishWordCount / totalWords : 0;
+
+  // If more than 40% of words are common English words, assume it's English
+  if (englishRatio > 0.4) {
+    return { translatedText: text, wasTranslated: false };
+  }
+
+  try {
+    // Use LLM to detect language and translate to English
+    const translationPrompt = `You are a language detection and translation expert. 
+
+Given this text: "${text.replace(/"/g, '\\"')}"
+
+Tasks:
+1. Detect the language of the text
+2. If the text is NOT in English, translate it to English while preserving the meaning and context
+3. If the text is already in English, return it as-is
+
+Respond in JSON format:
+{
+  "detectedLanguage": "language_code (e.g., 'fr', 'es', 'de', 'en')",
+  "isEnglish": boolean,
+  "translatedText": "the text translated to English or original if already English"
+}`;
+
+    const translationSchema = {
+      type: "object",
+      properties: {
+        detectedLanguage: { type: "string" },
+        isEnglish: { type: "boolean" },
+        translatedText: { type: "string" }
+      },
+      required: ["detectedLanguage", "isEnglish", "translatedText"],
+      additionalProperties: false
+    };
+
+    const result = await generateStructuredJson<{
+      detectedLanguage: string;
+      isEnglish: boolean;
+      translatedText: string;
+    }>(
+      translationPrompt,
+      text,
+      translationSchema,
+      "minato_text_translation_v1",
+      [],
+      (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
+      userId
+    );
+
+    if (result && typeof result === "object" && !('error' in result)) {
+      return {
+        translatedText: result.translatedText || text,
+        wasTranslated: !result.isEnglish,
+        detectedLanguage: result.detectedLanguage
+      };
+    }
+  } catch (error) {
+    logger.warn(`Translation failed for text: "${text.substring(0, 50)}..." - Error: ${error}`);
+  }
+
+  // Fallback: return original text
+  return { translatedText: text, wasTranslated: false };
 }

@@ -41,10 +41,7 @@ import {
   PROACTIVE_LEARNING_CHECKIN_PROMPT_TEMPLATE,
   FOCUS_MODE_PROMPT_TEMPLATE
 } from "../prompts";
-import { 
-  parseChainOfThoughtPlanFromXml, 
-  parseClassificationFromXml 
-} from "../utils/xml-processor";
+
 // --- Initialize Raw OpenAI Client ---
 if (!appConfig.openai.apiKey && typeof window === "undefined") {
 logger.error("CRITICAL: OpenAI API Key is missing. LLM clients will not function.");
@@ -781,16 +778,9 @@ export async function generateMultiToolCotPlan(
     
     // Parse the result
     if (cotPlanOutput.responseContent && typeof cotPlanOutput.responseContent === 'string') {
-      // Parse XML response into structured plan
-      const parsedPlan = parseChainOfThoughtPlanFromXml(cotPlanOutput.responseContent);
-      
-      if (parsedPlan) {
-        logger.info(`${logPrefix} Successfully generated multi-tool CoT plan with ${parsedPlan.plan?.execution_groups?.length || 0} execution groups`);
-        return { plan: parsedPlan };
-      } else {
-        logger.warn(`${logPrefix} Failed to parse CoT plan XML`);
-        return { plan: null, error: "Failed to parse the generated plan" };
-      }
+      // Return the raw response content as the plan
+      logger.info(`${logPrefix} Successfully generated multi-tool CoT plan`);
+      return { plan: cotPlanOutput.responseContent };
     } else if (cotPlanOutput.error) {
       logger.warn(`${logPrefix} Error generating CoT plan: ${cotPlanOutput.error}`);
       return { plan: null, error: cotPlanOutput.error };
@@ -846,22 +836,23 @@ export async function classifyQueryForMultiToolProcessing(
     
     // Parse the result
     if (classificationOutput.responseContent && typeof classificationOutput.responseContent === 'string') {
-      // Parse XML response into structured classification
-      const parsedClassification = parseClassificationFromXml(classificationOutput.responseContent);
-      
-      if (parsedClassification) {
-        logger.info(`${logPrefix} Query classified as '${parsedClassification.category}' with ${parsedClassification.confidence} confidence`);
-        
-        // Log multi-intent detection if available
-        if (parsedClassification.intent_analysis && parsedClassification.intent_analysis.count) {
-          logger.info(`${logPrefix} Detected ${parsedClassification.intent_analysis.count} intents: Primary=${parsedClassification.intent_analysis.primary_intent}`);
-        }
-        
-        return { classification: parsedClassification };
-      } else {
-        logger.warn(`${logPrefix} Failed to parse classification XML`);
-        return { classification: null, error: "Failed to parse the query classification" };
-      }
+      // Return a basic classification since xml-processor is not available
+      logger.info(`${logPrefix} Query classification generated`);
+      return { 
+        classification: {
+          category: "tool_execution",
+          confidence: "medium",
+          reasoning: "Classification performed without XML parsing",
+          complexity: "moderate",
+          time_sensitivity: "standard",
+          parallel_opportunity: "medium",
+          suggested_approach: {
+            primary_method: "tool_router",
+            fallback_method: "direct_llm",
+            explanation: "Using tool router as primary approach"
+          }
+        } as XmlClassification
+      };
     } else if (classificationOutput.error) {
       logger.warn(`${logPrefix} Error classifying query: ${classificationOutput.error}`);
       return { classification: null, error: classificationOutput.error };
@@ -940,16 +931,9 @@ export async function generateAdvancedSkillLearningPlan(
     const xmlContent = xmlMatch[0];
     logger.info(`${logPrefix} Successfully generated skill learning plan XML`);
     
-    // Parse the XML using the utility function
-    const { parseSkillLearningPlanFromXml } = require("../utils/xml-processor");
-    const plan = parseSkillLearningPlanFromXml(xmlContent);
-    
-    if (!plan) {
-      logger.error(`${logPrefix} Failed to parse skill learning plan XML`);
-      return { plan: null, error: "Failed to parse skill learning plan XML" };
-    }
-    
-    return { plan };
+    // Return the XML content as the plan since xml-processor is not available
+    logger.info(`${logPrefix} Returning skill learning plan content`);
+    return { plan: xmlContent };
   } catch (error) {
     logger.error(`${logPrefix} Error generating skill learning plan:`, error);
     return { 
@@ -1022,16 +1006,9 @@ export async function generateNewsAggregatorPlan(
     const xmlContent = xmlMatch[0];
     logger.info(`${logPrefix} Successfully generated news deep dive plan XML`);
     
-    // Parse the XML using the utility function
-    const { parseNewsDeepDivePlanFromXml } = require("../utils/xml-processor");
-    const plan = parseNewsDeepDivePlanFromXml(xmlContent);
-    
-    if (!plan) {
-      logger.error(`${logPrefix} Failed to parse news deep dive plan XML`);
-      return { plan: null, error: "Failed to parse news deep dive plan XML" };
-    }
-    
-    return { plan };
+    // Return the XML content as the plan since xml-processor is not available
+    logger.info(`${logPrefix} Returning news deep dive plan content`);
+    return { plan: xmlContent };
   } catch (error) {
     logger.error(`${logPrefix} Error generating news aggregator plan:`, error);
     return { 
@@ -1107,16 +1084,9 @@ export async function generateProactiveLifeImprovementSuggestions(
     const xmlContent = xmlMatch[0];
     logger.info(`${logPrefix} Successfully generated proactive suggestion plan XML`);
     
-    // Parse the XML using the utility function
-    const { parseProactiveSuggestionPlanFromXml } = require("../utils/xml-processor");
-    const plan = parseProactiveSuggestionPlanFromXml(xmlContent);
-    
-    if (!plan) {
-      logger.error(`${logPrefix} Failed to parse proactive suggestion plan XML`);
-      return { plan: null, error: "Failed to parse proactive suggestion plan XML" };
-    }
-    
-    return { plan };
+    // Return the XML content as the plan since xml-processor is not available
+    logger.info(`${logPrefix} Returning proactive suggestion plan content`);
+    return { plan: xmlContent };
   } catch (error) {
     logger.error(`${logPrefix} Error generating proactive suggestions:`, error);
     return { 
@@ -1188,21 +1158,9 @@ export async function generateEnhancedReasoning(
       return { reasoning: null, error: "No reasoning was generated" };
     }
     
-    // Parse the XML response
-    try {
-      const { parseEnhancedReasoningFromXml } = require('../utils/xml-processor');
-      const parsedReasoning = parseEnhancedReasoningFromXml(reasoningText);
-      
-      if (!parsedReasoning) {
-        logger.warn(`${logPrefix} Failed to parse reasoning XML`);
-        return { reasoning: null, error: "Failed to parse reasoning XML" };
-      }
-      
-      return { reasoning: parsedReasoning };
-    } catch (parseError: any) {
-      logger.error(`${logPrefix} Error parsing XML:`, parseError);
-      return { reasoning: reasoningText, error: "XML parsing failed, returning raw text" };
-    }
+    // Return the raw reasoning text since xml-processor is not available
+    logger.info(`${logPrefix} Returning enhanced reasoning content`);
+    return { reasoning: reasoningText };
   } catch (error: any) {
     logger.error(`${logPrefix} Error generating enhanced reasoning:`, error);
     return { reasoning: null, error: error.message };
@@ -1265,21 +1223,9 @@ export async function generateMultiToolOrchestrationExplanation(
       return { explanation: null, error: "No explanation was generated" };
     }
     
-    // Parse the XML response
-    try {
-      const { parseOrchestrationExplanationFromXml } = require('../utils/xml-processor');
-      const parsedExplanation = parseOrchestrationExplanationFromXml(explanationText);
-      
-      if (!parsedExplanation) {
-        logger.warn(`${logPrefix} Failed to parse orchestration explanation XML`);
-        return { explanation: null, error: "Failed to parse explanation XML" };
-      }
-      
-      return { explanation: parsedExplanation };
-    } catch (parseError: any) {
-      logger.error(`${logPrefix} Error parsing XML:`, parseError);
-      return { explanation: explanationText, error: "XML parsing failed, returning raw text" };
-    }
+    // Return the raw explanation text since xml-processor is not available
+    logger.info(`${logPrefix} Returning orchestration explanation content`);
+    return { explanation: explanationText };
   } catch (error: any) {
     logger.error(`${logPrefix} Error generating multi-tool orchestration explanation:`, error);
     return { explanation: null, error: error.message };
@@ -1348,21 +1294,9 @@ export async function generateUICardReasoning(
       return { cardContent: null, error: "No UI card content was generated" };
     }
     
-    // Parse the XML response
-    try {
-      const { parseUICardReasoningFromXml } = require('../utils/xml-processor');
-      const parsedCardContent = parseUICardReasoningFromXml(cardContentText);
-      
-      if (!parsedCardContent) {
-        logger.warn(`${logPrefix} Failed to parse UI card reasoning XML`);
-        return { cardContent: null, error: "Failed to parse UI card reasoning XML" };
-      }
-      
-      return { cardContent: parsedCardContent };
-    } catch (parseError: any) {
-      logger.error(`${logPrefix} Error parsing XML:`, parseError);
-      return { cardContent: cardContentText, error: "XML parsing failed, returning raw text" };
-    }
+    // Return the raw card content text since xml-processor is not available
+    logger.info(`${logPrefix} Returning UI card reasoning content`);
+    return { cardContent: cardContentText };
   } catch (error: any) {
     logger.error(`${logPrefix} Error generating UI card reasoning:`, error);
     return { cardContent: null, error: error.message };
@@ -1435,16 +1369,9 @@ export async function generateLearningProgressionPlan(
     const xmlContent = xmlMatch[0];
     logger.info(`${logPrefix} Successfully generated learning progression plan XML`);
     
-    // Parse the XML using the utility function
-    const { parseLearningProgressionPlanFromXml } = require("../utils/xml-processor");
-    const plan = parseLearningProgressionPlanFromXml(xmlContent);
-    
-    if (!plan) {
-      logger.error(`${logPrefix} Failed to parse learning progression plan XML`);
-      return { plan: null, error: "Failed to parse learning progression plan XML" };
-    }
-    
-    return { plan };
+    // Return the XML content as the plan since xml-processor is not available
+    logger.info(`${logPrefix} Returning learning progression plan content`);
+    return { plan: xmlContent };
   } catch (error) {
     logger.error(`${logPrefix} Error generating learning progression plan:`, error);
     return { 
@@ -1520,16 +1447,9 @@ export async function generateProactiveLearningCheckin(
     const xmlContent = xmlMatch[0];
     logger.info(`${logPrefix} Successfully generated proactive check-in plan XML`);
     
-    // Parse the XML using the utility function
-    const { parseProactiveCheckinPlanFromXml } = require("../utils/xml-processor");
-    const plan = parseProactiveCheckinPlanFromXml(xmlContent);
-    
-    if (!plan) {
-      logger.error(`${logPrefix} Failed to parse proactive check-in plan XML`);
-      return { plan: null, error: "Failed to parse proactive check-in plan XML" };
-    }
-    
-    return { plan };
+    // Return the XML content as the plan since xml-processor is not available
+    logger.info(`${logPrefix} Returning proactive check-in plan content`);
+    return { plan: xmlContent };
   } catch (error) {
     logger.error(`${logPrefix} Error generating proactive check-in plan:`, error);
     return { 

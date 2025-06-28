@@ -864,15 +864,63 @@ error?: string | null;
 // error?: string | null;
 // }
 export interface RedditStructuredOutput {
-result_type: "reddit_posts";
-source_api: "reddit";
-query?: Record<string, any>;
-subreddit: string;
-filter: string;
-time?: string | undefined;
-count: number;
-posts: RedditPost[];
-error?: string | null;
+  result_type: "reddit_posts";
+  source_api: "reddit";
+  query?: Record<string, any>;
+  subreddit: string;
+  filter: string;
+  time?: string | undefined;
+  count: number;
+  posts: RedditPost[];
+  error?: string | null;
+}
+
+export interface LeadAnalysis {
+  isLead: boolean;
+  confidence: number; // 0-100
+  painPoints: string[];
+  intent: "seeking_help" | "asking_questions" | "expressing_frustration" | "looking_for_solutions" | "other";
+  urgency: "high" | "medium" | "low";
+  budget_indicators: string[];
+  decision_maker_signals: string[];
+}
+
+export interface GeneratedMessage {
+  dm: string;
+  comment: string;
+  reasoning: string;
+}
+
+export interface RedditLead {
+  id: string;
+  title: string;
+  subreddit: string;
+  author: string;
+  score: number;
+  numComments: number;
+  permalink: string;
+  url: string | null;
+  selfText: string | null;
+  createdUtc: number;
+  thumbnailUrl: string | null;
+  analysis: LeadAnalysis;
+  generatedMessages?: GeneratedMessage | null;
+  relativeTime: string;
+}
+
+export interface RedditLeadGeneratorOutput {
+  result_type: "reddit_leads";
+  source_api: "reddit_lead_generator";
+  query: {
+    searchPrompt: string;
+    subreddits: string[];
+    productOrService?: string;
+    targetAudience?: string;
+  };
+  totalPostsAnalyzed: number;
+  leadsFound: number;
+  leads: RedditLead[];
+  error?: string | null;
 }
 export interface EventFinderStructuredOutput {
 result_type: "event_list";
@@ -1066,39 +1114,40 @@ query?: Record<string, any>;
 error?: string;
 }
 export type AnyToolStructuredData =
-| CachedProductList
-| CachedImageList
-| CachedVideoList
-| CalendarEventList
-| EmailHeaderList
-| NewsArticleList
-| CachedSingleRecipe
-| CachedSingleWeather
-| CachedSinglePlace
-| CachedSingleFact
-| CachedSingleWebResult
-| DateTimeStructuredOutput
-// | GeolocationStructuredOutput
-| EventFinderStructuredOutput
-| HackerNewsStructuredOutput
-// | HabitTrackerStructuredOutput
-// | MapLinkStructuredOutput
-// | MoodJournalStructuredOutput
-// | PublicHolidayStructuredOutput
-| RedditStructuredOutput
-| SportsStructuredOutput
-// | SunriseSunsetStructuredOutput
-// | WaterIntakeStructuredOutput
-| MemoryToolResult
-// | InternalTaskResult
-| ReminderResult
-| AnalysisTableResult
-| AnalysisChartResult
-| AnalysisSummaryResult
-// | DataParsedOutput
-// | DataProfileOutput
-| PermissionDeniedResult
-| GenericStructuredOutput;
+  | CachedProductList
+  | CachedImageList
+  | CachedVideoList
+  | CalendarEventList
+  | EmailHeaderList
+  | NewsArticleList
+  | CachedSingleRecipe
+  | CachedSingleWeather
+  | CachedSinglePlace
+  | CachedSingleFact
+  | CachedSingleWebResult
+  | DateTimeStructuredOutput
+  // | GeolocationStructuredOutput
+  | EventFinderStructuredOutput
+  | HackerNewsStructuredOutput
+  // | HabitTrackerStructuredOutput
+  // | MapLinkStructuredOutput
+  // | MoodJournalStructuredOutput
+  // | PublicHolidayStructuredOutput
+  | RedditStructuredOutput
+  | RedditLeadGeneratorOutput
+  | SportsStructuredOutput
+  // | SunriseSunsetStructuredOutput
+  // | WaterIntakeStructuredOutput
+  | MemoryToolResult
+  // | InternalTaskResult
+  | ReminderResult
+  | AnalysisTableResult
+  | AnalysisChartResult
+  | AnalysisSummaryResult
+  // | DataParsedOutput
+  // | DataProfileOutput
+  | PermissionDeniedResult
+  | GenericStructuredOutput;
 // --- Database Table Schemas ---
 export type UserProfile = {
 id: string;

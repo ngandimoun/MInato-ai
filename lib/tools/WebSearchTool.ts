@@ -285,7 +285,7 @@ export class WebSearchTool extends BaseTool {
     // Enhanced topic-based indicators
     const tiktokTopics = [
       'skincare routine', 'beauty hack', 'dance', 'makeup tutorial short',
-      'recipe quick', 'life hack', 'trend', 'viral', 'challenge',
+     'life hack', 'trend', 'viral', 'challenge',
       'fashion tips', 'outfit idea', 'prank', 'reaction', 'before and after',
       'transformation', 'get ready with me', 'grwm', 'day in my life',
       'aesthetic', 'satisfying', 'asmr short', 'morning routine',

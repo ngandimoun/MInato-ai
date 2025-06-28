@@ -355,11 +355,24 @@ If queryType is ambiguous, default to "team_info".
     const queryType = input.queryType || "team_info";
     
     if (!teamNameInput.trim()) {
-      const errorMsg = "Missing team name.";
+      const rawInput = input._rawUserInput || '';
+      const tournamentKeywords = ['fifa', 'world cup', 'champions league', 'premier league', 'la liga', 'serie a', 'bundesliga', 'olympics', 'euro', 'copa america'];
+      const hasTournamentKeyword = tournamentKeywords.some(keyword => 
+        rawInput.toLowerCase().includes(keyword)
+      );
+      
+      let errorMsg = "Missing team name.";
+      let resultMsg = `Minato needs a specific team name to find sports information for ${userNameForResponse}.`;
+      
+      if (hasTournamentKeyword) {
+        errorMsg = "Tournament query requires specific team name.";
+        resultMsg = `I can help you with information about specific teams, ${userNameForResponse}! For tournament information like the FIFA Club World Cup, try asking about a specific team that's participating. For example: "Real Madrid next game" or "Manchester City last result". Which team would you like to know about?`;
+      }
+      
       logger.error(`[SportsInfoTool] ${errorMsg}`);
       return {
         error: errorMsg,
-        result: `Minato needs a team name to find sports information for ${userNameForResponse}.`,
+        result: resultMsg,
         structuredData: {
           result_type: "sports_info",
           source_api: "sports-api",
