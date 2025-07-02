@@ -3,14 +3,14 @@
 
 import React, { createContext, useContext, useState } from "react";
 import { motion } from "framer-motion";
-import { MessageSquare, Settings, Brain, Bell, ShoppingBag } from "lucide-react"; // Added ShoppingBag icon
+import { MessageSquare, Settings, Brain, Bell, ShoppingBag, Gamepad2 } from "lucide-react"; // Added ShoppingBag and Gamepad2 icons
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button"; 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { NotificationsPanel } from "@/components/ui/notifications-panel";
 import { useAuth } from "@/context/auth-provider"; // Optional for user info
 
-type View = "chat" | "settings" | "memory" | "dashboard"; // Added dashboard view
+type View = "chat" | "settings" | "memory" | "dashboard" | "games"; // Added games view
 
 interface HeaderProps {
   currentView: View;
@@ -72,6 +72,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
   const navItems: { id: View; icon: React.ReactNode; label: string }[] = [
     { id: "chat", icon: <MessageSquare size={20} />, label: "Chat" },
     { id: "memory", icon: <Brain size={20} />, label: "Memory" },
+    { id: "games", icon: <Gamepad2 size={20} />, label: "Games" }, // Added Games nav item
     { id: "dashboard", icon: <ShoppingBag size={20} />, label: "Dashboard" }, // Added Dashboard nav item
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },
   ];

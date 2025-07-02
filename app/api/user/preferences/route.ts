@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
     `${logPrefix} Update preferences request for user: ${userId.substring(0, 8)}...`
   );
 
-  let requestBody: UserWorkflowPreferences;
+  let requestBody: any;
   try {
     requestBody = await req.json();
   } catch (e: any) {
@@ -202,7 +202,8 @@ export async function POST(req: NextRequest) {
       .from(frameworkConfig.vectorStore.userStatesTableName)
       .upsert({
         user_id: userId,
-        workflow_preferences: updatedPreferences
+        workflow_preferences: updatedPreferences,
+        updated_at: new Date().toISOString()
       }, { onConflict: "user_id" });
     
     if (updateError) {
@@ -217,12 +218,12 @@ export async function POST(req: NextRequest) {
     }
     
     logger.info(
-      `${logPrefix} Successfully updated preferences for user ${userId.substring(0, 8)}`
+      `${logPrefix} Successfully updated preferences for user ${userId.substring(0, 8)}.`
     );
     
     return NextResponse.json({ 
-      success: true,
-      preferences: updatedPreferences
+      preferences: updatedPreferences,
+      message: "Preferences updated successfully" 
     });
   } catch (error: any) {
     logger.error(

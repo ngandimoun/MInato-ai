@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/settings/theme-context";
 import { AuthProvider } from "@/context/auth-provider";
 import { UploadStatusProvider } from "@/context/upload-status-context";
 import { Toaster } from "@/components/ui/toaster";
+import { ConvexClientProvider } from "@/context/convex-provider";
 import "./globals.css"; // Ensure Tailwind/global styles are imported
 
 const inter = Inter({ subsets: ["latin"] });
@@ -35,14 +36,16 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} antialiased`}> {/* Add antialiased for smoother fonts */}
-        <AuthProvider>
-          <ThemeProvider>
-            <UploadStatusProvider>
-              {children}
-              <Toaster />
-            </UploadStatusProvider>
-          </ThemeProvider>
-        </AuthProvider>
+        <ConvexClientProvider>
+          <AuthProvider>
+            <ThemeProvider>
+              <UploadStatusProvider>
+                {children}
+                <Toaster />
+              </UploadStatusProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </ConvexClientProvider>
       </body>
     </html>
   );
