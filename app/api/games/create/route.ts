@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "@/convex/_generated/api";
+import { gameService, CreateGameRequest as SupabaseCreateGameRequest } from "@/lib/services/SupabaseGameService";
+import { v4 as uuidv4 } from 'uuid';
 
 interface CreateGameRequest {
   game_type: string;
@@ -30,11 +30,13 @@ export async function POST(request: NextRequest) {
     // Get the current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+    // Create a guest user ID if not authenticated
+    const userId = user ? user.id : `guest-${uuidv4()}`;
+    const isGuest = !user;
+    
+    // If guest, log this information
+    if (isGuest) {
+      console.log(`Creating game with guest user: ${userId}`);
     }
 
     const body: CreateGameRequest = await request.json();
@@ -47,22 +49,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Initialize Convex client
-    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-    if (!convexUrl) {
-      throw new Error("NEXT_PUBLIC_CONVEX_URL not configured");
+    // Fetch user preferences from Supabase if authenticated
+    let userPreferences = null;
+    if (!isGuest) {
+      try {
+        const { data: preferencesData } = await supabase
+          .from('user_states')
+          .select('workflow_preferences')
+          .eq('user_id', userId)
+          .single();
+        
+        userPreferences = preferencesData?.workflow_preferences;
+        console.log('Fetched user preferences for game creation:', userPreferences);
+      } catch (error) {
+        console.log('Could not fetch user preferences, using defaults');
+      }
     }
     
-    const convex = new ConvexHttpClient(convexUrl);
-    
-    // Generate unique game session ID
-    const gameSessionId = `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Create the game in Convex
-    const gameId = await convex.mutation(api.games.createGame, {
-      supabase_session_id: gameSessionId,
+    // Create Supabase game request with proper settings structure
+    const supabaseGameRequest: SupabaseCreateGameRequest = {
       game_type: body.game_type,
-      host_user_id: user.id,
       difficulty: body.difficulty,
       max_players: body.max_players,
       rounds: body.rounds,
@@ -71,43 +77,47 @@ export async function POST(request: NextRequest) {
         auto_advance: body.settings?.auto_advance ?? true,
         show_explanations: body.settings?.show_explanations ?? true,
         time_per_question: body.settings?.time_per_question ?? 30,
-        category: body.settings?.category,
-        language: body.settings?.language ?? 'en',
-        ai_personality: body.settings?.ai_personality ?? 'friendly',
-        topic_focus: body.settings?.topic_focus ?? 'general',
+        language: body.settings?.language ?? userPreferences?.gamePreferences?.language ?? 'en',
+        ai_personality: body.settings?.ai_personality ?? userPreferences?.gamePreferences?.ai_personality ?? 'friendly',
+        topic_focus: body.settings?.topic_focus ?? userPreferences?.gamePreferences?.topic_focus ?? 'general',
+        // User preference arrays for personalization
+        user_interests: userPreferences?.interestCategories || [],
+        user_news_categories: userPreferences?.newsPreferredCategories || [],
       }
-    });
+    };
 
-    // Initialize the game with AI-generated questions
-    await convex.action(api.gameOrchestrator.initializeGameWithQuestions, {
-      game_id: gameId,
-      game_type: body.game_type,
-      difficulty: body.difficulty,
-      rounds: body.rounds,
-      category: body.settings?.category,
-      language: body.settings?.language,
-      ai_personality: body.settings?.ai_personality,
-      topic_focus: body.settings?.topic_focus,
-    });
+    // Get user's display name for the game
+    const username = isGuest ? 'Guest Player' : (user.user_metadata?.full_name || user.email?.split('@')[0] || 'Player');
 
-    console.log('Game creation request:', {
-      gameId: gameSessionId,
-      convexGameId: gameId,
-      userId: user.id,
+    // Create the game using Supabase Game Service
+    const gameResult = await gameService.createGameRoom(supabaseGameRequest, userId, username);
+
+    if (!gameResult.success) {
+      return NextResponse.json(
+        { error: gameResult.error || "Failed to create game" },
+        { status: 500 }
+      );
+    }
+
+    console.log('Game creation successful:', {
+      roomId: gameResult.data?.room_id,
+      roomCode: gameResult.data?.room_code,
+      userId: userId,
+      isGuest: isGuest,
       gameType: body.game_type,
-      settings: body.settings,
+      settings: supabaseGameRequest.settings,
+      preferencesApplied: !!userPreferences,
     });
 
     return NextResponse.json({
       success: true,
-      game_id: gameSessionId,
-      convex_game_id: gameId,
-      message: "Game created successfully",
-      settings_applied: {
-        language: body.settings?.language || 'en',
-        ai_personality: body.settings?.ai_personality || 'friendly',
-        topic_focus: body.settings?.topic_focus || 'general',
-      }
+      room_id: gameResult.data?.room_id,
+      room_code: gameResult.data?.room_code,
+      topic: gameResult.data?.topic,
+      message: gameResult.message || "Game created successfully",
+      settings_applied: supabaseGameRequest.settings,
+      preferences_applied: !!userPreferences,
+      is_guest: isGuest,
     });
 
   } catch (error) {

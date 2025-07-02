@@ -2,11 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
 import { useAuth } from "@/context/auth-provider";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useUserActiveGames, useSupabaseGameMutations } from "@/hooks/useSupabaseGames";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,34 +21,10 @@ import { useToast } from "@/hooks/use-toast";
 
 type GameStatus = "lobby" | "in_progress" | "finished" | "cancelled";
 
-type ActiveGame = {
-  _id: Id<"live_games">;
-  supabase_session_id: string;
-  game_type: string;
-  status: GameStatus;
-  current_round: number;
-  rounds: number;
-  host_user_id: string;
-  players: Array<{
-    user_id: string;
-    username: string;
-    avatar_url?: string;
-    score: number;
-    is_ready: boolean;
-  }>;
-  created_at?: number;
-  difficulty: string;
-  mode: "solo" | "multiplayer";
-  max_players: number;
-  settings?: {
-    auto_advance?: boolean;
-    show_explanations?: boolean;
-    time_per_question?: number;
-    language?: string;
-    ai_personality?: string;
-    topic_focus?: string;
-  };
-};
+// Import types from Supabase
+import { ActiveGameItem } from "@/lib/types/games";
+
+type ActiveGame = ActiveGameItem;
 
 const difficultyColors = {
   beginner: "bg-green-500/10 text-green-600 border-green-500/20",
@@ -76,19 +50,14 @@ export function ActiveGames() {
   // Check if we should auto-refresh (after game creation)
   const shouldRefresh = searchParams.get("refresh") === "true";
   
-  // Fetch active games from Convex with real-time updates
-  const activeGames = useQuery(api.games.getActiveGames) || [];
-  const userActiveGames = useQuery(
-    api.games.getUserActiveGames, 
-    user ? { user_id: user.id } : "skip"
-  ) || [];
+  // Fetch active games from Supabase with real-time updates
+  const { activeGames, isLoading: gamesLoading } = useUserActiveGames();
   
   // Mutations
-  const joinGame = useMutation(api.games.joinGame);
-  const startGame = useMutation(api.games.startGame);
+  const { joinGame, startGame } = useSupabaseGameMutations();
   
   const [isLoading, setIsLoading] = useState<string | null>(null);
-  const [selectedGame, setSelectedGame] = useState<Id<"live_games"> | null>(null);
+  const [selectedGame, setSelectedGame] = useState<string | null>(null);
 
   // Auto-refresh effect after game creation
   useEffect(() => {
@@ -107,7 +76,7 @@ export function ActiveGames() {
     }
   }, [shouldRefresh, toast]);
 
-  const handleJoinGame = async (gameId: Id<"live_games">) => {
+  const handleJoinGame = async (roomId: string, roomCode?: string) => {
     if (!user) {
       toast({
         title: "🔐 Authentication Required",
@@ -118,23 +87,27 @@ export function ActiveGames() {
     }
 
     try {
-      setIsLoading(gameId);
-      await joinGame({
-        game_id: gameId,
+      setIsLoading(roomId);
+      const result = await joinGame({
+        room_code: roomCode || roomId,
         user_id: user.id,
         username: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Player',
         avatar_url: user.user_metadata?.avatar_url,
       });
       
-      toast({
-        title: "🎉 Joined Game!",
-        description: "You've successfully joined the game",
-      });
+      if (result.success) {
+        toast({
+          title: "🎉 Joined Game!",
+          description: "You've successfully joined the game",
+        });
+      } else {
+        throw new Error(result.error || 'Failed to join game');
+      }
     } catch (error) {
       console.error("Failed to join game:", error);
       toast({
         title: "❌ Failed to Join",
-        description: "Could not join the game. Please try again.",
+        description: error instanceof Error ? error.message : "Could not join the game. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -142,33 +115,37 @@ export function ActiveGames() {
     }
   };
 
-  const handleResumeGame = (gameId: Id<"live_games">) => {
+  const handleResumeGame = (gameId: string) => {
     // Navigate to the game interface
     router.push(`/games/play/${gameId}`);
   };
 
-  const handleSpectateGame = (gameId: Id<"live_games">) => {
+  const handleSpectateGame = (gameId: string) => {
     // Navigate to spectator view
     router.push(`/games/spectate/${gameId}`);
   };
 
-  const handleStartGame = async (gameId: Id<"live_games">) => {
+  const handleStartGame = async (gameId: string) => {
     try {
       setIsLoading(gameId);
-      await startGame({ game_id: gameId });
+      const result = await startGame(gameId);
       
-      toast({
-        title: "🚀 Game Started!",
-        description: "The game has begun. Good luck!",
-      });
-      
-      // Navigate to game
-      handleResumeGame(gameId);
+      if (result.success) {
+        toast({
+          title: "🚀 Game Started!",
+          description: "The game has begun. Good luck!",
+        });
+        
+        // Navigate to game
+        handleResumeGame(gameId);
+      } else {
+        throw new Error(result.error || 'Failed to start game');
+      }
     } catch (error) {
       console.error("Failed to start game:", error);
       toast({
         title: "❌ Failed to Start",
-        description: "Could not start the game. Please try again.",
+        description: error instanceof Error ? error.message : "Could not start the game. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -200,74 +177,110 @@ export function ActiveGames() {
     const emojiMap: Record<string, string> = {
       classic_academia_quiz: "🎓",
       pop_culture_trivia: "🎬",
-      niche_hobbyist_corner: "🧩",
+      niche_hobbyist_corner: "🎯",
       guess_the_entity: "🔍",
+      guess_the_title: "🎭",
+      twenty_questions: "❓",
+      hangman_themed: "📝",
+      guess_the_song: "🎵",
+      story_chain: "📚",
+      pitch_movie: "🎬",
+      haiku_battle: "🌸",
+      courtroom_drama: "⚖️",
+      ai_improv: "🎭",
+      couples_challenge: "💕",
+      two_sides_story: "👥",
+      memory_lane: "🛤️",
+      dare_or_describe: "😊",
+      escape_room: "🔐",
+      solo_adventure: "⚔️",
+      five_levels_challenge: "🔢",
+      code_breaker: "🔒",
+      connect_dots: "🔗",
+      math_physics_challenge: "🧮",
+      chemistry_lab: "🧪",
+      astronomy_explorer: "⭐",
+      medical_mysteries: "🩺",
       pharmacy_knowledge: "💊",
-      medical_mysteries: "🏥",
-      history_detective: "🏛️",
-      math_physics_challenge: "📐",
       biology_quest: "🧬",
-      chemistry_lab: "⚗️",
+      history_detective: "🔍",
+      language_master: "🌍",
+      art_appreciation: "🎨",
+      philosophy_cafe: "🧠",
+      psychology_insights: "🧠",
+      economics_game: "📈",
+      geography_explorer: "🗺️",
+      default: "🎮"
     };
-    return emojiMap[gameType] || "🎮";
+    
+    return emojiMap[gameType] || emojiMap.default;
   };
 
   const isPlayerInGame = (game: ActiveGame) => {
-    return user && game.players.some(player => player.user_id === user.id);
+    return game.players.some(p => p.user_id === user?.id);
   };
 
   const isGameHost = (game: ActiveGame) => {
-    return user && game.host_user_id === user.id;
+    return game.host_user_id === user?.id;
   };
 
   const canJoinGame = (game: ActiveGame) => {
-    return user && 
-           game.status === "lobby" && 
-           game.players.length < game.max_players && 
-           !isPlayerInGame(game);
+    return !isPlayerInGame(game) && 
+           game.status === 'lobby' && 
+           game.players.length < game.max_players &&
+           game.mode === 'multiplayer'; // Solo games can't be joined
   };
 
   const canStartGame = (game: ActiveGame) => {
     return isGameHost(game) && 
-           game.status === "lobby" && 
-           game.players.length >= 1;
+           game.status === 'lobby' && 
+           (game.mode === 'solo' || game.players.length > 0);
+  };
+
+  const canResumeGame = (game: ActiveGame) => {
+    return (isPlayerInGame(game) || isGameHost(game)) && 
+           game.status === 'in_progress';
   };
 
   const getPlayerInGame = (game: ActiveGame) => {
-    return game.players.find(player => player.user_id === user?.id);
+    return game.players.find(p => p.user_id === user?.id);
   };
 
-  // Combine all active games and user games, removing duplicates
-  const allActiveGames = React.useMemo(() => {
-    const gameMap = new Map<string, ActiveGame>();
+  // Filter and sort games from Supabase
+  const allRelevantGames = React.useMemo(() => {
+    if (!activeGames || activeGames.length === 0) return [];
     
-    // Add all active games
-    activeGames.forEach(game => {
-      gameMap.set(game._id, game);
+    // Filter out solo games and sort by priority
+    const filteredGames = activeGames.filter((game) => {
+      return game && game.mode !== 'solo'; // Hide solo games from active list
     });
     
-    // Add user active games (these will override if they're the same)
-    userActiveGames.forEach(game => {
-      gameMap.set(game._id, game);
+    return filteredGames.sort((a, b) => {
+      // Sort by status priority, then by creation time
+      const statusOrder = { in_progress: 0, lobby: 1, finished: 2, cancelled: 3 };
+      const aOrder = statusOrder[a.status as keyof typeof statusOrder] || 999;
+      const bOrder = statusOrder[b.status as keyof typeof statusOrder] || 999;
+      
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      
+      // If same status, sort by most recent
+      const aTime = new Date(a.created_at).getTime();
+      const bTime = new Date(b.created_at).getTime();
+      return bTime - aTime;
     });
-    
-    return Array.from(gameMap.values())
-      .sort((a, b) => {
-        // Sort by: user's games first, then by status, then by creation time
-        const aIsUser = isPlayerInGame(a);
-        const bIsUser = isPlayerInGame(b);
-        
-        if (aIsUser && !bIsUser) return -1;
-        if (!aIsUser && bIsUser) return 1;
-        
-        if (a.status !== b.status) {
-          const statusOrder = { "in_progress": 0, "lobby": 1, "finished": 2, "cancelled": 3 };
-          return statusOrder[a.status] - statusOrder[b.status];
-        }
-        
-        return (b.created_at || 0) - (a.created_at || 0);
-      });
-  }, [activeGames, userActiveGames, user]);
+  }, [activeGames]);
+
+  if (!user) {
+    return (
+      <div className="text-center py-12">
+        <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
+          <Gamepad2 className="w-8 h-8 text-muted-foreground" />
+        </div>
+        <h3 className="text-lg font-semibold mb-2">Sign In Required</h3>
+        <p className="text-muted-foreground mb-4">Please sign in to view and join active games.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -289,7 +302,7 @@ export function ActiveGames() {
                   Active Games
                 </h2>
                 <p className="text-muted-foreground">
-                  {allActiveGames.length} active • {allActiveGames.filter(g => g.status === "in_progress").length} in progress
+                  {allRelevantGames.length} active • {allRelevantGames.filter(g => g.status === "in_progress").length} in progress
                 </p>
               </div>
             </div>
@@ -316,7 +329,7 @@ export function ActiveGames() {
 
       {/* Active Games List */}
       <AnimatePresence mode="wait">
-        {allActiveGames.length === 0 ? (
+        {allRelevantGames.length === 0 ? (
           <motion.div
             key="empty"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -378,27 +391,28 @@ export function ActiveGames() {
             exit={{ opacity: 0 }}
             className="grid gap-4 md:gap-6"
           >
-            {allActiveGames.map((game, index) => {
+            {allRelevantGames.map((game, index) => {
               const StatusIcon = statusIcons[game.status];
               const playerInGame = getPlayerInGame(game);
               const isHost = isGameHost(game);
               const canJoin = canJoinGame(game);
               const canStart = canStartGame(game);
+              const canResume = canResumeGame(game);
               
               return (
                 <motion.div
-                  key={game._id}
+                  key={game.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: index * 0.1 }}
-                  onClick={() => setSelectedGame(selectedGame === game._id ? null : game._id)}
+                  onClick={() => setSelectedGame(selectedGame === game.id ? null : game.id)}
                   className="cursor-pointer"
                 >
                   <Card className={cn(
                     "relative overflow-hidden group hover:shadow-xl transition-all duration-500 border bg-gradient-to-br from-background to-muted/10",
                     isPlayerInGame(game) && "ring-2 ring-primary/30 shadow-lg shadow-primary/10",
                     game.status === "in_progress" && "border-green-500/30 shadow-green-500/10",
-                    selectedGame === game._id && "scale-[1.02] shadow-2xl"
+                    selectedGame === game.id && "scale-[1.02] shadow-2xl"
                   )}>
                     {/* Animated background gradient */}
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -590,7 +604,7 @@ export function ActiveGames() {
                           </Button>
                         )}
                         
-                        {isPlayerInGame(game) && game.status === "in_progress" && (
+                        {canResume && (
                           <Button
                             onClick={(e) => {
                               e.stopPropagation();

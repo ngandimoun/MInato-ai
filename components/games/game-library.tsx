@@ -20,6 +20,8 @@ import { GAME_DATA, GAME_CATEGORIES } from '@/lib/gameData';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import GameDemo from './game-demo';
+import { useRouter } from 'next/navigation';
+import { useGameMutations } from '@/hooks/useGames';
 
 // Icon mapping for dynamic imports
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -75,6 +77,7 @@ interface GameCreationModalProps {
 function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCreationModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
 
   const [difficulty, setDifficulty] = useState<'beginner' | 'easy' | 'medium' | 'hard' | 'expert'>('medium');
   const [mode, setMode] = useState<'solo' | 'multiplayer'>('solo');
@@ -177,20 +180,440 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
     { value: 'casual', label: '😎 Casual & Relaxed', description: 'Laid-back and conversational' }
   ];
 
-  const gameTopics = [
-    { value: 'general', label: '🌍 General Knowledge', description: 'Wide variety of topics' },
-    { value: 'science', label: '🔬 Science & Technology', description: 'Scientific discoveries and tech' },
-    { value: 'history', label: '📚 History & Culture', description: 'Historical events and cultures' },
-    { value: 'entertainment', label: '🎬 Movies & Entertainment', description: 'Films, TV shows, and celebrities' },
-    { value: 'sports', label: '⚽ Sports & Athletics', description: 'Sports, games, and competitions' },
-    { value: 'nature', label: '🌿 Nature & Animals', description: 'Wildlife, plants, and environment' },
-    { value: 'food', label: '🍕 Food & Cooking', description: 'Cuisine, recipes, and cooking' },
-    { value: 'travel', label: '✈️ Travel & Geography', description: 'Places, landmarks, and cultures' },
-    { value: 'music', label: '🎵 Music & Arts', description: 'Musicians, art, and creativity' },
-    { value: 'literature', label: '📖 Books & Literature', description: 'Authors, novels, and poetry' },
-    { value: 'business', label: '💼 Business & Finance', description: 'Economics, companies, and money' },
-    { value: 'custom', label: '✨ Custom Topic', description: 'Specify your own topic' }
-  ];
+  // Dynamic topic focus generation based on game type
+  const getGameSpecificTopics = (gameId: string) => {
+    const topicMap: Record<string, Array<{value: string, label: string, description: string}>> = {
+      // Creative Games
+      'ai_improv': [
+        { value: 'comedy_sketches', label: '😂 Comedy Sketches', description: 'Funny scenes and comedic situations' },
+        { value: 'drama_scenes', label: '🎭 Drama Scenes', description: 'Emotional and dramatic moments' },
+        { value: 'character_development', label: '👤 Character Development', description: 'Building unique personalities' },
+        { value: 'historical_scenarios', label: '🏛️ Historical Scenarios', description: 'Scenes from different eras' },
+        { value: 'fantasy_adventure', label: '🗡️ Fantasy Adventure', description: 'Magical and mythical settings' },
+        { value: 'workplace_situations', label: '💼 Workplace Situations', description: 'Office and professional scenarios' },
+        { value: 'family_dynamics', label: '👨‍👩‍👧‍👦 Family Dynamics', description: 'Family relationships and interactions' },
+        { value: 'sci_fi_scenarios', label: '🚀 Sci-Fi Scenarios', description: 'Future and space-themed scenes' }
+      ],
+      'story_chain': [
+        { value: 'adventure_tales', label: '🗺️ Adventure Tales', description: 'Epic journeys and quests' },
+        { value: 'mystery_stories', label: '🔍 Mystery Stories', description: 'Suspenseful and investigative plots' },
+        { value: 'romance_narratives', label: '💕 Romance Narratives', description: 'Love stories and relationships' },
+        { value: 'horror_thrillers', label: '👻 Horror Thrillers', description: 'Scary and suspenseful tales' },
+        { value: 'fairy_tale_retellings', label: '🧚‍♀️ Fairy Tale Retellings', description: 'Classic stories with new twists' },
+        { value: 'urban_legends', label: '🌃 Urban Legends', description: 'Modern myths and folklore' },
+        { value: 'superhero_sagas', label: '🦸‍♂️ Superhero Sagas', description: 'Powers and heroic adventures' },
+        { value: 'time_travel_plots', label: '⏰ Time Travel Plots', description: 'Stories across different time periods' }
+      ],
+      'haiku_battle': [
+        { value: 'nature_seasons', label: '🌸 Nature & Seasons', description: 'Traditional nature themes' },
+        { value: 'emotions_feelings', label: '💭 Emotions & Feelings', description: 'Inner thoughts and emotions' },
+        { value: 'urban_life', label: '🏙️ Urban Life', description: 'City experiences and modern life' },
+        { value: 'love_relationships', label: '❤️ Love & Relationships', description: 'Romance and human connections' },
+        { value: 'philosophy_wisdom', label: '🧘‍♂️ Philosophy & Wisdom', description: 'Deep thoughts and life lessons' },
+        { value: 'humor_wordplay', label: '😄 Humor & Wordplay', description: 'Funny and clever verses' },
+        { value: 'technology_digital', label: '💻 Technology & Digital', description: 'Modern tech and digital life' },
+        { value: 'food_culture', label: '🍜 Food & Culture', description: 'Culinary experiences and traditions' }
+      ],
+      'pitch_movie': [
+        { value: 'action_adventure', label: '🎬 Action & Adventure', description: 'High-octane thrills and excitement' },
+        { value: 'romantic_comedy', label: '💕 Romantic Comedy', description: 'Love stories with humor' },
+        { value: 'sci_fi_fantasy', label: '🚀 Sci-Fi & Fantasy', description: 'Futuristic and magical worlds' },
+        { value: 'horror_thriller', label: '😱 Horror & Thriller', description: 'Suspense and scary scenarios' },
+        { value: 'family_animation', label: '👨‍👩‍👧‍👦 Family & Animation', description: 'All-ages entertainment' },
+        { value: 'historical_drama', label: '🏛️ Historical Drama', description: 'Period pieces and true stories' },
+        { value: 'documentary_style', label: '📹 Documentary Style', description: 'Real-world subjects and issues' },
+        { value: 'indie_experimental', label: '🎨 Indie & Experimental', description: 'Artistic and unconventional films' }
+      ],
+      // Trivia Games
+      'classic_academia_quiz': [
+        { value: 'world_history', label: '🏛️ World History', description: 'Historical events and civilizations' },
+        { value: 'science_physics', label: '🔬 Science & Physics', description: 'Scientific discoveries and laws' },
+        { value: 'mathematics', label: '📐 Mathematics', description: 'Mathematical concepts and problems' },
+        { value: 'literature_classics', label: '📚 Literature & Classics', description: 'Famous books and authors' },
+        { value: 'geography_capitals', label: '🌍 Geography & Capitals', description: 'Countries, cities, and landmarks' },
+        { value: 'art_culture', label: '🎨 Art & Culture', description: 'Artistic movements and cultural heritage' },
+        { value: 'philosophy_ethics', label: '🤔 Philosophy & Ethics', description: 'Philosophical thoughts and moral questions' },
+        { value: 'languages_linguistics', label: '🗣️ Languages & Linguistics', description: 'Language origins and structures' }
+      ],
+      'pop_culture_trivia': [
+        { value: 'movies_tv', label: '🎬 Movies & TV Shows', description: 'Entertainment industry and celebrities' },
+        { value: 'music_artists', label: '🎵 Music & Artists', description: 'Songs, albums, and musicians' },
+        { value: 'social_media', label: '📱 Social Media & Memes', description: 'Internet culture and viral trends' },
+        { value: 'gaming_esports', label: '🎮 Gaming & eSports', description: 'Video games and competitive gaming' },
+        { value: 'fashion_style', label: '👗 Fashion & Style', description: 'Trends, designers, and fashion history' },
+        { value: 'celebrities_gossip', label: '⭐ Celebrities & News', description: 'Celebrity news and entertainment gossip' },
+        { value: 'anime_manga', label: '🇯🇵 Anime & Manga', description: 'Japanese animation and comics' },
+        { value: 'streaming_platforms', label: '📺 Streaming & Content', description: 'Netflix, YouTube, and digital content' }
+      ],
+      // Puzzle Games
+      'guess_the_entity': [
+        { value: 'historical_figures', label: '👑 Historical Figures', description: 'Famous people from history' },
+        { value: 'world_landmarks', label: '🗼 World Landmarks', description: 'Famous buildings and monuments' },
+        { value: 'animals_wildlife', label: '🦁 Animals & Wildlife', description: 'Creatures from around the world' },
+        { value: 'inventions_discoveries', label: '💡 Inventions & Discoveries', description: 'Important innovations and findings' },
+        { value: 'mythical_creatures', label: '🐉 Mythical Creatures', description: 'Legendary beings and folklore' },
+        { value: 'cities_capitals', label: '🏙️ Cities & Capitals', description: 'Major cities and capital cities' },
+        { value: 'brands_companies', label: '🏢 Brands & Companies', description: 'Famous businesses and logos' },
+        { value: 'natural_wonders', label: '🏔️ Natural Wonders', description: 'Amazing natural formations' }
+      ],
+      'mystery_detective': [
+        { value: 'murder_mysteries', label: '🔪 Murder Mysteries', description: 'Classic whodunit scenarios' },
+        { value: 'theft_heists', label: '💎 Theft & Heists', description: 'Stolen goods and elaborate plans' },
+        { value: 'missing_persons', label: '👤 Missing Persons', description: 'Disappearances and investigations' },
+        { value: 'corporate_crimes', label: '🏢 Corporate Crimes', description: 'White-collar criminal activities' },
+        { value: 'historical_cases', label: '📜 Historical Cases', description: 'Real historical mysteries' },
+        { value: 'paranormal_unexplained', label: '👻 Paranormal & Unexplained', description: 'Strange and supernatural events' },
+        { value: 'cyber_crimes', label: '💻 Cyber Crimes', description: 'Digital age criminal activities' },
+        { value: 'art_forgery', label: '🎨 Art Forgery & Fraud', description: 'Fake artworks and cultural crimes' }
+      ],
+      // Social Games
+      'couples_challenge': [
+        { value: 'childhood_memories', label: '🧸 Childhood Memories', description: 'Early life experiences and stories' },
+        { value: 'future_dreams', label: '✨ Future Dreams', description: 'Goals and aspirations together' },
+        { value: 'preferences_habits', label: '💭 Preferences & Habits', description: 'Daily routines and likes/dislikes' },
+        { value: 'relationship_milestones', label: '💕 Relationship Milestones', description: 'Important moments together' },
+        { value: 'family_friends', label: '👥 Family & Friends', description: 'People important to both of you' },
+        { value: 'travel_adventures', label: '✈️ Travel & Adventures', description: 'Places visited and dream destinations' },
+        { value: 'values_beliefs', label: '🤝 Values & Beliefs', description: 'Core principles and worldviews' },
+        { value: 'fun_quirks', label: '😄 Fun & Quirks', description: 'Unique traits and funny habits' }
+      ],
+      // Strategy Games
+      'strategy_showdown': [
+        { value: 'resource_management', label: '📊 Resource Management', description: 'Allocation and optimization challenges' },
+        { value: 'military_tactics', label: '⚔️ Military Tactics', description: 'Battle strategies and warfare' },
+        { value: 'business_empire', label: '🏢 Business Empire', description: 'Corporate strategy and expansion' },
+        { value: 'city_building', label: '🏗️ City Building', description: 'Urban planning and development' },
+        { value: 'diplomatic_negotiations', label: '🤝 Diplomatic Negotiations', description: 'International relations and treaties' },
+        { value: 'survival_scenarios', label: '🏕️ Survival Scenarios', description: 'Wilderness and emergency situations' },
+        { value: 'space_colonization', label: '🚀 Space Colonization', description: 'Galactic expansion and exploration' },
+        { value: 'economic_markets', label: '📈 Economic Markets', description: 'Trading and financial strategies' }
+      ],
+      // Word Games
+      'hangman_themed': [
+        { value: 'movie_titles', label: '🎬 Movie Titles', description: 'Famous films and cinema' },
+        { value: 'book_authors', label: '📚 Books & Authors', description: 'Literature and famous writers' },
+        { value: 'countries_capitals', label: '🌍 Countries & Capitals', description: 'Geography and world knowledge' },
+        { value: 'programming_terms', label: '💻 Programming Terms', description: 'Coding and tech vocabulary' },
+        { value: 'song_titles', label: '🎵 Song Titles', description: 'Music hits and artists' },
+        { value: 'food_dishes', label: '🍕 Food & Dishes', description: 'Cuisine from around the world' },
+        { value: 'animal_species', label: '🦁 Animal Species', description: 'Wildlife and nature' },
+        { value: 'space_astronomy', label: '🌟 Space & Astronomy', description: 'Celestial bodies and space exploration' }
+      ],
+      'guess_the_song': [
+        { value: 'pop_hits', label: '🎤 Pop Hits', description: 'Mainstream popular music' },
+        { value: 'rock_classics', label: '🎸 Rock Classics', description: 'Rock and metal anthems' },
+        { value: 'hip_hop_rap', label: '🎧 Hip Hop & Rap', description: 'Urban music and rap culture' },
+        { value: 'country_folk', label: '🤠 Country & Folk', description: 'Traditional and country music' },
+        { value: 'electronic_dance', label: '🕺 Electronic & Dance', description: 'EDM and electronic music' },
+        { value: 'jazz_blues', label: '🎺 Jazz & Blues', description: 'Classic jazz and blues standards' },
+        { value: 'movie_soundtracks', label: '🎬 Movie Soundtracks', description: 'Film and TV show music' },
+        { value: 'indie_alternative', label: '🎶 Indie & Alternative', description: 'Independent and alternative music' }
+      ],
+      'guess_the_title': [
+        { value: 'blockbuster_movies', label: '🎬 Blockbuster Movies', description: 'Popular Hollywood films' },
+        { value: 'tv_series', label: '📺 TV Series', description: 'Popular television shows' },
+        { value: 'anime_shows', label: '🇯🇵 Anime Shows', description: 'Japanese animated series' },
+        { value: 'classic_literature', label: '📚 Classic Literature', description: 'Famous books and novels' },
+        { value: 'video_games', label: '🎮 Video Games', description: 'Popular gaming titles' },
+        { value: 'broadway_musicals', label: '🎭 Broadway Musicals', description: 'Theater and stage productions' },
+        { value: 'documentaries', label: '📹 Documentaries', description: 'Non-fiction films and series' },
+        { value: 'graphic_novels', label: '📖 Graphic Novels', description: 'Comics and graphic storytelling' }
+      ],
+      // Educational Games
+      'language_learning_games': [
+        { value: 'vocabulary_basics', label: '📝 Vocabulary Basics', description: 'Essential words and phrases' },
+        { value: 'grammar_rules', label: '📖 Grammar Rules', description: 'Language structure and syntax' },
+        { value: 'conversational_phrases', label: '💬 Conversational Phrases', description: 'Everyday communication' },
+        { value: 'cultural_expressions', label: '🌍 Cultural Expressions', description: 'Idioms and cultural context' },
+        { value: 'business_language', label: '💼 Business Language', description: 'Professional communication' },
+        { value: 'travel_phrases', label: '✈️ Travel Phrases', description: 'Essential travel vocabulary' },
+        { value: 'academic_terminology', label: '🎓 Academic Terminology', description: 'Educational and scholarly language' },
+        { value: 'pronunciation_practice', label: '🗣️ Pronunciation Practice', description: 'Speaking and accent training' }
+      ],
+      'coding_challenge': [
+        { value: 'algorithms_basics', label: '🧮 Algorithms Basics', description: 'Fundamental programming concepts' },
+        { value: 'data_structures', label: '📊 Data Structures', description: 'Arrays, lists, trees, and graphs' },
+        { value: 'web_development', label: '🌐 Web Development', description: 'HTML, CSS, JavaScript challenges' },
+        { value: 'database_queries', label: '💾 Database Queries', description: 'SQL and database management' },
+        { value: 'machine_learning', label: '🤖 Machine Learning', description: 'AI and ML programming' },
+        { value: 'mobile_development', label: '📱 Mobile Development', description: 'App development challenges' },
+        { value: 'cybersecurity', label: '🔒 Cybersecurity', description: 'Security and encryption problems' },
+        { value: 'system_design', label: '🏗️ System Design', description: 'Architecture and scalability' }
+      ],
+      // Adventure Games
+      'time_machine_adventures': [
+        { value: 'ancient_civilizations', label: '🏛️ Ancient Civilizations', description: 'Egypt, Rome, Greece, and more' },
+        { value: 'medieval_times', label: '⚔️ Medieval Times', description: 'Knights, castles, and kingdoms' },
+        { value: 'industrial_revolution', label: '🏭 Industrial Revolution', description: 'Steam power and innovation' },
+        { value: 'world_wars', label: '🪖 World Wars', description: 'Major historical conflicts' },
+        { value: 'space_age', label: '🚀 Space Age', description: 'Moon landing and space exploration' },
+        { value: 'digital_age', label: '💻 Digital Age', description: 'Internet and computer revolution' },
+        { value: 'prehistoric_era', label: '🦕 Prehistoric Era', description: 'Dinosaurs and early life' },
+        { value: 'future_scenarios', label: '🔮 Future Scenarios', description: 'Speculative future timelines' }
+      ],
+      'alien_first_contact': [
+        { value: 'peaceful_diplomacy', label: '🕊️ Peaceful Diplomacy', description: 'Friendly alien encounters' },
+        { value: 'trade_negotiations', label: '🤝 Trade Negotiations', description: 'Resource and technology exchange' },
+        { value: 'cultural_exchange', label: '🌍 Cultural Exchange', description: 'Sharing knowledge and traditions' },
+        { value: 'territorial_disputes', label: '🗺️ Territorial Disputes', description: 'Space and planetary boundaries' },
+        { value: 'scientific_collaboration', label: '🔬 Scientific Collaboration', description: 'Joint research and discovery' },
+        { value: 'military_tensions', label: '⚔️ Military Tensions', description: 'Defense and conflict scenarios' },
+        { value: 'environmental_concerns', label: '🌱 Environmental Concerns', description: 'Planetary protection and ecology' },
+        { value: 'communication_protocols', label: '📡 Communication Protocols', description: 'Language and signal exchange' }
+      ],
+      // More Trivia Games
+      'niche_hobbyist_corner': [
+        { value: 'mythology_folklore', label: '🐉 Mythology & Folklore', description: 'Ancient myths and cultural legends' },
+        { value: 'world_cuisine', label: '🍜 World Cuisine', description: 'International foods and cooking traditions' },
+        { value: 'internet_history', label: '💻 Internet History', description: 'Digital culture and online evolution' },
+        { value: 'fashion_history', label: '👗 Fashion History', description: 'Style trends and fashion evolution' },
+        { value: 'rare_collectibles', label: '💎 Rare Collectibles', description: 'Antiques, coins, and valuable items' },
+        { value: 'obscure_sports', label: '🥏 Obscure Sports', description: 'Unusual and niche sporting activities' },
+        { value: 'urban_legends', label: '🌃 Urban Legends', description: 'Modern folklore and mysterious tales' },
+        { value: 'nerd_culture', label: '🤓 Nerd Culture', description: 'Comics, sci-fi, and geek interests' }
+      ],
+      'twenty_questions': [
+        { value: 'fictional_universes', label: '🌟 Fictional Universes', description: 'Characters from movies, books, games' },
+        { value: 'historical_objects', label: '🏺 Historical Objects', description: 'Ancient artifacts and historical items' },
+        { value: 'modern_inventions', label: '💡 Modern Inventions', description: 'Contemporary gadgets and innovations' },
+        { value: 'natural_phenomena', label: '🌪️ Natural Phenomena', description: 'Weather, geology, and natural events' },
+        { value: 'fantasy_creatures', label: '🦄 Fantasy Creatures', description: 'Mythical beings and magical creatures' },
+        { value: 'space_objects', label: '🌌 Space Objects', description: 'Celestial bodies and cosmic phenomena' },
+        { value: 'everyday_items', label: '🏠 Everyday Items', description: 'Common household and daily objects' },
+        { value: 'abstract_concepts', label: '💭 Abstract Concepts', description: 'Ideas, emotions, and philosophical concepts' }
+      ],
+      // Social Games
+      'courtroom_drama': [
+        { value: 'silly_crimes', label: '🤡 Silly Crimes', description: 'Absurd and humorous legal cases' },
+        { value: 'relationship_disputes', label: '💔 Relationship Disputes', description: 'Dating and friendship conflicts' },
+        { value: 'workplace_conflicts', label: '💼 Workplace Conflicts', description: 'Office drama and professional disputes' },
+        { value: 'neighbor_troubles', label: '🏠 Neighbor Troubles', description: 'Community and residential issues' },
+        { value: 'internet_drama', label: '📱 Internet Drama', description: 'Social media and online conflicts' },
+        { value: 'family_feuds', label: '👨‍👩‍👧‍👦 Family Feuds', description: 'Household and family disagreements' },
+        { value: 'pet_problems', label: '🐕 Pet Problems', description: 'Animal-related legal troubles' },
+        { value: 'food_fights', label: '🍕 Food Fights', description: 'Culinary conflicts and restaurant disputes' }
+      ],
+      'two_sides_story': [
+        { value: 'shared_vacations', label: '✈️ Shared Vacations', description: 'Travel memories and experiences' },
+        { value: 'first_meetings', label: '👋 First Meetings', description: 'How relationships began' },
+        { value: 'memorable_events', label: '🎉 Memorable Events', description: 'Special occasions and celebrations' },
+        { value: 'funny_mishaps', label: '😂 Funny Mishaps', description: 'Embarrassing and amusing incidents' },
+        { value: 'learning_moments', label: '📚 Learning Moments', description: 'Educational and growth experiences' },
+        { value: 'adventures_together', label: '🗺️ Adventures Together', description: 'Shared explorations and discoveries' },
+        { value: 'challenges_overcome', label: '💪 Challenges Overcome', description: 'Difficulties faced and conquered' },
+        { value: 'daily_routines', label: '☕ Daily Routines', description: 'Everyday moments and habits' }
+      ],
+      'memory_lane': [
+        { value: 'childhood_stories', label: '🧸 Childhood Stories', description: 'Early memories and growing up' },
+        { value: 'school_days', label: '🎓 School Days', description: 'Educational experiences and friends' },
+        { value: 'family_traditions', label: '👨‍👩‍👧‍👦 Family Traditions', description: 'Cultural customs and celebrations' },
+        { value: 'career_journey', label: '💼 Career Journey', description: 'Professional growth and achievements' },
+        { value: 'life_milestones', label: '🏆 Life Milestones', description: 'Important achievements and moments' },
+        { value: 'seasonal_memories', label: '🌸 Seasonal Memories', description: 'Holidays and seasonal experiences' },
+        { value: 'friendship_bonds', label: '🤝 Friendship Bonds', description: 'Social connections and relationships' },
+        { value: 'personal_growth', label: '🌱 Personal Growth', description: 'Self-improvement and development' }
+      ],
+      'dare_or_describe': [
+        { value: 'appreciation_dares', label: '💕 Appreciation Dares', description: 'Express gratitude and love' },
+        { value: 'creative_challenges', label: '🎨 Creative Challenges', description: 'Artistic and imaginative tasks' },
+        { value: 'physical_activities', label: '🤸‍♀️ Physical Activities', description: 'Safe movement and exercise' },
+        { value: 'skill_demonstrations', label: '🎭 Skill Demonstrations', description: 'Show talents and abilities' },
+        { value: 'communication_games', label: '💬 Communication Games', description: 'Verbal and non-verbal expression' },
+        { value: 'memory_sharing', label: '🧠 Memory Sharing', description: 'Tell stories and experiences' },
+        { value: 'future_planning', label: '🔮 Future Planning', description: 'Dreams and goal-setting' },
+        { value: 'personality_reveals', label: '🎪 Personality Reveals', description: 'Character traits and preferences' }
+      ],
+      // Puzzle and Logic Games
+      'escape_room': [
+        { value: 'haunted_mansion', label: '👻 Haunted Mansion', description: 'Spooky supernatural mysteries' },
+        { value: 'space_station', label: '🚀 Space Station', description: 'Sci-fi technology puzzles' },
+        { value: 'ancient_temple', label: '🏛️ Ancient Temple', description: 'Archaeological adventure puzzles' },
+        { value: 'detective_office', label: '🔍 Detective Office', description: 'Crime-solving investigations' },
+        { value: 'wizard_tower', label: '🧙‍♂️ Wizard Tower', description: 'Magical and fantasy puzzles' },
+        { value: 'pirate_ship', label: '🏴‍☠️ Pirate Ship', description: 'Nautical adventure challenges' },
+        { value: 'laboratory', label: '🧪 Laboratory', description: 'Scientific experiment puzzles' },
+        { value: 'time_machine', label: '⏰ Time Machine', description: 'Temporal paradox challenges' }
+      ],
+      'solo_adventure': [
+        { value: 'fantasy_realm', label: '🗡️ Fantasy Realm', description: 'Magic, dragons, and epic quests' },
+        { value: 'cyberpunk_city', label: '🌃 Cyberpunk City', description: 'Futuristic urban adventures' },
+        { value: 'post_apocalypse', label: '☢️ Post-Apocalypse', description: 'Survival in ruined worlds' },
+        { value: 'space_exploration', label: '🚀 Space Exploration', description: 'Galactic adventures and alien worlds' },
+        { value: 'historical_setting', label: '🏛️ Historical Setting', description: 'Adventures in past eras' },
+        { value: 'modern_thriller', label: '🕴️ Modern Thriller', description: 'Contemporary action and suspense' },
+        { value: 'supernatural_horror', label: '👻 Supernatural Horror', description: 'Paranormal and scary encounters' },
+        { value: 'detective_noir', label: '🔍 Detective Noir', description: 'Mystery solving in dark settings' }
+      ],
+      'five_levels_challenge': [
+        { value: 'science_concepts', label: '🔬 Science Concepts', description: 'Physics, chemistry, biology explained' },
+        { value: 'technology_topics', label: '💻 Technology Topics', description: 'AI, internet, and digital concepts' },
+        { value: 'philosophical_ideas', label: '🤔 Philosophical Ideas', description: 'Ethics, existence, and meaning' },
+        { value: 'economic_principles', label: '💰 Economic Principles', description: 'Markets, money, and trade systems' },
+        { value: 'historical_events', label: '📚 Historical Events', description: 'Major moments in human history' },
+        { value: 'art_movements', label: '🎨 Art Movements', description: 'Creative styles and cultural periods' },
+        { value: 'mathematical_concepts', label: '📐 Mathematical Concepts', description: 'Numbers, patterns, and calculations' },
+        { value: 'psychological_phenomena', label: '🧠 Psychological Phenomena', description: 'Human behavior and mental processes' }
+      ],
+      'code_breaker': [
+        { value: 'cipher_puzzles', label: '🔐 Cipher Puzzles', description: 'Secret codes and encryption challenges' },
+        { value: 'logic_riddles', label: '🧩 Logic Riddles', description: 'Deductive reasoning problems' },
+        { value: 'pattern_recognition', label: '🔢 Pattern Recognition', description: 'Sequence and pattern challenges' },
+        { value: 'mathematical_codes', label: '📐 Mathematical Codes', description: 'Number-based puzzles and sequences' },
+        { value: 'word_ciphers', label: '📝 Word Ciphers', description: 'Language and letter-based codes' },
+        { value: 'visual_puzzles', label: '👁️ Visual Puzzles', description: 'Image and symbol decoding' },
+        { value: 'historical_codes', label: '📜 Historical Codes', description: 'Famous encryption methods' },
+        { value: 'mastermind_games', label: '🎯 Mastermind Games', description: 'Color and symbol deduction' }
+      ],
+      'connect_dots': [
+        { value: 'historical_connections', label: '📚 Historical Connections', description: 'Link events across time periods' },
+        { value: 'scientific_discoveries', label: '🔬 Scientific Discoveries', description: 'Connect research and innovations' },
+        { value: 'cultural_influences', label: '🌍 Cultural Influences', description: 'Trace cultural exchange and impact' },
+        { value: 'technological_evolution', label: '💻 Technological Evolution', description: 'Follow tech development chains' },
+        { value: 'artistic_movements', label: '🎨 Artistic Movements', description: 'Connect creative periods and styles' },
+        { value: 'philosophical_threads', label: '🤔 Philosophical Threads', description: 'Trace ideas and thinkers' },
+        { value: 'economic_systems', label: '💰 Economic Systems', description: 'Connect trade and financial concepts' },
+        { value: 'language_etymology', label: '🗣️ Language Etymology', description: 'Word origins and linguistic connections' }
+      ],
+      // Educational & Academic Games
+      'math_physics_challenge': [
+        { value: 'basic_arithmetic', label: '🔢 Basic Arithmetic', description: 'Addition, subtraction, multiplication, division' },
+        { value: 'algebra_geometry', label: '📐 Algebra & Geometry', description: 'Equations, shapes, and spatial reasoning' },
+        { value: 'calculus_analysis', label: '📊 Calculus & Analysis', description: 'Derivatives, integrals, and functions' },
+        { value: 'classical_physics', label: '⚽ Classical Physics', description: 'Mechanics, thermodynamics, waves' },
+        { value: 'quantum_physics', label: '🌌 Quantum Physics', description: 'Atomic and subatomic phenomena' },
+        { value: 'relativity_cosmology', label: '🚀 Relativity & Cosmology', description: 'Space-time and universe structure' },
+        { value: 'applied_mathematics', label: '🛠️ Applied Mathematics', description: 'Statistics, probability, engineering math' },
+        { value: 'theoretical_concepts', label: '🤔 Theoretical Concepts', description: 'Abstract mathematical and physical ideas' }
+      ],
+      'chemistry_lab': [
+        { value: 'periodic_table', label: '🧪 Periodic Table', description: 'Elements, properties, and periodic trends' },
+        { value: 'chemical_reactions', label: '⚗️ Chemical Reactions', description: 'Bonding, equations, and reaction types' },
+        { value: 'organic_chemistry', label: '🧬 Organic Chemistry', description: 'Carbon compounds and biochemistry' },
+        { value: 'laboratory_techniques', label: '🔬 Laboratory Techniques', description: 'Equipment, procedures, and safety' },
+        { value: 'molecular_structure', label: '⚛️ Molecular Structure', description: 'Atomic structure and chemical bonding' },
+        { value: 'acid_base_chemistry', label: '🧽 Acid-Base Chemistry', description: 'pH, titrations, and ionic solutions' },
+        { value: 'thermochemistry', label: '🔥 Thermochemistry', description: 'Energy changes in chemical reactions' },
+        { value: 'environmental_chemistry', label: '🌱 Environmental Chemistry', description: 'Pollution, sustainability, and green chemistry' }
+      ],
+      'astronomy_explorer': [
+        { value: 'solar_system', label: '🪐 Solar System', description: 'Planets, moons, and celestial mechanics' },
+        { value: 'stellar_evolution', label: '⭐ Stellar Evolution', description: 'Star formation, life cycles, and death' },
+        { value: 'galaxies_universe', label: '🌌 Galaxies & Universe', description: 'Cosmic structure and cosmology' },
+        { value: 'space_exploration', label: '🚀 Space Exploration', description: 'Missions, spacecraft, and space technology' },
+        { value: 'exoplanets', label: '🌍 Exoplanets', description: 'Planets beyond our solar system' },
+        { value: 'black_holes', label: '🕳️ Black Holes', description: 'Extreme gravity and spacetime phenomena' },
+        { value: 'astrobiology', label: '👽 Astrobiology', description: 'Search for life in the universe' },
+        { value: 'observation_techniques', label: '🔭 Observation Techniques', description: 'Telescopes and astronomical instruments' }
+      ],
+      'medical_mysteries': [
+        { value: 'human_anatomy', label: '🫀 Human Anatomy', description: 'Body systems and organ functions' },
+        { value: 'disease_diagnosis', label: '🩺 Disease Diagnosis', description: 'Symptoms, conditions, and medical detection' },
+        { value: 'medical_history', label: '📚 Medical History', description: 'Historical breakthroughs and discoveries' },
+        { value: 'pharmacology', label: '💊 Pharmacology', description: 'Drug actions, interactions, and treatments' },
+        { value: 'surgical_procedures', label: '🏥 Surgical Procedures', description: 'Operations and medical interventions' },
+        { value: 'public_health', label: '🌍 Public Health', description: 'Epidemiology, prevention, and global health' },
+        { value: 'medical_technology', label: '🔬 Medical Technology', description: 'Equipment, imaging, and innovations' },
+        { value: 'genetic_medicine', label: '🧬 Genetic Medicine', description: 'DNA, heredity, and genetic disorders' }
+      ],
+      'pharmacy_knowledge': [
+        { value: 'drug_classifications', label: '💊 Drug Classifications', description: 'Medication categories and therapeutic uses' },
+        { value: 'pharmaceutical_chemistry', label: '⚗️ Pharmaceutical Chemistry', description: 'Drug composition and molecular structure' },
+        { value: 'drug_interactions', label: '⚠️ Drug Interactions', description: 'Medication compatibility and safety' },
+        { value: 'dosage_administration', label: '💉 Dosage & Administration', description: 'Proper medication use and delivery' },
+        { value: 'side_effects', label: '🤒 Side Effects', description: 'Adverse reactions and monitoring' },
+        { value: 'pharmaceutical_history', label: '📚 Pharmaceutical History', description: 'Drug discovery and development' },
+        { value: 'regulatory_aspects', label: '📋 Regulatory Aspects', description: 'FDA approval and drug safety' },
+        { value: 'clinical_trials', label: '🧪 Clinical Trials', description: 'Research and testing procedures' }
+      ],
+      'biology_quest': [
+        { value: 'cell_biology', label: '🔬 Cell Biology', description: 'Cellular structure, function, and processes' },
+        { value: 'genetics_heredity', label: '🧬 Genetics & Heredity', description: 'DNA, genes, and inheritance patterns' },
+        { value: 'evolution', label: '🦕 Evolution', description: 'Natural selection and species development' },
+        { value: 'ecology_environment', label: '🌿 Ecology & Environment', description: 'Ecosystems, biodiversity, and conservation' },
+        { value: 'human_biology', label: '👨‍⚕️ Human Biology', description: 'Physiology and body systems' },
+        { value: 'microbiology', label: '🦠 Microbiology', description: 'Bacteria, viruses, and microorganisms' },
+        { value: 'plant_biology', label: '🌱 Plant Biology', description: 'Botany, photosynthesis, and plant life' },
+        { value: 'marine_biology', label: '🐠 Marine Biology', description: 'Ocean life and aquatic ecosystems' }
+      ],
+      'history_detective': [
+        { value: 'ancient_civilizations', label: '🏛️ Ancient Civilizations', description: 'Egypt, Greece, Rome, and early societies' },
+        { value: 'medieval_period', label: '🏰 Medieval Period', description: 'Middle Ages, knights, and feudalism' },
+        { value: 'world_wars', label: '⚔️ World Wars', description: 'Global conflicts and their impact' },
+        { value: 'historical_mysteries', label: '🔍 Historical Mysteries', description: 'Unsolved events and lost civilizations' },
+        { value: 'cultural_movements', label: '🎭 Cultural Movements', description: 'Renaissance, Enlightenment, and cultural shifts' },
+        { value: 'exploration_discovery', label: '🗺️ Exploration & Discovery', description: 'Age of exploration and new worlds' },
+        { value: 'revolution_reform', label: '✊ Revolution & Reform', description: 'Political and social transformations' },
+        { value: 'biographical_figures', label: '👤 Biographical Figures', description: 'Famous historical personalities' }
+      ],
+      'language_master': [
+        { value: 'etymology_origins', label: '📚 Etymology & Origins', description: 'Word histories and linguistic roots' },
+        { value: 'translation_challenges', label: '🔄 Translation Challenges', description: 'Cross-language communication' },
+        { value: 'linguistic_patterns', label: '🔤 Linguistic Patterns', description: 'Grammar, syntax, and language structure' },
+        { value: 'cultural_expressions', label: '🌍 Cultural Expressions', description: 'Idioms, proverbs, and cultural language' },
+        { value: 'dead_languages', label: '📜 Dead Languages', description: 'Latin, Ancient Greek, and historical languages' },
+        { value: 'modern_languages', label: '🗣️ Modern Languages', description: 'Contemporary global languages' },
+        { value: 'sign_languages', label: '👐 Sign Languages', description: 'Visual-gestural communication systems' },
+        { value: 'language_families', label: '🌳 Language Families', description: 'Related languages and linguistic evolution' }
+      ],
+      'art_appreciation': [
+        { value: 'classical_art', label: '🏛️ Classical Art', description: 'Ancient Greek and Roman artistic traditions' },
+        { value: 'renaissance_masters', label: '🎨 Renaissance Masters', description: 'Da Vinci, Michelangelo, and artistic revolution' },
+        { value: 'modern_movements', label: '🖼️ Modern Movements', description: 'Impressionism, cubism, and contemporary art' },
+        { value: 'sculpture_3d', label: '🗿 Sculpture & 3D', description: 'Three-dimensional artistic expressions' },
+        { value: 'art_techniques', label: '🖌️ Art Techniques', description: 'Painting methods, materials, and styles' },
+        { value: 'cultural_art', label: '🌍 Cultural Art', description: 'Non-Western and indigenous artistic traditions' },
+        { value: 'digital_art', label: '💻 Digital Art', description: 'Contemporary digital and multimedia art' },
+        { value: 'art_history', label: '📚 Art History', description: 'Artistic periods and cultural context' }
+      ],
+      'philosophy_cafe': [
+        { value: 'ethical_dilemmas', label: '⚖️ Ethical Dilemmas', description: 'Moral philosophy and ethical reasoning' },
+        { value: 'existence_reality', label: '🌌 Existence & Reality', description: 'Metaphysics and nature of reality' },
+        { value: 'knowledge_truth', label: '🧠 Knowledge & Truth', description: 'Epistemology and ways of knowing' },
+        { value: 'political_philosophy', label: '🏛️ Political Philosophy', description: 'Government, justice, and social contracts' },
+        { value: 'consciousness_mind', label: '💭 Consciousness & Mind', description: 'Philosophy of mind and consciousness' },
+        { value: 'ancient_philosophy', label: '📜 Ancient Philosophy', description: 'Greek, Roman, and Eastern philosophical traditions' },
+        { value: 'modern_philosophy', label: '🎓 Modern Philosophy', description: 'Enlightenment and contemporary philosophical thought' },
+        { value: 'thought_experiments', label: '🧪 Thought Experiments', description: 'Hypothetical scenarios and philosophical puzzles' }
+      ],
+      'psychology_insights': [
+        { value: 'cognitive_biases', label: '🧠 Cognitive Biases', description: 'Mental shortcuts and thinking errors' },
+        { value: 'behavioral_psychology', label: '👥 Behavioral Psychology', description: 'Human behavior patterns and conditioning' },
+        { value: 'developmental_psychology', label: '👶 Developmental Psychology', description: 'Human growth and life stages' },
+        { value: 'social_psychology', label: '👫 Social Psychology', description: 'Group behavior and social influence' },
+        { value: 'mental_health', label: '💚 Mental Health', description: 'Psychological well-being and disorders' },
+        { value: 'famous_experiments', label: '🔬 Famous Experiments', description: 'Landmark psychological studies' },
+        { value: 'personality_psychology', label: '🎭 Personality Psychology', description: 'Individual differences and traits' },
+        { value: 'neuroscience_brain', label: '🧠 Neuroscience & Brain', description: 'Brain function and neurological basis of behavior' }
+      ],
+      'economics_game': [
+        { value: 'market_dynamics', label: '📈 Market Dynamics', description: 'Supply, demand, and price mechanisms' },
+        { value: 'financial_concepts', label: '💰 Financial Concepts', description: 'Banking, investing, and financial markets' },
+        { value: 'economic_history', label: '📚 Economic History', description: 'Historical economic events and systems' },
+        { value: 'personal_finance', label: '💳 Personal Finance', description: 'Budgeting, saving, and money management' },
+        { value: 'global_economics', label: '🌍 Global Economics', description: 'International trade and economic relations' },
+        { value: 'economic_theory', label: '🎓 Economic Theory', description: 'Keynesian, classical, and modern economic thought' },
+        { value: 'behavioral_economics', label: '🧠 Behavioral Economics', description: 'Psychology and decision-making in economics' },
+        { value: 'cryptocurrency_tech', label: '₿ Cryptocurrency & Tech', description: 'Digital currencies and financial technology' }
+      ],
+      'geography_explorer': [
+        { value: 'world_capitals', label: '🏛️ World Capitals', description: 'Capital cities and political geography' },
+        { value: 'natural_wonders', label: '🏔️ Natural Wonders', description: 'Mountains, rivers, and geological features' },
+        { value: 'cultural_landmarks', label: '🗿 Cultural Landmarks', description: 'Famous monuments and cultural sites' },
+        { value: 'climate_weather', label: '🌤️ Climate & Weather', description: 'Weather patterns and climate zones' },
+        { value: 'countries_flags', label: '🏳️ Countries & Flags', description: 'Nations, borders, and national symbols' },
+        { value: 'population_demographics', label: '👥 Population & Demographics', description: 'Human geography and population patterns' },
+        { value: 'economic_geography', label: '💼 Economic Geography', description: 'Resources, trade, and economic regions' },
+        { value: 'geographical_phenomena', label: '🌋 Geographical Phenomena', description: 'Earthquakes, volcanoes, and natural processes' }
+      ]
+    };
+
+    return topicMap[gameId] || [
+      { value: 'general', label: '🌍 General Knowledge', description: 'Wide variety of topics' },
+      { value: 'custom', label: '✨ Custom Topic', description: 'Specify your own topic' }
+    ];
+  };
+
+  const gameTopics = getGameSpecificTopics(gameId);
 
   const handleCreate = async () => {
     setIsCreating(true);
@@ -504,6 +927,8 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
 export default function GameLibrary() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
+  const { createGameWithQuestions } = useGameMutations();
 
   // Use static data for now
   const games = GAME_DATA;
@@ -516,6 +941,7 @@ export default function GameLibrary() {
   const [sortBy, setSortBy] = useState<'name' | 'popularity' | 'duration'>('name');
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
   const [demoGame, setDemoGame] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   const filteredAndSortedGames = useMemo(() => {
     let filtered = games.filter((game: GameLibraryItem) => {
@@ -542,59 +968,50 @@ export default function GameLibrary() {
   }, [games, searchTerm, selectedCategory, sortBy]);
 
   const handleCreateGame = async (request: CreateGameRequest) => {
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in to create a game.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    setIsCreating(true);
     try {
-      toast({
-        title: "🎮 Creating Game...",
-        description: `Setting up ${request.game_type} with AI-generated questions...`,
-      });
-
-      // Create the game via API route
-      const response = await fetch('/api/games/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create game');
-      }
-
-      const result = await response.json();
-
-      toast({
-        title: "🚀 Game Created Successfully!",
-        description: `Your ${request.game_type} game is ready with personalized AI questions in ${result.settings_applied.language === 'en' ? 'English' : result.settings_applied.language}.`,
-      });
-
-      console.log('Game created:', result);
+      const result = await createGameWithQuestions(request);
       
-      // Navigate to Active Games tab with refresh parameter
-      if (typeof window !== 'undefined') {
-        // Use a small delay to ensure the game is fully created
-        setTimeout(() => {
-          window.location.href = '/games?tab=active&refresh=true';
-        }, 1000);
+      if (result.success && result.game_id) {
+        toast({
+          title: "🎮 Game Created Successfully!",
+          description: result.auto_started 
+            ? "Solo game started immediately. Redirecting to play..."
+            : "Game created! Invite friends or start playing.",
+          duration: 3000,
+        });
+        
+        setSelectedGame(null);
+        
+        // For solo games, redirect immediately to the game
+        if (result.auto_started) {
+          setTimeout(() => {
+            router.push(`/games/play/${result.game_id}`);
+          }, 1000); // Brief delay to show the toast
+        } else {
+          // For multiplayer games, redirect to active games tab
+          setTimeout(() => {
+            router.push('/games?tab=active&refresh=true');
+          }, 1000);
+        }
+      } else {
+        toast({
+          title: "❌ Failed to Create Game",
+          description: result.error || "An unexpected error occurred",
+          variant: "destructive",
+          duration: 5000,
+        });
       }
-      
     } catch (error) {
-      console.error('Failed to create game:', error);
+      console.error('Game creation error:', error);
       toast({
         title: "❌ Game Creation Failed",
-        description: error instanceof Error ? error.message : "There was an error creating your game. Please try again.",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
+        duration: 5000,
       });
+    } finally {
+      setIsCreating(false);
     }
   };
 

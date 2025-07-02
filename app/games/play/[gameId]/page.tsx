@@ -3,22 +3,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
 import { useAuth } from '@/context/auth-provider';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useSupabaseGame, useSupabaseGameMutations, useGameTimer } from '@/hooks/useSupabaseGames';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/hooks/use-toast';
 import { 
-  Clock, Trophy, Zap, Users, ArrowLeft, CheckCircle, 
-  XCircle, Brain, Target, Star, Crown, Timer,
-  Sparkles, Heart, Flame, TrendingUp
+  Clock, Users, Trophy, Star, Zap, ArrowRight, SkipForward,
+  CheckCircle2, XCircle, Brain, Timer, Crown, Target,
+  Pause, Play, Home, RotateCcw, AlertCircle, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
+
+// Import types from Supabase service
+import { GameRoom, GamePlayer } from '@/lib/services/SupabaseGameService';
 
 type GameStatus = "lobby" | "in_progress" | "finished" | "cancelled";
 
@@ -26,45 +28,16 @@ type Question = {
   question: string;
   options: string[];
   correct_answer: number;
-  explanation?: string;
+  explanation: string;
   difficulty: string;
   category?: string;
 };
 
-type Player = {
-  user_id: string;
-  username: string;
-  avatar_url?: string;
-  score: number;
-  is_ready: boolean;
-};
-
-type GameData = {
-  _id: Id<"live_games">;
-  game_type: string;
-  status: GameStatus;
-  current_round: number;
-  rounds: number;
-  host_user_id: string;
-  players: Player[];
-  questions?: Question[];
-  current_question?: {
-    question: string;
-    options: string[];
-    time_limit: number;
-    started_at: number;
-  };
-  settings?: {
-    auto_advance?: boolean;
-    show_explanations?: boolean;
-    time_per_question?: number;
-    language?: string;
-    ai_personality?: string;
-    topic_focus?: string;
-  };
-  created_at?: number;
-  difficulty: string;
-  mode: "solo" | "multiplayer";
+type CurrentQuestion = {
+  question: string;
+  options: string[];
+  time_limit: number;
+  started_at: number;
 };
 
 export default function GamePlayPage() {
@@ -73,496 +46,571 @@ export default function GamePlayPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   
-  const gameId = params.gameId as Id<"live_games">;
+  const roomId = params.gameId as string;
   
-  // Fetch game data
-  const gameData = useQuery(api.games.getGame, gameId ? { game_id: gameId } : "skip") as GameData | null;
-  
+  // Fetch game data using Supabase hooks
+  const { game: gameData, players, isLoading, error } = useSupabaseGame(roomId);
+  const { 
+    submitAnswer: submitAnswerMutation, 
+    nextQuestion: nextQuestionMutation, 
+    skipQuestion: skipQuestionMutation 
+  } = useSupabaseGameMutations();
+
   // Game state
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [hasAnswered, setHasAnswered] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(30);
   const [showResults, setShowResults] = useState(false);
-  
-  // Mutations
-  const submitAnswer = useMutation(api.games.submitAnswer);
-  const nextQuestion = useMutation(api.games.nextQuestion);
-  
-  // Timer effect
+  const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
+  const [lastAnswerResult, setLastAnswerResult] = useState<{
+    isCorrect: boolean;
+    pointsEarned: number;
+    explanation?: string;
+  } | null>(null);
+
+  // Timer for current question
+  const currentQuestion = gameData?.current_question;
+  const { timeRemaining, isActive: timerActive } = useGameTimer(
+    currentQuestion?.started_at || null,
+    currentQuestion?.time_limit || 30,
+    hasAnswered // Stop timer when answer is submitted
+  );
+
+  // Reset answer state when question changes (for auto-advance)
   useEffect(() => {
-    if (!gameData?.current_question || hasAnswered) return;
-    
-    const startTime = gameData.current_question.started_at;
-    const timeLimit = gameData.current_question.time_limit;
-    
-    const timer = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const remaining = Math.max(0, timeLimit - Math.floor(elapsed / 1000));
+    if (gameData?.current_question_index !== undefined) {
+      console.log(`🔄 Question changed to index ${gameData.current_question_index}, resetting UI state`);
+      console.log(`   New question timer started at: ${gameData.current_question?.started_at}`);
+      console.log(`   Time limit: ${gameData.current_question?.time_limit}s`);
       
-      setTimeRemaining(remaining);
-      
-      if (remaining === 0 && !hasAnswered) {
-        handleTimeUp();
-      }
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, [gameData?.current_question, hasAnswered]);
-  
-  const handleTimeUp = useCallback(async () => {
-    if (hasAnswered) return;
-    
-    setHasAnswered(true);
-    toast({
-      title: "⏰ Time's Up!",
-      description: "Moving to next question...",
-      variant: "destructive",
-    });
-    
+      setSelectedAnswer(null);
+      setHasAnswered(false);
+      setShowResults(false);
+      setLastAnswerResult(null);
+      setIsAutoAdvancing(false);
+    }
+  }, [gameData?.current_question_index, gameData?.current_question?.started_at]);
+
+  // Auto-submit when time runs out
+  useEffect(() => {
+    if (timerActive && timeRemaining === 0 && !hasAnswered && user && roomId) {
+      handleTimeUp();
+    }
+  }, [timerActive, timeRemaining, hasAnswered, user, roomId]);
+
+  const handleTimeUp = async () => {
     // Auto-submit with no answer
-    if (user && gameId) {
+    if (user && roomId) {
       try {
-        await submitAnswer({
-          game_id: gameId,
-          user_id: user.id,
-          answer: -1, // No answer
-          time_taken: gameData?.settings?.time_per_question || 30,
-        });
+        console.log('⏰ Time up! Auto-submitting answer...');
+        await submitAnswerMutation(roomId, -1, 0); // No answer, 0 time taken
+        setHasAnswered(true); // This will stop the timer
+        
+        // For solo games, auto-advance after time up
+        if (gameData?.mode === 'solo') {
+          handleAutoAdvance();
+        }
       } catch (error) {
         console.error('Failed to submit answer:', error);
       }
     }
-  }, [hasAnswered, user, gameId, submitAnswer, gameData?.settings?.time_per_question, toast]);
-  
+  };
+
+  const handleAutoAdvance = useCallback(async () => {
+    if (isAutoAdvancing) {
+      console.log('⚠️ Auto-advance already in progress, skipping...');
+      return;
+    }
+    
+    console.log('🚀 Starting auto-advance...');
+    setIsAutoAdvancing(true);
+    
+    // Safety timeout to reset state if something goes wrong
+    const safetyTimeout = setTimeout(() => {
+      console.log('⚠️ Safety timeout: resetting auto-advance state');
+      setIsAutoAdvancing(false);
+    }, 5000);
+    
+    setTimeout(async () => {
+      if (!roomId || !user) {
+        clearTimeout(safetyTimeout);
+        setIsAutoAdvancing(false);
+        return;
+      }
+      
+      try {
+        console.log('⏭️ Auto-advancing to next question...');
+        const result = await nextQuestionMutation(roomId);
+        console.log('✅ Auto-advance result:', result);
+        
+        // Clear safety timeout and reset state
+        clearTimeout(safetyTimeout);
+        setIsAutoAdvancing(false);
+        
+        // Force refresh game data after successful advancement
+        // This ensures UI updates even if real-time events fail
+        setTimeout(() => {
+          console.log('🔄 Force refreshing game data after auto-advance');
+          window.location.reload();
+        }, 500);
+      } catch (error) {
+        console.error('❌ Auto-advance failed:', error);
+        clearTimeout(safetyTimeout);
+        setIsAutoAdvancing(false);
+      }
+    }, 2000);
+  }, [roomId, user, nextQuestionMutation, isAutoAdvancing]);
+
   const handleAnswerSelect = async (answerIndex: number) => {
-    if (hasAnswered || !user || !gameId) return;
+    if (hasAnswered || !user || !roomId) return;
+    
+    console.log(`🎯 Selecting answer ${answerIndex} for question ${gameData?.current_question_index}`);
     
     setSelectedAnswer(answerIndex);
-    setHasAnswered(true);
+    setHasAnswered(true); // This will stop the timer
     
-    const timeSpent = (gameData?.settings?.time_per_question || 30) - timeRemaining;
+    const timeTaken = gameData?.current_question ? Date.now() - gameData.current_question.started_at : 0;
     
     try {
-      await submitAnswer({
-        game_id: gameId,
-        user_id: user.id,
-        answer: answerIndex,
-        time_taken: timeSpent,
-      });
+      const result = await submitAnswerMutation(roomId, answerIndex, timeTaken);
+      console.log('📤 Submit answer result:', result);
       
-      toast({
-        title: "✅ Answer Submitted!",
-        description: "Waiting for other players...",
-      });
-      
-      // Show results after a delay
-      setTimeout(() => {
+      if (result.success && result.data) {
+        setLastAnswerResult({
+          isCorrect: result.data.is_correct || false,
+          pointsEarned: result.data.pointsEarned || 0,
+          explanation: result.data.explanation
+        });
         setShowResults(true);
-      }, 2000);
-      
+        
+        console.log(`✅ Answer submitted. Game mode: ${gameData?.mode}, Auto-advance expected for solo games`);
+        
+        // For solo games, auto-advance after showing results
+        if (gameData?.mode === 'solo') {
+          handleAutoAdvance();
+        }
+      }
     } catch (error) {
       console.error('Failed to submit answer:', error);
       toast({
-        title: "❌ Submission Failed",
-        description: "There was an error submitting your answer.",
-        variant: "destructive",
+        title: "Error",
+        description: "Failed to submit answer. Please try again.",
+        variant: "destructive"
       });
       setHasAnswered(false);
       setSelectedAnswer(null);
     }
   };
-  
+
   const handleNextQuestion = async () => {
-    if (!gameId || !user) return;
+    if (!roomId) return;
+    
+    console.log('⏭️ Manual next question clicked');
     
     try {
-      await nextQuestion({ game_id: gameId });
+      const result = await nextQuestionMutation(roomId);
+      console.log('⏭️ Next question result:', result);
       
-      // Reset state for next question
+      // Reset UI state
       setSelectedAnswer(null);
       setHasAnswered(false);
       setShowResults(false);
-      setTimeRemaining(gameData?.settings?.time_per_question || 30);
+      setLastAnswerResult(null);
       
+      // Force refresh to ensure UI updates
+      setTimeout(() => {
+        console.log('🔄 Force refreshing after manual next question');
+        window.location.reload();
+      }, 500);
     } catch (error) {
-      console.error('Failed to go to next question:', error);
+      console.error('Failed to advance question:', error);
       toast({
-        title: "❌ Failed to Continue",
-        description: "There was an error loading the next question.",
-        variant: "destructive",
+        title: "Error",
+        description: "Failed to advance question. Please try again.",
+        variant: "destructive"
       });
     }
   };
-  
-  const getGameTypeDisplayName = (gameType: string) => {
-    return gameType
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
+
+  const handleSkipQuestion = async () => {
+    if (!roomId) return;
+    
+    console.log('⏩ Skip question clicked');
+    
+    try {
+      const result = await skipQuestionMutation(roomId);
+      console.log('⏩ Skip question result:', result);
+      
+      setSelectedAnswer(null);
+      setHasAnswered(false);
+      setShowResults(false);
+      setLastAnswerResult(null);
+    } catch (error) {
+      console.error('Failed to skip question:', error);
+      toast({
+        title: "Error", 
+        description: "Failed to skip question. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
-  
-  const getGameTypeEmoji = (gameType: string) => {
-    const emojiMap: Record<string, string> = {
-      classic_academia_quiz: "🎓",
-      pop_culture_trivia: "🎬",
-      niche_hobbyist_corner: "🧩",
-      guess_the_entity: "🔍",
-      pharmacy_knowledge: "💊",
-      medical_mysteries: "🏥",
-      history_detective: "🏛️",
-      math_physics_challenge: "📐",
-      biology_quest: "🧬",
-      chemistry_lab: "⚗️",
-    };
-    return emojiMap[gameType] || "🎮";
+
+  const handleExitGame = () => {
+    router.push('/games');
   };
-  
-  const currentPlayer = gameData?.players.find(p => p.user_id === user?.id);
-  const isHost = gameData?.host_user_id === user?.id;
-  
-  if (!gameData) {
+
+  const getPlayerScore = (playerId: string) => {
+    const player = players?.find(p => p.user_id === playerId);
+    return player?.score || 0;
+  };
+
+  const getCurrentPlayer = () => {
+    return players?.find(p => p.user_id === user?.id);
+  };
+
+  const getGameProgress = () => {
+    if (!gameData) return { current: 0, total: 0, percentage: 0 };
+    
+    const current = (gameData.current_question_index || 0) + 1;
+    const total = gameData.questions?.length || gameData.rounds || 10;
+    const percentage = (current / total) * 100;
+    
+    return { current, total, percentage };
+  };
+
+  // Loading state
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 flex items-center justify-center p-4">
-        <Card className="max-w-md">
-          <CardContent className="pt-6 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
-              <Timer className="w-8 h-8 text-primary animate-spin" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading game...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !gameData) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center space-y-4">
+            <AlertCircle className="w-12 h-12 text-destructive mx-auto" />
+            <div>
+              <h3 className="text-lg font-semibold">Game Not Found</h3>
+              <p className="text-muted-foreground">
+                {error || "The game you're looking for doesn't exist or has ended."}
+              </p>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Loading Game...</h3>
-            <p className="text-muted-foreground">Please wait while we load your game.</p>
+            <Button onClick={handleExitGame} className="w-full">
+              <Home className="w-4 h-4 mr-2" />
+              Back to Games
+            </Button>
           </CardContent>
         </Card>
       </div>
     );
   }
-  
-  if (gameData.status === "finished") {
+
+  // Game finished state
+  if (gameData.status === 'finished') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 flex items-center justify-center p-4">
-        <Card className="max-w-2xl">
-          <CardHeader className="text-center">
-            <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-yellow-500/20 to-yellow-400/10 rounded-full flex items-center justify-center">
-              <Trophy className="w-10 h-10 text-yellow-500" />
-            </div>
-            <CardTitle className="text-2xl">Game Finished!</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-3">
-              <h3 className="text-lg font-semibold text-center">Final Leaderboard</h3>
-              {gameData.players
-                .sort((a, b) => b.score - a.score)
-                .map((player, index) => (
-                  <div 
-                    key={player.user_id}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-lg",
-                      index === 0 && "bg-gradient-to-r from-yellow-500/10 to-yellow-400/5 border border-yellow-500/20",
-                      index === 1 && "bg-gradient-to-r from-gray-500/10 to-gray-400/5 border border-gray-500/20",
-                      index === 2 && "bg-gradient-to-r from-orange-500/10 to-orange-400/5 border border-orange-500/20",
-                      index > 2 && "bg-muted/20"
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">
-                        {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `#${index + 1}`}
-                      </span>
-                      <Avatar className="w-8 h-8">
-                        <AvatarImage src={player.avatar_url} />
-                        <AvatarFallback>{player.username.charAt(0).toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium">{player.username}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-lg">{player.score}</div>
-                      <div className="text-xs text-muted-foreground">points</div>
-                    </div>
-                  </div>
-                ))}
-            </div>
-            
-            <div className="flex gap-3 justify-center">
-              <Button onClick={() => router.push('/games')} className="gap-2">
-                <ArrowLeft className="w-4 h-4" />
-                Back to Games
-              </Button>
-              <Button variant="outline" onClick={() => router.push('/games?tab=leaderboards')} className="gap-2">
-                <Trophy className="w-4 h-4" />
-                View Leaderboards
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-  
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-4">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-2xl"
         >
-          <Button
-            variant="ghost"
-            onClick={() => router.push('/games?tab=active')}
-            className="gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Games
-          </Button>
-          
-          <div className="text-center">
-            <div className="flex items-center gap-2 justify-center mb-1">
-              <span className="text-2xl">{getGameTypeEmoji(gameData.game_type)}</span>
-              <h1 className="text-xl font-bold">{getGameTypeDisplayName(gameData.game_type)}</h1>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Badge variant="outline">{gameData.difficulty}</Badge>
-              <span>•</span>
-              <span>Round {gameData.current_round}/{gameData.rounds}</span>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <div className={cn(
-              "px-3 py-1 rounded-full text-xs font-medium",
-              timeRemaining > 10 ? "bg-green-500/10 text-green-600" :
-              timeRemaining > 5 ? "bg-yellow-500/10 text-yellow-600" :
-              "bg-red-500/10 text-red-600"
-            )}>
-              <Timer className="w-3 h-3 mr-1 inline" />
-              {timeRemaining}s
-            </div>
-          </div>
-        </motion.div>
-        
-        {/* Progress Bar */}
-        <motion.div
-          initial={{ opacity: 0, scaleX: 0 }}
-          animate={{ opacity: 1, scaleX: 1 }}
-          className="space-y-2"
-        >
-          <div className="flex justify-between text-sm">
-            <span>Game Progress</span>
-            <span>{gameData.current_round}/{gameData.rounds} rounds</span>
-          </div>
-          <Progress value={(gameData.current_round / gameData.rounds) * 100} className="h-3" />
-        </motion.div>
-        
-        {/* Players Bar */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Card className="bg-gradient-to-r from-primary/5 to-accent/5">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex -space-x-2">
-                  {gameData.players.map((player, index) => (
-                    <div key={player.user_id} className="relative">
-                      <Avatar className={cn(
-                        "w-10 h-10 border-3 border-background",
-                        player.user_id === user?.id && "ring-2 ring-primary/50"
-                      )}>
-                        <AvatarImage src={player.avatar_url} />
-                        <AvatarFallback className="text-xs font-bold">
-                          {player.username.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      {index === 0 && (
-                        <Crown className="absolute -top-2 -right-1 w-4 h-4 text-yellow-500" />
+          <Card className="relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10" />
+            <CardHeader className="text-center relative">
+              <Trophy className="w-16 h-16 mx-auto text-yellow-500 mb-4" />
+              <CardTitle className="text-3xl mb-2">Game Complete!</CardTitle>
+              <CardDescription className="text-lg">
+                Great job! Here are the final results.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="relative space-y-6">
+              {/* Player Scores */}
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Star className="w-5 h-5" />
+                  Final Scores
+                </h3>
+                <div className="space-y-2">
+                  {players?.map((player, index) => (
+                    <div 
+                      key={player.user_id}
+                      className={cn(
+                        "flex items-center justify-between p-3 rounded-lg",
+                        player.user_id === user?.id ? "bg-primary/10" : "bg-muted/50"
                       )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Badge variant={index === 0 ? "default" : "secondary"}>
+                          #{index + 1}
+                        </Badge>
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage src={player.avatar_url} />
+                          <AvatarFallback>{player.username?.[0]}</AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium">{player.username}</span>
+                      </div>
+                      <span className="text-lg font-bold text-primary">
+                        {player.score} pts
+                      </span>
                     </div>
                   ))}
                 </div>
-                
-                <div className="text-right">
-                  <div className="text-sm text-muted-foreground">Your Score</div>
-                  <div className="text-2xl font-bold text-primary">{currentPlayer?.score || 0}</div>
-                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button onClick={handleExitGame} variant="outline" className="flex-1">
+                  <Home className="w-4 h-4 mr-2" />
+                  Back to Games
+                </Button>
+                <Button onClick={() => router.push('/games?tab=library')} className="flex-1">
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Play Again
+                </Button>
               </div>
             </CardContent>
           </Card>
         </motion.div>
-        
-        {/* Game Content */}
+      </div>
+    );
+  }
+
+  // Waiting for players or game start
+  if (gameData.status === 'lobby') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center space-y-4">
+            <Users className="w-12 h-12 text-primary mx-auto" />
+            <div>
+              <h3 className="text-lg font-semibold">Waiting for Game to Start</h3>
+              <p className="text-muted-foreground">
+                {gameData.mode === 'solo' 
+                  ? "Setting up your solo challenge..."
+                  : `${players?.length || 0}/${gameData.max_players} players joined`
+                }
+              </p>
+            </div>
+            <Button onClick={handleExitGame} variant="outline" className="w-full">
+              Leave Game
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const progress = getGameProgress();
+  const currentPlayer = getCurrentPlayer();
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-6 max-w-4xl">
+        {/* Game Header */}
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={handleExitGame}
+              >
+                <Home className="w-4 h-4" />
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold">
+                  {gameData.game_type_id?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                </h1>
+                <p className="text-muted-foreground">
+                  Question {progress.current} of {progress.total}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              {gameData.mode === 'multiplayer' && (
+                <Badge variant="outline" className="gap-2">
+                  <Users className="w-4 h-4" />
+                  {players?.length || 0} Players
+                </Badge>
+              )}
+              {currentPlayer && (
+                <Badge className="gap-2">
+                  <Star className="w-4 h-4" />
+                  {currentPlayer.score} pts
+                </Badge>
+              )}
+            </div>
+          </div>
+          
+          <Progress value={progress.percentage} className="h-2" />
+        </motion.div>
+
+        {/* Current Question */}
         <AnimatePresence mode="wait">
-          {gameData.status === "lobby" ? (
+          {currentQuestion && (
             <motion.div
-              key="lobby"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              key={`question-${gameData.current_question_index}`}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
             >
-              <Card className="text-center">
-                <CardContent className="pt-8 pb-8">
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-2xl font-bold mb-2">Waiting for Game to Start</h3>
-                      <p className="text-muted-foreground">
-                        {isHost ? "You can start the game once all players are ready!" : "Waiting for the host to start the game..."}
-                      </p>
+              <Card className="mb-6">
+                <CardHeader>
+                  <div className="flex items-center justify-between mb-4">
+                    <CardTitle className="text-lg">Question {progress.current}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Timer className="w-4 h-4 text-muted-foreground" />
+                      <span className={cn(
+                        "font-mono text-lg font-bold",
+                        timeRemaining <= 10 ? "text-destructive" : "text-primary"
+                      )}>
+                        {timeRemaining}s
+                      </span>
                     </div>
-                    
-                    <div className="space-y-3">
-                      {gameData.players.map((player) => (
-                        <div key={player.user_id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <Avatar className="w-8 h-8">
-                              <AvatarImage src={player.avatar_url} />
-                              <AvatarFallback>{player.username.charAt(0).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                            <span className="font-medium">{player.username}</span>
-                            {player.user_id === gameData.host_user_id && (
-                              <Badge variant="outline">Host</Badge>
-                            )}
-                          </div>
-                          <div>
-                            {player.is_ready ? (
-                              <Badge className="bg-green-500/10 text-green-600">Ready</Badge>
-                            ) : (
-                              <Badge variant="outline">Not Ready</Badge>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {isHost && (
-                      <Button size="lg" className="gap-2">
-                        <Zap className="w-5 h-5" />
-                        Start Game
-                      </Button>
-                    )}
                   </div>
+                  <CardDescription className="text-base leading-relaxed">
+                    {currentQuestion.question}
+                  </CardDescription>
+                </CardHeader>
+                
+                <CardContent className="space-y-3">
+                  {currentQuestion.options.map((option, index) => (
+                    <motion.button
+                      key={index}
+                      onClick={() => handleAnswerSelect(index)}
+                      disabled={hasAnswered}
+                      whileHover={!hasAnswered ? { scale: 1.02 } : undefined}
+                      whileTap={!hasAnswered ? { scale: 0.98 } : undefined}
+                      className={cn(
+                        "w-full p-4 text-left rounded-lg border-2 transition-all duration-200",
+                        "hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20",
+                        hasAnswered && selectedAnswer === index && "border-primary bg-primary/10",
+                        hasAnswered && selectedAnswer !== index && "opacity-50",
+                        hasAnswered && "cursor-not-allowed",
+                        !hasAnswered && "cursor-pointer hover:bg-muted/50"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="w-8 h-8 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center font-semibold">
+                          {String.fromCharCode(65 + index)}
+                        </span>
+                        <span>{option}</span>
+                      </div>
+                    </motion.button>
+                  ))}
                 </CardContent>
               </Card>
-            </motion.div>
-          ) : gameData.current_question ? (
-            <motion.div
-              key="question"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              {/* Question Card */}
-              <Card className="relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-accent" />
-                <CardContent className="pt-8 pb-6">
-                  <div className="space-y-6">
-                    <div className="text-center">
-                      <h2 className="text-2xl font-bold mb-4">{gameData.current_question.question}</h2>
-                    </div>
-                    
-                    <div className="grid gap-3">
-                      {gameData.current_question.options.map((option, index) => (
-                        <motion.button
-                          key={index}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.1 }}
-                          onClick={() => handleAnswerSelect(index)}
-                          disabled={hasAnswered}
-                          className={cn(
-                            "p-4 text-left rounded-xl border-2 transition-all duration-300 relative",
-                            "hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
-                            hasAnswered && selectedAnswer === index 
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-border bg-background hover:border-primary/50",
-                            hasAnswered && "cursor-not-allowed opacity-70"
-                          )}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={cn(
-                              "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
-                              hasAnswered && selectedAnswer === index
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted text-muted-foreground"
-                            )}>
-                              {String.fromCharCode(65 + index)}
-                            </div>
-                            <span className="font-medium">{option}</span>
-                          </div>
-                          
-                          {hasAnswered && selectedAnswer === index && (
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              className="absolute right-4 top-1/2 transform -translate-y-1/2"
-                            >
-                              <CheckCircle className="w-5 h-5 text-primary" />
-                            </motion.div>
-                          )}
-                        </motion.button>
-                      ))}
-                    </div>
-                    
-                    {hasAnswered && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="text-center text-muted-foreground"
-                      >
-                        <p>Answer submitted! Waiting for other players...</p>
-                      </motion.div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-              
-              {/* Results Card */}
+
+              {/* Answer Results */}
               <AnimatePresence>
-                {showResults && (
+                {showResults && lastAnswerResult && (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                   >
-                    <Card className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20">
+                    <Card className={cn(
+                      "mb-6",
+                      lastAnswerResult.isCorrect ? "border-green-500/50" : "border-red-500/50"
+                    )}>
                       <CardContent className="pt-6">
-                        <div className="text-center space-y-4">
-                          <div className="flex items-center justify-center gap-2">
-                            <CheckCircle className="w-6 h-6 text-green-500" />
-                            <h3 className="text-lg font-semibold">Round Complete!</h3>
-                          </div>
-                          
-                          {isHost && (
-                            <Button onClick={handleNextQuestion} className="gap-2">
-                              <ArrowLeft className="w-4 h-4 rotate-180" />
-                              Next Question
-                            </Button>
+                        <div className="flex items-center gap-3 mb-4">
+                          {lastAnswerResult.isCorrect ? (
+                            <CheckCircle2 className="w-6 h-6 text-green-500" />
+                          ) : (
+                            <XCircle className="w-6 h-6 text-red-500" />
                           )}
+                          <span className="text-lg font-semibold">
+                            {lastAnswerResult.isCorrect ? "Correct!" : "Incorrect"}
+                          </span>
+                          <Badge variant={lastAnswerResult.isCorrect ? "default" : "destructive"}>
+                            +{lastAnswerResult.pointsEarned} pts
+                          </Badge>
                         </div>
+                        {lastAnswerResult.explanation && (
+                          <p className="text-muted-foreground">
+                            {lastAnswerResult.explanation}
+                          </p>
+                        )}
                       </CardContent>
                     </Card>
                   </motion.div>
                 )}
               </AnimatePresence>
             </motion.div>
-          ) : (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <Card>
-                <CardContent className="pt-8 pb-8 text-center">
-                  <Brain className="w-12 h-12 mx-auto mb-4 text-primary animate-pulse" />
-                  <h3 className="text-lg font-semibold mb-2">Preparing Next Question...</h3>
-                  <p className="text-muted-foreground">AI is generating your personalized question</p>
-                </CardContent>
-              </Card>
-            </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Game Controls */}
+        <div className="flex gap-3 justify-center">
+          {gameData.mode === 'solo' && !hasAnswered && (
+            <Button 
+              onClick={handleSkipQuestion}
+              variant="outline"
+              className="gap-2"
+            >
+              <SkipForward className="w-4 h-4" />
+              Skip Question
+            </Button>
+          )}
+          
+          {hasAnswered && !isAutoAdvancing && gameData.mode === 'solo' && (
+            <Button 
+              onClick={handleNextQuestion}
+              className="gap-2"
+            >
+              <ArrowRight className="w-4 h-4" />
+              Next Question
+            </Button>
+          )}
+          
+          {isAutoAdvancing && (
+            <Button disabled className="gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Auto-advancing...
+            </Button>
+          )}
+        </div>
+
+        {/* Multiplayer Status */}
+        {gameData.mode === 'multiplayer' && hasAnswered && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mt-6 text-center"
+          >
+            <Card>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <p className="text-lg">Answer submitted! Waiting for other players...</p>
+                  <div className="flex justify-center gap-4">
+                    {players?.map((player) => (
+                      <div key={player.user_id} className="text-center">
+                        <Avatar className="w-12 h-12 mx-auto mb-2">
+                          <AvatarImage src={player.avatar_url} />
+                          <AvatarFallback>{player.username?.[0]}</AvatarFallback>
+                        </Avatar>
+                        <p className="text-sm font-medium">{player.username}</p>
+                        <p className="text-xs text-muted-foreground">{player.score} pts</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
       </div>
     </div>
   );

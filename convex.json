@@ -1,8 +1,0 @@
-{
-  "node": {
-    "externalPackages": [
-      "fs",
-      "path"
-    ]
-  }
-}

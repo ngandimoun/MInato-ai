@@ -31,25 +31,53 @@ export async function updateSession(request: NextRequest) {
     logger.debug(`[Middleware] Path: ${requestPath} - No Supabase auth cookies found in initial request.`);
   }
 
+  // Check for Authorization header (Bearer token)
+  const authHeader = request.headers.get('authorization');
+  let userFromToken = null;
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    try {
+      // Create a temporary Supabase client to verify the token
+      const tempSupabase = createServerClient(supabaseUrl, supabaseKey, {
+        cookies: {
+          get() { return undefined; },
+          set() {},
+          remove() {},
+        },
+      });
+      
+      // Set the session using the token
+      await tempSupabase.auth.setSession({
+        access_token: token,
+        refresh_token: '' // Not needed for verification
+      });
+      
+      const { data: { user }, error } = await tempSupabase.auth.getUser();
+      if (!error && user) {
+        userFromToken = user;
+        logger.debug(`[Middleware] Path: ${requestPath} - Bearer token authentication successful. User ID: ${user.id.substring(0,8)}`);
+      }
+    } catch (error) {
+      logger.debug(`[Middleware] Path: ${requestPath} - Bearer token verification failed: ${error}`);
+    }
+  }
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
       get(name: string) {
         const cookie = request.cookies.get(name);
-        // logger.debug(`[Middleware Cookie GET] Name: ${name}, Value: ${cookie?.value ? cookie.value.substring(0,10)+'...' : 'undefined'}`);
         return cookie?.value;
       },
       set(name: string, value: string, options: CookieOptions) {
-        // logger.debug(`[Middleware Cookie SET] Name: ${name}, Value: ${value.substring(0,10)+'...'}, Options: ${JSON.stringify(options)}`);
         try {
-          request.cookies.set({ name, value, ...options }); // Tenter de mettre à jour pour la requête actuelle (peut ne pas être vu par le même cycle)
-          response.cookies.set({ name, value, ...options }); // Mettre sur la réponse sortante
+          request.cookies.set({ name, value, ...options });
+          response.cookies.set({ name, value, ...options });
         } catch (error) {
            logger.debug(`[Middleware Cookie SET] Ignoring cookie set error (Path: ${requestPath}). Error: ${error}`);
         }
       },
       remove(name: string, options: CookieOptions) {
-        // logger.debug(`[Middleware Cookie REMOVE] Name: ${name}, Options: ${JSON.stringify(options)}`);
         try {
           request.cookies.set({ name, value: '', ...options });
           response.cookies.set({ name, value: '', ...options });
@@ -65,8 +93,6 @@ export async function updateSession(request: NextRequest) {
 
   if (refreshError) {
     logger.error(`[Middleware] Path: ${requestPath} - Error during getSession() (refresh attempt): ${refreshError.message}`);
-    // Si getSession() échoue, la session est potentiellement invalide.
-    // On continue pour que getUser() confirme l'état.
   } else {
     if (sessionFromGetSession) {
         logger.debug(`[Middleware] Path: ${requestPath} - getSession() successful. Session User ID: ${sessionFromGetSession.user?.id?.substring(0,8) || "None"}. Expires at: ${sessionFromGetSession.expires_at ? new Date(sessionFromGetSession.expires_at * 1000).toISOString() : 'N/A'}`);
@@ -80,7 +106,6 @@ export async function updateSession(request: NextRequest) {
 
   if (getUserError) {
     logger.error(`[Middleware] Path: ${requestPath} - Error during getUser(): ${getUserError.message}`);
-    // user sera null
   } else {
     if (user) {
         logger.info(`[Middleware] Path: ${requestPath} - getUser() successful. Authenticated User ID: ${user.id.substring(0,8)}`);
@@ -89,31 +114,40 @@ export async function updateSession(request: NextRequest) {
     }
   }
   
-  const finalResponseCookiesArray = response.cookies.getAll(); // Lire les cookies mis sur la réponse
+  const finalResponseCookiesArray = response.cookies.getAll();
   const finalResponseCookiesLog = finalResponseCookiesArray.length > 0
     ? finalResponseCookiesArray.map(c => `${c.name}=${c.value.substring(0,15)}...`).join('; ')
     : "No cookies set on response by middleware.";
   logger.debug(`[Middleware] Path: ${requestPath} - Cookies being set on outgoing response: ${finalResponseCookiesLog}`);
 
+  // Use either cookie-based user or token-based user
+  const authenticatedUser = user || userFromToken;
 
   // Logique de redirection existante
   const logPath = requestPath.substring(0,100);
-  const logPrefix = `[Middleware Logic User:${user ? user.id.substring(0,5) : 'NoUser'}] Path: ${logPath}`;
+  const logPrefix = `[Middleware Logic User:${authenticatedUser ? authenticatedUser.id.substring(0,5) : 'NoUser'}] Path: ${logPath}`;
   logger.debug(`${logPrefix}`);
 
-  const protectedPaths = ['/chat']; // Et autres que vous définissez
-  // Vérifier si request.nextUrl.pathname est dans protectedPaths
-  // ou si c'est une route API qui devrait être protégée
+  const protectedPaths = ['/chat'];
   const isApiRoute = requestPath.startsWith('/api/');
   const isProtectedRoute = protectedPaths.some(path => requestPath.startsWith(path));
+  
+  // Define paths that should be accessible without authentication
+  const publicApiPaths = [
+    '/api/auth',
+    '/api/games', // Make all game-related endpoints public
+  ];
+  
+  const isPublicApiPath = publicApiPaths.some(path => requestPath.startsWith(path));
 
-  if ((isProtectedRoute || (isApiRoute && !requestPath.startsWith('/api/auth'))) && !user) { // Exclure /api/auth des protections API strictes
+  // For game routes, we'll handle authentication within the route handlers
+  const isGameRoute = requestPath.startsWith('/api/games') || requestPath.startsWith('/games');
+  
+  if ((isProtectedRoute || (isApiRoute && !isPublicApiPath)) && !authenticatedUser && !isGameRoute) {
     logger.warn(`${logPrefix} Unauthorized access attempt to ${requestPath}.`);
     if (isApiRoute) {
-      // Pour les routes API, retourner 401 au lieu de rediriger
       return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     } else {
-      // Pour les pages, rediriger vers la page de connexion (/)
       const url = request.nextUrl.clone();
       url.pathname = '/';
       url.searchParams.set('redirectedFrom', requestPath);
@@ -122,7 +156,7 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  if (user && requestPath === '/') {
+  if (authenticatedUser && requestPath === '/') {
      logger.info(`${logPrefix} User logged in, on landing page, redirecting to /chat`);
      const url = request.nextUrl.clone();
      url.pathname = '/chat';

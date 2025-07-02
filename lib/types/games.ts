@@ -188,7 +188,7 @@ export interface ActiveGameItem {
   id: string;
   game_type: string;
   display_name: string;
-  status: 'lobby' | 'in_progress';
+  status: 'lobby' | 'in_progress' | 'finished' | 'cancelled';
   players: {
     user_id: string;
     username: string;
@@ -197,8 +197,12 @@ export interface ActiveGameItem {
   max_players: number;
   current_round: number;
   total_rounds: number;
+  rounds: number; // Add rounds property
+  mode: 'solo' | 'multiplayer'; // Add mode property
   host_user_id: string;
-  created_at: number;
+  created_at: string; // Changed to string to match Supabase format
+  difficulty: string; // Add difficulty property
+  room_code?: string; // Add room_code for joining
   can_join: boolean;
   can_resume: boolean;
 }

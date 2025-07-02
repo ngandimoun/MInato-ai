@@ -1,8 +1,7 @@
 // Export core functionality
 export * from "./orchestrator";
-export * from "./helpers";
-export * from "./nlu-disambiguation";
-export * from "./personalization";
-export * from "./role-based-responses";
-export * from "./runEnhancedOrchestration";
-export * from "./workflow-engine"; 
+export * from "./game-orchestrator";
+
+// Note: game-orchestrator-server.ts is intentionally not exported here
+// because it contains server-only code that should be imported directly
+// only in server components or API routes. 
