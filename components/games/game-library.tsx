@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import GameDemo from './game-demo';
 import { useRouter } from 'next/navigation';
 import { useGameMutations } from '@/hooks/useGames';
+import { UserSelector } from './user-selector';
 
 // Icon mapping for dynamic imports
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -92,6 +93,15 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
   const [customTopic, setCustomTopic] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isLoadingPreferences, setIsLoadingPreferences] = useState(true);
+  
+  // State for multiplayer user selection
+  const [selectedUsers, setSelectedUsers] = useState<Array<{
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string;
+    display_name: string;
+  }>>([]);
 
   // Load user preferences on mount
   React.useEffect(() => {
@@ -641,7 +651,7 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
         // Don't block game creation if preference saving fails
       }
       
-      onCreateGame({
+      const gameRequest = {
         game_type: gameId,
         difficulty,
         max_players: maxPlayers,
@@ -656,10 +666,19 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
           ai_personality: aiPersonality,
           topic_focus: finalTopic,
         },
-      });
+        // Add selected users for multiplayer invitations
+        invited_users: mode === 'multiplayer' ? selectedUsers : undefined,
+      };
+      
+      onCreateGame(gameRequest);
       onClose();
     } catch (error) {
       console.error('Failed to create game:', error);
+      toast({
+        title: "Game Creation Failed",
+        description: "Could not create the game. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsCreating(false);
     }
@@ -753,21 +772,33 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
           </div>
 
           {mode === 'multiplayer' && (
-            <div>
-              <label className="block text-sm font-medium mb-2">👥 Max Players</label>
-              <Select value={maxPlayers.toString()} onValueChange={(value) => setMaxPlayers(parseInt(value))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[2, 3, 4, 5, 6, 7, 8].map((num) => (
-                    <SelectItem key={num} value={num.toString()}>
-                      {num} Players
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-2">👥 Max Players</label>
+                <Select value={maxPlayers.toString()} onValueChange={(value) => setMaxPlayers(parseInt(value))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[2, 3, 4, 5, 6, 7, 8].map((num) => (
+                      <SelectItem key={num} value={num.toString()}>
+                        {num} Players
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* User Selection for Multiplayer */}
+              <div>
+                <label className="block text-sm font-medium mb-2">🎯 Invite Players</label>
+                <UserSelector
+                  selectedUsers={selectedUsers}
+                  onUsersChange={setSelectedUsers}
+                  maxUsers={maxPlayers - 1} // Minus 1 for the host
+                />
+              </div>
+            </>
           )}
 
           <div>
@@ -973,13 +1004,53 @@ export default function GameLibrary() {
       const result = await createGameWithQuestions(request);
       
       if (result.success && result.game_id) {
-        toast({
-          title: "🎮 Game Created Successfully!",
-          description: result.auto_started 
-            ? "Solo game started immediately. Redirecting to play..."
-            : "Game created! Invite friends or start playing.",
-          duration: 3000,
-        });
+        // Send invitations for multiplayer games
+        if (request.mode === 'multiplayer' && request.invited_users && request.invited_users.length > 0) {
+          try {
+            const inviteResponse = await fetch('/api/games/invite', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                room_id: result.room_id || result.game_id,
+                invited_user_ids: request.invited_users.map(user => user.id),
+                message: `Join my ${request.game_type.replace(/_/g, ' ')} game!`,
+              }),
+            });
+
+            if (inviteResponse.ok) {
+              const inviteData = await inviteResponse.json();
+              toast({
+                title: "🎮 Game Created & Invitations Sent!",
+                description: `Game created successfully! ${inviteData.message}`,
+                duration: 3000,
+              });
+            } else {
+              // Game created but invitations failed
+              toast({
+                title: "🎮 Game Created!",
+                description: "Game created successfully, but some invitations failed to send.",
+                duration: 3000,
+              });
+            }
+          } catch (inviteError) {
+            console.error('Failed to send invitations:', inviteError);
+            toast({
+              title: "🎮 Game Created!",
+              description: "Game created successfully, but invitations failed to send.",
+              duration: 3000,
+            });
+          }
+        } else {
+          toast({
+            title: "🎮 Game Created Successfully!",
+            description: result.auto_started 
+              ? "Solo game started immediately. Redirecting to play..."
+              : "Game created! Invite friends or start playing.",
+            duration: 3000,
+          });
+        }
         
         setSelectedGame(null);
         
@@ -989,9 +1060,14 @@ export default function GameLibrary() {
             router.push(`/games/play/${result.game_id}`);
           }, 1000); // Brief delay to show the toast
         } else {
-          // For multiplayer games, redirect to active games tab
+          // For multiplayer games, redirect to active games tab or lobby
           setTimeout(() => {
-            router.push('/games?tab=active&refresh=true');
+            if (request.mode === 'multiplayer') {
+              // Redirect to the game lobby
+              router.push(`/games/play/${result.game_id}`);
+            } else {
+              router.push('/games?tab=active&refresh=true');
+            }
           }, 1000);
         }
       } else {

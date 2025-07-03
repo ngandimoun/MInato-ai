@@ -261,6 +261,13 @@ export interface CreateGameRequest {
   mode: 'solo' | 'multiplayer';
   settings?: Partial<GameSettings>;
   category?: string;
+  invited_users?: Array<{
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string;
+    display_name: string;
+  }>;
 }
 
 export interface JoinGameRequest {
