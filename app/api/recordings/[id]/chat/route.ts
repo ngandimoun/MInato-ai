@@ -25,7 +25,7 @@ export async function POST(
 
     // Parse request body
     const body = await req.json();
-    const { conversationHistory, userQuestion } = body;
+    const { conversationHistory, userQuestion, language } = body;
     
     if (!userQuestion) {
       return NextResponse.json(
@@ -93,6 +93,10 @@ export async function POST(
     }
 
     // Create the reasoning prompt
+    const languageInstruction = language && language !== "en" 
+      ? `\n7. IMPORTANT: Respond in ${getLanguageName(language)}. The user has selected ${getLanguageName(language)} as their preferred language.`
+      : "";
+      
     const reasoningPrompt = `
     You are Minato AI, an intelligent assistant analyzing audio conversations.
     
@@ -104,7 +108,7 @@ export async function POST(
     3. Include the exact timestamp and segment_id in your citations.
     4. If the question cannot be answered from the transcript, politely say so.
     5. Keep your answers concise but comprehensive.
-    6. Format your response as a JSON object with "answer" and "citations" fields.
+    6. Format your response as a JSON object with "answer" and "citations" fields.${languageInstruction}
     
     Context:
     """
@@ -120,7 +124,7 @@ export async function POST(
     
     Respond with a JSON object in this format:
     {
-      "answer": "Your answer with citation markers like [1], [2]",
+      "answer": "Your answer with citation markers like [1], [2]${language && language !== "en" ? ` (in ${getLanguageName(language)})` : ""}",
       "citations": [
         {
           "text": "The exact text from the transcript you're citing",
@@ -157,4 +161,23 @@ function formatTimestamp(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.floor(seconds % 60);
   return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+// Helper function to get language name
+function getLanguageName(languageCode: string): string {
+  const languageMap: { [key: string]: string } = {
+    en: "English",
+    es: "Spanish",
+    fr: "French",
+    de: "German",
+    it: "Italian",
+    pt: "Portuguese",
+    ru: "Russian",
+    ja: "Japanese",
+    ko: "Korean",
+    zh: "Chinese",
+    ar: "Arabic",
+    hi: "Hindi",
+  };
+  return languageMap[languageCode] || languageCode;
 } 

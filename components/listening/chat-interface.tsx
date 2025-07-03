@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { AIMessage } from "./ai-message";
 import { UserMessage } from "./user-message";
 import { useAuth } from "@/context/auth-provider";
+import { LanguageSelector } from "./language-selector";
 
 interface Message {
   role: "user" | "ai";
@@ -22,9 +23,11 @@ interface Message {
 interface ChatInterfaceProps {
   recordingId: string | null;
   onHighlightSegment: (segmentId: number) => void;
+  language?: string;
+  onLanguageChange?: (language: string) => void;
 }
 
-export function ChatInterface({ recordingId, onHighlightSegment }: ChatInterfaceProps) {
+export function ChatInterface({ recordingId, onHighlightSegment, language = "en", onLanguageChange }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -61,6 +64,7 @@ export function ChatInterface({ recordingId, onHighlightSegment }: ChatInterface
         body: JSON.stringify({
           userQuestion: input,
           conversationHistory: messages,
+          language: language !== "en" ? language : undefined,
         }),
       });
       
@@ -109,8 +113,16 @@ export function ChatInterface({ recordingId, onHighlightSegment }: ChatInterface
     <div className="flex flex-col h-full border rounded-lg overflow-hidden shadow-sm bg-card">
       <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
         <h3 className="text-sm font-medium">Chat with Recording</h3>
-        <div className="text-xs text-muted-foreground">
-          Ask questions about this conversation
+        <div className="flex items-center gap-3">
+          {onLanguageChange && (
+            <LanguageSelector 
+              value={language} 
+              onValueChange={onLanguageChange}
+            />
+          )}
+          <div className="text-xs text-muted-foreground">
+            Ask questions about this conversation
+          </div>
         </div>
       </div>
       

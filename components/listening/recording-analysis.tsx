@@ -32,6 +32,8 @@ import { cn } from "@/lib/utils";
 import { AnalysisResult, Recording } from "@/context/listening-context";
 import { ChatInterface } from "./chat-interface";
 import { RecordingSkeleton } from "./recording-skeleton";
+import { LanguageSelector } from "./language-selector";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface RecordingAnalysisProps {
   recording: Recording | null;
@@ -52,6 +54,101 @@ export function RecordingAnalysis({
   const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [highlightedSegmentId, setHighlightedSegmentId] = useState<number | null>(null);
+  
+  // Language state for each section
+  const [summaryLanguage, setSummaryLanguage] = useState("en");
+  const [transcriptLanguage, setTranscriptLanguage] = useState("en");
+  const [chatLanguage, setChatLanguage] = useState("en");
+  
+  // Translation hook
+  const { translateText, translateArray, isTranslating } = useTranslation();
+  
+  // Translated content state
+  const [translatedSummary, setTranslatedSummary] = useState<string | null>(null);
+  const [translatedThemes, setTranslatedThemes] = useState<Array<{theme: string; transcript_segment_ids: number[]}> | null>(null);
+  const [translatedNotes, setTranslatedNotes] = useState<Record<string, string[]> | null>(null);
+  const [translatedTranscript, setTranslatedTranscript] = useState<Array<{id: number; start: number; end: number; text: string; speaker?: string}> | null>(null);
+
+  // Handle summary translation
+  useEffect(() => {
+    const translateSummary = async () => {
+      if (!analysis?.summary_text || summaryLanguage === "en") {
+        setTranslatedSummary(null);
+        return;
+      }
+      
+      const translated = await translateText(analysis.summary_text, summaryLanguage, "en");
+      setTranslatedSummary(translated);
+    };
+    
+    translateSummary();
+  }, [analysis?.summary_text, summaryLanguage, translateText]);
+
+  // Handle themes translation
+  useEffect(() => {
+    const translateThemes = async () => {
+      if (!analysis?.key_themes_json || summaryLanguage === "en") {
+        setTranslatedThemes(null);
+        return;
+      }
+      
+      const themeTexts = analysis.key_themes_json.map(theme => theme.theme);
+      const translatedTexts = await translateArray(themeTexts, summaryLanguage, "en");
+      
+      const translatedThemesData = analysis.key_themes_json.map((theme, index) => ({
+        theme: translatedTexts[index] || theme.theme,
+        transcript_segment_ids: theme.transcript_segment_ids,
+      }));
+      
+      setTranslatedThemes(translatedThemesData);
+    };
+    
+    translateThemes();
+  }, [analysis?.key_themes_json, summaryLanguage, translateArray]);
+
+  // Handle notes translation
+  useEffect(() => {
+    const translateNotes = async () => {
+      if (!analysis?.structured_notes_json || summaryLanguage === "en") {
+        setTranslatedNotes(null);
+        return;
+      }
+      
+      const translatedNotesData: Record<string, string[]> = {};
+      
+      for (const [topic, notes] of Object.entries(analysis.structured_notes_json)) {
+        const translatedTopic = await translateText(topic, summaryLanguage, "en");
+        const translatedNotesList = await translateArray(notes, summaryLanguage, "en");
+        translatedNotesData[translatedTopic] = translatedNotesList;
+      }
+      
+      setTranslatedNotes(translatedNotesData);
+    };
+    
+    translateNotes();
+  }, [analysis?.structured_notes_json, summaryLanguage, translateText, translateArray]);
+
+  // Handle transcript translation
+  useEffect(() => {
+    const translateTranscript = async () => {
+      if (!analysis?.transcript_json || transcriptLanguage === "en") {
+        setTranslatedTranscript(null);
+        return;
+      }
+      
+      const transcriptTexts = analysis.transcript_json.map(segment => segment.text);
+      const translatedTexts = await translateArray(transcriptTexts, transcriptLanguage, "en");
+      
+      const translatedTranscriptData = analysis.transcript_json.map((segment, index) => ({
+        ...segment,
+        text: translatedTexts[index] || segment.text,
+      }));
+      
+      setTranslatedTranscript(translatedTranscriptData);
+    };
+    
+    translateTranscript();
+  }, [analysis?.transcript_json, transcriptLanguage, translateArray]);
 
   // Set up audio player when recording changes
   useEffect(() => {
@@ -381,13 +478,25 @@ export function RecordingAnalysis({
             
             {/* Summary Tab */}
             <TabsContent value="summary" className="h-[440px]">
-              <ScrollArea className="h-full p-4">
+              <div className="flex items-center justify-between p-3 border-b">
+                <h3 className="text-sm font-medium">Summary</h3>
+                <LanguageSelector 
+                  value={summaryLanguage} 
+                  onValueChange={setSummaryLanguage}
+                />
+              </div>
+              <ScrollArea className="h-[calc(100%-60px)] p-4">
                 <h3 className="text-lg font-semibold mb-2">Executive Summary</h3>
-                <p className="text-sm mb-6">{analysis.summary_text}</p>
+                <p className="text-sm mb-6">
+                  {summaryLanguage === "en" ? analysis.summary_text : (translatedSummary || analysis.summary_text)}
+                  {isTranslating && summaryLanguage !== "en" && (
+                    <span className="ml-2 text-xs text-muted-foreground">(Translating...)</span>
+                  )}
+                </p>
                 
                 <h3 className="text-lg font-semibold mb-2">Key Themes</h3>
                 <div className="space-y-3 mb-6">
-                  {analysis.key_themes_json?.map((theme, index) => (
+                  {(summaryLanguage === "en" ? analysis.key_themes_json : (translatedThemes || analysis.key_themes_json))?.map((theme, index) => (
                     <div 
                       key={index} 
                       className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
@@ -400,7 +509,7 @@ export function RecordingAnalysis({
                 
                 <h3 className="text-lg font-semibold mb-2">Structured Notes</h3>
                 <div className="space-y-4">
-                  {analysis.structured_notes_json && Object.entries(analysis.structured_notes_json).map(([topic, notes], index) => (
+                  {(summaryLanguage === "en" ? analysis.structured_notes_json : (translatedNotes || analysis.structured_notes_json)) && Object.entries(summaryLanguage === "en" ? analysis.structured_notes_json : (translatedNotes || analysis.structured_notes_json)).map(([topic, notes], index) => (
                     <div key={index} className="border rounded-lg p-3">
                       <h4 className="text-sm font-semibold mb-2">{topic}</h4>
                       <ul className="space-y-1 pl-4">
@@ -416,9 +525,21 @@ export function RecordingAnalysis({
             
             {/* Transcript Tab */}
             <TabsContent value="transcript" className="h-[440px]">
-              <ScrollArea className="h-full p-4">
+              <div className="flex items-center justify-between p-3 border-b">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-medium">Transcript</h3>
+                  {isTranslating && transcriptLanguage !== "en" && (
+                    <span className="text-xs text-muted-foreground">(Translating...)</span>
+                  )}
+                </div>
+                <LanguageSelector 
+                  value={transcriptLanguage} 
+                  onValueChange={setTranscriptLanguage}
+                />
+              </div>
+              <ScrollArea className="h-[calc(100%-60px)] p-4">
                 <div className="space-y-3">
-                  {analysis.transcript_json?.map((segment) => {
+                  {(transcriptLanguage === "en" ? analysis.transcript_json : (translatedTranscript || analysis.transcript_json))?.map((segment) => {
                     // Get sentiment for this segment
                     const sentimentData = analysis.sentiment_analysis_json?.find(
                       (s) => s.segment_id === segment.id
@@ -563,6 +684,8 @@ export function RecordingAnalysis({
               <ChatInterface 
                 recordingId={recording?.id || null}
                 onHighlightSegment={seekToSegment}
+                language={chatLanguage}
+                onLanguageChange={setChatLanguage}
               />
             </TabsContent>
           </Tabs>
