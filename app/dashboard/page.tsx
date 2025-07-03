@@ -61,8 +61,11 @@ const sellerTabs: TabItem[] = [
   { value: "account", label: "Seller Account", icon: UserCircle },
 ];
 
+// Define view type to match Header component
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening";
+
 export default function DashboardPage() {
-  const [currentView, setCurrentView] = useState<"dashboard" | "chat" | "settings" | "memory">("dashboard");
+  const [currentView, setCurrentView] = useState<View>("dashboard");
   const { user, isLoading: isAuthLoading } = useAuth();
   const router = useRouter();
   const [sellerStatus, setSellerStatus] = useState<SellerStatus | null>(null);
@@ -115,6 +118,8 @@ export default function DashboardPage() {
       router.push("/chat?view=settings");
     } else if (currentView === "memory") {
       router.push("/chat?view=memory");
+    } else if (currentView === "listening") {
+      router.push("/listening");
     }
   }, [currentView, router]);
 

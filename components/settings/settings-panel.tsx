@@ -961,7 +961,10 @@ export function SettingsPanel({
                   <div className="space-y-2">
                     <h3 className="text-sm font-medium">Color Palettes</h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                      {colorPalettes.map((palette) => (<Card key={palette.name} className={`cursor-pointer hover:border-primary transition-colors ${colorPalette === palette.value ? "border-primary border-2" : "border"}`} onClick={() => setColorPalette(palette.value as any)} >
+                      {colorPalettes.map((palette) => (<Card key={palette.name} className={`cursor-pointer hover:border-primary transition-colors ${colorPalette === palette.value ? "border-primary border-2" : "border"}`} onClick={() => {
+                        console.log('Selecting palette:', palette.value);
+                        setColorPalette(palette.value as any);
+                      }} >
                         <CardContent className="p-3"> <div className="flex flex-col items-center gap-2">
                           <div className="flex gap-1 mt-2">
                             <div className={`w-6 h-6 rounded-full ${palette.primary}`} ></div>

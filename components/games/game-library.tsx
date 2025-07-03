@@ -626,10 +626,20 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
   const gameTopics = getGameSpecificTopics(gameId);
 
   const handleCreate = async () => {
+    // Validate Topic Focus is selected
+    const finalTopic = gameTopic === 'custom' ? customTopic : gameTopic;
+    
+    if (!finalTopic || finalTopic === 'general' || (gameTopic === 'custom' && !customTopic.trim())) {
+      toast({
+        title: "Topic Focus Required",
+        description: "Please select a topic focus for your game before creating.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsCreating(true);
     try {
-      const finalTopic = gameTopic === 'custom' ? customTopic : gameTopic;
-      
       // Save user preferences for future games
       try {
         await fetch('/api/games/preferences', {
@@ -859,12 +869,14 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
             </p>
           </div>
 
-          {/* Topic Focus */}
+          {/* Topic Focus - REQUIRED */}
           <div>
-            <label className="block text-sm font-medium mb-2">📚 Topic Focus</label>
-            <Select value={gameTopic} onValueChange={setGameTopic}>
-              <SelectTrigger>
-                <SelectValue />
+            <label className="block text-sm font-medium mb-2">
+              📚 Topic Focus <span className="text-red-500">*</span>
+            </label>
+            <Select value={gameTopic} onValueChange={setGameTopic} required>
+              <SelectTrigger className={`${!gameTopic || gameTopic === 'general' ? 'border-red-300 focus:border-red-500' : ''}`}>
+                <SelectValue placeholder="🎯 Choose a topic focus for your game" />
               </SelectTrigger>
               <SelectContent>
                 {gameTopics.map((topic) => (
@@ -883,11 +895,13 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
                   placeholder="Enter your custom topic (e.g., 'Space exploration', 'Cooking techniques')"
                   value={customTopic}
                   onChange={(e) => setCustomTopic(e.target.value)}
+                  className={`${!customTopic.trim() ? 'border-red-300 focus:border-red-500' : ''}`}
+                  required
                 />
               </div>
             )}
-            <p className="text-xs text-gray-500 mt-1">
-              AI will focus questions around this topic area
+            <p className="text-xs text-red-600 mt-1 font-medium">
+              ⚠️ AI will focus questions around this topic area (Required)
             </p>
           </div>
 
@@ -937,8 +951,13 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
           </Button>
           <Button 
             onClick={handleCreate} 
-            disabled={isCreating || (gameTopic === 'custom' && !customTopic.trim())}
-            className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700"
+            disabled={
+              isCreating || 
+              !gameTopic || 
+              gameTopic === 'general' || 
+              (gameTopic === 'custom' && !customTopic.trim())
+            }
+            className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isCreating ? (
               <div className="flex items-center gap-2">

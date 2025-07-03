@@ -21,7 +21,7 @@ import { useAuth } from "@/context/auth-provider";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type TabValue = "library" | "active" | "invites" | "stats" | "leaderboards" | "quests" | "tournaments" | "ai-coach" | "settings";
-type View = "chat" | "settings" | "memory" | "dashboard" | "games";
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening";
 
 export default function GamesPage() {
   const [activeTab, setActiveTab] = useState<TabValue>("library");
@@ -43,6 +43,8 @@ export default function GamesPage() {
       return;
     } else if (view === "dashboard") {
       router.push("/dashboard");
+    } else if (view === "listening") {
+      router.push("/listening");
     } else {
       // Navigate to chat page with the specified view
       router.push(`/chat?view=${view}`);

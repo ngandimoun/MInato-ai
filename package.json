@@ -103,6 +103,7 @@
     "react-dom": "^18",
     "react-hook-form": "^7.54.1",
     "react-markdown": "^10.1.0",
+    "react-media-recorder": "^1.7.1",
     "react-resizable-panels": "^2.1.7",
     "react-syntax-highlighter": "^15.6.1",
     "react-textarea-autosize": "^8.5.9",

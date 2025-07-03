@@ -67,6 +67,7 @@ export function ThemeProvider({
     // Add the current palette class
     if (colorPalette) {
       root.classList.add(`palette-${colorPalette}`);
+      console.log(`Applied palette class: palette-${colorPalette}`, root.classList.toString());
     }
 
     // --- Theme Handling ---
@@ -77,8 +78,25 @@ export function ThemeProvider({
       effectiveTheme = systemTheme;
     }
     root.classList.add(effectiveTheme);
+    console.log(`Applied theme: ${effectiveTheme}, classes:`, root.classList.toString());
 
   }, [theme, colorPalette]); // Apply immediately on change
+
+  // Listen for system theme changes
+  useEffect(() => {
+    if (theme !== "system") return;
+
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => {
+      const root = window.document.documentElement;
+      root.classList.remove("light", "dark");
+      const systemTheme = mediaQuery.matches ? "dark" : "light";
+      root.classList.add(systemTheme);
+    };
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [theme]);
 
   // Update state and localStorage
   const setTheme = (newTheme: Theme) => {

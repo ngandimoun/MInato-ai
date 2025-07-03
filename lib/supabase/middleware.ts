@@ -136,6 +136,7 @@ export async function updateSession(request: NextRequest) {
   const publicApiPaths = [
     '/api/auth',
     '/api/games', // Make all game-related endpoints public
+    '/api/recordings', // Make recordings endpoints accessible (they handle their own auth)
   ];
   
   const isPublicApiPath = publicApiPaths.some(path => requestPath.startsWith(path));

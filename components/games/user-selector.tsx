@@ -361,17 +361,7 @@ export function UserSelector({
             ⚠️ No users found. Click the input field to load users.
           </p>
         )}
-        <div className="mt-1 text-xs text-gray-500">
-          Debug: Loading={isLoadingAll.toString()}, Users={allUsers.length}, ShowDropdown={showDropdown.toString()}, Auth={user ? 'Yes' : 'No'}
-          <Button 
-            size="sm" 
-            variant="outline" 
-            onClick={() => fetchAllUsers()} 
-            className="ml-2"
-          >
-            🔄 Reload Users
-          </Button>
-        </div>
+
       </div>
     </div>
   );

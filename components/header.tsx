@@ -3,14 +3,15 @@
 
 import React, { createContext, useContext, useState } from "react";
 import { motion } from "framer-motion";
-import { MessageSquare, Settings, Brain, Bell, ShoppingBag, Gamepad2 } from "lucide-react"; // Added ShoppingBag and Gamepad2 icons
+import { MessageSquare, Settings, Brain, Bell, ShoppingBag, Gamepad2, Mic } from "lucide-react"; // Added Mic icon for AI Listening
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button"; 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { NotificationsPanel } from "@/components/ui/notifications-panel";
 import { useAuth } from "@/context/auth-provider"; // Optional for user info
+import { ModeToggle } from "@/components/mode-toggle"; // Added theme toggle
 
-type View = "chat" | "settings" | "memory" | "dashboard" | "games"; // Added games view
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening"; // Added listening view
 
 interface HeaderProps {
   currentView: View;
@@ -72,6 +73,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
   const navItems: { id: View; icon: React.ReactNode; label: string }[] = [
     { id: "chat", icon: <MessageSquare size={20} />, label: "Chat" },
     { id: "memory", icon: <Brain size={20} />, label: "Memory" },
+    { id: "listening", icon: <Mic size={20} />, label: "Listening" }, // Added Listening nav item
     { id: "games", icon: <Gamepad2 size={20} />, label: "Games" }, // Added Games nav item
     { id: "dashboard", icon: <ShoppingBag size={20} />, label: "Dashboard" }, // Added Dashboard nav item
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },
@@ -140,6 +142,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
             </nav>
 
             <div className="flex items-center space-x-2">
+              <ModeToggle />
               <Popover open={notifOpen} onOpenChange={setNotifOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" size="icon" className="relative rounded-full" aria-label="Notifications">

@@ -11,7 +11,7 @@ import { useAuth } from "@/context/auth-provider";
 import { logger } from "@/memory-framework/config";
 import { useRouter, useSearchParams } from "next/navigation";
 
-type View = "chat" | "settings" | "memory" | "dashboard" | "games"; // Added games view
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening"; // Added listening view
 
 export default function ChatPage() { 
   const [currentView, setCurrentView] = useState<View>("chat");
@@ -22,7 +22,7 @@ export default function ChatPage() {
   // Handle initial view based on query parameters
   useEffect(() => {
     const viewParam = searchParams.get('view');
-    if (viewParam && ['chat', 'settings', 'memory', 'games'].includes(viewParam)) {
+    if (viewParam && ['chat', 'settings', 'memory', 'games', 'listening'].includes(viewParam)) {
       setCurrentView(viewParam as View);
     }
   }, [searchParams]);
@@ -45,6 +45,13 @@ export default function ChatPage() {
   useEffect(() => {
      if (currentView === "games") {
         router.push("/games");
+     }
+  }, [currentView, router]);
+
+  // Handle navigation to listening page when the listening view is selected
+  useEffect(() => {
+     if (currentView === "listening") {
+        router.push("/listening");
      }
   }, [currentView, router]);
 
