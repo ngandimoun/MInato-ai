@@ -15,7 +15,9 @@ import { useToast } from '@/hooks/use-toast';
 import { 
   Clock, Users, Trophy, Star, Zap, ArrowRight, SkipForward,
   CheckCircle2, XCircle, Brain, Timer, Crown, Target,
-  Pause, Play, Home, RotateCcw, AlertCircle, Loader2
+  Pause, Play, Home, RotateCcw, AlertCircle, Loader2,
+  Share2, Twitter, Facebook, Download, Copy, Camera,
+  Sparkles, Award, TrendingUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -314,66 +316,288 @@ export default function GamePlayPage() {
 
   // Game finished state
   if (gameData.status === 'finished') {
+    const currentPlayer = getCurrentPlayer();
+    const isWinner = players && players[0]?.user_id === user?.id;
+    const totalQuestions = gameData.rounds || 5;
+    const correctAnswers = Math.min(Math.floor((currentPlayer?.score || 0) / 100), totalQuestions); // Cap at total questions
+    const accuracy = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+
+    const handleScreenshot = async () => {
+      try {
+        // Use html2canvas to capture the results card
+        const { default: html2canvas } = await import('html2canvas');
+        const element = document.getElementById('game-results-card');
+        if (element) {
+          const canvas = await html2canvas(element, {
+            backgroundColor: '#ffffff',
+            scale: 2,
+            useCORS: true,
+          });
+          
+          // Download the image
+          const link = document.createElement('a');
+          link.download = `minato-ai-game-results-${Date.now()}.png`;
+          link.href = canvas.toDataURL();
+          link.click();
+          
+          toast({
+            title: "Screenshot saved!",
+            description: "Your game results have been saved as an image.",
+          });
+        }
+      } catch (error) {
+        console.error('Screenshot failed:', error);
+        toast({
+          title: "Screenshot failed",
+          description: "Unable to capture screenshot. Please try again.",
+          variant: "destructive"
+        });
+      }
+    };
+
+    const handleShare = (platform: string) => {
+      const gameType = gameData.game_type_id?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Game';
+      const text = `Just scored ${currentPlayer?.score || 0} points in ${gameType} on Minato AI! 🎯 ${accuracy}% accuracy. Challenge me at minatoai.com`;
+      const url = 'https://minatoai.com/games';
+      
+      switch (platform) {
+        case 'twitter':
+          window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
+          break;
+        case 'facebook':
+          window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`, '_blank');
+          break;
+        case 'copy':
+          navigator.clipboard.writeText(`${text} ${url}`);
+          toast({
+            title: "Copied to clipboard!",
+            description: "Share text has been copied to your clipboard.",
+          });
+          break;
+      }
+    };
+
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-indigo-900 flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="w-full max-w-2xl"
         >
-          <Card className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10" />
-            <CardHeader className="text-center relative">
-              <Trophy className="w-16 h-16 mx-auto text-yellow-500 mb-4" />
-              <CardTitle className="text-3xl mb-2">Game Complete!</CardTitle>
-              <CardDescription className="text-lg">
-                Great job! Here are the final results.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="relative space-y-6">
-              {/* Player Scores */}
-              <div className="space-y-3">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Star className="w-5 h-5" />
-                  Final Scores
-                </h3>
-                <div className="space-y-2">
-                  {players?.map((player, index) => (
-                    <div 
-                      key={player.user_id}
-                      className={cn(
-                        "flex items-center justify-between p-3 rounded-lg",
-                        player.user_id === user?.id ? "bg-primary/10" : "bg-muted/50"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Badge variant={index === 0 ? "default" : "secondary"}>
-                          #{index + 1}
-                        </Badge>
-                        <Avatar className="w-8 h-8">
-                          <AvatarImage src={player.avatar_url} />
-                          <AvatarFallback>{player.username?.[0]}</AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium">{player.username}</span>
-                      </div>
-                      <span className="text-lg font-bold text-primary">
-                        {player.score} pts
-                      </span>
-                    </div>
-                  ))}
-                </div>
+          <Card id="game-results-card" className="relative overflow-hidden border-2 shadow-2xl">
+            {/* Animated Background */}
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(120,119,198,0.1),rgba(255,255,255,0))]" />
+            
+            {/* Minato AI Branding Header */}
+            <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+              <div className="flex items-center justify-center gap-3 mb-2">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center"
+                >
+                  <Sparkles className="w-5 h-5" />
+                </motion.div>
+                <h2 className="text-2xl font-bold">Minato AI</h2>
               </div>
+              <p className="text-center text-blue-100">AI-Powered Gaming Platform</p>
+            </div>
 
-              <div className="flex gap-3">
+            <CardHeader className="text-center relative pt-8">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+              >
+                <Trophy className="w-20 h-20 mx-auto text-yellow-500 mb-4" />
+              </motion.div>
+              
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="flex flex-col items-center"
+              >
+                <CardTitle className="text-4xl mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Game Complete!
+                </CardTitle>
+                
+                <div className="flex items-center gap-3 mb-2">
+                  <Avatar className="w-12 h-12 border-2 border-white shadow-lg">
+                    <AvatarImage src={user?.user_metadata?.avatar_url || user?.user_metadata?.picture} />
+                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-500 text-white font-semibold">
+                      {(currentPlayer?.username || user?.user_metadata?.full_name || 'P')[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <CardDescription className="text-lg text-muted-foreground">
+                    {isWinner ? `🎉 Congratulations ${currentPlayer?.username || user?.user_metadata?.full_name || 'Champion'}! You won!` : `Great job ${currentPlayer?.username || user?.user_metadata?.full_name || 'Player'}! Here are your final results.`}
+                  </CardDescription>
+                </div>
+              </motion.div>
+            </CardHeader>
+
+            <CardContent className="relative space-y-6 pb-8">
+              {/* Personal Stats Card */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-6 border"
+              >
+                <div className="grid grid-cols-2 gap-6 text-center">
+                  <div className="space-y-3">
+                    <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto">
+                      <Award className="w-8 h-8 text-white" />
+                    </div>
+                    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                      {currentPlayer?.score || 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground font-medium">Points Earned</div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto">
+                      <Target className="w-8 h-8 text-white" />
+                    </div>
+                    <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+                      {accuracy}%
+                    </div>
+                    <div className="text-sm text-muted-foreground font-medium">Accuracy Rate</div>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Player Scores */}
+              {players && players.length > 1 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 }}
+                  className="space-y-3"
+                >
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <Star className="w-5 h-5" />
+                    Final Leaderboard
+                  </h3>
+                  <div className="space-y-2">
+                    {players.map((player, index) => (
+                      <motion.div 
+                        key={player.user_id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 1 + index * 0.1 }}
+                        className={cn(
+                          "flex items-center justify-between p-4 rounded-lg border",
+                          player.user_id === user?.id ? "bg-primary/10 border-primary/20" : "bg-muted/50",
+                          index === 0 && "ring-2 ring-yellow-400/50 bg-yellow-50 dark:bg-yellow-900/20"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Badge variant={index === 0 ? "default" : "secondary"} className="text-sm">
+                            {index === 0 ? <Crown className="w-3 h-3 mr-1" /> : null}
+                            #{index + 1}
+                          </Badge>
+                          <Avatar className="w-10 h-10">
+                            <AvatarImage src={player.avatar_url} />
+                            <AvatarFallback>{player.username?.[0]}</AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium">{player.username}</span>
+                        </div>
+                        <span className="text-xl font-bold text-primary">
+                          {player.score} pts
+                        </span>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Social Sharing */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.2 }}
+                className="space-y-4"
+              >
+                <h3 className="text-lg font-semibold flex items-center gap-2 text-center justify-center">
+                  <Share2 className="w-5 h-5" />
+                  Share Your Achievement
+                </h3>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <Button
+                    onClick={handleScreenshot}
+                    variant="outline"
+                    className="flex-col h-16 gap-1"
+                  >
+                    <Camera className="w-5 h-5" />
+                    <span className="text-xs">Screenshot</span>
+                  </Button>
+                  
+                  <Button
+                    onClick={() => handleShare('twitter')}
+                    variant="outline"
+                    className="flex-col h-16 gap-1 hover:bg-blue-50 hover:border-blue-300"
+                  >
+                    <Twitter className="w-5 h-5 text-blue-500" />
+                    <span className="text-xs">Twitter</span>
+                  </Button>
+                  
+                  <Button
+                    onClick={() => handleShare('facebook')}
+                    variant="outline"
+                    className="flex-col h-16 gap-1 hover:bg-blue-50 hover:border-blue-600"
+                  >
+                    <Facebook className="w-5 h-5 text-blue-600" />
+                    <span className="text-xs">Facebook</span>
+                  </Button>
+                  
+                  <Button
+                    onClick={() => handleShare('copy')}
+                    variant="outline"
+                    className="flex-col h-16 gap-1"
+                  >
+                    <Copy className="w-5 h-5" />
+                    <span className="text-xs">Copy Link</span>
+                  </Button>
+                </div>
+              </motion.div>
+
+              {/* Action Buttons */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.4 }}
+                className="flex gap-3"
+              >
                 <Button onClick={handleExitGame} variant="outline" className="flex-1">
                   <Home className="w-4 h-4 mr-2" />
                   Back to Games
                 </Button>
-                <Button onClick={() => router.push('/games?tab=library')} className="flex-1">
+                <Button 
+                  onClick={() => router.push('/games?tab=library')} 
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                >
                   <RotateCcw className="w-4 h-4 mr-2" />
                   Play Again
                 </Button>
-              </div>
+              </motion.div>
+
+              {/* Minato AI Footer */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1.6 }}
+                className="text-center pt-4 border-t"
+              >
+                <p className="text-sm text-muted-foreground">
+                  Powered by <span className="font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Minato AI</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Experience the future of AI-powered gaming
+                </p>
+              </motion.div>
             </CardContent>
           </Card>
         </motion.div>
