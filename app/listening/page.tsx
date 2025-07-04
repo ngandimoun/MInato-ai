@@ -5,15 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { RecordingButton } from "@/components/listening/recording-button";
 import { RecordingList } from "@/components/listening/recording-list";
 import { RecordingAnalysis } from "@/components/listening/recording-analysis";
-import { useListening } from "@/context/listening-context";
-import { Recording } from "@/context/listening-context";
+import { useListening, Recording } from "@/context/listening-context";
 import { Header } from "@/components/header";
 import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mic, List, BarChart3 } from "lucide-react";
 
 // Define view type to match Header component
-type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening";
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights";
 
 export default function ListeningPage() {
   const {
@@ -39,6 +38,8 @@ export default function ListeningPage() {
       router.push("/dashboard");
     } else if (view === "games") {
       router.push("/games");
+    } else if (view === "insights") {
+      router.push("/insights");
     } else {
       // Navigate to chat page with the specified view
       router.push(`/chat?view=${view}`);
@@ -64,6 +65,12 @@ export default function ListeningPage() {
       }
     }
   }, [deleteRecording, currentRecordingId, setCurrentRecordingId]);
+
+  // Handle recording update
+  const handleUpdateRecording = useCallback((updatedRecording: Recording) => {
+    // Re-fetch recordings to get the updated data
+    fetchRecordings();
+  }, [fetchRecordings]);
 
   // Handle segment highlighting
   const handleHighlightSegment = useCallback((segmentId: number) => {
@@ -135,6 +142,7 @@ export default function ListeningPage() {
                     selectedRecordingId={currentRecordingId}
                     onSelectRecording={handleSelectRecording}
                     onDeleteRecording={handleDeleteRecording}
+                    onUpdateRecording={handleUpdateRecording}
                   />
                 </div>
               </TabsContent>
@@ -179,6 +187,7 @@ export default function ListeningPage() {
                     selectedRecordingId={currentRecordingId}
                     onSelectRecording={handleSelectRecording}
                     onDeleteRecording={handleDeleteRecording}
+                    onUpdateRecording={handleUpdateRecording}
                     className="shadow-lg hover:shadow-xl transition-shadow"
                   />
                 </motion.div>

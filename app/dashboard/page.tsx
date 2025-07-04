@@ -62,7 +62,7 @@ const sellerTabs: TabItem[] = [
 ];
 
 // Define view type to match Header component
-type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening";
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights";
 
 export default function DashboardPage() {
   const [currentView, setCurrentView] = useState<View>("dashboard");
@@ -120,6 +120,8 @@ export default function DashboardPage() {
       router.push("/chat?view=memory");
     } else if (currentView === "listening") {
       router.push("/listening");
+    } else if (currentView === "insights") {
+      router.push("/insights");
     }
   }, [currentView, router]);
 
