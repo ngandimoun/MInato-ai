@@ -1,0 +1,16 @@
+{
+  "entities": {},
+  "metrics": {},
+  "time_series": [],
+  "categories": {
+    "other": {
+      "count": 4,
+      "documents": [
+        "a4b633ce-bcb3-4553-a57a-ea4d896efddf",
+        "8b5a3db8-a700-44bc-8e70-8bc7fd7f0bab",
+        "e6b0b4e0-59d5-433b-ba16-cb7a9605e94e",
+        "ef773248-dc03-4813-8086-9e44036d999d"
+      ]
+    }
+  }
+}

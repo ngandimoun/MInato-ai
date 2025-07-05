@@ -1,0 +1,42 @@
+[
+  {
+    "id": "9267b93e-3d39-4197-8c08-3d92731aea23",
+    "title": "financial_data_plot - Copy",
+    "type": "image",
+    "categories": [
+      "other"
+    ],
+    "file_size": 292854,
+    "created_at": "2025-07-04T20:30:50.073+00:00"
+  },
+  {
+    "id": "c633f841-48a6-4fc9-9d0d-f12fe1909b26",
+    "title": "financial_data_sample - Copy",
+    "type": "document",
+    "categories": [
+      "other"
+    ],
+    "file_size": 37252,
+    "created_at": "2025-07-04T20:30:55.004+00:00"
+  },
+  {
+    "id": "61164cff-250e-45f4-8181-be9e2804ea5b",
+    "title": "financial_data_sample",
+    "type": "document",
+    "categories": [
+      "other"
+    ],
+    "file_size": 37252,
+    "created_at": "2025-07-04T20:30:57.869+00:00"
+  },
+  {
+    "id": "4e5fe6ad-56d5-4818-a1d3-2835284c5d21",
+    "title": "financial_data_sample",
+    "type": "document",
+    "categories": [
+      "other"
+    ],
+    "file_size": 16195,
+    "created_at": "2025-07-04T20:31:00.227+00:00"
+  }
+]

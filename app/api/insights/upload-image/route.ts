@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import OpenAI from 'openai';
 import { logger } from '@/memory-framework/config';
-import { getInsightsService } from '@/lib/services/InsightsService';
+import crypto from 'crypto';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -60,9 +60,10 @@ export async function POST(request: NextRequest) {
     const dataUrl = `data:${file.type};base64,${base64Image}`;
 
     // Upload file to Supabase Storage
-    const fileName = `${user.id}/${Date.now()}-${file.name}`;
+    const fileName = `insights/${user.id}/${Date.now()}-${file.name}`;
+    const bucketName = process.env.MEDIA_IMAGE_BUCKET || 'images2';
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('insights-images')
+      .from(bucketName)
       .upload(fileName, buffer, {
         contentType: file.type,
         upsert: false
@@ -77,12 +78,12 @@ export async function POST(request: NextRequest) {
 
     // Get public URL for the uploaded image
     const { data: { publicUrl } } = supabase.storage
-      .from('insights-images')
+      .from(bucketName)
       .getPublicUrl(fileName);
 
     // Analyze image with OpenAI Vision API
     const visionResponse = await openai.chat.completions.create({
-      model: "gpt-4-vision-preview",
+      model: "gpt-4o-2024-08-06",
       messages: [
         {
           role: "user",
@@ -167,16 +168,18 @@ Format as a clear, actionable summary for business users.`
 
     const businessInsights = insightsResponse.choices[0]?.message?.content || '';
 
-    // Save document record using the service
-    const insightsService = getInsightsService();
-    const document = await insightsService.createDocument({
+    // Save document record directly to database
+    const documentId = crypto.randomUUID();
+    const documentData = {
+      id: documentId,
       user_id: user.id,
       title: title || file.name,
+      description: description || null,
       original_filename: file.name,
       file_type: file.type,
       content_type: 'image',
       file_size: file.size,
-      description: description || undefined,
+      processing_status: 'completed',
       categories: categories ? categories.split(',').map(c => c.trim()) : [],
       tags: tags ? tags.split(',').map(t => t.trim()) : [],
       batch_context: batchTitle || batchDescription ? {
@@ -184,27 +187,33 @@ Format as a clear, actionable summary for business users.`
         batch_description: batchDescription || undefined,
         batch_index: batchIndex ? parseInt(batchIndex) : undefined,
         batch_total: batchTotal ? parseInt(batchTotal) : undefined
-      } : undefined
-    });
+      } : null,
+      storage_path: fileName,
+      storage_bucket: bucketName,
+      extracted_text: analysisText,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
 
-    if (!document) {
-      logger.error('[ImageUpload] Failed to create document record');
+    const { data: document, error: dbError } = await supabase
+      .from('insights_documents')
+      .insert(documentData)
+      .select()
+      .single();
+
+    if (dbError || !document) {
+      logger.error('[ImageUpload] Failed to create document record:', dbError);
       return NextResponse.json({ 
         error: 'Failed to save document record' 
       }, { status: 500 });
     }
 
-    // Update with processing results
-    await insightsService.updateDocument(document.id, {
-      storage_path: fileName,
-      extracted_text: analysisText,
-      processing_status: 'completed'
-    });
 
 
-
-    // Create initial analysis record
-    const analysisResult = await insightsService.createAnalysisResult({
+    // Create initial analysis record directly in database
+    const analysisId = crypto.randomUUID();
+    const analysisData = {
+      id: analysisId,
       user_id: user.id,
       analysis_type: 'image_analysis',
       analysis_name: `Image Analysis: ${document.title}`,
@@ -222,11 +231,18 @@ Format as a clear, actionable summary for business users.`
       summary: businessInsights,
       key_metrics: {},
       confidence_score: 0.85,
+      created_at: new Date().toISOString(),
       completed_at: new Date().toISOString()
-    });
+    };
 
-    if (!analysisResult) {
-      logger.warn('[ImageUpload] Analysis save failed, but continuing...');
+    const { data: analysisResult, error: analysisError } = await supabase
+      .from('insights_analysis_results')
+      .insert(analysisData)
+      .select()
+      .single();
+
+    if (analysisError) {
+      logger.warn('[ImageUpload] Analysis save failed, but continuing...', analysisError);
       // Continue anyway, document is uploaded
     }
 

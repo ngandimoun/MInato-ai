@@ -7,7 +7,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { logger } from "@/memory-framework/config";
-import { getInsightsService } from "@/lib/services/InsightsService";
 import { randomUUID } from "crypto";
 
 // Maximum file size for documents (50MB)
@@ -28,7 +27,6 @@ const ALLOWED_DOCUMENT_TYPES = [
 export async function POST(req: NextRequest) {
   const logPrefix = "[API Insights Upload]";
   const cookieStore = cookies();
-  let userId: string | null = null;
 
   try {
     // Authenticate user
@@ -45,7 +43,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
-    userId = user.id;
+    const userId = user.id;
     logger.info(`${logPrefix} Upload request from user: ${userId.substring(0, 8)}...`);
 
     // Parse form data
@@ -79,34 +77,37 @@ export async function POST(req: NextRequest) {
       }, { status: 415 });
     }
 
-    // Initialize insights service
-    const insightsService = getInsightsService();
-
-    // Upload file to storage
+    // Upload file to storage directly
     const fileBuffer = Buffer.from(await file.arrayBuffer());
-    const uploadResult = await insightsService.uploadFile(
-      userId!,
-      file.name,
-      fileBuffer,
-      file.type
-    );
+    const fileName = `insights/${userId}/${Date.now()}-${file.name}`;
+    const bucketName = process.env.MEDIA_DOCUMENT_BUCKET || 'documents';
+    
+    const { data: uploadData, error: uploadError } = await supabaseAuth.storage
+      .from(bucketName)
+      .upload(fileName, fileBuffer, {
+        contentType: file.type,
+        upsert: false
+      });
 
-    if (!uploadResult.success) {
-      logger.error(`${logPrefix} File upload failed:`, uploadResult.error);
+    if (uploadError) {
+      logger.error(`${logPrefix} File upload failed:`, uploadError);
       return NextResponse.json({ 
-        error: `File upload failed: ${uploadResult.error}` 
+        error: `File upload failed: ${uploadError.message}` 
       }, { status: 500 });
     }
 
-    // Create document record
-    const document = await insightsService.createDocument({
-      user_id: userId!,
+    // Create document record directly in database
+    const documentId = randomUUID();
+    const documentData = {
+      id: documentId,
+      user_id: userId,
       title: title || file.name,
+      description: description || null,
       original_filename: file.name,
       file_type: file.type,
-      file_size: file.size,
       content_type: 'document',
-      description: description || undefined,
+      file_size: file.size,
+      processing_status: 'pending',
       categories: categories ? categories.split(',').map(c => c.trim()) : [],
       tags: tags ? tags.split(',').map(t => t.trim()) : [],
       batch_context: batchTitle || batchDescription ? {
@@ -114,20 +115,25 @@ export async function POST(req: NextRequest) {
         batch_description: batchDescription || undefined,
         batch_index: batchIndex ? parseInt(batchIndex) : undefined,
         batch_total: batchTotal ? parseInt(batchTotal) : undefined
-      } : undefined
-    });
+      } : null,
+      storage_path: fileName,
+      storage_bucket: bucketName,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
 
-    if (!document) {
-      logger.error(`${logPrefix} Failed to create document record`);
+    const { data: document, error: dbError } = await supabaseAuth
+      .from('insights_documents')
+      .insert(documentData)
+      .select()
+      .single();
+
+    if (dbError || !document) {
+      logger.error(`${logPrefix} Failed to create document record:`, dbError);
       return NextResponse.json({ 
         error: "Failed to create document record" 
       }, { status: 500 });
     }
-
-    // Update document with storage path
-    await insightsService.updateDocument(document.id, {
-      storage_path: uploadResult.path
-    });
 
     logger.info(`${logPrefix} Document uploaded successfully: ${document.id}`);
 
@@ -175,21 +181,42 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status')?.split(',');
     const categories = searchParams.get('categories')?.split(',');
 
-    // Get documents
-    const insightsService = getInsightsService();
-    const documents = await insightsService.getUserDocuments({
-      user_id: userId,
-      limit,
-      offset,
-      status,
-      categories
-    });
+    // Get documents directly from database
+    let query = supabaseAuth
+      .from('insights_documents')
+      .select('*')
+      .eq('user_id', userId);
 
-    logger.info(`${logPrefix} Retrieved ${documents.length} documents for user: ${userId.substring(0, 8)}`);
+    if (status && status.length > 0) {
+      query = query.in('processing_status', status);
+    }
+    
+    if (categories && categories.length > 0) {
+      query = query.overlaps('categories', categories);
+    }
+
+    query = query
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (offset) {
+      query = query.range(offset, offset + limit - 1);
+    }
+
+    const { data: documents, error: docsError } = await query;
+
+    if (docsError) {
+      logger.error(`${logPrefix} Database error:`, docsError);
+      return NextResponse.json({ 
+        error: "Failed to retrieve documents" 
+      }, { status: 500 });
+    }
+
+    logger.info(`${logPrefix} Retrieved ${documents?.length || 0} documents for user: ${userId.substring(0, 8)}`);
 
     return NextResponse.json({
       success: true,
-      documents: documents.map(doc => ({
+      documents: (documents || []).map((doc: any) => ({
         id: doc.id,
         title: doc.title,
         filename: doc.original_filename,
@@ -201,7 +228,7 @@ export async function GET(req: NextRequest) {
         created_at: doc.created_at,
         updated_at: doc.updated_at
       })),
-      total: documents.length
+      total: documents?.length || 0
     });
 
   } catch (error: any) {
