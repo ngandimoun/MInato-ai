@@ -11,7 +11,7 @@ import { useAuth } from "@/context/auth-provider";
 import { logger } from "@/memory-framework/config";
 import { useRouter, useSearchParams } from "next/navigation";
 
-type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights"; // Added listening and insights views
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub"; // Added listening, insights, and creation-hub views
 
 export default function ChatPage() { 
   const [currentView, setCurrentView] = useState<View>("chat");
@@ -59,6 +59,13 @@ export default function ChatPage() {
   useEffect(() => {
      if (currentView === "insights") {
         router.push("/insights");
+     }
+  }, [currentView, router]);
+
+  // Handle navigation to creation-hub page when the creation-hub view is selected
+  useEffect(() => {
+     if (currentView === "creation-hub") {
+        router.push("/creation-hub");
      }
   }, [currentView, router]);
 

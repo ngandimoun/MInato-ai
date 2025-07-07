@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useState } from "react";
 import { motion } from "framer-motion";
-import { MessageSquare, Settings, Brain, Bell, ShoppingBag, Gamepad2, Mic, BarChart3 } from "lucide-react"; // Added Mic icon for AI Listening and BarChart3 for Insights
+import { MessageSquare, Settings, Brain, Bell, ShoppingBag, Gamepad2, Mic, BarChart3, Palette } from "lucide-react"; // Added Mic icon for AI Listening, BarChart3 for Insights, and Palette for Creation Hub
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button"; 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -11,7 +11,7 @@ import { NotificationsPanel } from "@/components/ui/notifications-panel";
 import { useAuth } from "@/context/auth-provider"; // Optional for user info
 import { ModeToggle } from "@/components/mode-toggle"; // Added theme toggle
 
-type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights"; // Added listening and insights views
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub"; // Added listening, insights, and creation-hub views
 
 interface HeaderProps {
   currentView: View;
@@ -73,6 +73,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
   const navItems: { id: View; icon: React.ReactNode; label: string }[] = [
     { id: "chat", icon: <MessageSquare size={20} />, label: "Chat" },
     { id: "memory", icon: <Brain size={20} />, label: "Memory" },
+    { id: "creation-hub", icon: <Palette size={20} />, label: "Creation Hub" }, // Added Creation Hub nav item
     { id: "insights", icon: <BarChart3 size={20} />, label: "Insights" }, // Added Insights nav item
     { id: "listening", icon: <Mic size={20} />, label: "Listening" }, // Added Listening nav item
     { id: "games", icon: <Gamepad2 size={20} />, label: "Games" }, // Added Games nav item

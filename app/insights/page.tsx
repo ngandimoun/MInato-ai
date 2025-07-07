@@ -26,7 +26,7 @@ import {
   Plus
 } from "lucide-react";
 
-type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights";
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub";
 
 export default function InsightsPage() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -47,6 +47,8 @@ export default function InsightsPage() {
       router.push("/games");
     } else if (view === "listening") {
       router.push("/listening");
+    } else if (view === "creation-hub") {
+      router.push("/creation-hub");
     } else {
       router.push(`/chat?view=${view}`);
     }

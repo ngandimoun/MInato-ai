@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mic, List, BarChart3 } from "lucide-react";
 
 // Define view type to match Header component
-type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights";
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub";
 
 export default function ListeningPage() {
   const {
@@ -40,6 +40,8 @@ export default function ListeningPage() {
       router.push("/games");
     } else if (view === "insights") {
       router.push("/insights");
+    } else if (view === "creation-hub") {
+      router.push("/creation-hub");
     } else {
       // Navigate to chat page with the specified view
       router.push(`/chat?view=${view}`);
