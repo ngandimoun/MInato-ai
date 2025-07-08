@@ -18,11 +18,68 @@ export interface EnhancementOptions {
   includeProfessionalTerms?: boolean;
 }
 
+// ===== Standardized Fields Helper =====
+export function getStandardFieldsPromptSection(formValues: CategoryFormValues, visionDescription?: string): string {
+  let sections: string[] = [];
+
+  // Language specification
+  if (formValues.textLanguage && formValues.textLanguage !== 'en') {
+    const languageName = formValues.textLanguage === 'es' ? 'Spanish' :
+                        formValues.textLanguage === 'fr' ? 'French' :
+                        formValues.textLanguage === 'de' ? 'German' :
+                        formValues.textLanguage === 'it' ? 'Italian' :
+                        formValues.textLanguage === 'pt' ? 'Portuguese' :
+                        formValues.textLanguage === 'ru' ? 'Russian' :
+                        formValues.textLanguage === 'ja' ? 'Japanese' :
+                        formValues.textLanguage === 'ko' ? 'Korean' :
+                        formValues.textLanguage === 'zh' ? 'Chinese' :
+                        formValues.textLanguage === 'ar' ? 'Arabic' :
+                        formValues.textLanguage === 'hi' ? 'Hindi' : 'the selected language';
+    
+    sections.push(`LANGUAGE SPECIFICATION:
+- Text Language: All text elements must be in ${languageName}
+- Typography: Use appropriate fonts that support ${languageName} characters
+- Cultural Context: Ensure design elements are culturally appropriate for ${languageName}-speaking audiences
+- Text Direction: Apply correct text direction and layout conventions for ${languageName}`);
+  }
+
+  // Human model integration
+  if (formValues.includeHuman && formValues.humanDescription) {
+    sections.push(`HUMAN MODEL INTEGRATION:
+- Model Description: ${formValues.humanDescription}
+- Interaction: Show the person naturally interacting with or using the subject matter
+- Pose & Expression: Natural, authentic positioning that enhances the overall composition
+- Professional Quality: Commercial photography standards for human model presentation
+- Lighting Consistency: Ensure model lighting matches the overall scene atmosphere
+- Cultural Sensitivity: Respectful and appropriate representation`);
+  } else if (formValues.includeHuman) {
+    sections.push(`HUMAN MODEL INTEGRATION:
+- Include a person naturally interacting with or using the subject matter
+- Professional, approachable appearance suitable for the context
+- Natural pose and expression that enhances the composition
+- Commercial photography standards for human model presentation`);
+  }
+
+  // Reference images vision description
+  if (visionDescription) {
+    sections.push(`VISUAL REFERENCE INTEGRATION:
+${visionDescription}
+- Style Continuity: Maintain consistent visual language from reference materials
+- Color Harmony: Extract and enhance dominant color palette from references
+- Compositional Elements: Incorporate successful design patterns while ensuring originality
+- Quality Standards: Match or exceed the visual quality of reference materials`);
+  }
+
+  return sections.join('\n\n');
+}
+
 // ===== Social Media Template =====
 
 export const SOCIAL_MEDIA_TEMPLATE: PromptTemplate = {
   categoryId: 'social-media',
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
+    const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
+    
     const textOnImageSection = formValues.textOnImage 
       ? `Text Integration Specifications:
 - Primary Text: "${formValues.textOnImage}"
@@ -35,15 +92,9 @@ export const SOCIAL_MEDIA_TEMPLATE: PromptTemplate = {
 - Platform Adaptation: Text sizing optimized for ${formValues.platform} viewing distance and context`
       : 'Text-Free Design: Pure visual storytelling without typography, relying on imagery, color, and composition';
     
-    const visionSection = visionDescription 
-      ? `Visual Reference Integration:
-${visionDescription}
-- Style Continuity: Maintain consistent visual language from reference materials
-- Color Harmony: Extract and enhance dominant color palette from references
-- Compositional Elements: Incorporate successful design patterns while ensuring originality`
-      : '';
-    
     return `Create a stunning, scroll-stopping ${formValues.platform} content piece that maximizes engagement and brand impact.
+
+${standardFieldsSection}
 
 CONTENT SPECIFICATIONS:
 Subject Matter: ${formValues.postTopic}
@@ -119,8 +170,6 @@ Platform-Specific Adaptation:
 - Visual hierarchy designed for ${formValues.platform} user behavior patterns
 - Call-to-action visual cues if applicable to content type
 
-${visionSection}
-
 FINAL QUALITY ASSURANCE:
 - Every pixel contributes to overall message and aesthetic
 - No extraneous elements that don't serve the content purpose
@@ -160,6 +209,8 @@ FINAL QUALITY ASSURANCE:
 export const LOGO_BRAND_TEMPLATE: PromptTemplate = {
   categoryId: 'logo-brand',
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
+    const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
+    
     const sloganSection = formValues.slogan 
       ? `Brand Messaging Integration:
 Primary Slogan: "${formValues.slogan}"
@@ -171,16 +222,9 @@ Primary Slogan: "${formValues.slogan}"
 - Memorability: Supports brand recall when slogan appears separately from logo`
       : 'Logo-Only Design: Standalone brand mark without tagline integration, maximum symbol impact and versatility';
     
-    const visionSection = visionDescription 
-      ? `Design Heritage & Inspiration:
-${visionDescription}
-- Style Evolution: Incorporate successful elements while ensuring contemporary relevance
-- Industry Context: Understand competitive landscape while maintaining differentiation
-- Cultural Sensitivity: Respect cultural meanings and avoid unintended associations
-- Symbolic Resonance: Build upon established visual metaphors that enhance brand meaning`
-      : '';
-    
     return `Design an iconic, instantly recognizable logo that becomes the cornerstone of ${formValues.companyName}'s brand identity and market presence.
+
+${standardFieldsSection}
 
 BRAND IDENTITY SPECIFICATIONS:
 Company: ${formValues.companyName}
@@ -271,8 +315,6 @@ Brand Longevity Planning:
 - Multi-Generational Appeal: Visual approach suitable for long-term brand building
 - Legacy Consideration: Design dignity appropriate for century-long brand presence
 
-${visionSection}
-
 FINAL BRAND MARK VALIDATION:
 - Instant Recognition: Logo identifiable within 0.5-second viewing window
 - Memory Retention: Design elements supporting long-term brand recall
@@ -308,6 +350,8 @@ FINAL BRAND MARK VALIDATION:
 export const UI_COMPONENTS_TEMPLATE: PromptTemplate = {
   categoryId: 'ui-components',
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
+    const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
+    
     const functionalitySection = formValues.functionality 
       ? `Interface Functionality Specifications:
 Core Function: ${formValues.functionality}
@@ -320,16 +364,9 @@ Core Function: ${formValues.functionality}
 - Microinteractions: Subtle animations enhancing perceived responsiveness and user delight`
       : 'Static Component Design: Focus on visual excellence and layout perfection for presentation purposes';
     
-    const visionSection = visionDescription 
-      ? `Design System Integration:
-${visionDescription}
-- Pattern Consistency: Aligns with established design patterns while introducing thoughtful innovations
-- Component Hierarchy: Respects existing design system hierarchy and component relationships
-- Style Heritage: Builds upon successful design elements while ensuring contemporary relevance
-- Brand Integration: Seamlessly incorporates brand elements without compromising usability`
-      : '';
-    
     return `Create a pixel-perfect, production-ready UI component that exemplifies modern interface design excellence and optimal user experience.
+
+${standardFieldsSection}
 
 COMPONENT SPECIFICATIONS:
 Component Type: ${formValues.componentType}
@@ -428,7 +465,6 @@ Design System Compliance:
 - Maintenance Considerations: Design approach supporting long-term system evolution
 
 PRODUCTION READINESS VALIDATION:
-${visionSection}
 
 Quality Assurance Checklist:
 - Pixel Perfection: Every element precisely positioned and sized according to design specifications
@@ -466,6 +502,8 @@ Developer Handoff Excellence:
 export const MARKETING_TEMPLATE: PromptTemplate = {
   categoryId: 'marketing',
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
+    const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
+    
     const ctaSection = formValues.callToAction 
       ? `Call-to-Action Architecture:
 Primary CTA: "${formValues.callToAction}"
@@ -479,16 +517,9 @@ Primary CTA: "${formValues.callToAction}"
 - Mobile Optimization: Touch-friendly sizing and positioning for thumb-driven mobile interactions`
       : 'Awareness-Stage Marketing: Focus on brand recognition and value communication without direct sales pressure';
     
-    const visionSection = visionDescription 
-      ? `Brand Visual Integration:
-${visionDescription}
-- Brand Consistency: Seamless integration with existing brand visual language and messaging hierarchy
-- Competitive Differentiation: Distinctive visual approach setting apart from industry standard approaches
-- Market Positioning: Visual elements reinforce intended market position and target audience alignment
-- Cultural Relevance: Design elements appropriate for target demographic cultural context and values`
-      : '';
-    
     return `Create a high-converting, strategically designed marketing asset that drives measurable business results and advances specific campaign objectives.
+
+${standardFieldsSection}
 
 MARKETING CAMPAIGN SPECIFICATIONS:
 Target Audience: ${formValues.targetAudience}
@@ -589,8 +620,6 @@ ROI Optimization Framework:
 - Cross-Sell Integration: Design elements supporting additional product or service promotion
 - Customer Journey Alignment: Visual approach appropriate for specific funnel stage and customer readiness
 
-${visionSection}
-
 PRODUCTION EXCELLENCE STANDARDS:
 Technical Quality Assurance:
 - Print Production: CMYK color management and high-resolution output for physical materials
@@ -630,6 +659,8 @@ Campaign Integration Requirements:
 export const BANNERS_TEMPLATE: PromptTemplate = {
   categoryId: 'banners',
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
+    const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
+    
     const messageSection = formValues.primaryMessage 
       ? `Core Message Architecture:
 Primary Message: "${formValues.primaryMessage}"
@@ -653,16 +684,9 @@ Display Context: ${formValues.bannerType}
 - Algorithm Optimization: Visual elements designed to maximize organic reach and engagement on ${formValues.bannerType}`
       : '';
     
-    const visionSection = visionDescription 
-      ? `Brand Visual Continuity:
-${visionDescription}
-- Design Language Consistency: Seamless integration with existing brand visual approach and guidelines
-- Style Evolution: Creative interpretation of brand elements while maintaining recognition and consistency
-- Competitive Differentiation: Distinctive visual approach setting apart from industry standard banner approaches
-- Cross-Platform Cohesion: Design approach supporting consistent brand experience across multiple touchpoints`
-      : '';
-    
     return `Create a high-performance banner graphic that stops scrolling, captures attention immediately, and drives specific user actions with measurable conversion impact.
+
+${standardFieldsSection}
 
 BANNER CAMPAIGN SPECIFICATIONS:
 Banner Purpose: ${formValues.bannerPurpose}
@@ -771,8 +795,6 @@ Behavioral Trigger Integration:
 - Aspiration Activation: Design elements connecting with audience goals and desired self-image
 - Problem Resolution: Visual storytelling addressing specific pain points relevant to target audience experience
 
-${visionSection}
-
 FINAL QUALITY VALIDATION:
 Performance Prediction Framework:
 - Click-Through Rate Optimization: Design elements proven to increase CTR in ${formValues.bannerType} format
@@ -804,6 +826,8 @@ Performance Prediction Framework:
 export const DATA_VIZ_TEMPLATE: PromptTemplate = {
   categoryId: 'data-viz',
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
+    const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
+    
     const insightsSection = formValues.keyInsights 
       ? `Data Story Architecture:
 Key Insights: ${formValues.keyInsights}
@@ -816,16 +840,9 @@ Key Insights: ${formValues.keyInsights}
 - Threshold Indicators: Important benchmarks, goals, or limits clearly marked and contextually explained`
       : 'Exploratory Visualization: Open-ended data presentation encouraging user discovery and analysis';
     
-    const visionSection = visionDescription 
-      ? `Analytical Design Integration:
-${visionDescription}
-- Style Consistency: Seamless integration with existing analytical reporting and dashboard systems
-- Brand Alignment: Corporate identity elements appropriately incorporated without compromising data clarity
-- Industry Standards: Visualization approach following sector-specific best practices and conventions
-- Template Framework: Design approach scalable across multiple datasets and reporting requirements`
-      : '';
-    
     return `Create an executive-quality data visualization that transforms complex information into immediately actionable business intelligence and strategic insights.
+
+${standardFieldsSection}
 
 DATA VISUALIZATION SPECIFICATIONS:
 Chart Type: ${formValues.chartType}
@@ -935,8 +952,6 @@ Cross-Functional Accessibility:
 - Operational Relevance: Insights directly applicable to day-to-day business operations and planning
 - Strategic Alignment: Visualization supporting long-term organizational goals and strategic initiatives
 
-${visionSection}
-
 FINAL ANALYTICAL VALIDATION:
 Quality Assurance Framework:
 - Data Integrity: All numerical representations verified for accuracy and appropriate statistical treatment
@@ -963,6 +978,8 @@ Quality Assurance Framework:
 export const ILLUSTRATIONS_TEMPLATE: PromptTemplate = {
   categoryId: 'illustrations',
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
+    const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
+    
     const moodSection = formValues.mood 
       ? `Atmospheric Design Framework:
 Emotional Tone: ${formValues.mood}
@@ -987,16 +1004,9 @@ Dominant Palette: ${formValues.colorPreference}
 - Accessibility Considerations: Color combinations readable across various forms of color vision deficiency`
       : 'Open Color Exploration: Intuitive color selection based on subject matter and artistic vision';
     
-    const visionSection = visionDescription 
-      ? `Artistic Heritage Integration:
-${visionDescription}
-- Style Evolution: Contemporary interpretation of established artistic traditions and movements
-- Technique Synthesis: Combination of classical artistic principles with modern creative approaches
-- Cultural Context: Respectful integration of artistic influences while ensuring original creative expression
-- Medium Authenticity: Digital technique mimicking traditional artistic media with faithful material representation`
-      : '';
-    
     return `Create a masterpiece-quality artistic illustration that transcends mere visual representation to become compelling artistic storytelling with emotional depth and technical excellence.
+
+${standardFieldsSection}
 
 ARTISTIC VISION SPECIFICATIONS:
 Subject Matter: ${formValues.subject}
@@ -1092,8 +1102,6 @@ Professional Artistic Positioning:
 - Educational Value: Visual content suitable for textbooks, museums, and educational material development
 - Cultural Contribution: Artistic work contributing positively to broader cultural conversation and artistic development
 
-${visionSection}
-
 FINAL ARTISTIC VALIDATION:
 Masterpiece Quality Assurance:
 - Artistic Impact: Visual work creating lasting impression and emotional resonance with viewers
@@ -1135,6 +1143,8 @@ Masterpiece Quality Assurance:
 export const PRODUCT_MOCKUPS_TEMPLATE: PromptTemplate = {
   categoryId: 'product-mockups',
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
+    const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
+    
     const settingSection = formValues.setting 
       ? `Environmental Context Architecture:
 Scene Setting: ${formValues.setting}
@@ -1158,16 +1168,9 @@ Viewing Angle: ${formValues.angle}
 - Competitive Differentiation: Unique photographic approach distinguishing product from standard industry presentation`
       : 'Optimal Angle Selection: Camera positioning chosen for maximum product appeal and feature communication';
     
-    const visionSection = visionDescription 
-      ? `Product Photography Heritage:
-${visionDescription}
-- Style Evolution: Contemporary interpretation of successful product photography while ensuring fresh, distinctive approach
-- Industry Standards: Understanding of category photography conventions while maintaining creative differentiation
-- Brand Integration: Photography style consistent with overall brand visual language and marketing approach
-- Technical Excellence: Professional photography standards elevated through creative interpretation and modern techniques`
-      : '';
-    
     return `Create a commercial-grade product mockup that transforms ordinary product presentation into compelling, sales-driving visual storytelling with professional photography excellence.
+
+${standardFieldsSection}
 
 PRODUCT PRESENTATION SPECIFICATIONS:
 Product Category: ${formValues.productType}
@@ -1260,8 +1263,6 @@ Customer Acquisition Optimization:
 - Retention Marketing: Visual consistency supporting customer loyalty and repeat purchase behavior
 - Referral Generation: Photography quality encouraging social sharing and word-of-mouth marketing
 
-${visionSection}
-
 FINAL COMMERCIAL VALIDATION:
 Sales Performance Optimization:
 - Conversion Rate Enhancement: Photography proven to increase purchase consideration and transaction completion
@@ -1293,6 +1294,8 @@ Sales Performance Optimization:
 export const LETTERHEAD_TEMPLATE: PromptTemplate = {
   categoryId: 'letterhead',
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
+    const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
+    
     const contactSection = formValues.contactDetails 
       ? `Corporate Contact Architecture:
 Contact Information: ${formValues.contactDetails}
@@ -1316,16 +1319,9 @@ Business Sector: ${formValues.industry}
 - Trust Building: Visual elements reinforcing ${formValues.industry} professional competence and reliability perception`
       : 'Universal Business Appeal: Design approach suitable for cross-industry professional communication and business development';
     
-    const visionSection = visionDescription 
-      ? `Corporate Identity Integration:
-${visionDescription}
-- Brand Consistency: Seamless integration with existing corporate visual identity and marketing materials
-- Design Evolution: Contemporary interpretation of established brand elements while maintaining recognition and equity
-- Professional Heritage: Letterhead design building upon successful brand communications while ensuring modern relevance
-- Cross-Media Coherence: Visual approach supporting consistent brand experience across all business communication touchpoints`
-      : '';
-    
     return `Design an executive-quality corporate letterhead that elevates business correspondence to reflect organizational excellence and professional authority.
+
+${standardFieldsSection}
 
 CORPORATE COMMUNICATION SPECIFICATIONS:
 Company Identity: ${formValues.companyName}
@@ -1422,8 +1418,6 @@ Digital Integration Excellence:
 - Update Flexibility: Template structure allowing easy modification for contact changes, rebranding, or design evolution
 - Archive Documentation: Complete technical specifications ensuring accurate reproduction for future printing and digital use
 
-${visionSection}
-
 FINAL CORPORATE VALIDATION:
 Executive Approval Standards:
 - Board-Level Quality: Design sophistication appropriate for board communications and executive-level business correspondence
@@ -1455,6 +1449,8 @@ Executive Approval Standards:
 export const AI_AVATARS_TEMPLATE: PromptTemplate = {
   categoryId: 'ai-avatars',
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
+    const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
+    
     const expressionSection = formValues.expression 
       ? `Emotional Expression Architecture:
 Character Expression: ${formValues.expression}
@@ -1478,16 +1474,9 @@ Character Framing: ${formValues.framing}
 - Cross-Platform Compatibility: Framing approach effective across LinkedIn, Twitter, Instagram, and professional networking platforms`
       : 'Optimal Framing Selection: Professional portrait composition chosen for maximum character impact and recognition';
     
-    const visionSection = visionDescription 
-      ? `Character Development Integration:
-${visionDescription}
-- Personality Synthesis: Character design building upon reference materials while ensuring unique, ownable personal identity
-- Professional Evolution: Contemporary interpretation of successful character elements while ensuring modern relevance and appeal
-- Cultural Sensitivity: Character representation respectful and appropriate across diverse professional and social contexts
-- Brand Alignment: Character design supporting personal or professional brand development without compromising authenticity`
-      : '';
-    
     return `Create a masterpiece-quality AI avatar that transcends typical profile pictures to become compelling personal branding and professional identity representation.
+
+${standardFieldsSection}
 
 CHARACTER IDENTITY SPECIFICATIONS:
 Subject Profile: ${formValues.subjectDescription}
@@ -1583,8 +1572,6 @@ Professional Production Quality:
 - Platform Specifications: Technical requirements optimized for each major social media and professional networking platform
 - Future Compatibility: Character design approach ensuring compatibility with evolving platform requirements and technology
 - Quality Assurance: Character delivery meeting professional standards for business use and personal brand development
-
-${visionSection}
 
 FINAL CHARACTER VALIDATION:
 Professional Identity Excellence:

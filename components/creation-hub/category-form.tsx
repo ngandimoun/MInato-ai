@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { 
   CATEGORY_FORMS, 
   CATEGORY_INFO,
+  SUPPORTED_LANGUAGES,
   validateCategoryForm,
   type ImageCategory, 
   type CategoryFormValues,
@@ -451,6 +452,142 @@ export function CategoryForm({
                 ))}
               </motion.div>
             )}
+          </div>
+        );
+        break;
+
+      case 'multiselect':
+        const selectedValues = Array.isArray(value) ? value : [];
+        const remainingOptions = field.options?.filter(option => !selectedValues.includes(option.value)) || [];
+        
+        fieldComponent = (
+          <div className="space-y-3">
+            {/* Selected values display */}
+            {selectedValues.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {selectedValues.map(val => {
+                  const option = field.options?.find(opt => opt.value === val);
+                  return (
+                    <Badge key={val} variant="secondary" className="flex items-center gap-1">
+                      {option?.label || val}
+                      <X 
+                        className="w-3 h-3 cursor-pointer hover:text-destructive" 
+                        onClick={() => {
+                          const newValues = selectedValues.filter(v => v !== val);
+                          handleValueChange(field.id, newValues);
+                        }}
+                      />
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+            
+            {/* Add more dropdown */}
+            {remainingOptions.length > 0 && (
+              <Select 
+                value="" 
+                onValueChange={(val) => {
+                  if (!selectedValues.includes(val)) {
+                    const newValues = [...selectedValues, val];
+                    if (field.validation?.max && newValues.length > field.validation.max) {
+                      toast({
+                        title: "Maximum selections reached",
+                        description: field.validation.message || `Maximum ${field.validation.max} selections allowed`,
+                        variant: "destructive"
+                      });
+                      return;
+                    }
+                    handleValueChange(field.id, newValues);
+                  }
+                }}
+              >
+                <SelectTrigger className={cn(hasError && "border-destructive")}>
+                  <SelectValue placeholder={selectedValues.length > 0 ? "Add another..." : `Select ${field.label.toLowerCase()}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {remainingOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex flex-col">
+                        <span>{option.label}</span>
+                        {option.description && (
+                          <span className="text-xs text-muted-foreground">{option.description}</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            
+            {/* Selection count indicator */}
+            {(selectedValues.length > 0 || field.validation?.max) && (
+              <div className="text-xs text-muted-foreground flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-purple-500" />
+                <span>
+                  Selected: {selectedValues.length}
+                  {field.validation?.max && ` / ${field.validation.max}`}
+                </span>
+              </div>
+            )}
+          </div>
+        )
+        break;
+
+      case 'language-select':
+        fieldComponent = (
+          <Select value={value || ''} onValueChange={(val) => handleValueChange(field.id, val)}>
+            <SelectTrigger className={cn(hasError && "border-destructive")}>
+              <SelectValue placeholder="Select language" />
+            </SelectTrigger>
+            <SelectContent>
+              {SUPPORTED_LANGUAGES.map((lang: any) => (
+                <SelectItem key={lang.code} value={lang.code}>
+                  <div className="flex items-center gap-2">
+                    <span>{lang.flag}</span>
+                    <span>{lang.name}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+        break;
+
+      case 'toggle':
+        fieldComponent = (
+          <div className="flex items-center gap-3">
+            <Checkbox
+              id={field.id}
+              checked={value === true || value === 'true'}
+              onCheckedChange={(checked) => handleValueChange(field.id, checked)}
+              disabled={isGenerating}
+            />
+            <Label htmlFor={field.id} className="text-sm font-normal cursor-pointer">
+              {field.label.replace(' *', '')}
+            </Label>
+          </div>
+        );
+        break;
+
+      case 'slider':
+        const sliderValue = Array.isArray(value) ? value : [value || field.validation?.min || 0];
+        fieldComponent = (
+          <div className="space-y-3">
+            <Slider
+              value={sliderValue}
+              onValueChange={(vals) => handleValueChange(field.id, field.multiple ? vals : vals[0])}
+              max={field.validation?.max || 100}
+              min={field.validation?.min || 0}
+              step={1}
+              disabled={isGenerating}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{field.validation?.min || 0}</span>
+              <span className="font-medium">{field.multiple ? sliderValue.join(' - ') : sliderValue[0]}</span>
+              <span>{field.validation?.max || 100}</span>
+            </div>
           </div>
         );
         break;

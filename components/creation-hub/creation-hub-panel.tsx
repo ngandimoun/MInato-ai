@@ -40,6 +40,7 @@ import type { GeneratedImage, ImageGenerationRequest, CategoryImageGenerationReq
 import { CategorySelector } from "./category-selector";
 import { CategoryForm } from "./category-form";
 import type { ImageCategory, CategoryFormValues } from "./category-types";
+import { ImageEditorModal } from "./image-editor-modal";
 
 // Helper function to convert File to base64
 async function fileToBase64(file: File): Promise<string> {
@@ -60,6 +61,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
   const [prompt, setPrompt] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
+  const [isImageEditorOpen, setIsImageEditorOpen] = useState(false);
   const [quality, setQuality] = useState<'standard' | 'hd'>('standard');
   const [size, setSize] = useState<string>('1024x1024');
   const [style, setStyle] = useState<'vivid' | 'natural'>('vivid');
@@ -265,6 +267,58 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
       });
     }
   }, []);
+
+  const handleImageClick = useCallback((image: GeneratedImage) => {
+    setSelectedImage(image);
+    setIsImageEditorOpen(true);
+  }, []);
+
+  const handleImageEditorSave = useCallback((editedImage: GeneratedImage) => {
+    // Add the edited image to the gallery
+    addUserImage(editedImage);
+    addImage(editedImage);
+    
+    toast({
+      title: "Edited Image Saved",
+      description: "Your edited image has been added to the gallery",
+    });
+  }, [addUserImage, addImage]);
+
+  const handleImageEditorRegenerate = useCallback(async (enhancementPrompt: string, modifications: string) => {
+    if (!selectedImage) return;
+
+    try {
+      const regenerationPrompt = `${selectedImage.prompt} | Enhancement: ${enhancementPrompt} | Applied modifications: ${modifications}`;
+      
+      const request: ImageGenerationRequest = {
+        prompt: regenerationPrompt,
+        quality: quality === 'hd' ? 'high' : 'medium',
+        size: size === '1792x1024' ? '1536x1024' : size === '1024x1792' ? '1024x1536' : (size as '1024x1024' | '1536x1024' | '1024x1536'),
+        format: 'png',
+        background: 'auto',
+        user: authUser?.id || 'anonymous'
+      };
+
+      // Add message about regeneration
+      addMessage({
+        type: 'user',
+        content: `Regenerating image with enhancement: ${enhancementPrompt}`
+      });
+
+      await generate(request);
+      
+      toast({
+        title: "Regenerating Image",
+        description: "Creating an enhanced version based on your edits",
+      });
+    } catch (error) {
+      toast({
+        title: "Regeneration Failed",
+        description: "Failed to regenerate the image",
+        variant: "destructive",
+      });
+    }
+  }, [selectedImage, quality, size, authUser, addMessage, generate]);
 
   const handleStartNewConversation = useCallback(() => {
     const newConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -623,7 +677,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                 {userImages.length > 0 && (
                   <Card className="glass-card">
                     <CardContent className="p-4">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 md:gap-4 text-center">
                         {(() => {
                           const stats = HubUtils.GeneratedImage.calculateStats(userImages);
                           return (
@@ -691,7 +745,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                 )}
 
                 {/* Image Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
                   <AnimatePresence>
                     {HubUtils.GeneratedImage.sortImages(
                       HubUtils.GeneratedImage.filterByStatus(userImages, 'completed'),
@@ -703,8 +757,8 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
                         transition={{ delay: HubUtils.UI.getStaggerDelay(index, 0.05) }}
-                        className="relative group cursor-pointer"
-                        onClick={() => setSelectedImage(image)}
+                        className="relative group cursor-pointer touch-manipulation"
+                        onClick={() => handleImageClick(image)}
                       >
                         <div className="aspect-square rounded-lg overflow-hidden bg-muted">
                           <img 
@@ -714,16 +768,16 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                             loading="lazy"
                           />
                         </div>
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 md:group-hover:opacity-100">
                           <Button
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDownload(image);
                             }}
-                            className="bg-white/20 backdrop-blur-sm border border-white/30"
+                            className="bg-white/20 backdrop-blur-sm border border-white/30 touch-manipulation active:scale-95"
                           >
-                            <Download className="h-4 w-4" />
+                            <Download className="h-3 w-3 sm:h-4 sm:w-4" />
                           </Button>
                         </div>
                         <div className="mt-2 space-y-1">
@@ -780,12 +834,15 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                   <Card key={image.id} className="glass-card">
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
-                        <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                        <div 
+                          className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+                          onClick={() => image.status === 'completed' && handleImageClick(image)}
+                        >
                           {image.status === 'completed' ? (
                             <img 
                               src={image.url} 
                               alt={HubUtils.GeneratedImage.getDisplayPrompt(image)}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover hover:scale-105 transition-transform"
                             />
                           ) : image.status === 'generating' ? (
                             <div className="w-full h-full flex items-center justify-center">
@@ -844,6 +901,18 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
           </TabsContent>
         </div>
       </Tabs>
+      
+      {/* Image Editor Modal */}
+      <ImageEditorModal
+        image={selectedImage}
+        isOpen={isImageEditorOpen}
+        onClose={() => {
+          setIsImageEditorOpen(false);
+          setSelectedImage(null);
+        }}
+        onSave={handleImageEditorSave}
+        onRegenerate={handleImageEditorRegenerate}
+      />
     </motion.div>
   );
 } 
