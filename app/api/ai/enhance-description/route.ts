@@ -1,111 +1,105 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseRouteHandlerClient } from "@/lib/supabase/server";
-import { cookies } from "next/headers";
-import { logger } from "@/memory-framework/config";
-import { appConfig } from "@/lib/config";
+import { NextRequest, NextResponse } from 'next/server';
+import { createSupabaseRouteHandlerClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
+import { generateVisionCompletion } from '@/lib/providers/llm_clients';
+import type { ChatMessage } from '@/lib/types/index';
 
 export async function POST(req: NextRequest) {
-  const logPrefix = "[API AIEnhanceDescription]";
-  const cookieStore = cookies();
-
   try {
-    // Authentication check
-    const supabaseAuth = await createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
-    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
-    if (userError) {
-      logger.error(`${logPrefix} Auth error:`, userError.message);
-      return NextResponse.json({ error: "Authentication error" }, { status: 401 });
-    }
-    if (!user?.id) {
-      logger.warn(`${logPrefix} No authenticated user found.`);
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Check authentication
+    const cookieStore = cookies();
+    const supabase = await createSupabaseRouteHandlerClient({ cookies: () => cookieStore });
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userId = user.id;
-    logger.info(`${logPrefix} Description enhancement request from user: ${userId.substring(0, 8)}...`);
+    const { 
+      imageUrl, 
+      currentText, 
+      language, 
+      analysisPrompt,
+      platform,
+      format,
+      maxCharacters,
+      platformData,
+      formatData
+    } = await req.json();
 
-    const body = await req.json();
-    const { productName, currentDescription, price, currency } = body;
-
-    if (!productName?.trim()) {
-      return NextResponse.json({ error: "Product name is required" }, { status: 400 });
+    if (!imageUrl) {
+      return NextResponse.json({ error: 'Image URL is required' }, { status: 400 });
     }
 
-    // Get OpenAI API key from config
-    const openaiApiKey = appConfig.openai?.apiKey;
-    if (!openaiApiKey) {
-      logger.error(`${logPrefix} OpenAI API key not configured`);
-      return NextResponse.json({ error: "AI service not available" }, { status: 500 });
+    // Create platform-specific analysis prompt
+    let prompt = analysisPrompt || `Analyze this image and create compelling marketing copy for social media. Write as if you're trying to sell or promote the product/item in the image. Focus on benefits, emotions, and persuasive language that would work great for social media posts. Make it engaging, concise, and sales-oriented. Avoid literal descriptions - instead focus on the value proposition and appeal to emotions.`;
+    
+    // Add platform-specific constraints and instructions
+    if (formatData && maxCharacters) {
+      prompt += `\n\nIMPORTANT CONSTRAINTS:
+- STRICT CHARACTER LIMIT: Keep the text under ${maxCharacters} characters for ${formatData.name}
+- Platform: ${platformData?.name || 'Social Media'}
+- Format: ${formatData.name} (${formatData.description})
+- Aspect Ratio: ${formatData.aspectRatio}
+- Recommended Duration: ~${formatData.recommendedDuration} seconds
+- Platform-specific guidance: ${formatData.promptModifier}
+
+CRITICAL: The output text MUST be concise enough to fit within ${maxCharacters} characters while maintaining impact and engagement. Prioritize punchy, memorable phrases over lengthy descriptions.`;
     }
 
-    // Create the enhancement prompt
-    const enhancementPrompt = `You are a skilled product marketing copywriter specializing in creating compelling product descriptions that drive sales. Your task is to enhance the given product description to make it more appealing, persuasive, and sales-oriented.
+    // Prepare vision messages
+    const visionMessages: ChatMessage[] = [{
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt },
+        { 
+          type: 'input_image', 
+          image_url: imageUrl,
+          detail: 'high'
+        }
+      ],
+    }];
 
-Product Details:
-- Name: ${productName}
-- Current Description: ${currentDescription || 'No description provided'}
-- Price: ${price ? `${price} ${currency?.toUpperCase() || 'USD'}` : 'Not specified'}
+    // Generate vision analysis with appropriate token limit based on character constraints
+    const tokenLimit = maxCharacters ? Math.min(800, Math.max(200, maxCharacters * 2)) : 800;
+    const visionResult = await generateVisionCompletion(
+      visionMessages,
+      'gpt-4o-2024-08-06',
+      tokenLimit,
+      user.id
+    );
 
-Guidelines for enhancement:
-1. Create a compelling, benefit-focused description
-2. Use persuasive language that highlights value and benefits
-3. Include emotional triggers and urgency where appropriate
-4. Keep it concise but impactful (2-4 sentences ideal)
-5. Focus on what the customer gains, not just features
-6. Use active voice and strong action words
-7. If no current description exists, create one from scratch based on the product name
-
-Enhanced Description:`;
-
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: appConfig.openai?.chatModel || 'gpt-4o-2024-08-06',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert marketing copywriter who creates compelling product descriptions that convert browsers into buyers. Always respond with just the enhanced description, no additional text or formatting.'
-          },
-          {
-            role: 'user',
-            content: enhancementPrompt
-          }
-        ],
-        max_tokens: 300,
-        temperature: 0.7,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      logger.error(`${logPrefix} OpenAI API error:`, errorData);
-      throw new Error('AI service temporarily unavailable');
+    if (visionResult.error || !visionResult.text) {
+      return NextResponse.json({
+        success: false,
+        error: visionResult.error || 'Failed to analyze image'
+      }, { status: 500 });
     }
 
-    const aiResponse = await response.json();
-    const enhancedDescription = aiResponse.choices[0]?.message?.content?.trim();
-
-    if (!enhancedDescription) {
-      throw new Error('Failed to generate enhanced description');
+    let enhancedText = visionResult.text.trim();
+    
+    // Validate character limit and truncate if necessary
+    if (maxCharacters && enhancedText.length > maxCharacters) {
+      console.log(`Text exceeded ${maxCharacters} characters (${enhancedText.length}), truncating...`);
+      enhancedText = enhancedText.substring(0, maxCharacters - 3) + '...';
     }
-
-    logger.info(`${logPrefix} Description enhanced successfully for user ${userId.substring(0, 8)}`);
 
     return NextResponse.json({
       success: true,
-      enhancedDescription,
-      originalDescription: currentDescription
+      enhancedText: enhancedText,
+      originalText: currentText,
+      characterCount: enhancedText.length,
+      characterLimit: maxCharacters,
+      platform: platform,
+      format: format,
+      formatInfo: formatData
     });
 
-  } catch (error: any) {
-    logger.error(`${logPrefix} Error enhancing description:`, error);
-    return NextResponse.json({ 
-      error: error.message || "Failed to enhance description" 
+  } catch (error) {
+    console.error('Enhancement API error:', error);
+    return NextResponse.json({
+      success: false,
+      error: 'Failed to enhance description'
     }, { status: 500 });
   }
 } 

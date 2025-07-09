@@ -15,7 +15,8 @@ import {
   Plus,
   Minus,
   Eye,
-  EyeOff
+  EyeOff,
+  HelpCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "@/components/ui/use-toast";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { 
   CATEGORY_FORMS, 
@@ -566,6 +568,37 @@ export function CategoryForm({
             <Label htmlFor={field.id} className="text-sm font-normal cursor-pointer">
               {field.label.replace(' *', '')}
             </Label>
+            {/* Help button with image tooltip for Include Human Model */}
+            {field.id === 'includeHuman' && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 hover:bg-purple-100 dark:hover:bg-purple-900/20"
+                  >
+                    <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-purple-600" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs p-0 bg-white border shadow-lg">
+                  <div className="p-3">
+                    <p className="text-sm font-medium mb-2">Human Model Example</p>
+                    <div className="relative">
+                      <img
+                        src="https://auzkjkliwlycclkpjlbl.supabase.co/storage/v1/object/public/images2//Image.jpeg"
+                        alt="Example of product with human model"
+                        className="w-48 h-32 object-cover rounded-md"
+                        loading="lazy"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Example: Product shown with a person naturally using it
+                    </p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
         );
         break;
@@ -660,14 +693,15 @@ export function CategoryForm({
   }, [values, errors, referenceImages, previewUrls, isGenerating, shouldShowField, handleValueChange, handleFileUpload]);
 
   return (
-    <motion.form
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.3 }}
-      onSubmit={handleSubmit}
-      className={cn("space-y-6", className)}
-    >
+    <TooltipProvider>
+      <motion.form
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{ duration: 0.3 }}
+        onSubmit={handleSubmit}
+        className={cn("space-y-6", className)}
+      >
       {/* Header */}
       <div className="flex items-center gap-3 sm:gap-4 pb-4 border-b border-border">
         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center flex-shrink-0">
@@ -731,5 +765,6 @@ export function CategoryForm({
         </Button>
       </div>
     </motion.form>
+    </TooltipProvider>
   );
 } 

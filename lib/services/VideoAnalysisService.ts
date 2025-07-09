@@ -9,6 +9,26 @@ import { generateVisionCompletion } from "@/lib/providers/llm_clients";
 import type { ChatMessage } from "@/lib/types/index";
 import type { ChatCompletionContentPartImage } from "openai/resources/chat/completions";
 import os from "os";
+import path from "path";
+import { checkFFmpegAvailability } from "@/lib/utils/ffmpeg-helper";
+
+// Enhanced FFmpeg configuration for video analysis
+async function getFFmpegCommand(): Promise<string> {
+  try {
+    const ffmpegConfig = await checkFFmpegAvailability();
+    if (ffmpegConfig.isAvailable && ffmpegConfig.path) {
+      logger.info(`[VideoAnalysisService] Using FFmpeg at: ${ffmpegConfig.path}`);
+      return `"${ffmpegConfig.path}"`;
+    } else {
+      logger.warn(`[VideoAnalysisService] FFmpeg not available: ${ffmpegConfig.error}`);
+      // Fall back to system PATH
+      return 'ffmpeg';
+    }
+  } catch (error) {
+    logger.error('[VideoAnalysisService] Error checking FFmpeg availability:', error);
+    return 'ffmpeg';
+  }
+}
 
 const execPromise = (command: string): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -47,6 +67,9 @@ export class VideoAnalysisService {
     const tempDir = join(os.tmpdir(), `video-processing-${uuidv4()}`);
 
     try {
+      // Get FFmpeg command before using it
+      const ffmpegCommand = await getFFmpegCommand();
+      
       await fs.mkdir(tempDir, { recursive: true });
 
       const ext = videoMimeType.split("/")[1] || "mp4";
@@ -60,7 +83,7 @@ export class VideoAnalysisService {
       logger.info(`${logPrefix} Extracting up to ${this.maxFrames} frames at ${fps} FPS...`);
       try {
         await execPromise(
-          `ffmpeg -i ${videoPath} -vf fps=${fps} -frames:v ${this.maxFrames} ${join(framesDir, "frame-%03d.jpg")}`
+          `${ffmpegCommand} -i "${videoPath}" -vf fps=${fps} -frames:v ${this.maxFrames} "${join(framesDir, "frame-%03d.jpg")}"`
         );
       } catch (ffmpegError: any) {
         logger.error(`${logPrefix} ffmpeg error:`, ffmpegError);
@@ -136,6 +159,9 @@ export class VideoAnalysisService {
     const logPrefix = `[VideoAnalysisService-QA User:${userId.substring(0, 8)}]`;
     const tempDir = join(os.tmpdir(), `video-qa-${uuidv4()}`);
     try {
+      // Get FFmpeg command before using it
+      const ffmpegCommand = await getFFmpegCommand();
+      
       await fs.mkdir(tempDir, { recursive: true });
       const videoPath = join(tempDir, `input-${Date.now()}.mp4`);
       await fs.writeFile(videoPath, videoBuffer);
@@ -145,7 +171,7 @@ export class VideoAnalysisService {
       logger.info(`${logPrefix} Extracting frames for QA...`);
       try {
         await execPromise(
-          `ffmpeg -i ${videoPath} -vf fps=${fps} -frames:v ${this.maxFrames} ${join(framesDir, "frame-%03d.jpg")}`
+          `${ffmpegCommand} -i "${videoPath}" -vf fps=${fps} -frames:v ${this.maxFrames} "${join(framesDir, "frame-%03d.jpg")}"`
         );
       } catch (ffmpegError: any) {
         logger.error(`${logPrefix} ffmpeg error:`, ffmpegError);

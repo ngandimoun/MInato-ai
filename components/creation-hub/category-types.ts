@@ -107,12 +107,12 @@ export const CATEGORY_INFO: Record<ImageCategory, CategoryInfo> = {
   'marketing': {
     id: 'marketing',
     name: 'Marketing Materials',
-    description: 'Design professional marketing and promotional materials',
+    description: 'Design professional marketing and promotional materials including cover letters, invitations, and industry-specific designs',
     icon: 'Megaphone',
     color: '#96CEB4',
     gradient: 'from-green-400 to-teal-500',
-    examples: ['Flyers', 'Business cards', 'Brochures', 'Promotional materials', 'Event invitations'],
-    tags: ['marketing', 'print', 'promotional', 'business', 'advertising', 'events']
+    examples: ['Flyers', 'Business cards', 'Cover letters', 'Wedding invitations', 'Corporate invitations', 'Holiday cards', 'Thank you cards'],
+    tags: ['marketing', 'print', 'promotional', 'business', 'advertising', 'events', 'invitations', 'cover-letters', 'cards']
   },
   'banners': {
     id: 'banners',
@@ -199,20 +199,20 @@ export const STANDARD_FIELDS: FormField[] = [
     id: 'includeHuman',
     type: 'toggle',
     label: 'Include Human Model',
-    description: 'Show the product being worn or used by a person',
+    description: 'Show the product being worn or used by a person to create more engaging, relatable content',
     defaultValue: false
   },
   {
     id: 'humanDescription',
     type: 'textarea',
     label: 'Human Model Description',
-    description: 'Describe how the human model should look (age, gender, style, pose, etc.)',
-    placeholder: 'e.g., Young professional woman, 25-30 years old, business attire, confident pose',
+    description: 'Describe how the human model should look and interact with the product/scene. Be specific about appearance, pose, and context.',
+    placeholder: 'e.g., Young professional woman, 25-30 years old, wearing casual business attire, holding/using the product naturally with a confident smile. Natural lighting, lifestyle setting.',
     conditional: {
       dependsOn: 'includeHuman',
-      showWhen: 'true'
+      showWhen: [true, 'true']
     },
-    validation: { max: 300, message: 'Description should be under 300 characters' }
+    validation: { max: 500, message: 'Description should be under 500 characters' }
   }
 ];
 
@@ -254,7 +254,7 @@ export interface FormField {
   }>;
   conditional?: {
     dependsOn: string;
-    showWhen: string | string[];
+    showWhen: string | string[] | boolean | (string | boolean)[];
   };
   defaultValue?: any;
   multiple?: boolean;
@@ -439,7 +439,16 @@ export function validateCategoryForm(categoryId: ImageCategory, values: Record<s
 } {
   const errors: Record<string, string> = {};
 
-  // Add validation logic here based on category
+  // Universal validation for human model integration
+  if (values.includeHuman === true || values.includeHuman === 'true') {
+    if (!values.humanDescription || values.humanDescription.trim().length < 10) {
+      errors.humanDescription = 'Please provide a description of the human model (at least 10 characters)';
+    } else if (values.humanDescription.length > 500) {
+      errors.humanDescription = 'Human model description should be under 500 characters';
+    }
+  }
+
+  // Category-specific validation
   if (categoryId === 'social-media') {
     if (!values.platform) errors.platform = 'Platform is required';
     if (!values.contentType) errors.contentType = 'Content type is required';
@@ -688,23 +697,7 @@ export const UI_COMPONENTS_FORM: CategoryForm = {
         { value: 'focus', label: 'Focus', description: 'Keyboard focus state' }
       ]
     },
-    {
-      id: 'textLanguage',
-      type: 'language-select',
-      label: 'Text Language *',
-      required: true,
-      description: 'Language for any text in the UI',
-      defaultValue: 'en'
-    },
-    {
-      id: 'referenceImages',
-      type: 'upload',
-      label: 'Reference Images',
-      description: 'Upload UI inspiration or existing designs',
-      accept: 'image/*',
-      maxFiles: 5,
-      multiple: true
-    }
+
   ]
 };
 
@@ -852,8 +845,76 @@ export const MARKETING_FORM: CategoryForm = {
         { value: 'catalog', label: 'Catalog', description: 'Product catalog page' },
         { value: 'newsletter', label: 'Newsletter', description: 'Email or print newsletter' },
         { value: 'event-invite', label: 'Event Invitation', description: 'Event or webinar invitation' },
-        { value: 'coupon', label: 'Coupon', description: 'Discount or promotion coupon' }
+        { value: 'coupon', label: 'Coupon', description: 'Discount or promotion coupon' },
+        { value: 'cover-letter', label: 'Cover Letter', description: 'Professional job application cover letter design' },
+        { value: 'wedding-invitation', label: 'Wedding Invitation', description: 'Elegant wedding ceremony invitations' },
+        { value: 'birthday-invitation', label: 'Birthday Invitation', description: 'Birthday party invitation cards' },
+        { value: 'corporate-invitation', label: 'Corporate Invitation', description: 'Business meeting or conference invitations' },
+        { value: 'graduation-invitation', label: 'Graduation Invitation', description: 'Graduation ceremony invitations' },
+        { value: 'baby-shower-invitation', label: 'Baby Shower Invitation', description: 'Baby shower celebration invitations' },
+        { value: 'holiday-card', label: 'Holiday Card', description: 'Seasonal holiday greeting cards' },
+        { value: 'anniversary-invitation', label: 'Anniversary Invitation', description: 'Anniversary celebration invitations' },
+        { value: 'retirement-invitation', label: 'Retirement Invitation', description: 'Retirement party invitations' },
+        { value: 'housewarming-invitation', label: 'Housewarming Invitation', description: 'New home celebration invitations' },
+        { value: 'fundraising-invitation', label: 'Fundraising Invitation', description: 'Charity or fundraising event invitations' },
+        { value: 'product-launch-invitation', label: 'Product Launch Invitation', description: 'Product unveiling event invitations' },
+        { value: 'conference-badge', label: 'Conference Badge', description: 'Professional conference name badges' },
+        { value: 'thank-you-card', label: 'Thank You Card', description: 'Appreciation and gratitude cards' },
+        { value: 'save-the-date', label: 'Save the Date', description: 'Pre-event announcement cards' }
       ]
+    },
+    {
+      id: 'industrySpecific',
+      type: 'select',
+      label: 'Industry Context',
+      description: 'Select the industry or sector for tailored design approach',
+      options: [
+        { value: 'general', label: 'General Business', description: 'Universal business application' },
+        { value: 'healthcare', label: 'Healthcare & Medical', description: 'Medical, dental, wellness industry' },
+        { value: 'education', label: 'Education & Academic', description: 'Schools, universities, training centers' },
+        { value: 'technology', label: 'Technology & IT', description: 'Software, tech companies, startups' },
+        { value: 'finance', label: 'Finance & Banking', description: 'Financial services, accounting, insurance' },
+        { value: 'real-estate', label: 'Real Estate', description: 'Property, construction, architecture' },
+        { value: 'hospitality', label: 'Hospitality & Tourism', description: 'Hotels, restaurants, travel services' },
+        { value: 'retail', label: 'Retail & E-commerce', description: 'Stores, online businesses, fashion' },
+        { value: 'legal', label: 'Legal Services', description: 'Law firms, legal consultancy' },
+        { value: 'nonprofit', label: 'Non-profit & NGO', description: 'Charities, foundations, social causes' },
+        { value: 'entertainment', label: 'Entertainment & Media', description: 'Events, media, creative industries' },
+        { value: 'automotive', label: 'Automotive', description: 'Car dealerships, auto services, transportation' },
+        { value: 'beauty', label: 'Beauty & Wellness', description: 'Salons, spas, cosmetics, fitness' },
+        { value: 'food-beverage', label: 'Food & Beverage', description: 'Restaurants, catering, food services' },
+        { value: 'consulting', label: 'Consulting & Professional Services', description: 'Business consulting, advisory services' }
+      ]
+    },
+    {
+      id: 'formatSize',
+      type: 'select',
+      label: 'Format & Size',
+      description: 'Choose the output format and size',
+      options: [
+        { value: 'standard-letter', label: 'Standard Letter (8.5" x 11")', description: 'US letter size for documents' },
+        { value: 'a4-document', label: 'A4 Document (210mm x 297mm)', description: 'International A4 standard' },
+        { value: 'invitation-5x7', label: '5" x 7" Invitation', description: 'Standard invitation card size' },
+        { value: 'invitation-4x6', label: '4" x 6" Invitation', description: 'Compact invitation card' },
+        { value: 'square-invitation', label: 'Square Invitation (5" x 5")', description: 'Modern square format' },
+        { value: 'postcard-4x6', label: 'Postcard (4" x 6")', description: 'Standard postcard dimensions' },
+        { value: 'greeting-card', label: 'Greeting Card (5" x 7")', description: 'Standard greeting card size' },
+        { value: 'business-card', label: 'Business Card (3.5" x 2")', description: 'Standard business card' },
+        { value: 'bookmark', label: 'Bookmark (2" x 6")', description: 'Promotional bookmark format' },
+        { value: 'tent-card', label: 'Tent Card (4" x 6")', description: 'Folded table display card' },
+        { value: 'digital-social', label: 'Digital Social Media', description: 'Optimized for online sharing' },
+        { value: 'digital-email', label: 'Digital Email', description: 'Email newsletter format' },
+        { value: 'large-poster', label: 'Large Poster (18" x 24")', description: 'Large format display' },
+        { value: 'custom-size', label: 'Custom Size', description: 'Specify custom dimensions' }
+      ]
+    },
+    {
+      id: 'customDimensions',
+      type: 'text',
+      label: 'Custom Dimensions',
+      placeholder: '8.5x11 inches or 1200x1600 pixels',
+      description: 'Specify width x height with units (inches, cm, or pixels)',
+      conditional: { dependsOn: 'formatSize', showWhen: ['custom-size'] }
     },
     {
       id: 'campaignGoal',
@@ -933,39 +994,7 @@ export const MARKETING_FORM: CategoryForm = {
         { value: 'warm-friendly', label: 'Warm Friendly', description: 'Welcoming warm tones' }
       ]
     },
-    {
-      id: 'includeHuman',
-      type: 'toggle',
-      label: 'Include Human Model',
-      description: 'Add people to your marketing material',
-      defaultValue: false
-    },
-    {
-      id: 'humanDescription',
-      type: 'textarea',
-      label: 'Human Model Description',
-      placeholder: 'Professional businesswoman in her 40s, confident smile, wearing modern business attire, using laptop in bright office setting',
-      description: 'Describe the people you want to include',
-      conditional: { dependsOn: 'includeHuman', showWhen: ['true'] },
-      validation: { min: 20, max: 200, message: 'Description should be between 20-200 characters' }
-    },
-    {
-      id: 'textLanguage',
-      type: 'language-select',
-      label: 'Text Language *',
-      required: true,
-      description: 'Language for marketing copy',
-      defaultValue: 'en'
-    },
-    {
-      id: 'referenceImages',
-      type: 'upload',
-      label: 'Reference Images',
-      description: 'Upload brand assets, product photos, or inspiration',
-      accept: 'image/*',
-      maxFiles: 5,
-      multiple: true
-    }
+
   ]
 };
 
@@ -1040,23 +1069,7 @@ export const BANNERS_FORM: CategoryForm = {
         { value: 'vibrant-energetic', label: 'Vibrant Energetic', description: 'Bright, dynamic design' }
       ]
     },
-    {
-      id: 'textLanguage',
-      type: 'language-select',
-      label: 'Text Language *',
-      required: true,
-      description: 'Language for banner text',
-      defaultValue: 'en'
-    },
-    {
-      id: 'referenceImages',
-      type: 'upload',
-      label: 'Reference Images',
-      description: 'Upload brand assets or inspiration',
-      accept: 'image/*',
-      maxFiles: 3,
-      multiple: true
-    }
+
   ]
 };
 
@@ -1138,15 +1151,7 @@ export const ILLUSTRATIONS_FORM: CategoryForm = {
         { value: 'inspirational', label: 'Inspirational', description: 'Motivating, aspirational' }
       ]
     },
-    {
-      id: 'referenceImages',
-      type: 'upload',
-      label: 'Reference Images',
-      description: 'Upload style references or inspiration',
-      accept: 'image/*',
-      maxFiles: 5,
-      multiple: true
-    }
+
   ]
 };
 
@@ -1220,31 +1225,7 @@ export const PRODUCT_MOCKUPS_FORM: CategoryForm = {
         { value: 'textured', label: 'Textured', description: 'Wood, marble, or textured surface' }
       ]
     },
-    {
-      id: 'includeHuman',
-      type: 'toggle',
-      label: 'Include Human Model',
-      description: 'Show the product being worn or used by a person',
-      defaultValue: false
-    },
-    {
-      id: 'humanDescription',
-      type: 'textarea',
-      label: 'Model Description',
-      placeholder: 'Young professional man in his 20s, casual but put-together style, sitting at a coffee shop',
-      description: 'Describe the person using/wearing the product',
-      conditional: { dependsOn: 'includeHuman', showWhen: ['true'] },
-      validation: { min: 15, max: 150, message: 'Model description should be 15-150 characters' }
-    },
-    {
-      id: 'referenceImages',
-      type: 'upload',
-      label: 'Product Reference Images',
-      description: 'Upload photos of the actual product or similar items',
-      accept: 'image/*',
-      maxFiles: 5,
-      multiple: true
-    }
+
   ]
 };
 
@@ -1440,15 +1421,7 @@ export const AI_AVATARS_FORM: CategoryForm = {
         { value: 'landscape-banner', label: 'Landscape Banner', description: '16:9 ratio for covers' }
       ]
     },
-    {
-      id: 'referenceImages',
-      type: 'upload',
-      label: 'Reference Images',
-      description: 'Upload style references or inspiration photos',
-      accept: 'image/*',
-      maxFiles: 3,
-      multiple: true
-    }
+
   ]
 };
 

@@ -47,17 +47,23 @@ export function getStandardFieldsPromptSection(formValues: CategoryFormValues, v
   if (formValues.includeHuman && formValues.humanDescription) {
     sections.push(`HUMAN MODEL INTEGRATION:
 - Model Description: ${formValues.humanDescription}
-- Interaction: Show the person naturally interacting with or using the subject matter
-- Pose & Expression: Natural, authentic positioning that enhances the overall composition
-- Professional Quality: Commercial photography standards for human model presentation
-- Lighting Consistency: Ensure model lighting matches the overall scene atmosphere
-- Cultural Sensitivity: Respectful and appropriate representation`);
+- Interaction Style: Show the person naturally and authentically interacting with or using the subject matter
+- Pose & Expression: Natural, confident positioning that enhances the overall composition and storytelling
+- Professional Quality: Commercial photography standards with studio-quality lighting and presentation
+- Lighting Consistency: Ensure model lighting seamlessly matches the overall scene atmosphere and mood
+- Cultural Sensitivity: Respectful, inclusive, and appropriate representation that reflects diversity
+- Engagement Factor: Model should create relatability and emotional connection with viewers
+- Product Integration: Seamless interaction between model and product/service being showcased
+- Lifestyle Context: Model placement should reinforce the brand's target lifestyle and values`);
   } else if (formValues.includeHuman) {
     sections.push(`HUMAN MODEL INTEGRATION:
 - Include a person naturally interacting with or using the subject matter
-- Professional, approachable appearance suitable for the context
-- Natural pose and expression that enhances the composition
-- Commercial photography standards for human model presentation`);
+- Professional, approachable appearance suitable for the context and target audience  
+- Natural pose and expression that enhances the composition and creates viewer connection
+- Commercial photography standards for lighting, positioning, and overall presentation
+- Lifestyle context that reinforces the brand's target demographic and values
+- Authentic interaction that demonstrates product use or service benefit
+- Cultural sensitivity and inclusive representation in model selection and styling`);
   }
 
   // Reference images vision description
@@ -517,6 +523,342 @@ Primary CTA: "${formValues.callToAction}"
 - Mobile Optimization: Touch-friendly sizing and positioning for thumb-driven mobile interactions`
       : 'Awareness-Stage Marketing: Focus on brand recognition and value communication without direct sales pressure';
     
+    // Enhanced material type handling with robust specialized prompts
+    const materialTypeEnhancement = (() => {
+      const materialType = formValues.materialType;
+      
+      switch (materialType) {
+        case 'cover-letter':
+          return `
+COVER LETTER DESIGN EXCELLENCE FRAMEWORK:
+Professional Document Architecture:
+- Executive Visual Standards: C-suite quality design with sophisticated typography and layout precision
+- ATS Optimization: Clean, scannable layout with proper margins and spacing for applicant tracking systems
+- Industry-Specific Visual Language: Design elements reflecting the professional standards of the target industry
+- Personal Brand Integration: Subtle, tasteful design elements that enhance professional identity without overwhelming content
+- Contact Information Hierarchy: Strategic placement and emphasis of professional contact details for maximum accessibility
+- White Space Mastery: Strategic use of negative space to create breathing room and enhance readability
+- Typography Excellence: Professional font pairing with optimal character spacing and line height for extended reading
+
+Visual Credibility Establishment:
+- Trust Building Design: Visual elements that immediately communicate professionalism and competence
+- Authority Markers: Subtle design cues that position the applicant as a serious, qualified candidate
+- Attention to Detail: Flawless execution demonstrating the applicant's commitment to quality and precision
+- Modern Professional Aesthetic: Contemporary design approach that signals up-to-date professional awareness
+- Consistent Brand Language: Visual coherence that could extend across resume, portfolio, and other application materials
+- Cultural Professional Awareness: Design approach appropriate for the geographic and cultural context of the target role`;
+
+        case 'wedding-invitation':
+          return `
+WEDDING INVITATION DESIGN MASTERY:
+Romantic Elegance Framework:
+- Timeless Sophistication: Classic design elements that will remain beautiful for decades in wedding albums
+- Cultural Wedding Traditions: Appropriate incorporation of traditional design elements from relevant cultural backgrounds
+- Emotional Resonance: Visual approach that captures the romance, joy, and significance of the wedding celebration
+- Formality Level Calibration: Design sophistication matching the wedding style (formal, casual, destination, etc.)
+- Seasonal Design Integration: Colors, motifs, and styling appropriate for the wedding season and venue type
+- Typography Romance: Elegant script fonts balanced with readable sans-serif for information hierarchy
+- Color Palette Poetry: Harmonious color combinations that evoke the desired emotional response and aesthetic theme
+
+Sacred Celebration Communication:
+- Information Architecture: Clear, beautiful organization of ceremony details, reception information, and RSVP instructions
+- Sacred Symbolism: Thoughtful incorporation of meaningful symbols, florals, or motifs significant to the couple
+- Guest Experience Design: Layout and design that creates anticipation and excitement for the celebration
+- Photo-Worthy Aesthetic: Design quality suitable for social media sharing and keepsake preservation
+- Multi-Generational Appeal: Visual approach that resonates across different age groups attending the wedding
+- Venue Harmony: Design elements that complement or hint at the wedding venue's aesthetic and atmosphere`;
+
+        case 'birthday-invitation':
+          return `
+BIRTHDAY CELEBRATION DESIGN FRAMEWORK:
+Age-Appropriate Visual Strategy:
+- Age-Specific Design Language: Visual elements and color schemes perfectly matched to the birthday celebrant's age and interests
+- Celebration Energy: Dynamic, joyful design elements that immediately communicate fun and festivity
+- Theme Integration: Seamless incorporation of party themes (superheroes, princesses, milestone ages, etc.)
+- Family-Friendly Appeal: Design approach that excites children while appearing tasteful to parents
+- Gender-Inclusive Options: Thoughtful color and design choices that appeal broadly without reinforcing stereotypes
+- Activity Hint Integration: Visual elements that subtly communicate the type of celebration and expected activities
+- Memory-Making Aesthetic: Design quality that encourages guests to save the invitation as a celebration keepsake
+
+Interactive Excitement Generation:
+- Anticipation Building: Visual elements that create excitement and curiosity about the upcoming celebration
+- RSVP Encouragement: Design elements that make responding feel fun and important
+- Gift Guidance Integration: Tasteful incorporation of gift preferences or theme suggestions where appropriate
+- Social Sharing Optimization: Design elements that look great when parents share photos on social media
+- Inclusive Celebration Messaging: Visual language that welcomes all invited guests warmly and enthusiastically`;
+
+        case 'corporate-invitation':
+          return `
+CORPORATE EVENT INVITATION EXCELLENCE:
+Professional Event Architecture:
+- Executive-Level Design Quality: Sophisticated visual approach appropriate for C-suite and senior professional audiences
+- Brand Integration Mastery: Seamless incorporation of corporate branding while maintaining event-specific identity
+- Industry Leadership Positioning: Design elements that reinforce the hosting organization's market position and expertise
+- Value Proposition Communication: Visual hierarchy that emphasizes the event's professional benefits and networking opportunities
+- Credibility Signal Integration: Subtle design elements that communicate the event's importance and exclusivity level
+- Multi-Stakeholder Appeal: Design approach that resonates with diverse professional backgrounds and seniority levels
+- Call-to-Action Optimization: Strategic placement and emphasis of registration, RSVP, or attendance confirmation elements
+
+Professional Network Activation:
+- Networking Value Emphasis: Design elements that highlight the caliber of attendees and networking opportunities
+- Thought Leadership Communication: Visual approach that positions the event as industry-leading and intellectually valuable
+- Time Investment Justification: Design quality that immediately communicates the event's worth to busy professionals
+- Sponsor Integration: Tasteful incorporation of sponsor recognition without compromising design integrity
+- Digital Integration Ready: Design elements optimized for both print distribution and digital sharing platforms`;
+
+        case 'graduation-invitation':
+          return `
+GRADUATION CELEBRATION DESIGN FRAMEWORK:
+Achievement Honor Architecture:
+- Academic Excellence Recognition: Design elements that honor the graduate's educational accomplishment and hard work
+- Institutional Pride Integration: Tasteful incorporation of school colors, symbols, or traditions where appropriate
+- Future-Forward Optimism: Visual approach that celebrates achievement while looking toward future opportunities
+- Family Pride Communication: Design elements that acknowledge the family's support and shared celebration
+- Milestone Significance: Visual weight and sophistication appropriate for this major life transition moment
+- Generational Appeal: Design approach that resonates with grandparents, parents, and peer groups equally
+- Traditional Academic Aesthetics: Appropriate use of academic symbolism (caps, diplomas, books) without cliché
+
+Legacy and Continuation Themes:
+- Educational Journey Celebration: Visual storytelling that honors the complete educational experience
+- Community Invitation: Design approach that welcomes the graduate's entire support network to celebrate
+- Photo-Memory Integration: Design space and approach that accommodates graduation photos beautifully
+- School Spirit Balance: Appropriate level of institutional pride without overwhelming personal achievement focus
+- Professional Transition Hint: Subtle design elements that acknowledge the transition from student to professional life`;
+
+        case 'baby-shower-invitation':
+          return `
+BABY SHOWER INVITATION DESIGN MASTERY:
+New Life Celebration Framework:
+- Gender-Neutral Excellence: Beautiful design options that work perfectly regardless of baby's gender or family preferences
+- Tender Emotion Communication: Soft, nurturing visual elements that evoke the wonder and anticipation of new life
+- Family Circle Expansion: Design approach that welcomes all family members and friends into the celebration
+- Cultural Sensitivity Integration: Respectful incorporation of cultural traditions around birth and family
+- Generational Bridge Building: Visual appeal that resonates with grandmothers, mothers, and younger guests equally
+- Gift Registry Integration: Tasteful inclusion of registry information that feels helpful rather than demanding
+- Mother-Honoring Focus: Design elements that center the expecting mother's comfort and celebration
+
+Nurturing Community Invitation:
+- Support Network Activation: Visual messaging that emphasizes community support for the growing family
+- Celebration vs. Gift Balance: Design hierarchy that emphasizes celebration over material gift-giving
+- Comfort and Joy Emphasis: Visual elements that promise a warm, comfortable, joyful celebration experience
+- Memory-Making Potential: Design quality that encourages guests to save the invitation as a baby book keepsake
+- Practical Information Clarity: Beautiful organization of shower details that makes attendance planning easy and stress-free`;
+
+        case 'holiday-card':
+          return `
+HOLIDAY CARD DESIGN EXCELLENCE:
+Seasonal Celebration Mastery:
+- Cultural Holiday Sensitivity: Respectful and inclusive approach to religious and secular holiday traditions
+- Timeless Holiday Aesthetics: Classic design elements that feel fresh while honoring traditional holiday beauty
+- Multi-Faith Consideration: Design approaches that can celebrate winter, gratitude, or universal themes of connection
+- Family Personality Reflection: Visual style that authentically represents the sending family's personality and values
+- Geographic Appropriateness: Holiday imagery and themes suitable for the sender's climate and cultural context
+- Intergenerational Appeal: Design approach that delights children while appearing sophisticated to adults
+- Traditional-Modern Balance: Contemporary design execution of classic holiday themes and symbols
+
+Connection and Gratitude Communication:
+- Relationship Honoring: Visual approach that celebrates the sender's relationship with each recipient
+- Year-End Reflection: Design elements that acknowledge the year's journey and express gratitude for connections
+- Warmth and Comfort Emphasis: Visual atmosphere that communicates love, warmth, and holiday spirit
+- Photo Integration Excellence: Design framework that beautifully showcases family photos when included
+- Message Hierarchy: Layout that balances visual beauty with readable holiday messaging and personal notes`;
+
+        case 'anniversary-invitation':
+          return `
+ANNIVERSARY CELEBRATION DESIGN FRAMEWORK:
+Milestone Relationship Honor:
+- Love Story Continuation: Design elements that celebrate the ongoing journey of the relationship being honored
+- Generational Wisdom Celebration: Visual approach appropriate for celebrating long-term relationship success
+- Community Witness Invitation: Design that invites friends and family to witness and celebrate relationship milestones
+- Romantic Sophistication: Elegant design elements that honor mature love without appearing overly sentimental
+- Legacy Relationship Modeling: Visual approach that positions the celebrating couple as relationship role models
+- Family History Integration: Design elements that acknowledge the family and community built around the relationship
+- Sacred Commitment Recognition: Visual weight and beauty appropriate for celebrating lasting commitment
+
+Celebration Invitation Excellence:
+- Multi-Generational Guest Consideration: Design appeal that works for children, adults, and elderly celebration guests
+- Formal-Casual Balance: Sophistication level appropriate for the specific anniversary milestone and celebration style
+- Memory Lane Integration: Visual elements that may subtly reference the couple's history and shared experiences
+- Gratitude Expression: Design approach that communicates the couple's gratitude for community support over the years`;
+
+        case 'retirement-invitation':
+          return `
+RETIREMENT CELEBRATION DESIGN MASTERY:
+Career Achievement Honor:
+- Professional Legacy Celebration: Design elements that honor decades of professional contribution and achievement
+- Transition Acknowledgment: Visual approach that celebrates both career completion and future life phase anticipation
+- Industry Respect Communication: Design sophistication appropriate for honoring senior professional achievements
+- Wisdom and Experience Recognition: Visual elements that acknowledge the retiree's accumulated knowledge and mentorship
+- Community Contribution Emphasis: Design approach that honors the retiree's impact on colleagues and community
+- Next Chapter Optimism: Forward-looking design elements that celebrate upcoming adventures and opportunities
+- Dignified Celebration Framework: Professional visual approach that maintains dignity while encouraging joyful celebration
+
+Colleague and Community Invitation:
+- Professional Network Activation: Design that appropriately invites work colleagues, industry contacts, and personal friends
+- Cross-Generational Appeal: Visual approach that resonates with junior colleagues, peers, and senior mentors equally
+- Achievement Showcase Potential: Design framework that can accommodate career highlights and accomplishment recognition
+- Gratitude Expression Platform: Visual elements that communicate the retiree's appreciation for professional relationships`;
+
+        case 'housewarming-invitation':
+          return `
+HOUSEWARMING INVITATION DESIGN EXCELLENCE:
+New Home Celebration Framework:
+- Home-as-Haven Communication: Design elements that celebrate the creation of a new family sanctuary and gathering place
+- Hospitality Preview: Visual approach that hints at the warmth and welcome guests will experience in the new home
+- Community Building Invitation: Design that positions the housewarming as the beginning of new neighborhood relationships
+- Personal Style Reflection: Visual elements that hint at the homeowners' aesthetic and personality without overwhelming
+- Practical Information Integration: Beautiful organization of address, directions, and timing details for easy navigation
+- Gift Guidance Sensitivity: Tasteful approach to gift suggestions that feels helpful rather than presumptuous
+- Memory-Making Potential: Design quality that encourages guests to keep the invitation as a memento of the first visit
+
+New Beginning Celebration:
+- Fresh Start Energy: Visual elements that communicate excitement about new beginnings and future possibilities
+- Gratitude for Support: Design approach that acknowledges friends and family who supported the home-buying process
+- Home Tour Anticipation: Visual hints that create excitement about seeing and experiencing the new living space
+- Community Integration: Design elements that welcome neighbors and encourage local relationship building`;
+
+        case 'fundraising-invitation':
+          return `
+FUNDRAISING EVENT INVITATION MASTERY:
+Mission-Driven Design Architecture:
+- Cause Communication Excellence: Visual hierarchy that immediately communicates the fundraising mission and impact potential
+- Donor Respect Integration: Design sophistication that honors potential donors' intelligence and philanthropic experience
+- Impact Visualization: Visual elements that help donors understand and connect emotionally with the cause's importance
+- Transparency Communication: Design approach that suggests accountability and responsible use of donated funds
+- Community Building Emphasis: Visual messaging that positions donors as part of a meaningful community of change-makers
+- Action-Oriented Layout: Strategic design elements that guide attendees toward donation and involvement opportunities
+- Hope and Solution Focus: Positive visual approach that emphasizes solutions and progress rather than just problems
+
+Philanthropic Engagement Excellence:
+- Multi-Level Donor Appeal: Design sophistication that appeals to major donors while remaining accessible to smaller contributors
+- Event Value Communication: Visual elements that justify attendance investment through networking, education, or entertainment value
+- Mission Authority Establishment: Design quality that communicates the organization's competence and trustworthiness
+- Emotional Connection Facilitation: Visual storytelling that helps potential attendees connect personally with the cause`;
+
+        case 'product-launch-invitation':
+          return `
+PRODUCT LAUNCH INVITATION DESIGN MASTERY:
+Innovation Showcase Architecture:
+- Product Excellence Preview: Visual elements that hint at the product's quality and innovation without full revelation
+- Market Disruption Communication: Design approach that suggests the product's potential industry impact and significance
+- Exclusivity and Access: Visual messaging that emphasizes the privileged nature of launch event attendance
+- Brand Authority Reinforcement: Design elements that strengthen the launching company's market position and credibility
+- Industry Leadership Positioning: Visual sophistication that positions the company as an industry thought leader
+- Curiosity Generation: Strategic design elements that create intrigue and anticipation without revealing too much
+- Media and Influencer Appeal: Design quality suitable for social media sharing and press coverage potential
+
+Launch Event Experience Promise:
+- High-Value Networking: Visual emphasis on the caliber of attendees and networking opportunities available
+- First-Access Advantage: Design elements that communicate the benefits of being among the first to experience the product
+- Educational Value Integration: Visual hints at the learning and insight opportunities available at the launch event
+- Industry Impact Suggestion: Design approach that hints at the product's potential to change industry standards or practices`;
+
+        case 'conference-badge':
+          return `
+CONFERENCE BADGE DESIGN EXCELLENCE:
+Professional Identity Architecture:
+- Instant Credibility Communication: Design elements that immediately establish the wearer's professional legitimacy
+- Industry Authority Signaling: Visual approach that suggests the wearer's expertise and conference participation value
+- Networking Facilitation: Design elements that encourage professional interaction and conversation starting
+- Brand Integration Mastery: Seamless incorporation of both conference and attendee professional branding
+- Hierarchy Communication: Visual design that respects different attendee levels (speakers, sponsors, general attendees)
+- Readability Optimization: Typography and layout that ensures name and title visibility across networking distances
+- Professional Photo Integration: Design framework that accommodates professional headshots beautifully
+
+Conference Experience Enhancement:
+- Event Navigation Support: Design elements that help attendees navigate conference logistics and programming
+- Community Building Visual: Design approach that creates sense of belonging to an elite professional community
+- Social Media Optimization: Visual elements that look professional and appealing in conference photos and posts
+- Conversation Starter Integration: Design elements that provide natural talking points for networking interactions`;
+
+        case 'thank-you-card':
+          return `
+THANK YOU CARD DESIGN MASTERY:
+Gratitude Expression Excellence:
+- Sincere Appreciation Communication: Visual elements that authentically convey genuine thankfulness and recognition
+- Relationship Honoring: Design approach that celebrates and strengthens the relationship between sender and recipient
+- Emotional Resonance: Visual warmth that makes the recipient feel truly valued and appreciated
+- Personal Touch Integration: Design framework that accommodates personal messages beautifully
+- Keepsake Quality: Design sophistication that encourages recipients to save the card as a meaningful memento
+- Cultural Sensitivity: Visual approach that respects different cultural expressions of gratitude and appreciation
+- Timeless Appeal: Classic design elements that won't appear dated when recipients rediscover the card later
+
+Appreciation Impact Maximization:
+- Memory Reinforcement: Visual elements that help recipients recall the specific reason for gratitude
+- Positive Emotion Amplification: Design choices that enhance the recipient's positive feelings about the appreciated action
+- Relationship Investment Communication: Visual approach that demonstrates the sender's investment in the relationship
+- Future Interaction Encouragement: Design elements that strengthen the likelihood of continued positive relationship`;
+
+        case 'save-the-date':
+          return `
+SAVE THE DATE DESIGN EXCELLENCE:
+Event Anticipation Architecture:
+- Calendar Priority Communication: Visual urgency and importance that encourages immediate calendar blocking
+- Event Significance Suggestion: Design sophistication that hints at the event's importance and attendance value
+- Anticipation Building: Visual elements that create excitement and curiosity about upcoming event details
+- Timeline Respect: Design approach that acknowledges recipients' need for advance planning and preparation time
+- Initial Impression Excellence: Design quality that sets high expectations for the actual event experience
+- Information Hierarchy: Clear priority given to date, location, and basic event type while maintaining visual appeal
+- Follow-Up Promise: Visual approach that suggests more detailed information will follow
+
+Early Engagement Strategy:
+- RSVP Encouragement: Design elements that make early response feel important and appreciated
+- Calendar Integration: Visual design that encourages immediate addition to personal and professional calendars
+- Social Sharing Optimization: Design quality that looks professional when recipients share on social media
+- Event Type Communication: Visual hints about event formality, duration, and expected participation level`;
+
+        default:
+          if (materialType?.includes('invitation')) {
+            return `
+INVITATION DESIGN EXCELLENCE FRAMEWORK:
+Special Occasion Honor:
+- Event Significance Communication: Visual weight and sophistication appropriate for the specific celebration type
+- Cultural Celebration Sensitivity: Respectful incorporation of traditions and customs relevant to the event
+- Guest Experience Design: Layout and visual approach that creates anticipation and excitement for attendance
+- Information Architecture: Clear, beautiful organization of event details that makes attendance planning effortless
+- Emotional Connection: Visual elements that help recipients connect with the celebration's emotional significance
+- Host Personality Reflection: Design approach that authentically represents the hosting individual or organization
+- Memory Creation Potential: Design quality that encourages guests to save the invitation as an event memento
+
+Celebration Community Building:
+- Inclusive Welcome Design: Visual approach that makes all invited guests feel valued and excited to attend
+- Social Sharing Readiness: Design quality suitable for social media sharing while maintaining invitation privacy
+- Multi-Generational Appeal: Visual elements that resonate appropriately across different age groups attending
+- Cultural Bridge Building: Design sensitivity that honors diverse backgrounds within the invited community`;
+          } else if (materialType?.includes('card')) {
+            return `
+CARD DESIGN EXCELLENCE FRAMEWORK:
+Tactile Communication Mastery:
+- Physical Impact Optimization: Design elements that maximize the card's impact as a physical, held object
+- Emotional Connection: Visual approach that creates immediate emotional resonance with the card's recipient
+- Memorable Visual Impact: Design elements that ensure the card stands out from daily communication noise
+- Brand Integration: Seamless incorporation of sender's personal or professional branding identity
+- Practical Functionality: Layout optimization for the card's intended use and distribution method
+- Keepsake Quality: Design sophistication that encourages recipients to save and treasure the card
+- Cultural Communication Sensitivity: Visual approach that respects and appeals to recipient's cultural context`;
+          }
+          return '';
+      }
+    })();
+
+    const industryEnhancement = formValues.industrySpecific ? `
+INDUSTRY-SPECIFIC DESIGN APPROACH:
+Industry Context: ${formValues.industrySpecific}
+- Sector Standards: Design adhering to visual conventions and expectations for ${formValues.industrySpecific} industry
+- Professional Credibility: Visual elements establishing trust and expertise within ${formValues.industrySpecific} field
+- Regulatory Compliance: Design approach meeting industry-specific advertising and communication standards
+- Target Professional Alignment: Visual language resonating with ${formValues.industrySpecific} decision-makers and stakeholders
+- Industry Color Psychology: Colors and design elements leveraging ${formValues.industrySpecific} sector associations and preferences` : '';
+
+    const formatEnhancement = formValues.formatSize ? `
+FORMAT & SIZE OPTIMIZATION:
+Output Format: ${formValues.formatSize}
+- Dimensional Accuracy: Precise sizing for ${formValues.formatSize} specifications and printing requirements
+- Resolution Standards: High-quality output suitable for both digital display and professional printing
+- Print Production: Color management and bleed areas appropriate for ${formValues.formatSize} production
+- Scalability: Design elements that maintain quality across different size variations
+- Platform Optimization: Format-specific adjustments for intended use and distribution method` : '';
+
     return `Create a high-converting, strategically designed marketing asset that drives measurable business results and advances specific campaign objectives.
 
 ${standardFieldsSection}
@@ -525,7 +867,7 @@ MARKETING CAMPAIGN SPECIFICATIONS:
 Target Audience: ${formValues.targetAudience}
 Material Type: ${formValues.materialType}
 Campaign Objective: ${formValues.campaignGoal}
-Product/Service Focus: ${formValues.productService}
+Content Description: ${formValues.contentDescription}${materialTypeEnhancement}${industryEnhancement}${formatEnhancement}
 
 STRATEGIC MESSAGING FRAMEWORK:
 Value Proposition Communication:
@@ -651,7 +993,34 @@ Campaign Integration Requirements:
     'retro': 'vintage-inspired, nostalgic, classic, timeless appeal'
   },
 
-  aspectRatioOptimizations: {}
+  aspectRatioOptimizations: {
+    'cover-letter': 'US Letter format 8.5x11 inches, portrait orientation optimized for professional document standards',
+    'wedding-invitation': 'Standard invitation 5x7 inches, elegant portrait format for ceremonial presentation',
+    'birthday-invitation': 'Party invitation 4x6 inches, landscape or portrait optimized for celebration themes',
+    'corporate-invitation': 'Business invitation 5x7 inches, professional portrait format for corporate events',
+    'graduation-invitation': 'Academic invitation 5x7 inches, achievement-focused portrait presentation',
+    'baby-shower-invitation': 'Celebration invitation 4x6 inches, nurturing portrait format for family events',
+    'holiday-card': 'Greeting card 5x7 inches, seasonal portrait or square format for festive messaging',
+    'anniversary-invitation': 'Milestone invitation 5x7 inches, elegant portrait celebrating relationship achievements',
+    'retirement-invitation': 'Professional invitation 5x7 inches, dignified portrait honoring career accomplishments',
+    'housewarming-invitation': 'Welcome invitation 4x6 inches, landscape format showcasing new home celebration',
+    'fundraising-invitation': 'Charitable invitation 5x7 inches, mission-focused portrait for cause promotion',
+    'product-launch-invitation': 'Innovation invitation 5x7 inches, dynamic portrait for product unveiling events',
+    'conference-badge': 'Badge format 3.5x2.25 inches, landscape orientation for professional networking',
+    'thank-you-card': 'Gratitude card 4x6 inches, portrait format for personal appreciation messages',
+    'save-the-date': 'Announcement card 4x6 inches, landscape format for advance event notification',
+    'standard-letter': 'US Letter 8.5x11 inches, professional document portrait orientation',
+    'a4-document': 'A4 International 210x297mm, standard business document format',
+    'invitation-5x7': '5x7 inches portrait, premium invitation standard dimensions',
+    'invitation-4x6': '4x6 inches landscape/portrait, compact invitation format',
+    'square-invitation': '5x5 inches square, modern geometric invitation layout',
+    'postcard-4x6': '4x6 inches landscape, direct mail marketing dimensions',
+    'greeting-card': '5x7 inches portrait, standard greeting card proportions',
+    'business-card': '3.5x2 inches landscape, professional contact card format',
+    'digital-social': '1080x1080 square, social media optimized dimensions',
+    'digital-email': '600x800 portrait, email newsletter compatible layout',
+    'large-poster': '18x24 inches portrait, large format display dimensions'
+  }
 };
 
 // ===== Banners Template =====
@@ -1656,7 +2025,34 @@ export function getAspectRatioForCategory(categoryId: ImageCategory, formValues:
   // Check for category-specific aspect ratio optimizations
   const aspectRatios = template.aspectRatioOptimizations;
   
-  // Try to find a match based on form values
+  // For marketing category, prioritize formatSize and materialType
+  if (categoryId === 'marketing') {
+    // Check formatSize first
+    if (formValues.formatSize && aspectRatios[formValues.formatSize]) {
+      const format = formValues.formatSize;
+      // Return appropriate dimensions based on format
+      if (format.includes('letter') || format.includes('a4') || format.includes('5x7') || format.includes('4x6')) {
+        return format.includes('landscape') ? '1792x1024' : '1024x1792'; // Portrait orientation for documents and invitations
+      }
+      if (format.includes('square')) return '1024x1024';
+      if (format.includes('digital-social')) return '1024x1024';
+      if (format.includes('digital-email')) return '1024x1792';
+      if (format.includes('business-card')) return '1792x1024'; // Landscape for business cards
+      if (format.includes('large-poster')) return '1024x1792'; // Tall poster format
+    }
+    
+    // Check materialType if formatSize not specified
+    if (formValues.materialType && aspectRatios[formValues.materialType]) {
+      const material = formValues.materialType;
+      if (material === 'cover-letter') return '1024x1792'; // Portrait document
+      if (material.includes('invitation') && material !== 'housewarming-invitation') return '1024x1792'; // Most invitations are portrait
+      if (material === 'housewarming-invitation') return '1792x1024'; // Landscape for housewarming
+      if (material === 'conference-badge' || material === 'business-card') return '1792x1024'; // Landscape
+      if (material.includes('card')) return '1024x1792'; // Portrait for most cards
+    }
+  }
+  
+  // Try to find a match based on form values for other categories
   for (const [key, value] of Object.entries(aspectRatios)) {
     // Check various form fields that might indicate aspect ratio preference
     if (formValues.platform === key || 
@@ -1679,6 +2075,8 @@ export function getAspectRatioForCategory(categoryId: ImageCategory, formValues:
       return '1792x1024';
     case 'letterhead':
       return '1024x1792';
+    case 'marketing':
+      return '1024x1792'; // Default to portrait for marketing materials
     default:
       return '1024x1024';
   }
@@ -1703,6 +2101,16 @@ export function getCategoryPromptSuggestions(categoryId: ImageCategory): string[
       'Hero banner for e-commerce website'
     ],
     'marketing': [
+      'Elegant wedding invitation with floral design',
+      'Professional cover letter header for job application',
+      'Birthday invitation for children\'s superhero party',
+      'Corporate conference invitation with company branding',
+      'Graduation celebration invitation with academic themes',
+      'Baby shower invitation with soft pastel colors',
+      'Holiday greeting card for winter season',
+      'Retirement party invitation honoring career achievements',
+      'Product launch invitation for tech startup event',
+      'Thank you card expressing sincere gratitude',
       'Eye-catching event flyer for music festival',
       'Professional business card for consultant',
       'Promotional banner for seasonal sale'

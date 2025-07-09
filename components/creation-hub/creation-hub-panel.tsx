@@ -7,7 +7,7 @@ import {
   Palette, 
   Wand2, 
   Download, 
-  History, 
+  Film, 
   Settings, 
   Image as ImageIcon, 
   Sparkles,
@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { useImageGeneration } from "./hooks/use-image-generation";
 import { useConversation } from "./hooks/use-conversation";
 import { useUserImages } from "./hooks/use-user-images";
+import { useUserVideos } from "./hooks/use-user-videos";
 import { HubUtils } from "./hub-utils";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 import { logger } from "@/memory-framework/config";
@@ -41,6 +42,8 @@ import { CategorySelector } from "./category-selector";
 import { CategoryForm } from "./category-form";
 import type { ImageCategory, CategoryFormValues } from "./category-types";
 import { ImageEditorModal } from "./image-editor-modal";
+import { VideoGenerator } from "./video-generator";
+import CreateVid from "./create-vid";
 
 // Helper function to convert File to base64
 async function fileToBase64(file: File): Promise<string> {
@@ -62,6 +65,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [isImageEditorOpen, setIsImageEditorOpen] = useState(false);
+  const [gallerySubTab, setGallerySubTab] = useState<'images' | 'videos'>('images');
   const [quality, setQuality] = useState<'standard' | 'hd'>('standard');
   const [size, setSize] = useState<string>('1024x1024');
   const [style, setStyle] = useState<'vivid' | 'natural'>('vivid');
@@ -83,6 +87,17 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
   } = useUserImages({
     autoLoad: true,
     limit: 100
+  });
+
+  // Use user videos hook
+  const {
+    videos: userVideos,
+    loading: userVideosLoading,
+    addVideo: addUserVideo,
+    refresh: refreshUserVideos
+  } = useUserVideos({
+    autoLoad: true,
+    limit: 50
   });
 
   // Check authentication on mount
@@ -117,6 +132,22 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
       images: userImages.map(img => ({ id: img.id, status: img.status, url: img.url?.substring(0, 50) + '...' }))
     });
   }, [userImages, userImagesLoading, authUser]);
+
+  // Debug logging for user videos
+  useEffect(() => {
+    logger.info('[CreationHubPanel] User videos state updated', {
+      count: userVideos.length,
+      loading: userVideosLoading,
+      authUser: authUser ? { id: authUser.id } : null,
+      videos: userVideos.map(vid => ({ 
+        id: vid.id, 
+        status: vid.status, 
+        filename: vid.filename,
+        hasUrl: !!vid.video_url,
+        url: vid.video_url?.substring(0, 50) + '...' 
+      }))
+    });
+  }, [userVideos, userVideosLoading, authUser]);
 
   // Use custom hooks for generation and conversations
   const { generate, isGenerating, progress, error: generationError, cancel } = useImageGeneration({
@@ -403,16 +434,31 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                     {images.length}
                   </Badge>
                 )}
+                {userVideos.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs px-1 py-0.5 h-5 bg-blue-500">
+                    {userVideos.length}v
+                  </Badge>
+                )}
               </div>
             </TabsTrigger>
             <TabsTrigger 
-              value="history" 
+              value="video" 
               className="relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation"
             >
               <div className="flex items-center gap-1 sm:gap-2">
-                <History className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden xs:inline">History</span>
-                <span className="xs:hidden">Hist</span>
+                <Film className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Video</span>
+                <span className="xs:hidden">Video</span>
+              </div>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="createvid" 
+              className="relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation"
+            >
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Wand2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Create Vid</span>
+                <span className="xs:hidden">Create</span>
               </div>
             </TabsTrigger>
           </TabsList>
@@ -671,232 +717,385 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
           </TabsContent>
 
           <TabsContent value="gallery" className="mt-0 h-full">
-            <ScrollArea className="h-full p-4">
-              <div className="space-y-6">
-                {/* Gallery Stats */}
-                {userImages.length > 0 && (
-                  <Card className="glass-card">
-                    <CardContent className="p-4">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 md:gap-4 text-center">
-                        {(() => {
-                          const stats = HubUtils.GeneratedImage.calculateStats(userImages);
-                          return (
-                            <>
-                              <div>
-                                <div className="text-2xl font-bold text-primary">{stats.total}</div>
-                                <div className="text-xs text-muted-foreground">Total Images</div>
-                              </div>
-                              <div>
-                                <div className="text-2xl font-bold text-green-500">{stats.completed}</div>
-                                <div className="text-xs text-muted-foreground">Completed</div>
-                              </div>
-                              <div>
-                                <div className="text-2xl font-bold text-yellow-500">{stats.generating}</div>
-                                <div className="text-xs text-muted-foreground">Generating</div>
-                              </div>
-                              <div>
-                                <div className="text-2xl font-bold text-blue-500">{stats.successRate}%</div>
-                                <div className="text-xs text-muted-foreground">Success Rate</div>
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+            <div className="flex flex-col h-full">
+              {/* Gallery Sub-tabs */}
+              <div className="border-b border-border flex-shrink-0 px-4 pt-4">
+                <div className="flex gap-1">
+                  <Button
+                    variant={gallerySubTab === 'images' ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setGallerySubTab('images')}
+                    className="h-8"
+                  >
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                    Images
+                    {userImages.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
+                        {userImages.filter(img => img.status === 'completed').length}
+                      </Badge>
+                    )}
+                  </Button>
+                  <Button
+                    variant={gallerySubTab === 'videos' ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setGallerySubTab('videos')}
+                    className="h-8"
+                  >
+                    <Film className="h-4 w-4 mr-2" />
+                    Videos
+                    {userVideos.length > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
+                        {userVideos.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </div>
+              </div>
 
-                {/* Loading State */}
-                {userImagesLoading && (
-                  <div className="flex items-center justify-center h-32">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <span className="ml-2 text-muted-foreground">Loading images...</span>
-                  </div>
-                )}
-
-                {/* Generation Progress */}
-                {isGenerating && (
-                  <Card className="glass-card border-primary/50">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <Sparkles className="h-6 w-6 text-primary animate-pulse" />
-                          <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-primary">Generating with GPT Image 1</span>
-                            {progress > 0 && <span className="text-xs text-muted-foreground">{progress}%</span>}
+              {/* Gallery Content */}
+              <ScrollArea className="flex-1 p-4">
+                {gallerySubTab === 'images' ? (
+                  <div className="space-y-6">
+                    {/* Images Gallery Stats */}
+                    {userImages.length > 0 && (
+                      <Card className="glass-card">
+                        <CardContent className="p-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 md:gap-4 text-center">
+                            {(() => {
+                              const stats = HubUtils.GeneratedImage.calculateStats(userImages);
+                              return (
+                                <>
+                                  <div>
+                                    <div className="text-2xl font-bold text-primary">{stats.total}</div>
+                                    <div className="text-xs text-muted-foreground">Total Images</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-2xl font-bold text-green-500">{stats.completed}</div>
+                                    <div className="text-xs text-muted-foreground">Completed</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-2xl font-bold text-yellow-500">{stats.generating}</div>
+                                    <div className="text-xs text-muted-foreground">Generating</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-2xl font-bold text-blue-500">{stats.successRate}%</div>
+                                    <div className="text-xs text-muted-foreground">Success Rate</div>
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </div>
-                          <Progress value={progress} className="h-2" />
-                          <p className="text-xs text-muted-foreground mt-1">Creating your stunning image...</p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={cancel}
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <StopCircle className="h-4 w-4" />
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Loading State */}
+                    {userImagesLoading && (
+                      <div className="flex items-center justify-center h-32">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <span className="ml-2 text-muted-foreground">Loading images...</span>
+                      </div>
+                    )}
+
+                    {/* Generation Progress */}
+                    {isGenerating && (
+                      <Card className="glass-card border-primary/50">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                              <Sparkles className="h-6 w-6 text-primary animate-pulse" />
+                              <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-primary">Generating with GPT Image 1</span>
+                                {progress > 0 && <span className="text-xs text-muted-foreground">{progress}%</span>}
+                              </div>
+                              <Progress value={progress} className="h-2" />
+                              <p className="text-xs text-muted-foreground mt-1">Creating your stunning image...</p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={cancel}
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <StopCircle className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Image Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
+                      <AnimatePresence>
+                        {HubUtils.GeneratedImage.sortImages(
+                          HubUtils.GeneratedImage.filterByStatus(userImages, 'completed'),
+                          'date'
+                        ).map((image, index) => (
+                          <motion.div
+                            key={image.id}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            transition={{ delay: HubUtils.UI.getStaggerDelay(index, 0.05) }}
+                            className="relative group cursor-pointer touch-manipulation"
+                            onClick={() => handleImageClick(image)}
+                          >
+                            <div className="aspect-square rounded-lg overflow-hidden bg-muted">
+                              <img 
+                                src={image.url} 
+                                alt={HubUtils.GeneratedImage.getDisplayPrompt(image)}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                loading="lazy"
+                              />
+                            </div>
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 md:group-hover:opacity-100">
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownload(image);
+                                }}
+                                className="bg-white/20 backdrop-blur-sm border border-white/30 touch-manipulation active:scale-95"
+                              >
+                                <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+                              </Button>
+                            </div>
+                            <div className="mt-2 space-y-1">
+                              <p className="text-xs text-muted-foreground line-clamp-1">
+                                {HubUtils.Text.truncate(HubUtils.GeneratedImage.getDisplayPrompt(image), 50)}
+                              </p>
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span>{image.timestamp.toLocaleDateString()}</span>
+                                {image.metadata?.quality && (
+                                  <Badge variant="outline" className="text-xs px-1 py-0">
+                                    {image.metadata.quality}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                    
+                    {/* Auth check */}
+                    {!authLoading && !authUser && (
+                      <div className="flex flex-col items-center justify-center h-[400px] text-center">
+                        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+                        <h3 className="text-lg font-medium mb-2">Authentication Required</h3>
+                        <p className="text-muted-foreground mb-4">
+                          Please sign in to view your images
+                        </p>
+                      </div>
+                    )}
+
+                    {/* No images state */}
+                    {!userImagesLoading && authUser && HubUtils.GeneratedImage.filterByStatus(userImages, 'completed').length === 0 && (
+                      <div className="flex flex-col items-center justify-center h-[400px] text-center">
+                        <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-medium mb-2">No images yet</h3>
+                        <p className="text-muted-foreground mb-4">
+                          Generate your first image to see it here
+                        </p>
+                        <Button onClick={() => setActiveTab("generate")} variant="outline">
+                          <Wand2 className="mr-2 h-4 w-4" />
+                          Start Creating
                         </Button>
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Image Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
-                  <AnimatePresence>
-                    {HubUtils.GeneratedImage.sortImages(
-                      HubUtils.GeneratedImage.filterByStatus(userImages, 'completed'),
-                      'date'
-                    ).map((image, index) => (
-                      <motion.div
-                        key={image.id}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ delay: HubUtils.UI.getStaggerDelay(index, 0.05) }}
-                        className="relative group cursor-pointer touch-manipulation"
-                        onClick={() => handleImageClick(image)}
-                      >
-                        <div className="aspect-square rounded-lg overflow-hidden bg-muted">
-                          <img 
-                            src={image.url} 
-                            alt={HubUtils.GeneratedImage.getDisplayPrompt(image)}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                            loading="lazy"
-                          />
-                        </div>
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 md:group-hover:opacity-100">
-                          <Button
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDownload(image);
-                            }}
-                            className="bg-white/20 backdrop-blur-sm border border-white/30 touch-manipulation active:scale-95"
-                          >
-                            <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-                          </Button>
-                        </div>
-                        <div className="mt-2 space-y-1">
-                          <p className="text-xs text-muted-foreground line-clamp-1">
-                            {HubUtils.Text.truncate(HubUtils.GeneratedImage.getDisplayPrompt(image), 50)}
-                          </p>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>{image.timestamp.toLocaleDateString()}</span>
-                            {image.metadata?.quality && (
-                              <Badge variant="outline" className="text-xs px-1 py-0">
-                                {image.metadata.quality}
-                              </Badge>
-                            )}
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Debug Section - Remove this after fixing */}
+                    <Card className="glass-card border-yellow-500/50">
+                      <CardContent className="p-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-medium text-yellow-500">Debug Info</h4>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                console.log('Manual refresh triggered');
+                                refreshUserVideos();
+                              }}
+                            >
+                              Refresh Videos
+                            </Button>
+                          </div>
+                          <div className="text-xs text-muted-foreground space-y-1">
+                            <p>Loading: {userVideosLoading ? 'true' : 'false'}</p>
+                            <p>Auth User: {authUser ? authUser.id : 'null'}</p>
+                            <p>Videos Count: {userVideos.length}</p>
+                            <p>Auth Loading: {authLoading ? 'true' : 'false'}</p>
                           </div>
                         </div>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-                
-                {/* Auth check */}
-                {!authLoading && !authUser && (
-                  <div className="flex flex-col items-center justify-center h-[400px] text-center">
-                    <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-                    <h3 className="text-lg font-medium mb-2">Authentication Required</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Please sign in to view your images
-                    </p>
-                  </div>
-                )}
+                      </CardContent>
+                    </Card>
 
-                {/* No images state */}
-                {!userImagesLoading && authUser && HubUtils.GeneratedImage.filterByStatus(userImages, 'completed').length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-[400px] text-center">
-                    <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No images yet</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Generate your first image to see it here
-                    </p>
-                    <Button onClick={() => setActiveTab("generate")} variant="outline">
-                      <Wand2 className="mr-2 h-4 w-4" />
-                      Start Creating
-                    </Button>
+                    {/* Videos Gallery Stats */}
+                    {userVideos.length > 0 && (
+                      <Card className="glass-card">
+                        <CardContent className="p-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 md:gap-4 text-center">
+                            <div>
+                              <div className="text-2xl font-bold text-primary">{userVideos.length}</div>
+                              <div className="text-xs text-muted-foreground">Total Videos</div>
+                            </div>
+                            <div>
+                              <div className="text-2xl font-bold text-green-500">
+                                {userVideos.filter(v => v.status === 'completed').length}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Completed</div>
+                            </div>
+                            <div>
+                              <div className="text-2xl font-bold text-blue-500">
+                                {Math.round(userVideos.reduce((acc, v) => acc + (v.duration_seconds || 0), 0))}s
+                              </div>
+                              <div className="text-xs text-muted-foreground">Total Duration</div>
+                            </div>
+                            <div>
+                              <div className="text-2xl font-bold text-purple-500">
+                                {Math.round(userVideos.reduce((acc, v) => acc + (v.file_size || 0), 0) / (1024 * 1024))}MB
+                              </div>
+                              <div className="text-xs text-muted-foreground">Total Size</div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Loading State */}
+                    {userVideosLoading && (
+                      <div className="flex items-center justify-center h-32">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <span className="ml-2 text-muted-foreground">Loading videos...</span>
+                      </div>
+                    )}
+
+                    {/* Video Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <AnimatePresence>
+                        {userVideos.map((video, index) => (
+                          <motion.div
+                            key={video.id}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            transition={{ delay: HubUtils.UI.getStaggerDelay(index, 0.1) }}
+                            className="relative group"
+                          >
+                            <Card className="glass-card overflow-hidden">
+                              <div className="aspect-video bg-black rounded-t-lg overflow-hidden">
+                                <video
+                                  src={video.video_url}
+                                  controls
+                                  preload="metadata"
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    console.error('Video error:', e);
+                                  }}
+                                >
+                                  <p>Your browser doesn't support HTML5 video.</p>
+                                </video>
+                              </div>
+                              <CardContent className="p-3">
+                                <div className="space-y-2">
+                                  {video.original_text && (
+                                    <p className="text-sm text-muted-foreground line-clamp-2">
+                                      {video.original_text}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span>{new Date(video.created_at).toLocaleDateString()}</span>
+                                    <div className="flex items-center gap-2">
+                                      {video.duration_seconds && (
+                                        <Badge variant="outline" className="text-xs px-1 py-0">
+                                          {video.duration_seconds}s
+                                        </Badge>
+                                      )}
+                                      {video.voice_character && (
+                                        <Badge variant="outline" className="text-xs px-1 py-0">
+                                          {video.voice_character}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-muted-foreground">
+                                      {video.file_size ? `${Math.round(video.file_size / (1024 * 1024))}MB` : 'Unknown size'}
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => window.open(video.video_url, '_blank')}
+                                      className="h-7 px-2"
+                                    >
+                                      <Download className="h-3 w-3 mr-1" />
+                                      Download
+                                    </Button>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                    
+                    {/* Auth check */}
+                    {!authLoading && !authUser && (
+                      <div className="flex flex-col items-center justify-center h-[400px] text-center">
+                        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+                        <h3 className="text-lg font-medium mb-2">Authentication Required</h3>
+                        <p className="text-muted-foreground mb-4">
+                          Please sign in to view your videos
+                        </p>
+                      </div>
+                    )}
+
+                    {/* No videos state */}
+                    {!userVideosLoading && authUser && userVideos.length === 0 && (
+                      <div className="flex flex-col items-center justify-center h-[400px] text-center">
+                        <Film className="h-12 w-12 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-medium mb-2">No videos yet</h3>
+                        <p className="text-muted-foreground mb-4">
+                          Create your first video to see it here
+                        </p>
+                        <Button onClick={() => setActiveTab("createvid")} variant="outline">
+                          <Wand2 className="mr-2 h-4 w-4" />
+                          Create Video
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
+              </ScrollArea>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="video" className="mt-0 h-full">
+            <ScrollArea className="h-full p-4">
+              <VideoGenerator />
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="history" className="mt-0 h-full">
+          <TabsContent value="createvid" className="mt-0 h-full">
             <ScrollArea className="h-full p-4">
-              <div className="space-y-4">
-                {images.map((image) => (
-                  <Card key={image.id} className="glass-card">
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div 
-                          className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
-                          onClick={() => image.status === 'completed' && handleImageClick(image)}
-                        >
-                          {image.status === 'completed' ? (
-                            <img 
-                              src={image.url} 
-                              alt={HubUtils.GeneratedImage.getDisplayPrompt(image)}
-                              className="w-full h-full object-cover hover:scale-105 transition-transform"
-                            />
-                          ) : image.status === 'generating' ? (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                            </div>
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-destructive/10">
-                              <X className="h-4 w-4 text-destructive" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium line-clamp-2 mb-1">
-                            {HubUtils.GeneratedImage.getDisplayPrompt(image)}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <Badge 
-                              variant={
-                                image.status === 'completed' ? 'default' : 
-                                image.status === 'generating' ? 'secondary' : 
-                                'destructive'
-                              }
-                            >
-                              {image.status}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {image.timestamp.toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                        {image.status === 'completed' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDownload(image)}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                
-                {images.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-[400px] text-center">
-                    <History className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No history yet</h3>
-                    <p className="text-muted-foreground">
-                      Your generation history will appear here
-                    </p>
-                  </div>
-                )}
-              </div>
+              <CreateVid onVideoCreated={(video) => {
+                // Add video to gallery state but DON'T switch tabs
+                addUserVideo(video);
+                // Refresh video list to ensure sync with database
+                refreshUserVideos();
+                // DON'T switch tabs - let user see the video on CreateVid page
+                toast({
+                  title: "Video Created Successfully!",
+                  description: "Your video is ready and has been added to the gallery",
+                });
+              }} />
             </ScrollArea>
           </TabsContent>
         </div>

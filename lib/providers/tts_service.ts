@@ -16,12 +16,49 @@ import fs from 'fs/promises'; // For async file operations
 import path from 'path';
 import os from 'os';
 
-// Configure fluent-ffmpeg to use the static ffmpeg binary
-if (ffmpegStatic) {
-  ffmpeg.setFfmpegPath(ffmpegStatic);
-} else {
-  logger.warn("[TTSService] ffmpeg-static path not found. Post-processing might fail if ffmpeg is not in PATH.");
+// Enhanced FFmpeg configuration for Windows compatibility
+function configureFfmpegTTS() {
+  try {
+    if (ffmpegStatic) {
+      // Ensure the path is properly formatted for Windows
+      const ffmpegPath = path.resolve(ffmpegStatic);
+      logger.info(`[TTSService FFmpeg] Using static FFmpeg binary at: ${ffmpegPath}`);
+      ffmpeg.setFfmpegPath(ffmpegPath);
+      return true;
+    } else {
+      logger.warn('[TTSService FFmpeg] ffmpeg-static not available, trying system FFmpeg');
+      
+      // Try common Windows paths if on Windows
+      if (process.platform === 'win32') {
+        const commonPaths = [
+          'C:\\ffmpeg\\bin\\ffmpeg.exe',
+          'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe',
+          'C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe'
+        ];
+        
+        for (const testPath of commonPaths) {
+          try {
+            require('fs').accessSync(testPath);
+            logger.info(`[TTSService FFmpeg] Found system FFmpeg at: ${testPath}`);
+            ffmpeg.setFfmpegPath(testPath);
+            return true;
+          } catch {
+            // Continue to next path
+          }
+        }
+      }
+      
+      logger.info('[TTSService FFmpeg] Using FFmpeg from system PATH');
+      return false;
+    }
+  } catch (error) {
+    logger.error('[TTSService FFmpeg] Error configuring FFmpeg:', error);
+    return false;
+  }
 }
+
+// Initialize FFmpeg configuration
+const ffmpegConfigured = configureFfmpegTTS();
 
 
 if (typeof window === "undefined") {
@@ -133,6 +170,11 @@ export class TTSService {
     const logPrefix = "[TTSService PostProcess]";
     if (!(appConfig as any).enableTtsPostProcessing) {
       logger.debug(`${logPrefix} Post-processing disabled by config.`);
+      return inputBuffer;
+    }
+
+    if (!ffmpegConfigured) {
+      logger.warn(`${logPrefix} FFmpeg not properly configured, skipping post-processing.`);
       return inputBuffer;
     }
 
