@@ -418,7 +418,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
               <div className="flex items-center gap-1 sm:gap-2">
                 <Wand2 className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden xs:inline">Generate</span>
-                <span className="xs:hidden">Gen IM</span>
+                <span className="xs:hidden">Gen Im</span>
               </div>
             </TabsTrigger>
            
@@ -457,7 +457,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                   </Badge>
                 )}
                 {userVideos.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 text-xs px-1 py-0.5 h-5 bg-blue-500">
+                  <Badge variant="secondary" className="ml-1 text-xs px-1 py-0.5 h-5 bg-primary">
                     {userVideos.length}v
                   </Badge>
                 )}
@@ -620,12 +620,12 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                             >
                               {isGenerating ? (
                                 <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" />
                                   Generating...
                                 </>
                               ) : (
                                 <>
-                                  <Wand2 className="mr-2 h-4 w-4" />
+                                  <Wand2 className="mr-2 h-4 w-4 text-primary" />
                                   Generate Image
                                 </>
                               )}
@@ -638,7 +638,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                                 size="icon"
                                 className="h-11 w-11 sm:h-10 sm:w-10 touch-manipulation active:scale-[0.95]"
                               >
-                                <StopCircle className="h-4 w-4" />
+                                <StopCircle className="h-4 w-4 text-primary" />
                               </Button>
                             )}
                           </div>

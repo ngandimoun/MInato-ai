@@ -161,7 +161,7 @@ export function CategorySelector({
                     <Card
                       className={cn(
                         "relative overflow-hidden border-2 transition-all duration-300 cursor-pointer group",
-                        "hover:shadow-xl hover:shadow-purple-500/10 hover:border-purple-500/30",
+                        "hover:shadow-xl hover:shadow-primary/10 hover:border-primary/30",
                         "bg-gradient-to-br from-background to-background/50",
                         "active:scale-[0.98] active:shadow-lg",
                         "touch-manipulation", // Better touch interactions
@@ -184,7 +184,7 @@ export function CategorySelector({
                         <motion.div
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
-                          className="absolute top-3 right-3 w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center"
+                          className="absolute top-3 right-3 w-6 h-6 bg-primary rounded-full flex items-center justify-center"
                         >
                           <motion.div
                             initial={{ scale: 0 }}
@@ -251,7 +251,7 @@ export function CategorySelector({
                           transition={{ duration: 0.2 }}
                           className="absolute bottom-4 right-4"
                         >
-                          <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center shadow-lg">
+                          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-lg">
                             <ArrowRight className="w-4 h-4 text-white" />
                           </div>
                         </motion.div>
