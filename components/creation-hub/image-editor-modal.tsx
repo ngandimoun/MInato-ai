@@ -34,7 +34,8 @@ import {
   Play,
   ArrowUpRight,
   Eye,
-  EyeOff
+  EyeOff,
+  Star
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import type { GeneratedImage } from "./hub-types";
+import { ScrollArea } from "../ui/scroll-area";
 
 interface ImageEditorModalProps {
   image: GeneratedImage | null;
@@ -345,7 +347,7 @@ export function ImageEditorModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl w-full h-[100dvh] p-0 overflow-hidden rounded-none sm:rounded-lg sm:w-[95vw] sm:h-[95vh]">
+      <DialogContent className="max-w-7xl w-full h-[100dvh] p-0 overflow-hidden rounded-none sm:rounded-lg sm:w-[95vw] sm:h-[95vh] overflow-y-auto">
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex-shrink-0 bg-gradient-to-r from-purple-600/10 to-blue-600/10 border-b backdrop-blur-sm">
@@ -376,9 +378,7 @@ export function ImageEditorModal({
                       <ZoomIn className="w-4 h-4" />
                     </Button>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={onClose} className="h-8 w-8 p-0">
-                    <X className="w-4 h-4" />
-                  </Button>
+                    <Star className="w-3 h-3" />
                 </div>
               </div>
             </DialogHeader>
@@ -390,6 +390,7 @@ export function ImageEditorModal({
             <div className="flex-1 flex flex-col bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 min-h-[50vh] lg:min-h-0">
               {/* Image Container */}
               <div className="flex-1 overflow-auto">
+                <ScrollArea className="h-[500px] overflow-x-hidden">
                 <div className="h-full flex items-center justify-center p-4">
                   <div className="relative">
                     {showComparison ? (
@@ -438,6 +439,7 @@ export function ImageEditorModal({
                     )}
                   </div>
                 </div>
+                </ScrollArea>
               </div>
 
               {/* Bottom Controls */}
@@ -511,7 +513,7 @@ export function ImageEditorModal({
                 {/* Tab Content - Fixed height with scrolling */}
                 <div className="flex-1 min-h-0">
                   <TabsContent value="basic" className="h-full m-0 data-[state=active]:block data-[state=inactive]:hidden">
-                    <div className="h-full overflow-y-auto overflow-x-hidden">
+                  <ScrollArea className="h-[500px] overflow-x-hidden">
                       <div className="p-4 space-y-6">
                         <Card className="border-0 shadow-sm">
                           <CardHeader className="pb-4">
@@ -629,11 +631,11 @@ export function ImageEditorModal({
                           </CardContent>
                         </Card>
                       </div>
-                    </div>
+                    </ScrollArea>
                   </TabsContent>
 
                   <TabsContent value="filters" className="h-full m-0 data-[state=active]:block data-[state=inactive]:hidden">
-                    <div className="h-full overflow-y-auto overflow-x-hidden">
+                  <ScrollArea className="h-[500px] overflow-x-hidden">
                       <div className="p-4 space-y-6">
                         <Card className="border-0 shadow-sm">
                           <CardHeader className="pb-4">
@@ -653,7 +655,7 @@ export function ImageEditorModal({
                                   className="h-auto p-3 flex flex-col items-center gap-1 text-center"
                                 >
                                   <span className="text-xs font-medium">{filter.name}</span>
-                                  <span className="text-xs opacity-70 leading-tight">
+                                  <span className="text-[8.5px] opacity-70 leading-tight">
                                     {filter.description}
                                   </span>
                                 </Button>
@@ -679,11 +681,11 @@ export function ImageEditorModal({
                           </CardContent>
                         </Card>
                       </div>
-                    </div>
+                    </ScrollArea>
                   </TabsContent>
 
                   <TabsContent value="advanced" className="h-full m-0 data-[state=active]:block data-[state=inactive]:hidden">
-                    <div className="h-full overflow-y-auto overflow-x-hidden">
+                  <ScrollArea className="h-[500px] overflow-x-hidden">
                       <div className="p-4 space-y-6">
                         <Card className="border-0 shadow-sm">
                           <CardHeader className="pb-4">
@@ -810,11 +812,11 @@ export function ImageEditorModal({
                           </CardContent>
                         </Card>
                       </div>
-                    </div>
+                    </ScrollArea>
                   </TabsContent>
 
                   <TabsContent value="ai" className="h-full m-0 data-[state=active]:block data-[state=inactive]:hidden">
-                    <div className="h-full overflow-y-auto overflow-x-hidden">
+                    <ScrollArea className="h-[500px] overflow-x-hidden">
                       <div className="p-4 space-y-6">
                         <Card className="border-0 shadow-sm">
                           <CardHeader className="pb-4">
@@ -877,7 +879,7 @@ export function ImageEditorModal({
                           </Card>
                         )}
                       </div>
-                    </div>
+                    </ScrollArea>
                   </TabsContent>
                 </div>
               </Tabs>

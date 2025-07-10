@@ -418,9 +418,31 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
               <div className="flex items-center gap-1 sm:gap-2">
                 <Wand2 className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden xs:inline">Generate</span>
-                <span className="xs:hidden">Gen</span>
+                <span className="xs:hidden">Gen IM</span>
               </div>
             </TabsTrigger>
+           
+            <TabsTrigger 
+              value="video" 
+              className="relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation"
+            >
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Film className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Gen Vid</span>
+                <span className="xs:hidden">Gen Vid</span>
+              </div>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="createvid" 
+              className="relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation"
+            >
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Wand2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Create</span>
+                <span className="xs:hidden">Create</span>
+              </div>
+            </TabsTrigger>
+
             <TabsTrigger 
               value="gallery" 
               className="relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation"
@@ -439,26 +461,6 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                     {userVideos.length}v
                   </Badge>
                 )}
-              </div>
-            </TabsTrigger>
-            <TabsTrigger 
-              value="video" 
-              className="relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation"
-            >
-              <div className="flex items-center gap-1 sm:gap-2">
-                <Film className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden xs:inline">Video</span>
-                <span className="xs:hidden">Video</span>
-              </div>
-            </TabsTrigger>
-            <TabsTrigger 
-              value="createvid" 
-              className="relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation"
-            >
-              <div className="flex items-center gap-1 sm:gap-2">
-                <Wand2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden xs:inline">Create Vid</span>
-                <span className="xs:hidden">Create</span>
               </div>
             </TabsTrigger>
           </TabsList>

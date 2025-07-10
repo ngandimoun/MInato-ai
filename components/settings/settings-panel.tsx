@@ -4,6 +4,17 @@ import { motion } from "framer-motion";
 import {
   X, User, Shield, Moon, Palette, Volume2, Calendar, Mail, Laptop, Sun, FileArchive,
   FileText, Trash2, ExternalLink, Zap, Check, Info, Loader2,
+  Newspaper,
+  ShoppingCart,
+  Clapperboard,
+  CalendarDays,
+  Users,
+  Cpu,
+  Utensils,
+  ClipboardList,
+  Trophy,
+  Star,
+  Film,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1043,19 +1054,50 @@ export function SettingsPanel({
                     <p className="text-sm text-muted-foreground">Customize how Minato's tools work for you.</p>
 
                     <Tabs defaultValue="news" className="w-full">
-                      <TabsList className="w-full justify-start overflow-auto bg-transparent p-0 h-auto">
-                        <TabsTrigger value="news" className="rounded-md px-3 py-1.5 text-xs">News</TabsTrigger>
-                        <TabsTrigger value="social" className="rounded-md px-3 py-1.5 text-xs">Social Media</TabsTrigger>
-                        <TabsTrigger value="entertainment" className="rounded-md px-3 py-1.5 text-xs">Entertainment</TabsTrigger>
-                        <TabsTrigger value="shopping" className="rounded-md px-3 py-1.5 text-xs">Shopping</TabsTrigger>
-                        <TabsTrigger value="tiktok" className="rounded-md px-3 py-1.5 text-xs">TikTok</TabsTrigger>
-                        <TabsTrigger value="events" className="rounded-md px-3 py-1.5 text-xs">Events</TabsTrigger>
-                        <TabsTrigger value="food" className="rounded-md px-3 py-1.5 text-xs">Food & Recipes</TabsTrigger>
-                        <TabsTrigger value="sports" className="rounded-md px-3 py-1.5 text-xs">Sports</TabsTrigger>
-                        <TabsTrigger value="hackernews" className="rounded-md px-3 py-1.5 text-xs">Tech News</TabsTrigger>
-                        <TabsTrigger value="interests" className="rounded-md px-3 py-1.5 text-xs">Interests</TabsTrigger>
-                        <TabsTrigger value="dailybrief" className="rounded-md px-3 py-1.5 text-xs">Daily Brief</TabsTrigger>
-                      </TabsList>
+                      {/* Définition des onglets pour une meilleure maintenabilité */}
+                      {(() => {
+                        const toolTabs = [
+                          { value: "news", label: "News", icon: <Newspaper className="h-4 w-4" /> },
+                          { value: "social", label: "Social Media", icon: <Users className="h-4 w-4" /> },
+                          { value: "entertainment", label: "Entertainment", icon: <Film className="h-4 w-4" /> },
+                          { value: "shopping", label: "Shopping", icon: <ShoppingCart className="h-4 w-4" /> },
+                          { value: "tiktok", label: "TikTok", icon: <Clapperboard className="h-4 w-4" /> },
+                          { value: "events", label: "Events", icon: <CalendarDays className="h-4 w-4" /> },
+                          { value: "food", label: "Food & Recipes", icon: <Utensils className="h-4 w-4" /> },
+                          { value: "sports", label: "Sports", icon: <Trophy className="h-4 w-4" /> },
+                          { value: "hackernews", label: "Tech News", icon: <Cpu className="h-4 w-4" /> },
+                          { value: "interests", label: "Interests", icon: <Star className="h-4 w-4" /> },
+                          { value: "dailybrief", label: "Daily Brief", icon: <ClipboardList className="h-4 w-4" /> },
+                        ];
+
+                        return (
+                          <ScrollArea className="w-[370px] md:w-full whitespace-nowrap">
+                            <TabsList className="justify-start bg-transparent p-0 h-auto flex-nowrap">
+                              {toolTabs.map((tab) => (
+                                <TooltipProvider key={tab.value} delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <TabsTrigger
+                                        value={tab.value}
+                                        className="rounded-md h-auto p-2 md:px-3 md:py-1.5 text-xs"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                         <span className="md:hidden">{tab.icon}</span> 
+                                          {/* Le texte est masqué par défaut et s'affiche à partir du breakpoint 'md' */}
+                                          <span className="hidden md:inline">{tab.label}</span>
+                                        </div>
+                                      </TabsTrigger>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>{tab.label}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ))}
+                            </TabsList>
+                          </ScrollArea>
+                        );
+                      })()}
 
                       <div className="mt-4 space-y-4">
                         {/* News Preferences */}

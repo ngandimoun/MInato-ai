@@ -190,7 +190,6 @@ export function PexelsCard({ data }: PexelsCardProps) {
       {selectedImage?.sourceUrl && (
         <CardFooter className="pt-2 pb-3 border-t text-xs text-muted-foreground">
             <div className="flex items-center gap-2 w-full justify-between">
-              <span className="text-[11px] opacity-70">Photo from Pexels</span>
               <Button variant="outline" size="sm" asChild className="text-xs h-7">
                   <a href={selectedImage.sourceUrl} target="_blank" rel="noopener noreferrer" className="flex items-center">
                       <ExternalLink className="mr-1.5 h-3 w-3"/> View original

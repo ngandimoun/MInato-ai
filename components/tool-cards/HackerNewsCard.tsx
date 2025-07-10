@@ -330,7 +330,7 @@ export function HackerNewsCard({ data }: HackerNewsCardProps) {
                 
                 {!data.error && data.stories && data.stories.length > 0 ? (
                     // Ajustement du padding pour la ScrollArea pour les petits écrans
-                    <ScrollArea className="max-h-[550px] px-2.5 sm:px-4 md:px-5 pt-1 pb-2">
+                    <ScrollArea className="h-[550px] px-2.5 sm:px-4 md:px-5 pt-1 pb-2">
                         <ul className="grid grid-cols-1 gap-2.5 sm:gap-3 md:gap-3.5 pb-2.5 sm:pb-4"> {/* Gaps ajustés */}
                             {data.stories.map((story, index) => (
                                 <StoryItem key={story.id} story={story} index={index} />

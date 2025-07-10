@@ -255,7 +255,7 @@ export function StructuredDataRenderer({ data }: StructuredDataRendererProps) {
     
     // Reminder confirmation
     case "reminder_set_confirmation":
-      contentToRender = <ReminderConfirmationCard data={parsedData as any} />;
+      contentToRender = <ReminderConfirmationCard data={parsedData as any}/>;
       break;
     
     default:
