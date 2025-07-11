@@ -48,9 +48,14 @@ export class GameOrchestratorServer {
       
       logger.info(`[Game Orchestrator Server] Generating ${rounds} questions for ${gameType} (${difficulty}) in ${language}`);
       
+      // Get specialized prompt for this game type
+      const gameSpecificPrompt = this.getGameSpecificPrompt(gameType, topicFocus, difficulty);
+      
       // Create prompt for OpenAI
       const prompt = `
-        Generate ${rounds} multiple-choice questions for a trivia game about "${topicFocus}".
+        ${gameSpecificPrompt}
+        
+        Generate ${rounds} multiple-choice questions.
         Difficulty level: ${difficulty}
         Language: ${language}
         Personality: ${personality}
@@ -199,6 +204,77 @@ export class GameOrchestratorServer {
       // Return fallback questions
       return this.generateFallbackQuestions(gameType, difficulty, rounds);
     }
+  }
+
+  /**
+   * Get specialized prompt for specific game types
+   */
+  private getGameSpecificPrompt(gameType: string, topicFocus: string, difficulty: string): string {
+    const genZPrompts: Record<string, string> = {
+      viral_challenge: `Create engaging questions about viral social media challenges and internet culture trends. Focus on:
+        - Popular TikTok, Instagram, and YouTube challenges
+        - Understanding what makes content go viral
+        - Social media algorithm knowledge
+        - Internet culture and meme history
+        - Digital creativity and content creation`,
+      
+      meme_battle: `Generate questions about meme culture and internet humor. Cover:
+        - Classic memes from 2000s to present (Grumpy Cat, Distracted Boyfriend, etc.)
+        - Modern TikTok and Twitter memes
+        - Meme formats and their origins
+        - Internet slang and meme terminology
+        - Platform-specific humor (Reddit, 4chan, Twitter, TikTok)`,
+      
+      aesthetic_quiz: `Create questions about Gen Z aesthetics and visual culture. Include:
+        - Popular aesthetics: cottagecore, dark academia, Y2K, grunge, minimalism
+        - Color psychology and palette theory
+        - Fashion and lifestyle trends
+        - Interior design and room aesthetics
+        - Cultural movements and their visual identities`,
+      
+      social_dilemma: `Generate scenarios about modern digital life challenges. Focus on:
+        - Online privacy and data protection
+        - Social media etiquette and boundaries
+        - Digital wellness and screen time
+        - Cyberbullying and online harassment
+        - Digital footprint and reputation management`,
+      
+      gen_z_slang: `Create questions testing knowledge of modern internet slang and evolving language. Cover:
+        - Current Gen Z slang terms (bussin, no cap, slay, periodt, etc.)
+        - Social media abbreviations and acronyms
+        - Evolution of internet language
+        - Platform-specific terminology
+        - Cultural context behind slang terms`,
+      
+      sustainability_quest: `Generate questions about environmental issues and sustainable living. Include:
+        - Climate change science and impacts
+        - Renewable energy and green technology
+        - Sustainable lifestyle choices
+        - Environmental activism and movements
+        - Circular economy and waste reduction`,
+      
+      mental_health_check: `Create educational questions about mental health and emotional wellness. Cover:
+        - Mental health awareness and destigmatization
+        - Coping strategies and self-care techniques
+        - Understanding emotions and emotional intelligence
+        - Stress management and mindfulness
+        - When and how to seek professional help`,
+      
+      crypto_nft_challenge: `Generate questions about digital currency and blockchain technology. Focus on:
+        - Cryptocurrency basics and major coins
+        - Blockchain technology and how it works
+        - NFTs and digital ownership
+        - DeFi (Decentralized Finance) concepts
+        - Digital wallet security and best practices`
+    };
+
+    // Return specialized prompt if available, otherwise use generic prompt
+    if (genZPrompts[gameType]) {
+      return genZPrompts[gameType];
+    }
+    
+    // Default generic prompt for other game types
+    return `Generate engaging trivia questions about "${topicFocus}".`;
   }
 
   /**

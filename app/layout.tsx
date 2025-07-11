@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { UploadStatusProvider } from "@/context/upload-status-context";
 import { ListeningProvider } from "@/context/listening-context";
+import { NavigationProvider } from "@/context/navigation-context";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -27,11 +28,13 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider>
           <AuthProvider>
-            <UploadStatusProvider>
-              <ListeningProvider>
-                {children}
-              </ListeningProvider>
-            </UploadStatusProvider>
+            <NavigationProvider>
+              <UploadStatusProvider>
+                <ListeningProvider>
+                  {children}
+                </ListeningProvider>
+              </UploadStatusProvider>
+            </NavigationProvider>
           </AuthProvider>
           <Toaster />
           <SonnerToaster position="top-right" />

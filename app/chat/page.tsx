@@ -10,12 +10,14 @@ import { Header } from "@/components/header";
 import { useAuth } from "@/context/auth-provider"; 
 import { logger } from "@/memory-framework/config";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useNavigation } from "@/context/navigation-context";
 
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub"; // Added listening, insights, and creation-hub views
 
 export default function ChatPage() { 
   const [currentView, setCurrentView] = useState<View>("chat");
   const { user, isLoading: isAuthLoading } = useAuth(); 
+  const { navigateWithLoading } = useNavigation();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -37,37 +39,37 @@ export default function ChatPage() {
   // Handle navigation to dashboard page when the dashboard view is selected
   useEffect(() => {
      if (currentView === "dashboard") {
-        router.push("/dashboard");
+        navigateWithLoading("/dashboard", "Loading dashboard...");
      }
-  }, [currentView, router]);
+  }, [currentView, navigateWithLoading]);
 
   // Handle navigation to games page when the games view is selected
   useEffect(() => {
      if (currentView === "games") {
-        router.push("/games");
+        navigateWithLoading("/games", "Loading games...");
      }
-  }, [currentView, router]);
+  }, [currentView, navigateWithLoading]);
 
   // Handle navigation to listening page when the listening view is selected
   useEffect(() => {
      if (currentView === "listening") {
-        router.push("/listening");
+        navigateWithLoading("/listening", "Loading listening...");
      }
-  }, [currentView, router]);
+  }, [currentView, navigateWithLoading]);
 
   // Handle navigation to insights page when the insights view is selected
   useEffect(() => {
      if (currentView === "insights") {
-        router.push("/insights");
+        navigateWithLoading("/insights", "Loading insights...");
      }
-  }, [currentView, router]);
+  }, [currentView, navigateWithLoading]);
 
   // Handle navigation to creation-hub page when the creation-hub view is selected
   useEffect(() => {
      if (currentView === "creation-hub") {
-        router.push("/creation-hub");
+        navigateWithLoading("/creation-hub", "Loading creation hub...");
      }
-  }, [currentView, router]);
+  }, [currentView, navigateWithLoading]);
 
   if (!user) { // This check is more of a fallback; middleware should handle unauth access
      logger.warn("[ChatPage] Reached ChatPage component without authenticated user (should have been redirected).");

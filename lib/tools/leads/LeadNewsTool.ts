@@ -1,4 +1,4 @@
-import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "../base-tool";
+import { BaseTool, ToolInput, ToolOutput } from "../base-tool";
 import { NewsAggregatorTool } from "../NewsAggregatorTool";
 import { generateStructuredJson } from "../../providers/llm_clients";
 import { logger } from "../../../memory-framework/config";
@@ -30,6 +30,22 @@ interface NewsLeadAnalysis {
   lead_type: "direct" | "indirect" | "market_intelligence";
 }
 
+// Language-specific keywords for news lead generation
+const NEWS_LEAD_KEYWORDS_BY_LANGUAGE: Record<string, string[]> = {
+  'en': ['funding', 'investment', 'expansion', 'acquisition', 'growth', 'challenge', 'problem', 'opportunity', 'merger'],
+  'fr': ['financement', 'investissement', 'expansion', 'acquisition', 'croissance', 'défi', 'problème', 'opportunité', 'fusion'],
+  'es': ['financiación', 'inversión', 'expansión', 'adquisición', 'crecimiento', 'desafío', 'problema', 'oportunidad', 'fusión'],
+  'de': ['Finanzierung', 'Investition', 'Expansion', 'Übernahme', 'Wachstum', 'Herausforderung', 'Problem', 'Gelegenheit', 'Fusion'],
+  'it': ['finanziamento', 'investimento', 'espansione', 'acquisizione', 'crescita', 'sfida', 'problema', 'opportunità', 'fusione'],
+  'pt': ['financiamento', 'investimento', 'expansão', 'aquisição', 'crescimento', 'desafio', 'problema', 'oportunidade', 'fusão'],
+  'ru': ['финансирование', 'инвестиции', 'расширение', 'приобретение', 'рост', 'вызов', 'проблема', 'возможность', 'слияние'],
+  'ja': ['資金調達', '投資', '拡大', '買収', '成長', '挑戦', '問題', '機会', '合併'],
+  'zh': ['融资', '投资', '扩张', '收购', '增长', '挑战', '问题', '机会', '合并'],
+  'ko': ['자금조달', '투자', '확장', '인수', '성장', '도전', '문제', '기회', '합병'],
+  'ar': ['تمويل', 'استثمار', 'توسع', 'استحواذ', 'نمو', 'تحدي', 'مشكلة', 'فرصة', 'اندماج'],
+  'hi': ['फंडिंग', 'निवेश', 'विस्तार', 'अधिग्रहण', 'वृद्धि', 'चुनौती', 'समस्या', 'अवसर', 'विलय']
+};
+
 export class LeadNewsTool extends BaseTool {
   name = "LeadNewsTool";
   description = "Finds potential leads from news articles by analyzing business news for opportunities, funding announcements, company problems, and market signals";
@@ -39,27 +55,27 @@ export class LeadNewsTool extends BaseTool {
     properties: {
       search_prompt: {
         type: "string",
-        description: "Search query to find relevant news articles (e.g., 'startup funding', 'company expansion', 'business challenges')"
-      } as OpenAIToolParameterProperties,
+        description: "Search query to find relevant news articles (e.g., 'startup funding healthcare AI')"
+      },
       industry_focus: {
         type: "string",
-        description: "Optional industry focus to narrow down results (e.g., 'SaaS', 'fintech', 'healthcare')"
-      } as OpenAIToolParameterProperties,
+        description: "Optional industry focus to narrow down results (e.g., 'fintech', 'healthcare', 'SaaS')"
+      },
       target_audience: {
         type: "string", 
         description: "Optional target audience description (e.g., 'startup founders', 'enterprise executives')"
-      } as OpenAIToolParameterProperties,
+      },
       category: {
         type: "string",
         enum: ["business", "technology", "general"],
-        description: "News category to focus on (business, technology, or general)"
-      } as OpenAIToolParameterProperties,
+        description: "News category to focus on (default: business)"
+      },
       limit: {
         type: "number",
         description: "Maximum number of news articles to analyze (1-10, default 5)",
         minimum: 1,
         maximum: 10
-      } as OpenAIToolParameterProperties
+      }
     },
     required: ["search_prompt"],
     additionalProperties: false as false
@@ -75,9 +91,68 @@ export class LeadNewsTool extends BaseTool {
     this.newsAggregatorTool = new NewsAggregatorTool();
   }
 
+  private detectLanguage(text: string): string {
+    // Simple language detection based on common patterns
+    const text_lower = text.toLowerCase();
+    
+    // French indicators
+    if (text_lower.includes('le ') || text_lower.includes('la ') || text_lower.includes('les ') || 
+        text_lower.includes('un ') || text_lower.includes('une ') || text_lower.includes('des ') ||
+        text_lower.includes('avec') || text_lower.includes('pour') || text_lower.includes('dans')) {
+      return 'fr';
+    }
+    
+    // Spanish indicators
+    if (text_lower.includes('el ') || text_lower.includes('la ') || text_lower.includes('los ') || 
+        text_lower.includes('las ') || text_lower.includes('un ') || text_lower.includes('una ') ||
+        text_lower.includes('con') || text_lower.includes('para') || text_lower.includes('en ')) {
+      return 'es';
+    }
+    
+    // German indicators
+    if (text_lower.includes('der ') || text_lower.includes('die ') || text_lower.includes('das ') || 
+        text_lower.includes('ein ') || text_lower.includes('eine ') || text_lower.includes('mit') ||
+        text_lower.includes('für') || text_lower.includes('und') || text_lower.includes('ich')) {
+      return 'de';
+    }
+    
+    // Italian indicators
+    if (text_lower.includes('il ') || text_lower.includes('la ') || text_lower.includes('gli ') || 
+        text_lower.includes('le ') || text_lower.includes('un ') || text_lower.includes('una ') ||
+        text_lower.includes('con') || text_lower.includes('per') || text_lower.includes('di ')) {
+      return 'it';
+    }
+    
+    // Portuguese indicators
+    if (text_lower.includes('o ') || text_lower.includes('a ') || text_lower.includes('os ') || 
+        text_lower.includes('as ') || text_lower.includes('um ') || text_lower.includes('uma ') ||
+        text_lower.includes('com') || text_lower.includes('para') || text_lower.includes('de ')) {
+      return 'pt';
+    }
+    
+    // Check for non-Latin scripts
+    if (/[\u4e00-\u9fff]/.test(text)) return 'zh'; // Chinese
+    if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return 'ja'; // Japanese
+    if (/[\uac00-\ud7af]/.test(text)) return 'ko'; // Korean
+    if (/[\u0600-\u06ff]/.test(text)) return 'ar'; // Arabic
+    if (/[\u0900-\u097f]/.test(text)) return 'hi'; // Hindi
+    if (/[\u0400-\u04ff]/.test(text)) return 'ru'; // Russian
+    
+    // Default to English
+    return 'en';
+  }
+
+  private getLocalizedKeywords(language: string): string[] {
+    return NEWS_LEAD_KEYWORDS_BY_LANGUAGE[language] || NEWS_LEAD_KEYWORDS_BY_LANGUAGE['en'];
+  }
+
   async execute(input: LeadNewsInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
     try {
       const limit = Math.min(Math.max(1, input.limit || 5), 10);
+      
+      // Detect language from search prompt
+      const detectedLanguage = this.detectLanguage(input.search_prompt);
+      logger.info(`[LeadNewsTool] Detected language: ${detectedLanguage}`);
       
       // Build news-specific search query for lead generation
       let searchQuery = input.search_prompt;
@@ -87,10 +162,12 @@ export class LeadNewsTool extends BaseTool {
         searchQuery += ` ${input.industry_focus}`;
       }
       
-      // Add lead-specific keywords for news
-      searchQuery += " funding investment expansion acquisition growth challenge problem";
+      // Add language-specific lead keywords for news
+      const localizedKeywords = this.getLocalizedKeywords(detectedLanguage);
+      const keywordSample = localizedKeywords.slice(0, 6); // Use first 6 keywords to avoid overly long queries
+      searchQuery += ` ${keywordSample.join(' ')}`;
 
-      logger.info(`[LeadNewsTool] Searching news for: "${searchQuery}"`);
+      logger.info(`[LeadNewsTool] Searching news for: "${searchQuery}" (Language: ${detectedLanguage})`);
 
       // Search for news articles using NewsAggregatorTool
       const newsResult = await this.newsAggregatorTool.execute({
@@ -120,7 +197,8 @@ export class LeadNewsTool extends BaseTool {
             result_type: "news_leads",
             total_articles: 0,
             leads: [],
-            search_query: searchQuery
+            search_query: searchQuery,
+            detected_language: detectedLanguage
           }
         };
       }
@@ -134,7 +212,7 @@ export class LeadNewsTool extends BaseTool {
         if (abortSignal?.aborted) break;
         
         try {
-          const analysis = await this.analyzeNewsForLeads(article, input);
+          const analysis = await this.analyzeNewsForLeads(article, input, detectedLanguage);
           if (analysis && analysis.lead_score > 35) { // Threshold for news leads
             leadAnalyses.push(analysis);
           }
@@ -159,6 +237,7 @@ export class LeadNewsTool extends BaseTool {
           avg_lead_score: avgScore,
           leads: leadAnalyses,
           search_query: searchQuery,
+          detected_language: detectedLanguage,
           industry_focus: input.industry_focus,
           target_audience: input.target_audience,
           category: input.category
@@ -174,9 +253,23 @@ export class LeadNewsTool extends BaseTool {
     }
   }
 
-  private async analyzeNewsForLeads(article: any, input: LeadNewsInput): Promise<NewsLeadAnalysis | null> {
+  private async analyzeNewsForLeads(article: any, input: LeadNewsInput, detectedLanguage: string): Promise<NewsLeadAnalysis | null> {
+    // Create language-aware analysis prompt
+    const getAnalysisPrompt = (language: string) => {
+      const prompts: Record<string, string> = {
+        'en': `You are an expert lead generation analyst specializing in news analysis for business opportunities. Analyze this news article for potential business leads.`,
+        'fr': `Vous êtes un analyste expert en génération de leads spécialisé dans l'analyse d'actualités pour les opportunités commerciales. Analysez cet article d'actualité pour identifier des leads commerciaux potentiels.`,
+        'es': `Eres un analista experto en generación de leads especializado en análisis de noticias para oportunidades comerciales. Analiza este artículo de noticias para identificar leads comerciales potenciales.`,
+        'de': `Sie sind ein Experte für Lead-Generierung und spezialisiert auf Nachrichtenanalyse für Geschäftsmöglichkeiten. Analysieren Sie diesen Nachrichtenartikel auf potenzielle Geschäfts-Leads.`,
+        'it': `Sei un analista esperto nella generazione di lead specializzato nell'analisi delle notizie per opportunità commerciali. Analizza questo articolo di notizie per identificare potenziali lead commerciali.`,
+        'pt': `Você é um analista especialista em geração de leads especializado em análise de notícias para oportunidades comerciais. Analise este artigo de notícias para identificar leads comerciais potenciais.`
+      };
+      
+      return prompts[language] || prompts['en'];
+    };
+
     const analysisPrompt = `
-You are an expert lead generation analyst specializing in news analysis for business opportunities. Analyze this news article for potential business leads.
+${getAnalysisPrompt(detectedLanguage)}
 
 NEWS ARTICLE DETAILS:
 - Title: "${article.title}"
@@ -190,6 +283,7 @@ SEARCH CONTEXT:
 - Industry Focus: "${input.industry_focus || 'General'}"
 - Target Audience: "${input.target_audience || 'General'}"
 - News Category: "${input.category || 'business'}"
+- Detected Language: "${detectedLanguage}"
 
 ANALYSIS REQUIREMENTS:
 
@@ -244,6 +338,8 @@ ANALYSIS REQUIREMENTS:
    - indirect: Company mentioned could lead to opportunities
    - market_intelligence: General market insight for strategy
 
+IMPORTANT: Analyze the content in its original language context. If the content is in ${detectedLanguage}, understand cultural, business, and linguistic nuances that might affect lead quality and business opportunities in that market.
+
 Provide a detailed analysis focusing on lead generation potential from this news article.`;
 
     try {
@@ -280,12 +376,12 @@ Provide a detailed analysis focusing on lead generation potential from this news
 
       if (analysis && 'url' in analysis) {
         // Fill in the basic article data
-        analysis.url = article.url;
-        analysis.title = article.title;
+        analysis.url = article.url || "";
+        analysis.title = article.title || "";
         analysis.description = article.description || "";
-        analysis.source_name = article.sourceName;
+        analysis.source_name = article.sourceName || "";
         analysis.published_at = article.publishedAt || "";
-        analysis.image_url = article.imageUrl || undefined;
+        analysis.image_url = article.imageUrl || "";
         
         return analysis;
       }

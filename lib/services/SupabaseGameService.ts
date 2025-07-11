@@ -26,6 +26,11 @@ export interface GameRoom {
   started_at?: string;
   finished_at?: string;
   updated_at: string;
+  // Game type information
+  game_type_name?: string;
+  game_type_display_name?: string;
+  game_type_icon?: string;
+  game_type_color?: string;
 }
 
 export interface GamePlayer {

@@ -342,7 +342,7 @@ export function SettingsPanel({
       setGoogleCalendarConnected(false);
       setGoogleGmailConnected(false);
     }
-  }, [profile, state, user, defaultMinatoVoice]);
+  }, [profile, state, user, defaultMinatoVoice, personas]);
   const handleSaveName = async () => {
     if (isSavingName || !user) return;
     setIsSavingName(true);

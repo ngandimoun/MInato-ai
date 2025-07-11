@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useNavigation } from "@/context/navigation-context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export default function InsightsPage() {
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [selectedReportTitle, setSelectedReportTitle] = useState<string>("");
   const [showAddToReportDialog, setShowAddToReportDialog] = useState(false);
+  const { navigateWithLoading } = useNavigation();
   const router = useRouter();
 
   // Handle view changes
@@ -42,15 +44,15 @@ export default function InsightsPage() {
     if (view === "insights") {
       return;
     } else if (view === "dashboard") {
-      router.push("/dashboard");
+      navigateWithLoading("/dashboard", "Loading dashboard...");
     } else if (view === "games") {
-      router.push("/games");
+      navigateWithLoading("/games", "Loading games...");
     } else if (view === "listening") {
-      router.push("/listening");
+      navigateWithLoading("/listening", "Loading listening...");
     } else if (view === "creation-hub") {
-      router.push("/creation-hub");
+      navigateWithLoading("/creation-hub", "Loading creation hub...");
     } else {
-      router.push(`/chat?view=${view}`);
+      navigateWithLoading(`/chat?view=${view}`, `Loading ${view}...`);
     }
   };
 

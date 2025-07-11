@@ -29,6 +29,22 @@ interface YouTubeLeadAnalysis {
   viewer_intent: "learning" | "buying" | "comparing" | "troubleshooting" | "entertaining" | "other";
 }
 
+// Language-specific keywords for lead generation
+const LEAD_KEYWORDS_BY_LANGUAGE: Record<string, string[]> = {
+  'en': ['problem', 'solution', 'help', 'struggling', 'need', 'advice', 'issue', 'challenge', 'difficulty'],
+  'fr': ['problème', 'solution', 'aide', 'difficulté', 'besoin', 'conseil', 'problème', 'défi', 'galère'],
+  'es': ['problema', 'solución', 'ayuda', 'dificultad', 'necesidad', 'consejo', 'problema', 'desafío', 'lucha'],
+  'de': ['Problem', 'Lösung', 'Hilfe', 'Schwierigkeit', 'Bedarf', 'Rat', 'Problem', 'Herausforderung', 'Kampf'],
+  'it': ['problema', 'soluzione', 'aiuto', 'difficoltà', 'bisogno', 'consiglio', 'problema', 'sfida', 'lotta'],
+  'pt': ['problema', 'solução', 'ajuda', 'dificuldade', 'necessidade', 'conselho', 'problema', 'desafio', 'luta'],
+  'ru': ['проблема', 'решение', 'помощь', 'трудность', 'нужда', 'совет', 'проблема', 'вызов', 'борьба'],
+  'ja': ['問題', '解決', '助け', '困難', '必要', 'アドバイス', '問題', '挑戦', '苦労'],
+  'zh': ['问题', '解决', '帮助', '困难', '需要', '建议', '问题', '挑战', '斗争'],
+  'ko': ['문제', '해결', '도움', '어려움', '필요', '조언', '문제', '도전', '투쟁'],
+  'ar': ['مشكلة', 'حل', 'مساعدة', 'صعوبة', 'حاجة', 'نصيحة', 'مشكلة', 'تحدي', 'كفاح'],
+  'hi': ['समस्या', 'समाधान', 'मदद', 'कठिनाई', 'आवश्यकता', 'सलाह', 'समस्या', 'चुनौती', 'संघर्ष']
+};
+
 export class LeadYouTubeTool extends BaseTool {
   name = "LeadYouTubeTool";
   description = "Finds potential leads from YouTube videos by analyzing content, titles, and descriptions for business opportunities and pain points";
@@ -69,9 +85,68 @@ export class LeadYouTubeTool extends BaseTool {
     this.youtubeSearchTool = new YouTubeSearchTool();
   }
 
+  private detectLanguage(text: string): string {
+    // Simple language detection based on common patterns
+    const text_lower = text.toLowerCase();
+    
+    // French indicators
+    if (text_lower.includes('le ') || text_lower.includes('la ') || text_lower.includes('les ') || 
+        text_lower.includes('un ') || text_lower.includes('une ') || text_lower.includes('des ') ||
+        text_lower.includes('avec') || text_lower.includes('pour') || text_lower.includes('dans')) {
+      return 'fr';
+    }
+    
+    // Spanish indicators
+    if (text_lower.includes('el ') || text_lower.includes('la ') || text_lower.includes('los ') || 
+        text_lower.includes('las ') || text_lower.includes('un ') || text_lower.includes('una ') ||
+        text_lower.includes('con') || text_lower.includes('para') || text_lower.includes('en ')) {
+      return 'es';
+    }
+    
+    // German indicators
+    if (text_lower.includes('der ') || text_lower.includes('die ') || text_lower.includes('das ') || 
+        text_lower.includes('ein ') || text_lower.includes('eine ') || text_lower.includes('mit') ||
+        text_lower.includes('für') || text_lower.includes('und') || text_lower.includes('ich')) {
+      return 'de';
+    }
+    
+    // Italian indicators
+    if (text_lower.includes('il ') || text_lower.includes('la ') || text_lower.includes('gli ') || 
+        text_lower.includes('le ') || text_lower.includes('un ') || text_lower.includes('una ') ||
+        text_lower.includes('con') || text_lower.includes('per') || text_lower.includes('di ')) {
+      return 'it';
+    }
+    
+    // Portuguese indicators
+    if (text_lower.includes('o ') || text_lower.includes('a ') || text_lower.includes('os ') || 
+        text_lower.includes('as ') || text_lower.includes('um ') || text_lower.includes('uma ') ||
+        text_lower.includes('com') || text_lower.includes('para') || text_lower.includes('de ')) {
+      return 'pt';
+    }
+    
+    // Check for non-Latin scripts
+    if (/[\u4e00-\u9fff]/.test(text)) return 'zh'; // Chinese
+    if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return 'ja'; // Japanese
+    if (/[\uac00-\ud7af]/.test(text)) return 'ko'; // Korean
+    if (/[\u0600-\u06ff]/.test(text)) return 'ar'; // Arabic
+    if (/[\u0900-\u097f]/.test(text)) return 'hi'; // Hindi
+    if (/[\u0400-\u04ff]/.test(text)) return 'ru'; // Russian
+    
+    // Default to English
+    return 'en';
+  }
+
+  private getLocalizedKeywords(language: string): string[] {
+    return LEAD_KEYWORDS_BY_LANGUAGE[language] || LEAD_KEYWORDS_BY_LANGUAGE['en'];
+  }
+
   async execute(input: LeadYouTubeInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
     try {
       const limit = Math.min(Math.max(1, input.limit || 5), 10);
+      
+      // Detect language from search prompt
+      const detectedLanguage = this.detectLanguage(input.search_prompt);
+      logger.info(`[LeadYouTubeTool] Detected language: ${detectedLanguage}`);
       
       // Build enhanced search query for lead generation
       let searchQuery = input.search_prompt;
@@ -84,17 +159,20 @@ export class LeadYouTubeTool extends BaseTool {
         searchQuery += ` ${input.target_audience}`;
       }
       
-      // Add lead-specific keywords
-      searchQuery += " problem solution help struggling need advice";
+      // Add language-specific lead keywords
+      const localizedKeywords = this.getLocalizedKeywords(detectedLanguage);
+      const keywordSample = localizedKeywords.slice(0, 6); // Use first 6 keywords to avoid overly long queries
+      searchQuery += ` ${keywordSample.join(' ')}`;
 
-      logger.info(`[LeadYouTubeTool] Searching YouTube for: "${searchQuery}"`);
+      logger.info(`[LeadYouTubeTool] Searching YouTube for: "${searchQuery}" (Language: ${detectedLanguage})`);
 
       // Search YouTube for relevant videos
       const youtubeResult = await this.youtubeSearchTool.execute({
         query: searchQuery,
         limit: limit,
         category: "education", // Focus on educational/problem-solving content
-        description_keywords: "problem,solution,help,struggling,need,advice,tutorial,review"
+        description_keywords: keywordSample.join(','), // Use localized keywords
+        lang: detectedLanguage
       }, abortSignal);
 
       if (youtubeResult.error || !youtubeResult.structuredData) {
@@ -117,7 +195,8 @@ export class LeadYouTubeTool extends BaseTool {
             result_type: "youtube_leads",
             total_videos: 0,
             leads: [],
-            search_query: searchQuery
+            search_query: searchQuery,
+            detected_language: detectedLanguage
           }
         };
       }
@@ -131,7 +210,7 @@ export class LeadYouTubeTool extends BaseTool {
         if (abortSignal?.aborted) break;
         
         try {
-          const analysis = await this.analyzeVideoForLeads(video, input);
+          const analysis = await this.analyzeVideoForLeads(video, input, detectedLanguage);
           if (analysis && analysis.lead_score > 30) { // Only include videos with decent lead score
             leadAnalyses.push(analysis);
           }
@@ -156,6 +235,7 @@ export class LeadYouTubeTool extends BaseTool {
           avg_lead_score: avgScore,
           leads: leadAnalyses,
           search_query: searchQuery,
+          detected_language: detectedLanguage,
           industry_focus: input.industry_focus,
           target_audience: input.target_audience
         }
@@ -170,9 +250,23 @@ export class LeadYouTubeTool extends BaseTool {
     }
   }
 
-  private async analyzeVideoForLeads(video: any, input: LeadYouTubeInput): Promise<YouTubeLeadAnalysis | null> {
+  private async analyzeVideoForLeads(video: any, input: LeadYouTubeInput, detectedLanguage: string): Promise<YouTubeLeadAnalysis | null> {
+    // Create language-aware analysis prompt
+    const getAnalysisPrompt = (language: string) => {
+      const prompts: Record<string, string> = {
+        'en': `You are an expert lead generation analyst specializing in YouTube content analysis. Analyze this YouTube video for potential business leads.`,
+        'fr': `Vous êtes un analyste expert en génération de leads spécialisé dans l'analyse de contenu YouTube. Analysez cette vidéo YouTube pour identifier des leads commerciaux potentiels.`,
+        'es': `Eres un analista experto en generación de leads especializado en análisis de contenido de YouTube. Analiza este video de YouTube para identificar leads comerciales potenciales.`,
+        'de': `Sie sind ein Experte für Lead-Generierung und spezialisiert auf YouTube-Content-Analyse. Analysieren Sie dieses YouTube-Video auf potenzielle Geschäfts-Leads.`,
+        'it': `Sei un analista esperto nella generazione di lead specializzato nell'analisi dei contenuti YouTube. Analizza questo video YouTube per identificare potenziali lead commerciali.`,
+        'pt': `Você é um analista especialista em geração de leads especializado em análise de conteúdo do YouTube. Analise este vídeo do YouTube para identificar leads comerciais potenciais.`
+      };
+      
+      return prompts[language] || prompts['en'];
+    };
+
     const analysisPrompt = `
-You are an expert lead generation analyst specializing in YouTube content analysis. Analyze this YouTube video for potential business leads.
+${getAnalysisPrompt(detectedLanguage)}
 
 VIDEO DETAILS:
 - Title: "${video.title}"
@@ -184,6 +278,7 @@ SEARCH CONTEXT:
 - Search Query: "${input.search_prompt}"
 - Industry Focus: "${input.industry_focus || 'General'}"
 - Target Audience: "${input.target_audience || 'General'}"
+- Detected Language: "${detectedLanguage}"
 
 ANALYSIS REQUIREMENTS:
 
@@ -221,6 +316,8 @@ ANALYSIS REQUIREMENTS:
 7. CONTENT CATEGORIZATION:
    - Type: tutorial, review, problem, discussion, showcase, other
    - Intent: learning, buying, comparing, troubleshooting, entertaining, other
+
+IMPORTANT: Analyze the content in its original language context. If the content is in ${detectedLanguage}, understand cultural and linguistic nuances that might affect lead quality and business opportunities.
 
 Provide a detailed analysis focusing on lead generation potential.`;
 

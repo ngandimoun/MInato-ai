@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Filter, Star, Users, Clock, Zap, TrendingUp, Play } from 'lucide-react';
+import { Search, Filter, Star, Users, Clock, Zap, TrendingUp, Play, Globe } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,18 @@ import GameDemo from './game-demo';
 import { useRouter } from 'next/navigation';
 import { useGameMutations } from '@/hooks/useGames';
 import { UserSelector } from './user-selector';
+import { GameLanguageProvider, useGameLanguage } from '@/context/game-language-context';
+import { GameLanguageSelector } from './game-language-selector';
+import { 
+  TranslatableText, 
+  TranslatableHeading, 
+  TranslatableDescription, 
+  TranslatableBadge,
+  TranslatableButtonText,
+  GameCategoryText,
+  DifficultyText
+} from './translatable-text';
+import { SimpleTranslatableText } from './simple-translatable-text';
 
 // Icon mapping for dynamic imports
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -371,6 +383,89 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
         { value: 'environmental_concerns', label: '🌱 Environmental Concerns', description: 'Planetary protection and ecology' },
         { value: 'communication_protocols', label: '📡 Communication Protocols', description: 'Language and signal exchange' }
       ],
+      
+      // NEW: GEN Z FOCUSED GAMES TOPICS
+      'viral_challenge': [
+        { value: 'tiktok_trends', label: '📱 TikTok Trends', description: 'Popular challenges and viral dances' },
+        { value: 'instagram_reels', label: '📸 Instagram Reels', description: 'Short-form video content and trends' },
+        { value: 'youtube_shorts', label: '▶️ YouTube Shorts', description: 'Quick video challenges and memes' },
+        { value: 'social_movements', label: '✊ Social Movements', description: 'Viral activism and awareness campaigns' },
+        { value: 'meme_challenges', label: '😂 Meme Challenges', description: 'Internet humor and viral formats' },
+        { value: 'fitness_trends', label: '💪 Fitness Trends', description: 'Workout challenges and health trends' },
+        { value: 'creative_content', label: '🎨 Creative Content', description: 'Art, music, and creative viral content' },
+        { value: 'gaming_trends', label: '🎮 Gaming Trends', description: 'Viral gaming moments and challenges' }
+      ],
+      'meme_battle': [
+        { value: 'classic_memes', label: '🗿 Classic Memes', description: 'Iconic internet memes from 2000s-2010s' },
+        { value: 'modern_memes', label: '📱 Modern Memes', description: 'Current TikTok and Twitter viral content' },
+        { value: 'platform_specific', label: '🌐 Platform Specific', description: 'Reddit, Discord, and platform memes' },
+        { value: 'reaction_gifs', label: '😎 Reaction GIFs', description: 'Popular reaction images and GIFs' },
+        { value: 'format_evolution', label: '🔄 Format Evolution', description: 'How meme formats change and spread' },
+        { value: 'internet_culture', label: '💻 Internet Culture', description: 'Digital native humor and references' },
+        { value: 'viral_moments', label: '⚡ Viral Moments', description: 'Moments that became internet famous' },
+        { value: 'meme_history', label: '📚 Meme History', description: 'Origins and evolution of meme culture' }
+      ],
+      'aesthetic_quiz': [
+        { value: 'cottagecore', label: '🌿 Cottagecore', description: 'Rural, cozy, and nature-inspired aesthetics' },
+        { value: 'dark_academia', label: '📚 Dark Academia', description: 'Scholarly, vintage, and intellectual vibes' },
+        { value: 'y2k_revival', label: '💿 Y2K Revival', description: 'Early 2000s nostalgic aesthetics' },
+        { value: 'minimalism', label: '⬜ Minimalism', description: 'Clean, simple, and uncluttered design' },
+        { value: 'kawaii_culture', label: '🌸 Kawaii Culture', description: 'Cute Japanese-inspired aesthetics' },
+        { value: 'grunge_alt', label: '🖤 Grunge & Alt', description: 'Alternative and edgy visual styles' },
+        { value: 'retro_vintage', label: '📼 Retro Vintage', description: '70s, 80s, and 90s inspired looks' },
+        { value: 'cyberpunk', label: '🌃 Cyberpunk', description: 'Futuristic, neon, and tech aesthetics' }
+      ],
+      'social_dilemma': [
+        { value: 'privacy_protection', label: '🔒 Privacy Protection', description: 'Digital privacy and data security' },
+        { value: 'online_etiquette', label: '🤝 Online Etiquette', description: 'Digital manners and social norms' },
+        { value: 'screen_time', label: '⏰ Screen Time', description: 'Digital wellness and healthy habits' },
+        { value: 'cyberbullying', label: '🛡️ Cyberbullying', description: 'Online harassment and protection' },
+        { value: 'fake_news', label: '📰 Fake News', description: 'Media literacy and fact-checking' },
+        { value: 'digital_footprint', label: '👣 Digital Footprint', description: 'Online reputation management' },
+        { value: 'social_pressure', label: '😰 Social Pressure', description: 'Peer pressure and social media stress' },
+        { value: 'healthy_boundaries', label: '🚧 Healthy Boundaries', description: 'Setting limits in digital spaces' }
+      ],
+      'gen_z_slang': [
+        { value: 'current_terms', label: '🔥 Current Terms', description: 'Latest slang like bussin, no cap, slay' },
+        { value: 'platform_lingo', label: '📱 Platform Lingo', description: 'TikTok, Twitter, and app-specific terms' },
+        { value: 'abbreviations', label: '📝 Abbreviations', description: 'Text speak and internet acronyms' },
+        { value: 'cultural_context', label: '🌍 Cultural Context', description: 'Origins and meanings behind slang' },
+        { value: 'generational_divide', label: '👥 Generational Divide', description: 'How language evolves across ages' },
+        { value: 'viral_phrases', label: '⚡ Viral Phrases', description: 'Catchphrases that took off online' },
+        { value: 'emoji_meanings', label: '😊 Emoji Meanings', description: 'Modern emoji usage and hidden meanings' },
+        { value: 'slang_evolution', label: '🔄 Slang Evolution', description: 'How internet language changes' }
+      ],
+      'sustainability_quest': [
+        { value: 'climate_science', label: '🌡️ Climate Science', description: 'Understanding climate change and impacts' },
+        { value: 'renewable_energy', label: '☀️ Renewable Energy', description: 'Solar, wind, and clean energy solutions' },
+        { value: 'sustainable_living', label: '♻️ Sustainable Living', description: 'Eco-friendly lifestyle choices' },
+        { value: 'environmental_activism', label: '✊ Environmental Activism', description: 'Climate movements and advocacy' },
+        { value: 'green_technology', label: '🔋 Green Technology', description: 'Innovations for environmental protection' },
+        { value: 'waste_reduction', label: '🗑️ Waste Reduction', description: 'Zero waste and circular economy' },
+        { value: 'biodiversity', label: '🦋 Biodiversity', description: 'Protecting ecosystems and wildlife' },
+        { value: 'future_planet', label: '🌍 Future Planet', description: 'Solutions for environmental challenges' }
+      ],
+      'mental_health_check': [
+        { value: 'stress_management', label: '😌 Stress Management', description: 'Healthy coping strategies' },
+        { value: 'emotional_intelligence', label: '🧠 Emotional Intelligence', description: 'Understanding and managing emotions' },
+        { value: 'self_care_practices', label: '🛁 Self-Care Practices', description: 'Mental wellness routines' },
+        { value: 'mindfulness', label: '🧘‍♀️ Mindfulness', description: 'Meditation and present-moment awareness' },
+        { value: 'social_anxiety', label: '👥 Social Anxiety', description: 'Managing social situations and fears' },
+        { value: 'depression_awareness', label: '💙 Depression Awareness', description: 'Understanding and recognizing depression' },
+        { value: 'therapy_resources', label: '🗣️ Therapy Resources', description: 'When and how to seek professional help' },
+        { value: 'mental_health_stigma', label: '🚫 Mental Health Stigma', description: 'Breaking barriers and normalizing support' }
+      ],
+      'crypto_nft_challenge': [
+        { value: 'crypto_basics', label: '₿ Crypto Basics', description: 'Bitcoin, Ethereum, and cryptocurrency fundamentals' },
+        { value: 'blockchain_tech', label: '⛓️ Blockchain Tech', description: 'How blockchain technology works' },
+        { value: 'nft_culture', label: '🎨 NFT Culture', description: 'Digital art, collectibles, and ownership' },
+        { value: 'defi_protocols', label: '🏦 DeFi Protocols', description: 'Decentralized finance and lending' },
+        { value: 'wallet_security', label: '🔐 Wallet Security', description: 'Protecting digital assets and keys' },
+        { value: 'trading_strategies', label: '📈 Trading Strategies', description: 'Investment approaches and risk management' },
+        { value: 'metaverse_economy', label: '🌐 Metaverse Economy', description: 'Virtual worlds and digital economies' },
+        { value: 'crypto_regulation', label: '⚖️ Crypto Regulation', description: 'Legal aspects and government policies' }
+      ],
+      
       // More Trivia Games
       'niche_hobbyist_corner': [
         { value: 'mythology_folklore', label: '🐉 Mythology & Folklore', description: 'Ancient myths and cultural legends' },
@@ -974,11 +1069,12 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
   );
 }
 
-export default function GameLibrary() {
+function GameLibraryContent() {
   const { user } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const { createGameWithQuestions } = useGameMutations();
+  const { currentLanguage, setLanguage, isTranslating } = useGameLanguage();
 
   // Use static data for now
   const games = GAME_DATA;
@@ -1155,17 +1251,31 @@ export default function GameLibrary() {
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            🎮 AI Game Library
+            🎮 <SimpleTranslatableText>AI Game Library</SimpleTranslatableText>
           </h2>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            {filteredAndSortedGames.length} games available
+          <div className="flex items-center gap-4">
+            <GameLanguageSelector 
+              value={currentLanguage}
+              onValueChange={setLanguage}
+              isTranslating={isTranslating}
+              variant="compact"
+              className="ml-auto"
+            />
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              <SimpleTranslatableText>
+                {`${filteredAndSortedGames.length} games available`}
+              </SimpleTranslatableText>
+            </div>
           </div>
         </div>
 
         <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
           <p className="text-sm text-blue-700 dark:text-blue-300">
-            <span className="font-semibold">🤖 AI-Powered Games:</span> Each game features dynamically generated content, 
-            personalized difficulty, and intelligent responses. From classic trivia to creative storytelling!
+            <TranslatableText className="font-semibold">🤖 AI-Powered Games:</TranslatableText>
+            <span> </span>
+            <TranslatableText>
+              Each game features dynamically generated content, personalized difficulty, and intelligent responses. From classic trivia to creative storytelling!
+            </TranslatableText>
           </p>
         </div>
 
@@ -1174,7 +1284,7 @@ export default function GameLibrary() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
-              placeholder="Search games..."
+              placeholder="Search games..." // Note: placeholder translation requires special handling
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -1187,10 +1297,12 @@ export default function GameLibrary() {
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
+              <SelectItem value="all">
+                <TranslatableText>All Categories</TranslatableText>
+              </SelectItem>
               {categories.map((category: string) => (
                 <SelectItem key={category} value={category}>
-                  {category.charAt(0).toUpperCase() + category.slice(1)}
+                  <GameCategoryText category={category} />
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1201,9 +1313,15 @@ export default function GameLibrary() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="name">Name</SelectItem>
-              <SelectItem value="popularity">Popularity</SelectItem>
-              <SelectItem value="duration">Duration</SelectItem>
+              <SelectItem value="name">
+                <TranslatableText>Name</TranslatableText>
+              </SelectItem>
+              <SelectItem value="popularity">
+                <TranslatableText>Popularity</TranslatableText>
+              </SelectItem>
+              <SelectItem value="duration">
+                <TranslatableText>Duration</TranslatableText>
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1237,50 +1355,52 @@ export default function GameLibrary() {
                         {game.is_popular && (
                           <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">
                             <Star className="h-3 w-3 mr-1" />
-                            Popular
+                            <TranslatableText>Popular</TranslatableText>
                           </Badge>
                         )}
                         {game.is_new && (
                           <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
                             <Zap className="h-3 w-3 mr-1" />
-                            New
+                            <TranslatableText>New</TranslatableText>
                           </Badge>
                         )}
                       </div>
                     </div>
                     
                     <CardTitle className="text-lg group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {game.display_name}
+                      <TranslatableText>{game.display_name}</TranslatableText>
                     </CardTitle>
-                    <CardDescription className="text-sm line-clamp-2">
+                    <TranslatableDescription className="text-sm line-clamp-2" maxLength={120}>
                       {game.description}
-                    </CardDescription>
+                    </TranslatableDescription>
                   </CardHeader>
 
                   <CardContent className="space-y-4">
                     <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
                       <div className="flex items-center gap-1">
                         <Users className="h-4 w-4" />
-                        {game.min_players === game.max_players 
-                          ? `${game.min_players} players`
-                          : `${game.min_players}-${game.max_players} players`
-                        }
+                        <TranslatableText>
+                          {game.min_players === game.max_players 
+                            ? `${game.min_players} players`
+                            : `${game.min_players}-${game.max_players} players`
+                          }
+                        </TranslatableText>
                       </div>
                       <div className="flex items-center gap-1">
                         <Clock className="h-4 w-4" />
-                        {game.estimated_duration_minutes}min
+                        <TranslatableText>{`${game.estimated_duration_minutes}min`}</TranslatableText>
                       </div>
                     </div>
 
                     <div className="flex flex-wrap gap-1">
                       {game.difficulty_levels.slice(0, 3).map((level: string) => (
                         <Badge key={level} variant="outline" className="text-xs">
-                          {level}
+                          <DifficultyText difficulty={level} />
                         </Badge>
                       ))}
                       {game.difficulty_levels.length > 3 && (
                         <Badge variant="outline" className="text-xs">
-                          +{game.difficulty_levels.length - 3} more
+                          <TranslatableText>{`+${game.difficulty_levels.length - 3} more`}</TranslatableText>
                         </Badge>
                       )}
                     </div>
@@ -1293,13 +1413,13 @@ export default function GameLibrary() {
                         onClick={() => setDemoGame(game.display_name)}
                       >
                         <Play className="h-4 w-4 mr-1" />
-                        Demo
+                        <TranslatableButtonText>Demo</TranslatableButtonText>
                       </Button>
                       <Button 
                         className="flex-1 group-hover:bg-blue-600 transition-colors"
                         onClick={() => setSelectedGame(game.id)}
                       >
-                        🎯 Play Now
+                        🎯 <TranslatableButtonText>Play Now</TranslatableButtonText>
                       </Button>
                     </div>
                   </CardContent>
@@ -1312,9 +1432,11 @@ export default function GameLibrary() {
 
       {filteredAndSortedGames.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">No games found</div>
+          <div className="text-gray-400 mb-4">
+            <TranslatableText>No games found</TranslatableText>
+          </div>
           <p className="text-gray-600 dark:text-gray-400">
-            Try adjusting your search or filter criteria
+            <TranslatableText>Try adjusting your search or filter criteria</TranslatableText>
           </p>
         </div>
       )}
@@ -1341,5 +1463,14 @@ export default function GameLibrary() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// Main component wrapped with language provider
+export default function GameLibrary() {
+  return (
+    <GameLanguageProvider>
+      <GameLibraryContent />
+    </GameLanguageProvider>
   );
 } 

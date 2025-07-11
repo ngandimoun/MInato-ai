@@ -78,7 +78,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
   const [showCategorySelector, setShowCategorySelector] = useState(true);
   const [categoryFormValues, setCategoryFormValues] = useState<CategoryFormValues>({});
 
-  // Use custom hooks for user images (Gallery)
+  // Use custom hooks for user images (Gallery) - lazy load when needed
   const { 
     images: userImages, 
     loading: userImagesLoading,
@@ -86,18 +86,18 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
     updateImage: updateUserImage,
     refetch: refetchUserImages
   } = useUserImages({
-    autoLoad: true,
+    autoLoad: false, // Don't auto-load, load when gallery tab is accessed
     limit: 100
   });
 
-  // Use user videos hook
+  // Use user videos hook - lazy load when needed
   const {
     videos: userVideos,
     loading: userVideosLoading,
     addVideo: addUserVideo,
     refresh: refreshUserVideos
   } = useUserVideos({
-    autoLoad: true,
+    autoLoad: false, // Don't auto-load, load when gallery tab is accessed
     limit: 50
   });
 
@@ -149,6 +149,21 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
       }))
     });
   }, [userVideos, userVideosLoading, authUser]);
+
+  // Lazy load data when tabs are accessed
+  useEffect(() => {
+    if (activeTab === "gallery" && gallerySubTab === "images" && userImages.length === 0 && !userImagesLoading) {
+      logger.info('[CreationHubPanel] Lazy loading user images');
+      refetchUserImages();
+    }
+  }, [activeTab, gallerySubTab, userImages.length, userImagesLoading, refetchUserImages]);
+
+  useEffect(() => {
+    if (activeTab === "gallery" && gallerySubTab === "videos" && userVideos.length === 0 && !userVideosLoading) {
+      logger.info('[CreationHubPanel] Lazy loading user videos');
+      refreshUserVideos();
+    }
+  }, [activeTab, gallerySubTab, userVideos.length, userVideosLoading, refreshUserVideos]);
 
   // Use custom hooks for generation and conversations
   const { generate, isGenerating, progress, error: generationError, cancel } = useImageGeneration({
@@ -433,6 +448,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                 <span className="xs:hidden">Gen Vid</span>
               </div>
             </TabsTrigger>
+
             <TabsTrigger 
               value="createvid" 
               className="relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation"
@@ -444,16 +460,6 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
               </div>
             </TabsTrigger>
 
-            <TabsTrigger 
-              value="ai-leads" 
-              className="relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation"
-            >
-              <div className="flex items-center gap-1 sm:gap-2">
-                <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden xs:inline">AI Leads</span>
-                <span className="xs:hidden">Leads</span>
-              </div>
-            </TabsTrigger>
 
             <TabsTrigger 
               value="gallery" 
@@ -475,6 +481,19 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                 )}
               </div>
             </TabsTrigger>
+
+            <TabsTrigger 
+              value="ai-leads" 
+              className="relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation"
+            >
+              <div className="flex items-center gap-1 sm:gap-2">
+                <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">AI Leads</span>
+                <span className="xs:hidden">Leads</span>
+              </div>
+            </TabsTrigger>
+
+            
           </TabsList>
         </div>
 
@@ -739,7 +758,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                     variant={gallerySubTab === 'images' ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setGallerySubTab('images')}
-                    className="h-8"
+                    className="h-8 relative"
                   >
                     <ImageIcon className="h-4 w-4 mr-2" />
                     Images
@@ -748,12 +767,17 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                         {userImages.filter(img => img.status === 'completed').length}
                       </Badge>
                     )}
+                    {userImagesLoading && gallerySubTab === 'images' && (
+                      <div className="absolute -top-1 -right-1">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b border-primary"></div>
+                      </div>
+                    )}
                   </Button>
                   <Button
                     variant={gallerySubTab === 'videos' ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setGallerySubTab('videos')}
-                    className="h-8"
+                    className="h-8 relative"
                   >
                     <Film className="h-4 w-4 mr-2" />
                     Videos
@@ -761,6 +785,11 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                       <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
                         {userVideos.length}
                       </Badge>
+                    )}
+                    {userVideosLoading && gallerySubTab === 'videos' && (
+                      <div className="absolute -top-1 -right-1">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b border-primary"></div>
+                      </div>
                     )}
                   </Button>
                 </div>

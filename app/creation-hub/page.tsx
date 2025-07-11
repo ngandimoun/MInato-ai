@@ -4,7 +4,9 @@ import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Header } from "@/components/header";
 import { CreationHubPanel } from "@/components/creation-hub/creation-hub-panel";
+import { CreationHubLoading } from "@/components/creation-hub/creation-hub-loading";
 import { logger } from '@/memory-framework/config';
+import { useNavigation } from "@/context/navigation-context";
 
 // Define view type to match Header component
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub";
@@ -12,6 +14,7 @@ type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening"
 export default function CreationHubPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { navigateWithLoading } = useNavigation();
   const [isClient, setIsClient] = useState(false);
 
   // Set up client-side rendering check
@@ -26,25 +29,25 @@ export default function CreationHubPage() {
     
     switch (view) {
       case "chat":
-        router.push("/chat");
+        navigateWithLoading("/chat", "Loading chat...");
         break;
       case "memory":
-        router.push("/memory");
+        navigateWithLoading("/chat?view=memory", "Loading memory...");
         break;
       case "settings":
-        router.push("/settings");
+        navigateWithLoading("/chat?view=settings", "Loading settings...");
         break;
       case "dashboard":
-        router.push("/dashboard");
+        navigateWithLoading("/dashboard", "Loading dashboard...");
         break;
       case "games":
-        router.push("/games");
+        navigateWithLoading("/games", "Loading games...");
         break;
       case "listening":
-        router.push("/listening");
+        navigateWithLoading("/listening", "Loading listening...");
         break;
       case "insights":
-        router.push("/insights");
+        navigateWithLoading("/insights", "Loading insights...");
         break;
       case "creation-hub":
         // Already on creation hub, no navigation needed
@@ -58,23 +61,12 @@ export default function CreationHubPage() {
   // Handle panel close - navigate back to chat
   const handlePanelClose = () => {
     logger.info('[Creation Hub Page] Panel close requested');
-    router.push("/chat");
+    navigateWithLoading("/chat", "Loading chat...");
   };
 
   // Don't render until client-side to avoid hydration issues
   if (!isClient) {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="fixed top-0 left-0 right-0 z-20 backdrop-blur-md bg-background/80 border-b border-border h-14" />
-        <div className="pt-14">
-          <div className="container max-w-5xl mx-auto px-4 py-8">
-            <div className="flex items-center justify-center h-96">
-              <div className="text-muted-foreground">Loading Creation Hub...</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <CreationHubLoading />;
   }
 
   return (

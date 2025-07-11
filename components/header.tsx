@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { NotificationsPanel } from "@/components/ui/notifications-panel"
 import { useAuth } from "@/context/auth-provider"
 import { ModeToggle } from "@/components/mode-toggle"
+import { useNavigation } from "@/context/navigation-context"
 
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub"; // Added listening, insights, and creation-hub views
 
@@ -32,6 +33,7 @@ export const NotificationContext = createContext<NotificationContextType>({
 
 export function Header({ currentView, onViewChange }: HeaderProps) {
   const { user, profile } = useAuth()
+  const { navigateWithLoading } = useNavigation()
   const [notifOpen, setNotifOpen] = React.useState(false)
   const [notifCount, setNotifCount] = React.useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)

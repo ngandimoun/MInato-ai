@@ -1,4 +1,4 @@
-import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "../base-tool";
+import { BaseTool, ToolInput, ToolOutput } from "../base-tool";
 import { WebSearchTool } from "../WebSearchTool";
 import { generateStructuredJson } from "../../providers/llm_clients";
 import { logger } from "../../../memory-framework/config";
@@ -28,6 +28,22 @@ interface TikTokLeadAnalysis {
   hashtags: string[];
 }
 
+// Language-specific keywords for TikTok lead generation
+const TIKTOK_LEAD_KEYWORDS_BY_LANGUAGE: Record<string, string[]> = {
+  'en': ['business', 'owner', 'entrepreneur', 'problem', 'help', 'advice', 'struggling', 'startup', 'small business'],
+  'fr': ['entreprise', 'propriétaire', 'entrepreneur', 'problème', 'aide', 'conseil', 'difficulté', 'startup', 'petite entreprise'],
+  'es': ['negocio', 'propietario', 'empresario', 'problema', 'ayuda', 'consejo', 'dificultad', 'startup', 'pequeña empresa'],
+  'de': ['Geschäft', 'Eigentümer', 'Unternehmer', 'Problem', 'Hilfe', 'Rat', 'Schwierigkeit', 'Startup', 'kleines Unternehmen'],
+  'it': ['business', 'proprietario', 'imprenditore', 'problema', 'aiuto', 'consiglio', 'difficoltà', 'startup', 'piccola impresa'],
+  'pt': ['negócio', 'proprietário', 'empreendedor', 'problema', 'ajuda', 'conselho', 'dificuldade', 'startup', 'pequena empresa'],
+  'ru': ['бизнес', 'владелец', 'предприниматель', 'проблема', 'помощь', 'совет', 'трудность', 'стартап', 'малый бизнес'],
+  'ja': ['ビジネス', 'オーナー', '起業家', '問題', '助け', 'アドバイス', '困難', 'スタートアップ', '小企業'],
+  'zh': ['生意', '老板', '企业家', '问题', '帮助', '建议', '困难', '创业', '小企业'],
+  'ko': ['비즈니스', '사장', '기업가', '문제', '도움', '조언', '어려움', '스타트업', '소기업'],
+  'ar': ['أعمال', 'مالك', 'رجل أعمال', 'مشكلة', 'مساعدة', 'نصيحة', 'صعوبة', 'شركة ناشئة', 'شركة صغيرة'],
+  'hi': ['व्यापार', 'मालिक', 'उद्यमी', 'समस्या', 'मदद', 'सलाह', 'कठिनाई', 'स्टार्टअप', 'छोटा व्यापार']
+};
+
 export class LeadTikTokTool extends BaseTool {
   name = "LeadTikTokTool";
   description = "Finds potential leads from TikTok videos by searching for TikTok content and analyzing it for business opportunities and pain points";
@@ -38,21 +54,21 @@ export class LeadTikTokTool extends BaseTool {
       search_prompt: {
         type: "string",
         description: "Search query to find relevant TikTok videos (e.g., 'small business owner struggling with social media')"
-      } as OpenAIToolParameterProperties,
+      },
       industry_focus: {
         type: "string",
-        description: "Optional industry focus to narrow down results (e.g., 'SaaS', 'e-commerce', 'healthcare')"
-      } as OpenAIToolParameterProperties,
+        description: "Optional industry focus to narrow down results (e.g., 'retail', 'food service', 'fitness')"
+      },
       target_audience: {
         type: "string", 
-        description: "Optional target audience description (e.g., 'startup founders', 'marketing managers')"
-      } as OpenAIToolParameterProperties,
+        description: "Optional target audience description (e.g., 'small business owners', 'content creators')"
+      },
       limit: {
         type: "number",
         description: "Maximum number of TikTok videos to analyze (1-10, default 5)",
         minimum: 1,
         maximum: 10
-      } as OpenAIToolParameterProperties
+      }
     },
     required: ["search_prompt"],
     additionalProperties: false as false
@@ -68,14 +84,73 @@ export class LeadTikTokTool extends BaseTool {
     this.webSearchTool = new WebSearchTool();
   }
 
+  private detectLanguage(text: string): string {
+    // Simple language detection based on common patterns
+    const text_lower = text.toLowerCase();
+    
+    // French indicators
+    if (text_lower.includes('le ') || text_lower.includes('la ') || text_lower.includes('les ') || 
+        text_lower.includes('un ') || text_lower.includes('une ') || text_lower.includes('des ') ||
+        text_lower.includes('avec') || text_lower.includes('pour') || text_lower.includes('dans')) {
+      return 'fr';
+    }
+    
+    // Spanish indicators
+    if (text_lower.includes('el ') || text_lower.includes('la ') || text_lower.includes('los ') || 
+        text_lower.includes('las ') || text_lower.includes('un ') || text_lower.includes('una ') ||
+        text_lower.includes('con') || text_lower.includes('para') || text_lower.includes('en ')) {
+      return 'es';
+    }
+    
+    // German indicators
+    if (text_lower.includes('der ') || text_lower.includes('die ') || text_lower.includes('das ') || 
+        text_lower.includes('ein ') || text_lower.includes('eine ') || text_lower.includes('mit') ||
+        text_lower.includes('für') || text_lower.includes('und') || text_lower.includes('ich')) {
+      return 'de';
+    }
+    
+    // Italian indicators
+    if (text_lower.includes('il ') || text_lower.includes('la ') || text_lower.includes('gli ') || 
+        text_lower.includes('le ') || text_lower.includes('un ') || text_lower.includes('una ') ||
+        text_lower.includes('con') || text_lower.includes('per') || text_lower.includes('di ')) {
+      return 'it';
+    }
+    
+    // Portuguese indicators
+    if (text_lower.includes('o ') || text_lower.includes('a ') || text_lower.includes('os ') || 
+        text_lower.includes('as ') || text_lower.includes('um ') || text_lower.includes('uma ') ||
+        text_lower.includes('com') || text_lower.includes('para') || text_lower.includes('de ')) {
+      return 'pt';
+    }
+    
+    // Check for non-Latin scripts
+    if (/[\u4e00-\u9fff]/.test(text)) return 'zh'; // Chinese
+    if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return 'ja'; // Japanese
+    if (/[\uac00-\ud7af]/.test(text)) return 'ko'; // Korean
+    if (/[\u0600-\u06ff]/.test(text)) return 'ar'; // Arabic
+    if (/[\u0900-\u097f]/.test(text)) return 'hi'; // Hindi
+    if (/[\u0400-\u04ff]/.test(text)) return 'ru'; // Russian
+    
+    // Default to English
+    return 'en';
+  }
+
+  private getLocalizedKeywords(language: string): string[] {
+    return TIKTOK_LEAD_KEYWORDS_BY_LANGUAGE[language] || TIKTOK_LEAD_KEYWORDS_BY_LANGUAGE['en'];
+  }
+
   async execute(input: LeadTikTokInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
     try {
       const limit = Math.min(Math.max(1, input.limit || 5), 10);
       
-      // Build TikTok-specific search query
-      let searchQuery = `site:tiktok.com ${input.search_prompt}`;
+      // Detect language from search prompt
+      const detectedLanguage = this.detectLanguage(input.search_prompt);
+      logger.info(`[LeadTikTokTool] Detected language: ${detectedLanguage}`);
       
-      // Add industry and audience context
+      // Build enhanced search query for lead generation
+      let searchQuery = input.search_prompt;
+      
+      // Add industry and audience context to search
       if (input.industry_focus) {
         searchQuery += ` ${input.industry_focus}`;
       }
@@ -83,10 +158,12 @@ export class LeadTikTokTool extends BaseTool {
         searchQuery += ` ${input.target_audience}`;
       }
       
-      // Add TikTok-specific lead keywords
-      searchQuery += " business owner entrepreneur problem help advice struggling";
+      // Add language-specific TikTok lead keywords
+      const localizedKeywords = this.getLocalizedKeywords(detectedLanguage);
+      const keywordSample = localizedKeywords.slice(0, 6); // Use first 6 keywords to avoid overly long queries
+      searchQuery += ` ${keywordSample.join(' ')}`;
 
-      logger.info(`[LeadTikTokTool] Searching TikTok content for: "${searchQuery}"`);
+      logger.info(`[LeadTikTokTool] Searching TikTok content for: "${searchQuery}" (Language: ${detectedLanguage})`);
 
       // Search for TikTok content using web search
       const searchResult = await this.webSearchTool.execute({
@@ -120,7 +197,8 @@ export class LeadTikTokTool extends BaseTool {
             result_type: "tiktok_leads",
             total_videos: 0,
             leads: [],
-            search_query: searchQuery
+            search_query: searchQuery,
+            detected_language: detectedLanguage
           }
         };
       }
@@ -134,7 +212,7 @@ export class LeadTikTokTool extends BaseTool {
         if (abortSignal?.aborted) break;
         
         try {
-          const analysis = await this.analyzeTikTokForLeads(video, input);
+          const analysis = await this.analyzeTikTokForLeads(video, input, detectedLanguage);
           if (analysis && analysis.lead_score > 25) { // Lower threshold for TikTok due to different content style
             leadAnalyses.push(analysis);
           }
@@ -159,6 +237,7 @@ export class LeadTikTokTool extends BaseTool {
           avg_lead_score: avgScore,
           leads: leadAnalyses,
           search_query: searchQuery,
+          detected_language: detectedLanguage,
           industry_focus: input.industry_focus,
           target_audience: input.target_audience
         }
@@ -173,9 +252,23 @@ export class LeadTikTokTool extends BaseTool {
     }
   }
 
-  private async analyzeTikTokForLeads(searchResult: any, input: LeadTikTokInput): Promise<TikTokLeadAnalysis | null> {
+  private async analyzeTikTokForLeads(searchResult: any, input: LeadTikTokInput, detectedLanguage: string): Promise<TikTokLeadAnalysis | null> {
+    // Create language-aware analysis prompt
+    const getAnalysisPrompt = (language: string) => {
+      const prompts: Record<string, string> = {
+        'en': `You are an expert lead generation analyst specializing in TikTok content analysis. Analyze this TikTok video content for potential business leads.`,
+        'fr': `Vous êtes un analyste expert en génération de leads spécialisé dans l'analyse de contenu TikTok. Analysez ce contenu vidéo TikTok pour identifier des leads commerciaux potentiels.`,
+        'es': `Eres un analista experto en generación de leads especializado en análisis de contenido de TikTok. Analiza este contenido de video de TikTok para identificar leads comerciales potenciales.`,
+        'de': `Sie sind ein Experte für Lead-Generierung und spezialisiert auf TikTok-Content-Analyse. Analysieren Sie diesen TikTok-Videoinhalt auf potenzielle Geschäfts-Leads.`,
+        'it': `Sei un analista esperto nella generazione di lead specializzato nell'analisi dei contenuti TikTok. Analizza questo contenuto video TikTok per identificare potenziali lead commerciali.`,
+        'pt': `Você é um analista especialista em geração de leads especializado em análise de conteúdo do TikTok. Analise este conteúdo de vídeo do TikTok para identificar leads comerciais potenciais.`
+      };
+      
+      return prompts[language] || prompts['en'];
+    };
+
     const analysisPrompt = `
-You are an expert lead generation analyst specializing in TikTok content analysis. Analyze this TikTok video content for potential business leads.
+${getAnalysisPrompt(detectedLanguage)}
 
 TIKTOK VIDEO DETAILS:
 - URL: "${searchResult.url}"
@@ -186,6 +279,7 @@ SEARCH CONTEXT:
 - Search Query: "${input.search_prompt}"
 - Industry Focus: "${input.industry_focus || 'General'}"
 - Target Audience: "${input.target_audience || 'General'}"
+- Detected Language: "${detectedLanguage}"
 
 ANALYSIS REQUIREMENTS:
 
@@ -228,6 +322,8 @@ ANALYSIS REQUIREMENTS:
 8. HASHTAG ANALYSIS:
    - Extract relevant business or industry hashtags from the content
    - Focus on hashtags that indicate business intent or problems
+
+IMPORTANT: Analyze the content in its original language context. If the content is in ${detectedLanguage}, understand cultural and linguistic nuances that might affect lead quality and business opportunities. TikTok content varies significantly by region and language.
 
 Provide a detailed analysis focusing on lead generation potential, keeping in mind TikTok's unique content style and audience.`;
 

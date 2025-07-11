@@ -200,6 +200,11 @@ export function useSupabaseGame(roomId: string | null) {
             started_at: gameData.started_at,
             finished_at: gameData.finished_at,
             updated_at: gameData.updated_at,
+            // Add game type information
+            game_type_name: gameData.game_types?.name,
+            game_type_display_name: gameData.game_types?.display_name,
+            game_type_icon: gameData.game_types?.icon_name,
+            game_type_color: gameData.game_types?.color_theme,
           };
 
           console.log('🎮 Game data fetched:', {
@@ -209,6 +214,8 @@ export function useSupabaseGame(roomId: string | null) {
             total_questions: gameRoom.questions?.length,
             current_question: gameRoom.current_question,
             timer_start: gameRoom.current_question?.started_at,
+            game_type: gameRoom.game_type_display_name,
+            difficulty: gameRoom.difficulty,
           });
 
           setGame(gameRoom);

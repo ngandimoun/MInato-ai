@@ -194,12 +194,14 @@ export async function POST(req: NextRequest) {
     logger.info(
       `${logPrefix} Searching memory for user ${userId.substring(0, 8)} with query "${query.substring(0, 50)}...", Limit: ${pagination.limit}, Offset: ${pagination.offset}`
     );
-    // Pass the (potentially empty) query string to the memory framework.
-    // The memory framework's search_memory function will handle an empty query appropriately
-    // (e.g., by fetching recent memories or applying default search behavior).
+    // Handle empty query by using a minimal query to fetch recent memories
+    // The memory framework requires a non-empty query, so we use "recent" for empty queries
+    const effectiveQuery = query.trim() || "recent";
+    logger.debug(`${logPrefix} Using effective query: "${effectiveQuery}" (original: "${query}")`);
+    
     const results: PaginatedResults<MemoryFrameworkSearchResult> =
       await memory.search_memory(
-        query, 
+        effectiveQuery, 
         userId!, 
         pagination,
         null, 

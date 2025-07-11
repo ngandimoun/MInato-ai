@@ -38,6 +38,7 @@ import { PaymentLinksList } from "@/components/payment-links-list";
 import { SalesDashboard } from "@/components/sales-dashboard";
 import { StripeExpressDashboardButton } from "@/components/stripe-express-dashboard-button";
 import { useRouter } from "next/navigation";
+import { useNavigation } from "@/context/navigation-context";
 import { StripeEmbeddedOnboarding } from "@/components/stripe-embedded-onboarding";
 
 // Define the different seller states
@@ -67,6 +68,7 @@ type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening"
 export default function DashboardPage() {
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const { user, isLoading: isAuthLoading } = useAuth();
+  const { navigateWithLoading } = useNavigation();
   const router = useRouter();
   const [sellerStatus, setSellerStatus] = useState<SellerStatus | null>(null);
   const [stripeData, setStripeData] = useState<StripeStatusData | null>(null);
@@ -113,19 +115,19 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (currentView === "chat") {
-      router.push("/chat");
+      navigateWithLoading("/chat", "Loading chat...");
     } else if (currentView === "settings") {
-      router.push("/chat?view=settings");
+      navigateWithLoading("/chat?view=settings", "Loading settings...");
     } else if (currentView === "memory") {
-      router.push("/chat?view=memory");
+      navigateWithLoading("/chat?view=memory", "Loading memory...");
     } else if (currentView === "listening") {
-      router.push("/listening");
+      navigateWithLoading("/listening", "Loading listening...");
     } else if (currentView === "insights") {
-      router.push("/insights");
+      navigateWithLoading("/insights", "Loading insights...");
     } else if (currentView === "creation-hub") {
-      router.push("/creation-hub");
+      navigateWithLoading("/creation-hub", "Loading creation hub...");
     }
-  }, [currentView, router]);
+  }, [currentView, navigateWithLoading]);
 
   useEffect(() => {
     fetchSellerStatus();

@@ -8,6 +8,7 @@ import { RecordingAnalysis } from "@/components/listening/recording-analysis";
 import { useListening, Recording } from "@/context/listening-context";
 import { Header } from "@/components/header";
 import { useRouter } from "next/navigation";
+import { useNavigation } from "@/context/navigation-context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mic, List, BarChart3 } from "lucide-react";
 
@@ -27,6 +28,7 @@ export default function ListeningPage() {
   
   const [currentView, setCurrentView] = useState<View>("listening");
   const [activeTab, setActiveTab] = useState<"record" | "analyze">("record");
+  const { navigateWithLoading } = useNavigation();
   const router = useRouter();
 
   // Handle view changes
@@ -35,16 +37,16 @@ export default function ListeningPage() {
       // Already on listening page, do nothing
       return;
     } else if (view === "dashboard") {
-      router.push("/dashboard");
+      navigateWithLoading("/dashboard", "Loading dashboard...");
     } else if (view === "games") {
-      router.push("/games");
+      navigateWithLoading("/games", "Loading games...");
     } else if (view === "insights") {
-      router.push("/insights");
+      navigateWithLoading("/insights", "Loading insights...");
     } else if (view === "creation-hub") {
-      router.push("/creation-hub");
+      navigateWithLoading("/creation-hub", "Loading creation hub...");
     } else {
       // Navigate to chat page with the specified view
-      router.push(`/chat?view=${view}`);
+      navigateWithLoading(`/chat?view=${view}`, `Loading ${view}...`);
     }
   };
 

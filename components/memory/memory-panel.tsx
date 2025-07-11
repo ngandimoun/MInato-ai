@@ -18,99 +18,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/context/auth-provider";
 import { DEFAULT_USER_NAME } from "@/lib/constants";
 
-// Sample memories to show when no real memories are available
-const SAMPLE_MEMORIES: SearchResult[] = [
-  {
-    memory_id: "sample-1",
-    content: "Friend finds it delicious",
-    user_id: "sample",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    memory_type: "fact",
-    categories: ["food", "preferences"],
-    vector_score: null,
-    keyword_score: null,
-    graph_score: null,
-    final_score: 0.28,
-    is_latest_fact: false,
-    role: "user",
-    embedding: null,
-    run_id: null,
-    metadata: {}
-  },
-  {
-    memory_id: "sample-2",
-    content: "Friend is preparing spiced eggs.",
-    user_id: "sample",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    memory_type: "fact",
-    categories: ["hobbies_interests", "food_cooking"],
-    vector_score: null,
-    keyword_score: null,
-    graph_score: null,
-    final_score: 0.22,
-    is_latest_fact: false,
-    role: "user",
-    embedding: null,
-    run_id: null,
-    metadata: {}
-  },
-  {
-    memory_id: "sample-3",
-    content: "Friend is eating ice cream",
-    user_id: "sample",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    memory_type: "fact",
-    categories: ["food_interest", "hobbies_interests"],
-    vector_score: null,
-    keyword_score: null,
-    graph_score: null,
-    final_score: 0.22,
-    is_latest_fact: false,
-    role: "user",
-    embedding: null,
-    run_id: null,
-    metadata: {}
-  },
-  {
-    memory_id: "sample-4",
-    content: "Friend is wearing gloves while cooking.",
-    user_id: "sample",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    memory_type: "fact",
-    categories: ["food_cooking"],
-    vector_score: null,
-    keyword_score: null,
-    graph_score: null,
-    final_score: 0.21,
-    is_latest_fact: false,
-    role: "user",
-    embedding: null,
-    run_id: null,
-    metadata: {}
-  },
-  {
-    memory_id: "sample-5",
-    content: "Friend requested a random recipe but none was found on TheMealDB.",
-    user_id: "sample",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    memory_type: "fact",
-    categories: ["misc"],
-    vector_score: null,
-    keyword_score: null,
-    graph_score: null,
-    final_score: 0.21,
-    is_latest_fact: false,
-    role: "user",
-    embedding: null,
-    run_id: null,
-    metadata: {}
-  }
-];
+
 
 interface MemoryPanelProps {
 onClose: () => void;
@@ -146,6 +54,7 @@ const fetchQuery = query.trim(); // Send empty string if query is empty for init
 logger.info(
 `[MemoryPanel] Fetching memories. Query: "${fetchQuery.substring(0, 30)}...", Initial: ${isInitialFetch}, Offset: ${isInitialFetch ? 0 : offset}`
 );
+console.log("[MemoryPanel DEBUG] Starting fetch with query:", fetchQuery, "isInitialFetch:", isInitialFetch);
 try {
     const response = await fetch(MEMORY_SEARCH_ENDPOINT, {
       method: "POST",
@@ -161,6 +70,11 @@ try {
           keywordWeight: fetchQuery ? 0.3 : 0.5, // Higher keyword weight for recent
           graphWeight: fetchQuery ? 0.6 : 0.0,   // No graph weight for general initially
           recentFirst: isInitialFetch || !fetchQuery, // Prioritize recent memories when no query
+          filters: {
+            // Ensure memories are ordered by creation date (most recent first)
+            sort_by: 'created_at',
+            sort_order: 'desc'
+          }
         }
       }),
     });
@@ -173,48 +87,61 @@ try {
     }
 
     const data: PaginatedResults<SearchResult> = await response.json();
+    console.log("[MemoryPanel DEBUG] API Response:", data);
     // If we got actual memories, use those
     if (data.results && data.results.length > 0) {
+      // Sort memories by creation date (most recent first) as backup
+      const sortedResults = [...data.results].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      
       if (isInitialFetch) {
-        setMemories(data.results);
+        setMemories(sortedResults);
       } else {
-        setMemories(prev => [...prev, ...data.results]);
+        setMemories(prev => [...prev, ...sortedResults]);
       }
       
       // Update pagination state
       setTotalEstimated(data.total_estimated || 0);
-      setHasMore((offset + data.results.length) < (data.total_estimated || 0));
+      const currentOffset = isInitialFetch ? 0 : offset;
+      const newTotalLoaded = currentOffset + data.results.length;
+      const hasMoreResults = newTotalLoaded < (data.total_estimated || 0) && data.results.length === limit;
+      setHasMore(hasMoreResults);
+      
+      console.log(`[MemoryPanel DEBUG] Pagination: loaded=${newTotalLoaded}, total=${data.total_estimated}, hasMore=${hasMoreResults}`);
       
       logger.info(
         `[MemoryPanel] Fetched ${data.results.length} memories. Total: ${data.total_estimated || 0}`
       );
-    } else if (isInitialFetch || query === "") {
-      // If no memories but it's initial fetch or empty query, show sample memories
-      setMemories(SAMPLE_MEMORIES);
-      setHasMore(false);
-      logger.info(
-        `[MemoryPanel] No memories found, showing ${SAMPLE_MEMORIES.length} sample memories.`
-      );
-    } else if (!isInitialFetch && offset > 0 && memories.length > 0) {
-      // No more results to load
+    } else {
+      // No memories found - don't show sample memories, just empty state
+      console.log("[MemoryPanel DEBUG] No memories found in response");
+      if (isInitialFetch) {
+        setMemories([]);
+        setHasMore(false);
+        logger.info(`[MemoryPanel] No real memories found for user.`);
+      } else {
+        // No more results for pagination
+        setHasMore(false);
+        console.log("[MemoryPanel DEBUG] No more memories to load");
+      }
+    }
+    
+    // Handle pagination state for when no more results can be loaded
+    if (!isInitialFetch && offset > 0 && memories.length > 0 && data.results.length === 0) {
+      // No more results to load on pagination
       setHasMore(false);
       logger.info(
         `[MemoryPanel] No more memories to load for query "${fetchQuery}".`
       );
-    } else {
-      // For specific searches with no results, show empty state
-      setMemories([]);
-      setHasMore(false);
-      logger.info(
-        `[MemoryPanel] No memories found for search query "${fetchQuery}".`
-      );
     }
   } catch (err: any) {
     logger.error("[MemoryPanel] Error fetching memories:", err);
+    console.error("[MemoryPanel DEBUG] Fetch error:", err);
     setError(`Failed to load memories: ${err.message}`);
-    // On error, show sample memories rather than an empty state
+    // On error, don't show sample memories - let the error state handle it
     if (isInitialFetch) {
-      setMemories(SAMPLE_MEMORIES);
+      setMemories([]);
       setHasMore(false);
     }
   } finally {
@@ -229,15 +156,15 @@ try {
 );
 
 const loadMoreMemories = useCallback(() => {
-  if (isLoading || isLoadingMore || !hasMore || memories[0]?.memory_id.startsWith('sample-')) {
-    console.log('[MemoryPanel] Skipping loadMoreMemories', { isLoading, isLoadingMore, hasMore, isSample: memories[0]?.memory_id.startsWith('sample-') });
+  if (isLoading || isLoadingMore || !hasMore) {
+    console.log('[MemoryPanel] Skipping loadMoreMemories', { isLoading, isLoadingMore, hasMore });
     return;
   }
   
   console.log('[MemoryPanel] Loading more memories, current offset:', offset, 'limit:', limit);
   setIsLoadingMore(true);
   setOffset(prev => prev + limit);
-}, [isLoading, isLoadingMore, hasMore, limit, memories, offset]);
+}, [isLoading, isLoadingMore, hasMore, limit, offset]);
 
 useEffect(() => {
   if (offset > 0 && !isLoading) {
@@ -265,16 +192,6 @@ const handleDeleteMemory = useCallback(
 async (id: string) => {
 logger.warn(`[MemoryPanel] Attempting to delete memory ID: ${id}`);
 const originalMemories = [...memories];
-
-// Don't attempt to delete sample memories
-if (id.startsWith('sample-')) {
-  logger.info(`[MemoryPanel] Ignoring delete for sample memory ${id}`);
-  toast({
-    title: "Sample Memory",
-    description: "This is a sample memory and cannot be deleted.",
-  });
-  return;
-}
 
 setMemories((prev) => prev.filter((mem) => mem.memory_id !== id));
 try {
@@ -308,14 +225,13 @@ setMemories(originalMemories);
 
 // Set up IntersectionObserver to detect when the user scrolls to the loader element
 useEffect(() => {
-  // Don't set up observer if there are no more memories to load or if using sample memories
-  if (!hasMore || isLoading || isLoadingMore || !memories.length || memories[0]?.memory_id.startsWith('sample-')) {
+  // Don't set up observer if there are no more memories to load
+  if (!hasMore || isLoading || isLoadingMore || !memories.length) {
     console.log('[MemoryPanel] Not setting up IntersectionObserver', { 
       hasMore, 
       isLoading, 
       isLoadingMore, 
-      memoriesLength: memories.length, 
-      isSample: memories[0]?.memory_id.startsWith('sample-')
+      memoriesLength: memories.length
     });
     return;
   }
@@ -324,15 +240,19 @@ useEffect(() => {
   
   const observer = new IntersectionObserver(
     (entries) => {
-      // If the loader is visible, load more memories
-      if (entries[0].isIntersecting) {
+      // If the loader is visible, load more memories with a small delay to prevent rapid triggering
+      if (entries[0].isIntersecting && hasMore && !isLoading && !isLoadingMore) {
         console.log('[MemoryPanel] Loader visible, loading more memories');
-        loadMoreMemories();
+        setTimeout(() => {
+          if (hasMore && !isLoading && !isLoadingMore) {
+            loadMoreMemories();
+          }
+        }, 100); // Small delay to prevent rapid triggering
       }
     },
     { 
       root: null, // Use the viewport as the root
-      rootMargin: '0px 0px 300px 0px', // Load more memories when loader is 300px from the bottom edge
+      rootMargin: '0px 0px 200px 0px', // Reduced margin to trigger closer to bottom
       threshold: 0.1 // Trigger when 10% of the loader is visible
     }
   );

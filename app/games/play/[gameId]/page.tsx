@@ -334,9 +334,14 @@ export default function GamePlayPage() {
             useCORS: true,
           });
           
+          // Generate filename with game name and difficulty
+          const gameType = (gameData.game_type_display_name || gameData.game_type_id || 'game').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+          const difficulty = gameData.difficulty || 'unknown';
+          const timestamp = Date.now();
+          
           // Download the image
           const link = document.createElement('a');
-          link.download = `minato-ai-game-results-${Date.now()}.png`;
+          link.download = `minato-ai-${gameType}-${difficulty}-results-${timestamp}.png`;
           link.href = canvas.toDataURL();
           link.click();
           
@@ -356,8 +361,9 @@ export default function GamePlayPage() {
     };
 
     const handleShare = (platform: string) => {
-      const gameType = gameData.game_type_id?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Game';
-      const text = `Just scored ${currentPlayer?.score || 0} points in ${gameType} on Minato AI! 🎯 ${accuracy}% accuracy. Challenge me at minatoai.com`;
+      const gameType = gameData.game_type_display_name || gameData.game_type_id?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Game';
+      const difficultyText = gameData.difficulty ? ` on ${gameData.difficulty} difficulty` : '';
+      const text = `Just scored ${currentPlayer?.score || 0} points in ${gameType}${difficultyText} on Minato AI! 🎯 ${accuracy}% accuracy. Challenge me at minatoai.com`;
       const url = 'https://minatoai.com/games';
       
       switch (platform) {
@@ -422,6 +428,44 @@ export default function GamePlayPage() {
                 <CardTitle className="text-4xl mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                   Game Complete!
                 </CardTitle>
+                
+                {/* Game Info Section */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="flex flex-col items-center gap-3 mb-6"
+                >
+                  <div className="flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 rounded-full border border-indigo-200 dark:border-indigo-800">
+                    <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-sm font-bold">🎮</span>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-bold text-lg text-indigo-900 dark:text-indigo-200">
+                        {gameData.game_type_display_name || gameData.game_type_id?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Game'}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Badge 
+                      variant="secondary" 
+                      className={`px-3 py-1 text-sm font-medium ${
+                        gameData.difficulty === 'beginner' ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300' :
+                        gameData.difficulty === 'easy' ? 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300' :
+                        gameData.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                        gameData.difficulty === 'hard' ? 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300' :
+                        gameData.difficulty === 'expert' ? 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300' :
+                        'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-900/30 dark:text-gray-300'
+                      }`}
+                    >
+                      <span className="capitalize">{gameData.difficulty}</span> Difficulty
+                    </Badge>
+                    <Badge variant="outline" className="px-3 py-1 text-sm">
+                      {gameData.rounds} Questions
+                    </Badge>
+                  </div>
+                </motion.div>
                 
                 <div className="flex items-center gap-3 mb-2">
                   <Avatar className="w-12 h-12 border-2 border-white shadow-lg">

@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Gamepad2, Trophy, Users, Zap, Sparkles, Target, Crown, Brain, Settings } from "lucide-react";
 import { useAuth } from "@/context/auth-provider";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useNavigation } from "@/context/navigation-context";
 
 type TabValue = "library" | "active" | "invites" | "stats" | "leaderboards" | "quests" | "tournaments" | "ai-coach" | "settings";
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub";
@@ -26,6 +27,7 @@ type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening"
 export default function GamesPage() {
   const [activeTab, setActiveTab] = useState<TabValue>("library");
   const { user, profile } = useAuth();
+  const { navigateWithLoading } = useNavigation();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -42,16 +44,16 @@ export default function GamesPage() {
       // Already on games page, do nothing
       return;
     } else if (view === "dashboard") {
-      router.push("/dashboard");
+      navigateWithLoading("/dashboard", "Loading dashboard...");
     } else if (view === "listening") {
-      router.push("/listening");
+      navigateWithLoading("/listening", "Loading listening...");
     } else if (view === "insights") {
-      router.push("/insights");
+      navigateWithLoading("/insights", "Loading insights...");
     } else if (view === "creation-hub") {
-      router.push("/creation-hub");
+      navigateWithLoading("/creation-hub", "Loading creation hub...");
     } else {
       // Navigate to chat page with the specified view
-      router.push(`/chat?view=${view}`);
+      navigateWithLoading(`/chat?view=${view}`, `Loading ${view}...`);
     }
   };
 
