@@ -787,14 +787,14 @@ export const DATA_VIZ_FORM: CategoryForm = {
       description: 'Optional title for your chart',
       validation: { max: 100, message: 'Title should be under 100 characters' }
     },
-    {
-      id: 'textLanguage',
-      type: 'language-select',
-      label: 'Text Language *',
-      required: true,
-      description: 'Language for labels and text',
-      defaultValue: 'en'
-    },
+    // {
+    //   id: 'textLanguage',
+    //   type: 'language-select',
+    //   label: 'Text Language *',
+    //   required: true,
+    //   description: 'Language for labels and text',
+    //   defaultValue: 'en'
+    // },
     {
       id: 'outputFormat',
       type: 'select',
@@ -810,15 +810,15 @@ export const DATA_VIZ_FORM: CategoryForm = {
         { value: 'dashboard', label: 'Dashboard', description: 'Real-time monitoring display' }
       ]
     },
-    {
-      id: 'referenceImages',
-      type: 'upload',
-      label: 'Reference Images',
-      description: 'Upload chart examples or data screenshots',
-      accept: 'image/*',
-      maxFiles: 3,
-      multiple: true
-    }
+    // {
+    //   id: 'referenceImages',
+    //   type: 'upload',
+    //   label: 'Reference Images',
+    //   description: 'Upload chart examples or data screenshots',
+    //   accept: 'image/*',
+    //   maxFiles: 3,
+    //   multiple: true
+    // }
   ]
 };
 
