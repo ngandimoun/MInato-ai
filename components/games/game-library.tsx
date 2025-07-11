@@ -1115,6 +1115,14 @@ function GameLibraryContent() {
 
   const handleCreateGame = async (request: CreateGameRequest) => {
     setIsCreating(true);
+    
+    // Show loading toast that persists during the entire game creation process
+    const loadingToast = toast({
+      title: "🎮 Creating Your Game...",
+      description: "Please wait while we set up your personalized game experience.",
+      duration: Infinity, // Toast persists until manually dismissed
+    });
+    
     try {
       const result = await createGameWithQuestions(request);
       
@@ -1202,6 +1210,10 @@ function GameLibraryContent() {
         duration: 5000,
       });
     } finally {
+      // Dismiss the loading toast
+      if (loadingToast && loadingToast.dismiss) {
+        loadingToast.dismiss();
+      }
       setIsCreating(false);
     }
   };
