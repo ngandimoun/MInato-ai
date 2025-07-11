@@ -1116,11 +1116,23 @@ function GameLibraryContent() {
   const handleCreateGame = async (request: CreateGameRequest) => {
     setIsCreating(true);
     
-    // Show loading toast that persists during the entire game creation process
+    // Show animated loading toast with visual effects
     const loadingToast = toast({
-      title: "🎮 Creating Your Game...",
-      description: "Please wait while we set up your personalized game experience.",
-      duration: Infinity, // Toast persists until manually dismissed
+      title: "🎮 Creating Your Amazing Game Experience...",
+      description: "🚀 Setting up • 🤖 AI Configuration • 📚 Content Generation • ⚡ Almost Ready...",
+      duration: Infinity,
+      style: {
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #667eea 100%)',
+        backgroundSize: '200% 200%',
+        color: 'white',
+        border: '2px solid rgba(255,255,255,0.3)',
+        borderRadius: '12px',
+        fontSize: '14px',
+        fontWeight: '500',
+        animation: 'shimmer 3s ease-in-out infinite, gameLoadingPulse 2s ease-in-out infinite alternate, gameGlow 2.5s ease-in-out infinite',
+        transform: 'translateZ(0)', // Force hardware acceleration
+        willChange: 'transform, opacity, box-shadow'
+      }
     });
     
     try {
