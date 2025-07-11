@@ -5,15 +5,18 @@ import { GameQuestion } from '@/lib/types/games';
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
+    // Check authentication - allow both authenticated users and guest users
     const supabase = await createServerSupabaseClient();
     const { data: { session } } = await supabase.auth.getSession();
     
-    if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+    // For now, allow guest users to generate questions too
+    // In production, you might want to add rate limiting for guests
+    const isGuest = !session?.user;
+    
+    if (isGuest) {
+      console.log('🎮 Generating questions for guest user');
+    } else {
+      console.log(`🎮 Generating questions for authenticated user: ${session.user.id}`);
     }
 
     // Parse request body
@@ -28,6 +31,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('🎯 Question generation request:', {
+      gameType,
+      difficulty,
+      rounds: rounds || 10,
+      settings,
+      isGuest
+    });
+
     // Get server-side game orchestrator
     const gameOrchestrator = getGameOrchestratorServer();
 
@@ -39,13 +50,15 @@ export async function POST(request: NextRequest) {
       settings
     );
 
+    console.log(`✅ Successfully generated ${questions.length} questions for ${gameType}`);
+
     // Return questions
     return NextResponse.json({
       success: true,
       questions,
     });
   } catch (error) {
-    console.error('Error generating questions:', error);
+    console.error('❌ Error generating questions:', error);
     return NextResponse.json(
       {
         success: false,

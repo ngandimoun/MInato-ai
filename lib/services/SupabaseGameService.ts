@@ -161,12 +161,23 @@ export class SupabaseGameService {
         auto_advance: request.settings?.auto_advance ?? preferences?.auto_advance_questions ?? true,
         show_explanations: request.settings?.show_explanations ?? preferences?.show_explanations ?? true,
         time_per_question: request.settings?.time_per_question ?? preferences?.preferred_time_per_question ?? 30,
-        language: request.settings?.language ?? 'en',
+        language: request.settings?.language ?? preferences?.language ?? 'en',
         ai_personality: request.settings?.ai_personality ?? preferences?.ai_personality ?? 'friendly',
         topic_focus: request.settings?.topic_focus ?? preferences?.topic_focus ?? 'general',
         user_interests: preferences?.interest_categories || [],
         user_news_categories: preferences?.news_categories || [],
       };
+
+      console.log('🎮 Enhanced settings created:', {
+        language: enhancedSettings.language,
+        ai_personality: enhancedSettings.ai_personality,
+        topic_focus: enhancedSettings.topic_focus,
+        rounds: request.rounds,
+        difficulty: request.difficulty,
+        time_per_question: enhancedSettings.time_per_question,
+        fromRequest: !!request.settings,
+        fromPreferences: !!preferences,
+      });
 
       // Create the game room
       const { data: room, error: roomError } = await this.supabase
@@ -761,8 +772,18 @@ export class SupabaseGameService {
   private async generateQuestions(room: GameRoom): Promise<Question[]> {
     try {
       const topicFocus = room.settings?.topic_focus || room.topic || room.game_type_id;
+      const language = room.settings?.language || 'en';
+      const aiPersonality = room.settings?.ai_personality || 'friendly';
       
-      console.log(`🎯 Generating questions for topic: ${topicFocus}`);
+      console.log(`🎯 Generating questions with settings:`, {
+        gameType: room.game_type_id,
+        difficulty: room.difficulty,
+        rounds: room.rounds,
+        topicFocus,
+        language,
+        aiPersonality,
+        settings: room.settings
+      });
       
       // Check if we're running on the server (no window object)
       if (typeof window === 'undefined') {
@@ -777,7 +798,15 @@ export class SupabaseGameService {
           room.settings
         );
         
-        console.log(`✅ Generated ${questions.length} questions using server orchestrator`);
+        console.log(`✅ Generated ${questions.length} questions using server orchestrator with settings:`, {
+          language,
+          aiPersonality,
+          topicFocus,
+          questionsPreview: questions.slice(0, 2).map(q => ({
+            question: q.question.substring(0, 50) + '...',
+            language: q.question.includes('Qu\'est-ce') ? 'French detected' : 'English or other'
+          }))
+        });
         return questions;
       } else {
         // Client-side: Use the regular GameOrchestrator with API calls
@@ -791,11 +820,27 @@ export class SupabaseGameService {
           room.settings
         );
         
-        console.log(`✅ Generated ${questions.length} questions using client orchestrator`);
+        console.log(`✅ Generated ${questions.length} questions using client orchestrator with settings:`, {
+          language,
+          aiPersonality,
+          topicFocus,
+          questionsPreview: questions.slice(0, 2).map(q => ({
+            question: q.question.substring(0, 50) + '...',
+            language: q.question.includes('Qu\'est-ce') ? 'French detected' : 'English or other'
+          }))
+        });
         return questions;
       }
     } catch (error) {
       console.error('💥 Failed to generate questions:', error);
+      console.error('💥 Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        roomSettings: room.settings,
+        gameType: room.game_type_id,
+        difficulty: room.difficulty,
+        rounds: room.rounds
+      });
       console.log('🔄 Using fallback questions instead...');
       
       // Generate fallback questions
@@ -804,82 +849,175 @@ export class SupabaseGameService {
   }
 
   private generateFallbackQuestions(room: GameRoom): Question[] {
-    // Enhanced fallback questions with mobile-friendly design and better variety
+    // Enhanced fallback questions with user preferences
     const topicFocus = room.settings.topic_focus || 'general';
     const difficulty = room.difficulty;
+    const language = room.settings.language || 'en';
+    const requestedRounds = room.rounds; // Use the actual number of rounds requested
     
-    // Different question sets based on topic focus for better engagement
-    const fallbackSets: Record<string, Question[]> = {
-      'ai_improv': [
-        {
-          question: "In workplace communication, what's the most effective response to constructive criticism?",
-          options: ["Defend immediately", "Listen and reflect", "Ignore it", "Change the subject"],
-          correct_answer: 1,
-          explanation: "Active listening and reflection show professionalism and growth mindset. 🌟",
-          difficulty,
-          category: "communication"
-        },
-        {
-          question: "During team improvisation, the golden rule is to always say:",
-          options: ["No, but...", "Yes, and...", "Maybe if...", "I disagree..."],
-          correct_answer: 1,
-          explanation: "Yes, and... builds on ideas collaboratively and keeps creativity flowing! 🎭",
-          difficulty,
-          category: "improvisation"
-        },
-        {
-          question: "When presenting ideas to a difficult client, you should:",
-          options: ["Rush through points", "Use empathy first", "Be defensive", "Speak louder"],
-          correct_answer: 1,
-          explanation: "Empathy creates connection and understanding before solutions. 💡",
-          difficulty,
-          category: "client_relations"
-        }
-      ],
-      'code_breaker': [
-        {
-          question: "Which programming principle helps make code more maintainable?",
-          options: ["Write long functions", "Use DRY principle", "Avoid comments", "Hardcode values"],
-          correct_answer: 1,
-          explanation: "DRY (Don't Repeat Yourself) reduces redundancy and makes code easier to maintain! 💻",
-          difficulty,
-          category: "programming"
-        },
-        {
-          question: "In debugging, what's the first step you should take?",
-          options: ["Rewrite everything", "Understand the problem", "Ask for help", "Delete code"],
-          correct_answer: 1,
-          explanation: "Understanding the problem is crucial before attempting any solution. 🔍",
-          difficulty,
-          category: "debugging"
-        }
-      ],
-      'general': [
-        {
-          question: "What percentage of communication is typically non-verbal?",
-          options: ["25%", "45%", "55%", "75%"],
-          correct_answer: 2,
-          explanation: "About 55% of communication is body language and non-verbal cues! 👥",
-          difficulty,
-          category: "communication"
-        },
-        {
-          question: "Which learning technique is most effective for retention?",
-          options: ["Re-reading", "Highlighting", "Active recall", "Passive listening"],
-          correct_answer: 2,
-          explanation: "Active recall strengthens memory by forcing your brain to retrieve information. 🧠",
-          difficulty,
-          category: "learning"
-        }
-      ]
+    console.log(`🎯 Generating ${requestedRounds} fallback questions for:`, {
+      topicFocus,
+      difficulty,
+      language,
+      gameType: room.game_type_id
+    });
+    
+    // Language-specific question sets
+    const getLocalizedQuestions = (lang: string): Record<string, Question[]> => {
+      if (lang === 'fr') {
+        return {
+          'ai_improv': [
+            {
+              question: "En communication professionnelle, quelle est la meilleure réponse aux critiques constructives ?",
+              options: ["Se défendre immédiatement", "Écouter et réfléchir", "L'ignorer", "Changer de sujet"],
+              correct_answer: 1,
+              explanation: "L'écoute active et la réflexion montrent le professionnalisme et l'état d'esprit de croissance. 🌟",
+              difficulty,
+              category: "communication"
+            },
+            {
+              question: "Lors d'une improvisation d'équipe, la règle d'or est de toujours dire :",
+              options: ["Non, mais...", "Oui, et...", "Peut-être si...", "Je ne suis pas d'accord..."],
+              correct_answer: 1,
+              explanation: "Oui, et... développe les idées de manière collaborative et maintient la créativité ! 🎭",
+              difficulty,
+              category: "improvisation"
+            }
+          ],
+          'general': [
+            {
+              question: "Quel pourcentage de la communication est généralement non-verbal ?",
+              options: ["25%", "45%", "55%", "75%"],
+              correct_answer: 2,
+              explanation: "Environ 55% de la communication est constituée de langage corporel et d'indices non-verbaux ! 👥",
+              difficulty,
+              category: "communication"
+            },
+                         {
+               question: "Quelle technique d'apprentissage est la plus efficace pour la rétention ?",
+               options: ["Relire", "Surligner", "Rappel actif", "Écoute passive"],
+               correct_answer: 2,
+               explanation: "Le rappel actif renforce la mémoire en forçant votre cerveau à récupérer les informations. 🧠",
+               difficulty,
+               category: "apprentissage"
+             }
+          ]
+        };
+      } else if (lang === 'es') {
+        return {
+          'general': [
+            {
+              question: "¿Qué porcentaje de la comunicación es típicamente no verbal?",
+              options: ["25%", "45%", "55%", "75%"],
+              correct_answer: 2,
+              explanation: "¡Aproximadamente el 55% de la comunicación es lenguaje corporal y señales no verbales! 👥",
+              difficulty,
+              category: "comunicación"
+            },
+            {
+              question: "¿Qué técnica de aprendizaje es más efectiva para la retención?",
+              options: ["Releer", "Resaltar", "Recordación activa", "Escucha pasiva"],
+              correct_answer: 2,
+              explanation: "La recordación activa fortalece la memoria al forzar al cerebro a recuperar información. 🧠",
+              difficulty,
+              category: "aprendizaje"
+            }
+          ]
+        };
+      } else {
+        // English (default)
+        return {
+          'ai_improv': [
+            {
+              question: "In workplace communication, what's the most effective response to constructive criticism?",
+              options: ["Defend immediately", "Listen and reflect", "Ignore it", "Change the subject"],
+              correct_answer: 1,
+              explanation: "Active listening and reflection show professionalism and growth mindset. 🌟",
+              difficulty,
+              category: "communication"
+            },
+            {
+              question: "During team improvisation, the golden rule is to always say:",
+              options: ["No, but...", "Yes, and...", "Maybe if...", "I disagree..."],
+              correct_answer: 1,
+              explanation: "Yes, and... builds on ideas collaboratively and keeps creativity flowing! 🎭",
+              difficulty,
+              category: "improvisation"
+            },
+            {
+              question: "When presenting ideas to a difficult client, you should:",
+              options: ["Rush through points", "Use empathy first", "Be defensive", "Speak louder"],
+              correct_answer: 1,
+              explanation: "Empathy creates connection and understanding before solutions. 💡",
+              difficulty,
+              category: "client_relations"
+            }
+          ],
+          'code_breaker': [
+            {
+              question: "Which programming principle helps make code more maintainable?",
+              options: ["Write long functions", "Use DRY principle", "Avoid comments", "Hardcode values"],
+              correct_answer: 1,
+              explanation: "DRY (Don't Repeat Yourself) reduces redundancy and makes code easier to maintain! 💻",
+              difficulty,
+              category: "programming"
+            },
+            {
+              question: "In debugging, what's the first step you should take?",
+              options: ["Rewrite everything", "Understand the problem", "Ask for help", "Delete code"],
+              correct_answer: 1,
+              explanation: "Understanding the problem is crucial before attempting any solution. 🔍",
+              difficulty,
+              category: "debugging"
+            }
+          ],
+          'general': [
+            {
+              question: "What percentage of communication is typically non-verbal?",
+              options: ["25%", "45%", "55%", "75%"],
+              correct_answer: 2,
+              explanation: "About 55% of communication is body language and non-verbal cues! 👥",
+              difficulty,
+              category: "communication"
+            },
+            {
+              question: "Which learning technique is most effective for retention?",
+              options: ["Re-reading", "Highlighting", "Active recall", "Passive listening"],
+              correct_answer: 2,
+              explanation: "Active recall strengthens memory by forcing your brain to retrieve information. 🧠",
+              difficulty,
+              category: "learning"
+            },
+            {
+              question: "What is the most important factor in effective teamwork?",
+              options: ["Individual talent", "Clear communication", "Perfect planning", "Avoiding conflict"],
+              correct_answer: 1,
+              explanation: "Clear communication ensures everyone understands their role and the team's goals. 🤝",
+              difficulty,
+              category: "teamwork"
+            },
+            {
+              question: "Which approach is best for creative problem-solving?",
+              options: ["Stick to proven methods", "Brainstorm multiple solutions", "Work alone", "Rush to conclusions"],
+              correct_answer: 1,
+              explanation: "Brainstorming multiple solutions helps find innovative and effective approaches. 💡",
+              difficulty,
+              category: "creativity"
+            }
+          ]
+        };
+      }
     };
+    
+    // Get language-specific question sets
+    const fallbackSets = getLocalizedQuestions(language);
     
     // Get relevant question set or fallback to general
     const questionSet = fallbackSets[topicFocus] || fallbackSets['general'];
     const questions: Question[] = [];
     
     // Fill up to requested rounds, cycling through available questions
-    for (let i = 0; i < room.rounds; i++) {
+    for (let i = 0; i < requestedRounds; i++) {
       let question: Question;
       
       if (i < questionSet.length) {
@@ -918,7 +1056,13 @@ export class SupabaseGameService {
       questions.push(question);
     }
     
-    console.log(`🎯 Generated ${questions.length} fallback questions for topic: ${topicFocus}`);
+    console.log(`🎯 Generated ${questions.length} fallback questions for topic: ${topicFocus} in ${language}`);
+    console.log(`📝 Sample questions:`, questions.slice(0, 2).map(q => ({
+      question: q.question.substring(0, 50) + '...',
+      language: language,
+      options: q.options.length
+    })));
+    
     return questions;
   }
 
