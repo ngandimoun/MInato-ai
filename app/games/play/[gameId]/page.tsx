@@ -55,7 +55,8 @@ export default function GamePlayPage() {
   const { 
     submitAnswer: submitAnswerMutation, 
     nextQuestion: nextQuestionMutation, 
-    skipQuestion: skipQuestionMutation 
+    skipQuestion: skipQuestionMutation,
+    startGame: startGameMutation
   } = useSupabaseGameMutations();
 
   // Game state
@@ -258,6 +259,34 @@ export default function GamePlayPage() {
 
   const handleExitGame = () => {
     router.push('/games');
+  };
+
+  const handleStartGame = async () => {
+    if (!gameData?.id || !user?.id) return;
+    
+    try {
+      const result = await startGameMutation(gameData.id);
+      if (result.success) {
+        toast({
+          title: "🚀 Game Started!",
+          description: "The game has begun. Good luck!",
+        });
+        // The real-time subscription will automatically update the game state
+      } else {
+        toast({
+          title: "Failed to Start Game",
+          description: result.error || "Could not start the game. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error starting game:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while starting the game.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getPlayerScore = (playerId: string) => {
@@ -790,11 +819,35 @@ export default function GamePlayPage() {
                 </div>
               </div>
 
-              {/* Action Button */}
-              <Button onClick={handleExitGame} variant="outline" className="w-full">
-                <Home className="w-4 h-4 mr-2" />
-                Leave Game
-              </Button>
+              {/* Action Buttons */}
+              <div className="space-y-3">
+                {/* Start Game Button for Host */}
+                {gameData.mode === 'multiplayer' && gameData.host_user_id === user?.id && (
+                  <Button 
+                    onClick={handleStartGame} 
+                    className="w-full"
+                    disabled={(players?.length || 0) < 2}
+                  >
+                    <Play className="w-4 h-4 mr-2" />
+                    {(players?.length || 0) < 2 ? 'Need 2+ Players to Start' : 'Start Game'}
+                  </Button>
+                )}
+                
+                {/* Waiting message for non-host */}
+                {gameData.mode === 'multiplayer' && gameData.host_user_id !== user?.id && (
+                  <div className="text-center p-4 bg-muted/30 rounded-lg">
+                    <Clock className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      Waiting for host to start the game...
+                    </p>
+                  </div>
+                )}
+                
+                <Button onClick={handleExitGame} variant="outline" className="w-full">
+                  <Home className="w-4 h-4 mr-2" />
+                  Leave Game
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </motion.div>

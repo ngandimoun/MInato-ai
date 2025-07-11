@@ -76,14 +76,20 @@ export function GameInvites() {
         }),
       });
 
-      if (response.ok) {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         toast({
           title: "Invitation Accepted!",
-          description: "Joining the game...",
+          description: "Redirecting to game lobby...",
         });
-        // The useUserInvitations hook will automatically refresh
+        
+        // Redirect to the game lobby
+        if (data.room_id) {
+          window.location.href = `/games/play/${data.room_id}`;
+        }
       } else {
-        throw new Error('Failed to accept invitation');
+        throw new Error(data.error || 'Failed to accept invitation');
       }
     } catch (error) {
       console.error('Error accepting invite:', error);
@@ -108,14 +114,16 @@ export function GameInvites() {
         }),
       });
 
-      if (response.ok) {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         toast({
           title: "Invitation Declined",
           description: "The invitation has been declined.",
         });
         // The useUserInvitations hook will automatically refresh
       } else {
-        throw new Error('Failed to decline invitation');
+        throw new Error(data.error || 'Failed to decline invitation');
       }
     } catch (error) {
       console.error('Error declining invite:', error);
