@@ -1406,7 +1406,7 @@ function GameLibraryContent() {
                     </div>
 
                     <div className="flex gap-2">
-                      <Button 
+                      {/* <Button 
                         variant="outline"
                         size="sm"
                         className="flex-1"
@@ -1414,7 +1414,7 @@ function GameLibraryContent() {
                       >
                         <Play className="h-4 w-4 mr-1" />
                         <TranslatableButtonText>Demo</TranslatableButtonText>
-                      </Button>
+                      </Button> */}
                       <Button 
                         className="flex-1 group-hover:bg-blue-600 transition-colors"
                         onClick={() => setSelectedGame(game.id)}
