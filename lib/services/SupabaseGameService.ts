@@ -420,20 +420,31 @@ export class SupabaseGameService {
 
   async startGame(roomId: string, userId: string): Promise<GameResponse> {
     try {
+      console.log(`🚀 Starting game ${roomId} for user ${userId}`);
+      
       // Verify user is host
-      const { data: room } = await this.supabase
+      const { data: room, error: roomError } = await this.supabase
         .from('live_game_rooms')
         .select('*')
         .eq('id', roomId)
         .eq('host_user_id', userId)
         .single();
 
+      if (roomError) {
+        console.error('❌ Error fetching room:', roomError);
+        return { success: false, error: 'Failed to fetch room details' };
+      }
+
       if (!room) {
+        console.error('❌ Room not found or user is not host');
         return { success: false, error: 'Only the host can start the game' };
       }
 
+      console.log(`🎮 Room status: ${room.status}, Host: ${room.host_user_id}`);
+
       if (room.status !== 'lobby') {
-        return { success: false, error: 'Game is not in lobby state' };
+        console.error(`❌ Game is not in lobby state. Current status: ${room.status}`);
+        return { success: false, error: `Game is not in lobby state (current: ${room.status})` };
       }
 
       // Generate questions if not already present
@@ -656,18 +667,10 @@ export class SupabaseGameService {
         timestamp: Date.now(),
       });
 
-      // For solo games, auto-advance
-      const { data: room } = await this.supabase
-        .from('live_game_rooms')
-        .select('mode, settings')
-        .eq('id', roomId)
-        .single();
-
-      if (room?.mode === 'solo') {
-        setTimeout(() => {
-          this.nextQuestion(roomId, userId);
-        }, 1000);
-      }
+      // Auto-advance for both solo and multiplayer games
+      setTimeout(() => {
+        this.nextQuestion(roomId, userId);
+      }, 1000);
 
       return {
         success: true,
@@ -1062,32 +1065,67 @@ export class SupabaseGameService {
         return;
       }
 
-      // Direct channel broadcast (more reliable than game_events table)
-      const channel = this.channels.get(room.topic);
+      // Try to get existing channel, or create one if none exists
+      let channel = this.channels.get(room.topic);
+      
+      if (!channel) {
+        console.log(`📡 No active channel found for topic: ${room.topic}, creating one...`);
+        
+        try {
+          // Create a temporary channel for broadcasting
+          const newChannel = this.supabase
+            .channel(`game_room:${room.topic}`)
+            .on('broadcast', { event: '*' }, (payload: any) => {
+              console.log('📻 Broadcast event received:', payload);
+            });
+          
+          // Subscribe to the channel
+          await newChannel.subscribe((status: string) => {
+            console.log(`📡 Broadcast channel status: ${status}`);
+          });
+          
+          // Store the channel for future use
+          this.channels.set(room.topic, newChannel);
+          channel = newChannel;
+        } catch (channelError) {
+          console.error(`❌ Failed to create channel: ${channelError}`);
+        }
+      }
+
+      // Direct channel broadcast
       if (channel) {
-        await channel.send({
-          type: 'broadcast',
-          event: eventType,
-          payload: {
-            room_id: roomId,
-            event_type: eventType,
-            event_data: eventData,
-            timestamp: Date.now(),
-          }
-        });
-        console.log(`✅ Event ${eventType} broadcasted successfully`);
+        try {
+          await channel.send({
+            type: 'broadcast',
+            event: eventType,
+            payload: {
+              room_id: roomId,
+              event_type: eventType,
+              event_data: eventData,
+              timestamp: Date.now(),
+            }
+          });
+          console.log(`✅ Event ${eventType} broadcasted successfully`);
+        } catch (sendError) {
+          console.error(`❌ Failed to send broadcast event: ${sendError}`);
+        }
       } else {
-        console.warn(`⚠️ No active channel found for topic: ${room.topic}`);
+        console.warn(`⚠️ Failed to create channel for topic: ${room.topic}`);
       }
 
       // Also insert to game_events table as backup
-      await this.supabase
-        .from('game_events')
-        .insert({
-          room_id: roomId,
-          event_type: eventType,
-          event_data: eventData,
-        });
+      try {
+        await this.supabase
+          .from('game_events')
+          .insert({
+            room_id: roomId,
+            event_type: eventType,
+            event_data: eventData,
+          });
+      } catch (dbError) {
+        console.warn('⚠️ Failed to insert to game_events table:', dbError);
+        // Don't fail the broadcast if database insert fails
+      }
     } catch (error) {
       console.error('❌ Failed to broadcast event:', error);
     }

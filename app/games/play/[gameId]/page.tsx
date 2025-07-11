@@ -108,10 +108,8 @@ export default function GamePlayPage() {
         await submitAnswerMutation(roomId, -1, 0); // No answer, 0 time taken
         setHasAnswered(true); // This will stop the timer
         
-        // For solo games, auto-advance after time up
-        if (gameData?.mode === 'solo') {
-          handleAutoAdvance();
-        }
+        // Auto-advance after time up for both solo and multiplayer games
+        handleAutoAdvance();
       } catch (error) {
         console.error('Failed to submit answer:', error);
       }
@@ -185,12 +183,10 @@ export default function GamePlayPage() {
         });
         setShowResults(true);
         
-        console.log(`✅ Answer submitted. Game mode: ${gameData?.mode}, Auto-advance expected for solo games`);
+        console.log(`✅ Answer submitted. Game mode: ${gameData?.mode}, Auto-advance expected for both solo and multiplayer games`);
         
-        // For solo games, auto-advance after showing results
-        if (gameData?.mode === 'solo') {
-          handleAutoAdvance();
-        }
+        // Auto-advance after showing results for both solo and multiplayer games
+        handleAutoAdvance();
       }
     } catch (error) {
       console.error('Failed to submit answer:', error);
@@ -1003,7 +999,7 @@ export default function GamePlayPage() {
 
         {/* Game Controls */}
         <div className="flex gap-3 justify-center">
-          {gameData.mode === 'solo' && !hasAnswered && (
+          {!hasAnswered && (
             <Button 
               onClick={handleSkipQuestion}
               variant="outline"
@@ -1011,16 +1007,6 @@ export default function GamePlayPage() {
             >
               <SkipForward className="w-4 h-4" />
               Skip Question
-            </Button>
-          )}
-          
-          {hasAnswered && !isAutoAdvancing && gameData.mode === 'solo' && (
-            <Button 
-              onClick={handleNextQuestion}
-              className="gap-2"
-            >
-              <ArrowRight className="w-4 h-4" />
-              Next Question
             </Button>
           )}
           
@@ -1033,7 +1019,7 @@ export default function GamePlayPage() {
         </div>
 
         {/* Multiplayer Status */}
-        {gameData.mode === 'multiplayer' && hasAnswered && (
+        {gameData.mode === 'multiplayer' && hasAnswered && !isAutoAdvancing && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1042,7 +1028,7 @@ export default function GamePlayPage() {
             <Card>
               <CardContent className="pt-6">
                 <div className="space-y-4">
-                  <p className="text-lg">Answer submitted! Waiting for other players...</p>
+                  <p className="text-lg">Answer submitted! Auto-advancing in a moment...</p>
                   <div className="flex justify-center gap-4">
                     {players?.map((player) => (
                       <div key={player.user_id} className="text-center">
