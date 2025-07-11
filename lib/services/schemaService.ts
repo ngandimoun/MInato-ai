@@ -275,6 +275,163 @@ const SCHEMA_VERSIONS: Record<string, SchemaDefinition> = {
       additionalProperties: false
     }
   },
+  ["SubredditSelection"]: {
+    name: 'SubredditSelection',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        subreddits: {
+          type: "array",
+          items: { type: "string" },
+          description: "Array of subreddit names without r/ prefix"
+        }
+      },
+      required: ["subreddits"],
+      additionalProperties: false
+    }
+  },
+  ["LeadAnalysis"]: {
+    name: 'LeadAnalysis',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        lead_score: { type: "number", minimum: 0, maximum: 100 },
+        urgency_level: { type: "string", enum: ["low", "medium", "high", "urgent"] },
+        pain_points: { type: "array", items: { type: "string" } },
+        decision_maker_indicators: { type: "array", items: { type: "string" } },
+        engagement_potential: { type: "number", minimum: 0, maximum: 100 },
+        platform_insights: {
+          type: "object",
+          properties: {
+            subreddit_relevance: { type: "number", minimum: 0, maximum: 100 },
+            community_engagement: { type: "number", minimum: 0, maximum: 100 },
+            author_authority: { type: "number", minimum: 0, maximum: 100 },
+            post_quality: { type: "number", minimum: 0, maximum: 100 }
+          },
+          required: ["subreddit_relevance", "community_engagement", "author_authority", "post_quality"],
+          additionalProperties: false
+        },
+        tags: { type: "array", items: { type: "string" } },
+        reasoning: { type: "string" }
+      },
+      required: ["lead_score", "urgency_level", "pain_points", "decision_maker_indicators", "engagement_potential", "platform_insights", "tags", "reasoning"],
+      additionalProperties: false
+    }
+  },
+  ["HNLeadAnalysis"]: {
+    name: 'HNLeadAnalysis',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        lead_score: { type: "number", minimum: 0, maximum: 100 },
+        urgency_level: { type: "string", enum: ["low", "medium", "high", "urgent"] },
+        pain_points: { type: "array", items: { type: "string" } },
+        decision_maker_indicators: { type: "array", items: { type: "string" } },
+        engagement_potential: { type: "number", minimum: 0, maximum: 100 },
+        platform_insights: {
+          type: "object",
+          properties: {
+            story_relevance: { type: "number", minimum: 0, maximum: 100 },
+            community_engagement: { type: "number", minimum: 0, maximum: 100 },
+            author_authority: { type: "number", minimum: 0, maximum: 100 },
+            technical_depth: { type: "number", minimum: 0, maximum: 100 },
+            business_impact: { type: "number", minimum: 0, maximum: 100 }
+          },
+          required: ["story_relevance", "community_engagement", "author_authority", "technical_depth", "business_impact"],
+          additionalProperties: false
+        },
+        tags: { type: "array", items: { type: "string" } },
+        reasoning: { type: "string" },
+        company_stage_indicators: { type: "array", items: { type: "string" } },
+        tech_stack_mentions: { type: "array", items: { type: "string" } }
+      },
+      required: ["lead_score", "urgency_level", "pain_points", "decision_maker_indicators", "engagement_potential", "platform_insights", "tags", "reasoning", "company_stage_indicators", "tech_stack_mentions"],
+      additionalProperties: false
+    }
+  },
+  ["YouTubeLeadAnalysis"]: {
+    name: 'YouTubeLeadAnalysis',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        video_id: { type: "string" },
+        title: { type: "string" },
+        description: { type: "string" },
+        channel_title: { type: "string" },
+        published_at: { type: "string" },
+        video_url: { type: "string" },
+        thumbnail_url: { type: "string" },
+        lead_score: { type: "number", minimum: 0, maximum: 100 },
+        urgency_level: { type: "string", enum: ["low", "medium", "high", "urgent"] },
+        pain_points: { type: "array", items: { type: "string" } },
+        decision_maker_indicators: { type: "array", items: { type: "string" } },
+        engagement_potential: { type: "number", minimum: 0, maximum: 100 },
+        business_opportunity: { type: "string" },
+        target_persona: { type: "string" },
+        content_type: { type: "string", enum: ["tutorial", "review", "problem", "discussion", "showcase", "other"] },
+        viewer_intent: { type: "string", enum: ["learning", "buying", "comparing", "troubleshooting", "entertaining", "other"] }
+      },
+      required: ["video_id", "title", "description", "channel_title", "published_at", "video_url", "thumbnail_url", "lead_score", "urgency_level", "pain_points", "decision_maker_indicators", "engagement_potential", "business_opportunity", "target_persona", "content_type", "viewer_intent"],
+      additionalProperties: false
+    }
+  },
+  ["TikTokLeadAnalysis"]: {
+    name: 'TikTokLeadAnalysis',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        url: { type: "string" },
+        title: { type: "string" },
+        description: { type: "string" },
+        creator: { type: "string" },
+        platform: { type: "string", enum: ["tiktok"] },
+        lead_score: { type: "number", minimum: 0, maximum: 100 },
+        urgency_level: { type: "string", enum: ["low", "medium", "high", "urgent"] },
+        pain_points: { type: "array", items: { type: "string" } },
+        decision_maker_indicators: { type: "array", items: { type: "string" } },
+        engagement_potential: { type: "number", minimum: 0, maximum: 100 },
+        business_opportunity: { type: "string" },
+        target_persona: { type: "string" },
+        content_type: { type: "string", enum: ["tutorial", "review", "problem", "discussion", "showcase", "trend", "other"] },
+        viewer_intent: { type: "string", enum: ["learning", "buying", "comparing", "troubleshooting", "entertaining", "viral", "other"] },
+        hashtags: { type: "array", items: { type: "string" } }
+      },
+      required: ["url", "title", "description", "creator", "platform", "lead_score", "urgency_level", "pain_points", "decision_maker_indicators", "engagement_potential", "business_opportunity", "target_persona", "content_type", "viewer_intent", "hashtags"],
+      additionalProperties: false
+    }
+  },
+  ["NewsLeadAnalysis"]: {
+    name: 'NewsLeadAnalysis',
+    version: '1',
+    schema: {
+      type: "object",
+      properties: {
+        url: { type: "string" },
+        title: { type: "string" },
+        description: { type: "string" },
+        source_name: { type: "string" },
+        published_at: { type: "string" },
+        image_url: { type: "string" },
+        lead_score: { type: "number", minimum: 0, maximum: 100 },
+        urgency_level: { type: "string", enum: ["low", "medium", "high", "urgent"] },
+        pain_points: { type: "array", items: { type: "string" } },
+        business_opportunities: { type: "array", items: { type: "string" } },
+        decision_maker_indicators: { type: "array", items: { type: "string" } },
+        market_signals: { type: "array", items: { type: "string" } },
+        engagement_potential: { type: "number", minimum: 0, maximum: 100 },
+        target_persona: { type: "string" },
+        news_type: { type: "string", enum: ["funding", "merger", "expansion", "problem", "regulation", "innovation", "other"] },
+        lead_type: { type: "string", enum: ["direct", "indirect", "market_intelligence"] }
+      },
+      required: ["url", "title", "description", "source_name", "published_at", "lead_score", "urgency_level", "pain_points", "business_opportunities", "decision_maker_indicators", "market_signals", "engagement_potential", "target_persona", "news_type", "lead_type"],
+      additionalProperties: false
+    }
+  },
   [MINATO_REMINDER_READER_EXTRACTION_SCHEMA_NAME]: {
     name: 'minato_reminder_reader_extraction',
     version: '1',

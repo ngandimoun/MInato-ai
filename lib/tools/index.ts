@@ -22,11 +22,17 @@ import { ReminderReaderTool } from "./ReminderReaderTool";
 import { ReminderSetterTool } from "./ReminderSetterTool";
 import { ProactiveReminderTool } from "./ProactiveReminderTool";
 import { StripePaymentLinkTool } from "./StripePaymentLinkTool";
+import { LeadRedditTool } from "./leads/LeadRedditTool";
+import { LeadHackerNewsTool } from "./leads/LeadHackerNewsTool";
+import { LeadYouTubeTool } from "./leads/LeadYouTubeTool";
+import { LeadTikTokTool } from "./leads/LeadTikTokTool";
+import { LeadNewsTool } from "./leads/LeadNewsTool";
 // MemoryTool and InternalTaskTool would also be imported if they were in separate files
 // For example: import { MemoryTool } from "./MemoryTool";
 
-// --- Tool Registry (Canonical Names Only) ---
+// --- Main Tool Registry (for Minato Chat) ---
 // The key MUST match the 'name' property of the tool instance. Aliases are handled in resolveToolName only.
+// AI Leads tools are intentionally excluded from this registry to prevent access from main chat
 export const tools: { [key: string]: BaseTool } = {
   WebSearchTool: Object.assign(new WebSearchTool(), { timeoutMs: 8000, maxCallsPerSession: 5, rateLimits: { perMinute: 5, perHour: 20 } }),
   YouTubeSearchTool: Object.assign(new YouTubeSearchTool(), { timeoutMs: 10000, maxCallsPerSession: 3, rateLimits: { perMinute: 3, perHour: 10 } }),
@@ -50,14 +56,32 @@ export const tools: { [key: string]: BaseTool } = {
   // Example: MemoryTool: new MemoryTool(),
 };
 
+// --- Creation Hub Tool Registry (for Creation Hub interface only) ---
+// These tools are available only in the Creation Hub, not in main chat
+export const creationHubTools: { [key: string]: BaseTool } = {
+  LeadRedditTool: Object.assign(new LeadRedditTool(), { timeoutMs: 15000, maxCallsPerSession: 3, rateLimits: { perMinute: 3, perHour: 10 } }),
+  LeadHackerNewsTool: Object.assign(new LeadHackerNewsTool(), { timeoutMs: 15000, maxCallsPerSession: 3, rateLimits: { perMinute: 3, perHour: 10 } }),
+  LeadYouTubeTool: Object.assign(new LeadYouTubeTool(), { timeoutMs: 15000, maxCallsPerSession: 3, rateLimits: { perMinute: 3, perHour: 10 } }),
+  LeadTikTokTool: Object.assign(new LeadTikTokTool(), { timeoutMs: 15000, maxCallsPerSession: 3, rateLimits: { perMinute: 3, perHour: 10 } }),
+  LeadNewsTool: Object.assign(new LeadNewsTool(), { timeoutMs: 15000, maxCallsPerSession: 3, rateLimits: { perMinute: 3, perHour: 10 } }),
+};
+
 // --- Tool Schema & Enabled Property Validation ---
 if (typeof window === "undefined") {
   const staticToolNames = Object.keys(tools);
   logger.info(
-    `[Tools Registry] Initialized ${staticToolNames.length} static tools in registry: ${staticToolNames.join(", ")}`
+    `[Tools Registry] Initialized ${staticToolNames.length} static tools in main registry: ${staticToolNames.join(", ")}`
   );
+  
+  const creationHubToolNames = Object.keys(creationHubTools);
+  logger.info(
+    `[Tools Registry] Initialized ${creationHubToolNames.length} Creation Hub tools: ${creationHubToolNames.join(", ")}`
+  );
+  
   let mismatchFound = false;
   let schemaErrorFound = false;
+  
+  // Validate main tools
   for (const key in tools) {
     const tool = tools[key];
     // Name check
@@ -82,13 +106,40 @@ if (typeof window === "undefined") {
       tool.enabled = true;
     }
   }
+  
+  // Validate Creation Hub tools
+  for (const key in creationHubTools) {
+    const tool = creationHubTools[key];
+    // Name check
+    if (tool.name !== key) {
+      logger.error(
+        `[Creation Hub Tools Registry] CRITICAL MISMATCH! Tool object name "${tool.name}" != registry key "${key}".`
+      );
+      mismatchFound = true;
+    }
+    // argsSchema check
+    if (!tool.argsSchema || tool.argsSchema.type !== "object" || !tool.argsSchema.properties) {
+      logger.error(
+        `[Creation Hub Tools Registry] Tool "${tool.name}" is missing a valid argsSchema (must be type: 'object' and have properties).`
+      );
+      schemaErrorFound = true;
+    }
+    // enabled property check (default to true if missing)
+    if (typeof tool.enabled === "undefined") {
+      logger.warn(
+        `[Creation Hub Tools Registry] Tool "${tool.name}" missing 'enabled' property. Defaulting to true.`
+      );
+      tool.enabled = true;
+    }
+  }
+  
   if (mismatchFound) {
     logger.error(
       `[Tools Registry] Tool registry key mismatch detected. Ensure keys in the 'tools' object match the 'name' property of the tool instances.`
     );
   } else {
     logger.info(
-      "[Tools Registry] All static tool names verified against registry keys."
+      "[Tools Registry] All tool names verified against registry keys."
     );
   }
   if (schemaErrorFound) {
@@ -121,6 +172,7 @@ if (typeof window === "undefined") {
  * This is the single source of truth for all tool aliases.
  * All consumers (resolveToolName, API endpoints, utilities, etc.) MUST import this map.
  * Keys should be lowercase as input to resolveToolName is lowercased.
+ * AI Leads tool aliases are intentionally excluded to prevent access from main chat.
  */
 export const toolAliases: { [key: string]: string } = {
   // WebSearchTool Aliases
@@ -238,17 +290,7 @@ export const toolAliases: { [key: string]: string } = {
   "getreddit": "RedditTool",
   "askreddit": "RedditTool", // Common subreddit, might be used as a general search term
 
-  // RedditLeadGeneratorTool Aliases
-  "redditleads": "RedditLeadGeneratorTool",
-  "findleads": "RedditLeadGeneratorTool",
-  "leadgen": "RedditLeadGeneratorTool",
-  "leadgeneration": "RedditLeadGeneratorTool",
-  "redditprospecting": "RedditLeadGeneratorTool",
-  "prospecting": "RedditLeadGeneratorTool",
-  "redditoutreach": "RedditLeadGeneratorTool",
-  "socialmedialeads": "RedditLeadGeneratorTool",
-  "generateleads": "RedditLeadGeneratorTool",
-  "scanlead": "RedditLeadGeneratorTool",
+
 
   // SportsInfoTool Aliases
   "sports": "SportsInfoTool",
@@ -367,7 +409,88 @@ export const toolAliases: { [key: string]: string } = {
   "paymentlinks": "StripePaymentLinkTool",
   "stripepayment": "StripePaymentLinkTool",
   "createstripe": "StripePaymentLinkTool",
+
+
 };
+
+// --- Creation Hub Tool Aliases (for Creation Hub interface only) ---
+/**
+ * Aliases for Creation Hub tools that are NOT available in main chat.
+ * These tools can only be accessed through the Creation Hub interface.
+ */
+export const creationHubToolAliases: { [key: string]: string } = {
+  // LeadRedditTool Aliases
+  "leadreddit": "LeadRedditTool",
+  "redditleadgen": "LeadRedditTool",
+  "findleadsonreddit": "LeadRedditTool",
+  "redditprospects": "LeadRedditTool",
+  "airedditLeads": "LeadRedditTool",
+  "smartredditleads": "LeadRedditTool",
+  "redditleadanalysis": "LeadRedditTool",
+  "redditoutreachleads": "LeadRedditTool",
+  "redditaiprospecting": "LeadRedditTool",
+  "redditbusinessleads": "LeadRedditTool",
+
+  // LeadHackerNewsTool Aliases
+  "leadhackernews": "LeadHackerNewsTool",
+  "hnleads": "LeadHackerNewsTool",
+  "hackernewsleads": "LeadHackerNewsTool",
+  "hnprospects": "LeadHackerNewsTool",
+  "techleads": "LeadHackerNewsTool",
+  "startupprospects": "LeadHackerNewsTool",
+  "aihnleads": "LeadHackerNewsTool",
+  "hackernewsprospecting": "LeadHackerNewsTool",
+  "hnleadgen": "LeadHackerNewsTool",
+  "techprospecting": "LeadHackerNewsTool",
+  
+  // RedditLeadGeneratorTool Aliases (moved from main aliases)
+  "redditleads": "RedditLeadGeneratorTool",
+  "findleads": "RedditLeadGeneratorTool",
+  "leadgen": "RedditLeadGeneratorTool",
+  "leadgeneration": "RedditLeadGeneratorTool",
+  "redditprospecting": "RedditLeadGeneratorTool",
+  "prospecting": "RedditLeadGeneratorTool",
+  "redditoutreach": "RedditLeadGeneratorTool",
+  "socialmedialeads": "RedditLeadGeneratorTool",
+  "generateleads": "RedditLeadGeneratorTool",
+  "scanlead": "RedditLeadGeneratorTool",
+};
+
+// --- Creation Hub Tool Resolution ---
+/**
+ * Resolves Creation Hub tool names and aliases to actual tool instances.
+ * This function is separate from resolveToolName to ensure Creation Hub tools
+ * are only accessible through the Creation Hub interface.
+ */
+export function resolveCreationHubTool(toolName: string): BaseTool | null {
+  if (!toolName || typeof toolName !== "string") {
+    return null;
+  }
+
+  const normalize = (name: string) => name.toLowerCase().replace(/[\s_-]+/g, '');
+  const normalizedToolName = normalize(toolName);
+
+  // Check direct tool name match first
+  for (const key in creationHubTools) {
+    if (normalize(key) === normalizedToolName) {
+      const tool = creationHubTools[key];
+      if (tool.enabled !== false) {
+        return tool;
+      }
+    }
+  }
+
+  // Check aliases
+  const canonicalName = creationHubToolAliases[normalizedToolName];
+  if (canonicalName && creationHubTools[canonicalName]) {
+    const tool = creationHubTools[canonicalName];
+    if (tool.enabled !== false) {
+      return tool;
+    }
+  }
+
+  return null;
+}
 
 // Function to map tool name variations to the correct tool instance
 export function resolveToolName(toolName: string): BaseTool | null {

@@ -44,6 +44,7 @@ import type { ImageCategory, CategoryFormValues } from "./category-types";
 import { ImageEditorModal } from "./image-editor-modal";
 import { VideoGenerator } from "./video-generator";
 import CreateVid from "./create-vid";
+import { AILeadsInterface } from "./ai-leads-interface";
 
 // Helper function to convert File to base64
 async function fileToBase64(file: File): Promise<string> {
@@ -440,6 +441,17 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                 <Wand2 className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden xs:inline">Create</span>
                 <span className="xs:hidden">Create</span>
+              </div>
+            </TabsTrigger>
+
+            <TabsTrigger 
+              value="ai-leads" 
+              className="relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation"
+            >
+              <div className="flex items-center gap-1 sm:gap-2">
+                <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">AI Leads</span>
+                <span className="xs:hidden">Leads</span>
               </div>
             </TabsTrigger>
 
@@ -1077,6 +1089,10 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                 )}
               </ScrollArea>
             </div>
+          </TabsContent>
+
+          <TabsContent value="ai-leads" className="mt-0 h-full">
+            <AILeadsInterface />
           </TabsContent>
 
           <TabsContent value="video" className="mt-0 h-full">
