@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/memory-framework/config';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import OpenAI from 'openai';
+import OpenAI, { toFile } from 'openai';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -27,97 +27,142 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parse form data for image uploads
+    // Parse form data
     const formData = await request.formData();
+    const imageFile = formData.get('image') as File;
     const prompt = formData.get('prompt') as string;
-    const images = formData.getAll('images') as File[];
-    const mask = formData.get('mask') as File | null;
-    const quality = (formData.get('quality') as string) || 'high';
-    const size = (formData.get('size') as string) || '1024x1024';
-    const format = (formData.get('format') as string) || 'png';
-    const background = (formData.get('background') as string) || 'opaque';
-    const compression = formData.get('compression') ? parseInt(formData.get('compression') as string) : undefined;
+    const model = formData.get('model') as string || 'gpt-image-1';
+    const userId = formData.get('user') as string;
 
-    logger.info('[Creation Hub Edit API] Request details for GPT Image 1 Edit', {
+    logger.info('[Creation Hub Edit API] Request details', {
       requestId,
       userId: user.id,
       prompt: prompt?.substring(0, 100) + '...',
-      imagesCount: images.length,
-      hasMask: !!mask,
-      quality,
-      size,
-      format,
-      background,
-      compression
+      model,
+      hasImageFile: !!imageFile,
+      imageSize: imageFile?.size || 0
     });
 
     // Validate inputs
-    if (!prompt || typeof prompt !== 'string') {
+    if (!imageFile || !prompt) {
       return NextResponse.json(
-        { error: { code: 'INVALID_PROMPT', message: 'Prompt is required and must be a string' } },
+        { error: { code: 'INVALID_INPUT', message: 'Image file and prompt are required' } },
         { status: 400 }
       );
     }
 
-    if (images.length === 0) {
+    // Enhanced prompt validation
+    if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 3) {
       return NextResponse.json(
-        { error: { code: 'NO_IMAGES', message: 'At least one image is required for editing' } },
+        { error: { code: 'INVALID_PROMPT', message: 'Valid prompt is required (at least 3 characters)' } },
         { status: 400 }
       );
     }
 
-    if (images.length > 10) {
+    if (prompt.length > 1000) {
       return NextResponse.json(
-        { error: { code: 'TOO_MANY_IMAGES', message: 'Maximum 10 images allowed for editing' } },
+        { error: { code: 'PROMPT_TOO_LONG', message: 'Prompt must be 1000 characters or less' } },
         { status: 400 }
       );
     }
 
-    // Validate image files
-    for (const image of images) {
-      if (image.size > 20 * 1024 * 1024) { // 20MB limit for GPT Image 1
+    // Clean the prompt to avoid potential issues
+    const cleanedPrompt = prompt
+      .replace(/[^\w\s\.,\-!?;:'"()]/g, '') // Remove special characters that might cause issues
+      .trim();
+
+    // Validate and process image
+    if (imageFile.size > 4 * 1024 * 1024) { // 4MB limit
+      return NextResponse.json(
+        { error: { code: 'IMAGE_TOO_LARGE', message: 'Image must be smaller than 4MB' } },
+        { status: 400 }
+      );
+    }
+
+    // Additional validation for image type
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!allowedTypes.includes(imageFile.type)) {
+      logger.warn('[Creation Hub Edit API] Invalid image type', { 
+        requestId, 
+        providedType: imageFile.type,
+        allowedTypes 
+      });
+      return NextResponse.json(
+        { error: { code: 'INVALID_IMAGE_TYPE', message: 'Image must be PNG, JPEG, or WebP format' } },
+        { status: 400 }
+      );
+    }
+
+    // Convert File to OpenAI format with proper filename and type
+    const imageBuffer = await imageFile.arrayBuffer();
+    const fileName = `edit-${requestId}.png`;
+    
+    // Ensure we create a proper File object
+    const imageFileForOpenAI = await toFile(Buffer.from(imageBuffer), fileName, {
+      type: 'image/png', // Force PNG for maximum compatibility
+    });
+
+    logger.info('[Creation Hub Edit API] Making edit request with gpt-image-1', { 
+      requestId,
+      model,
+      originalImageType: imageFile.type,
+      originalImageSize: imageFile.size,
+      processedFileName: fileName,
+      originalPromptLength: prompt.length,
+      cleanedPromptLength: cleanedPrompt.length,
+      promptPreview: cleanedPrompt.substring(0, 100),
+      imageBufferSize: imageBuffer.byteLength
+    });
+
+    // Call OpenAI Image Edit API with gpt-image-1
+    let response;
+    try {
+      response = await openai.images.edit({
+        model: 'gpt-image-1',
+        image: imageFileForOpenAI,
+        prompt: cleanedPrompt,
+        size: '1024x1024'
+      });
+    } catch (openaiError: any) {
+      logger.error('[Creation Hub Edit API] OpenAI API error', { 
+        requestId,
+        error: openaiError.message,
+        type: openaiError.type,
+        code: openaiError.code,
+        status: openaiError.status
+      });
+
+      // Handle specific OpenAI error types
+      if (openaiError.type === 'image_generation_user_error') {
         return NextResponse.json(
-          { error: { code: 'IMAGE_TOO_LARGE', message: 'Images must be less than 20MB' } },
+          { error: { 
+            code: 'IMAGE_EDIT_ERROR', 
+            message: 'The image could not be edited. Please ensure the image is valid and the prompt is appropriate.' 
+          }},
           { status: 400 }
         );
       }
+
+      if (openaiError.status === 400) {
+        return NextResponse.json(
+          { error: { 
+            code: 'INVALID_REQUEST', 
+            message: 'Invalid image or prompt. Please check your inputs and try again.' 
+          }},
+          { status: 400 }
+        );
+      }
+
+      // Re-throw other errors to be handled by outer catch
+      throw openaiError;
     }
 
-    // Prepare image edit request
-    const editRequest: any = {
-      model: 'gpt-image-1',
-      prompt: prompt,
-      image: images, // GPT Image 1 supports multiple reference images
-      quality: quality as 'low' | 'medium' | 'high',
-      size: size as '1024x1024' | '1536x1024' | '1024x1536',
-      output_format: format as 'png' | 'jpeg' | 'webp',
-      background: background as 'transparent' | 'opaque',
-      response_format: 'b64_json' as const,
-      user: user.id
-    };
-
-    // Add mask if provided
-    if (mask) {
-      editRequest.mask = mask;
-    }
-
-    // Add compression for JPEG/WebP formats
-    if ((format === 'jpeg' || format === 'webp') && compression !== undefined) {
-      editRequest.output_compression = compression;
-    }
-
-    logger.info('[Creation Hub Edit API] Calling GPT Image 1 Edit API', { 
+    logger.info('[Creation Hub Edit API] OpenAI response received', { 
       requestId,
-      model: editRequest.model,
-      size: editRequest.size,
-      quality: editRequest.quality,
-      format: editRequest.output_format,
-      background: editRequest.background,
-      compression: editRequest.output_compression
+      hasData: !!response.data,
+      dataLength: response.data?.length || 0,
+      responseStructure: response.data?.[0] ? Object.keys(response.data[0]) : 'no data'
     });
-
-    // Call OpenAI Image Edit API (GPT Image 1)
-    const response = await (openai.images.edit as any)(editRequest);
 
     if (!response.data || response.data.length === 0) {
       logger.error('[Creation Hub Edit API] No image generated in response', { requestId });
@@ -128,29 +173,62 @@ export async function POST(request: NextRequest) {
     }
 
     const imageData = response.data[0];
-    const base64Image = imageData.b64_json;
+    logger.info('[Creation Hub Edit API] Image data structure', { 
+      requestId,
+      imageDataKeys: Object.keys(imageData),
+      hasUrl: !!imageData.url,
+      hasB64Json: !!imageData.b64_json,
+      imageData: imageData
+    });
+
+    // Handle both URL and base64 response formats
+    let editedImageUrl: string | undefined;
+    let base64Image: string | undefined;
+
+    if (imageData.url) {
+      editedImageUrl = imageData.url;
+    } else if (imageData.b64_json) {
+      base64Image = imageData.b64_json;
+    }
+
     const revisedPrompt = imageData.revised_prompt || prompt;
     
-    if (!base64Image) {
-      logger.error('[Creation Hub Edit API] No image data in response', { requestId });
+    if (!editedImageUrl && !base64Image) {
+      logger.error('[Creation Hub Edit API] No image URL or base64 data in response', { 
+        requestId,
+        availableFields: Object.keys(imageData)
+      });
       return NextResponse.json(
-        { error: { code: 'EDIT_FAILED', message: 'No image data received' } },
+        { error: { code: 'EDIT_FAILED', message: 'No image data received from OpenAI' } },
         { status: 500 }
       );
     }
 
-    // Upload edited image to Supabase Storage
-    let imageUrl: string;
+    // Handle image upload to our storage
+    let finalImageUrl: string;
     try {
-      const imageBuffer = Buffer.from(base64Image, 'base64');
-      const filename = `${requestId}.${format}`;
-      const path = `edited-images/${user.id}/${new Date().getFullYear()}/${new Date().getMonth() + 1}/${filename}`;
+      let imageBuffer: ArrayBuffer;
 
+      if (editedImageUrl) {
+        // Download the edited image from OpenAI URL
+        const editedImageResponse = await fetch(editedImageUrl);
+        imageBuffer = await editedImageResponse.arrayBuffer();
+      } else if (base64Image) {
+        // Convert base64 to buffer
+        imageBuffer = Buffer.from(base64Image, 'base64').buffer;
+      } else {
+        throw new Error('No image data available');
+      }
+      
+      const filename = `${requestId}.png`;
+      const path = `images/${user.id}/${new Date().getFullYear()}/${new Date().getMonth() + 1}/${filename}`;
+
+      // Upload to existing image bucket
       const imageBucket = process.env.MEDIA_IMAGE_BUCKET || 'images2';
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from(imageBucket)
-        .upload(path, imageBuffer, {
-          contentType: `image/${format}`,
+        .upload(path, Buffer.from(imageBuffer), {
+          contentType: 'image/png',
           upsert: false
         });
 
@@ -162,55 +240,63 @@ export async function POST(request: NextRequest) {
         .from(imageBucket)
         .getPublicUrl(path);
 
-      imageUrl = publicUrl;
-      logger.info('[Creation Hub Edit API] Edited image uploaded to storage', { requestId, path });
+      finalImageUrl = publicUrl;
+      logger.info('[Creation Hub Edit API] Image uploaded to storage', { requestId, path });
 
     } catch (uploadError) {
-      logger.error('[Creation Hub Edit API] Failed to upload edited image', { requestId, uploadError });
+      logger.error('[Creation Hub Edit API] Failed to upload image', { requestId, uploadError });
       
-      // Fallback to returning base64 data
-      imageUrl = `data:image/${format};base64,${base64Image}`;
-      logger.warn('[Creation Hub Edit API] Using base64 fallback', { requestId });
+      // Fallback options
+      if (editedImageUrl) {
+        finalImageUrl = editedImageUrl;
+        logger.warn('[Creation Hub Edit API] Using OpenAI URL fallback', { requestId });
+      } else if (base64Image) {
+        finalImageUrl = `data:image/png;base64,${base64Image}`;
+        logger.warn('[Creation Hub Edit API] Using base64 fallback', { requestId });
+      } else {
+        throw new Error('No fallback image data available');
+      }
     }
 
-    // Save edit record to database
+    // Save to database
     try {
-      const editRecord = {
+      const imageRecord = {
         id: requestId,
         user_id: user.id,
         prompt: prompt,
+        enhanced_prompt: prompt,
         revised_prompt: revisedPrompt,
-        image_url: imageUrl,
-        quality: quality,
-        size: size,
-        format: format,
-        background: background,
-        compression: compression,
-        model: 'gpt-image-1',
-        operation: 'edit',
+        image_url: finalImageUrl,
+        quality: 'hd',
+        size: '1024x1024',
+        style: 'vivid',
+        model: model,
         status: 'completed',
-        images_count: images.length,
-        has_mask: !!mask,
+        conversation_id: null,
+        parent_image_id: null,
         metadata: {
           requestId,
           generation_duration_ms: Date.now() - startTime,
-          images_count: images.length,
-          has_mask: !!mask,
-          operation_type: mask ? 'inpainting' : 'reference_editing'
+          operation: 'edit',
+          original_model: model
         },
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
-      const { error: dbError } = await supabase
-        .from('image_edits')
-        .insert(editRecord);
+      const { data: insertedData, error: dbError } = await supabase
+        .from('generated_images')
+        .insert(imageRecord)
+        .select();
 
       if (dbError) {
-        logger.error('[Creation Hub Edit API] Failed to save edit to database', { requestId, dbError });
+        logger.error('[Creation Hub Edit API] Failed to save to database', { 
+          requestId, 
+          dbError 
+        });
         // Continue without database save
       } else {
-        logger.info('[Creation Hub Edit API] Edit saved to database', { requestId });
+        logger.info('[Creation Hub Edit API] Image saved to database', { requestId, insertedData });
       }
 
     } catch (dbError) {
@@ -223,88 +309,73 @@ export async function POST(request: NextRequest) {
       requestId,
       duration,
       userId: user.id,
-      imageUrl: imageUrl.substring(0, 100) + '...'
+      imageUrl: finalImageUrl.substring(0, 100) + '...'
     });
 
-    // Return successful response
+    // Return success response
     return NextResponse.json({
       success: true,
       data: {
         id: requestId,
-        imageUrl,
+        imageUrl: finalImageUrl,
         prompt: prompt,
         revisedPrompt: revisedPrompt,
         metadata: {
-          quality: quality,
-          size: size,
-          format: format,
-          background: background,
-          compression: compression,
-          model: 'gpt-image-1',
-          operation: 'edit',
           generatedAt: new Date().toISOString(),
           duration,
-          imagesCount: images.length,
-          hasMask: !!mask
-        },
-        usage: {} // Image API doesn't return usage data
-      },
-      metadata: {
-        requestId,
-        timestamp: new Date().toISOString(),
-        duration
+          model: model,
+          operation: 'edit'
+        }
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     const duration = Date.now() - startTime;
-    
     logger.error('[Creation Hub Edit API] Unexpected error during editing', {
       requestId,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
+      error: error.message,
+      stack: error.stack,
       duration
     });
 
-    // Check for specific OpenAI errors
-    if (error instanceof Error) {
-      if (error.message.includes('rate limit')) {
-        return NextResponse.json(
-          { 
-            error: { 
-              code: 'QUOTA_EXCEEDED', 
-              message: 'Rate limit exceeded. Please try again later.',
-              retryable: true 
-            } 
-          },
-          { status: 429 }
-        );
-      }
-      
-      if (error.message.includes('content policy')) {
-        return NextResponse.json(
-          { 
-            error: { 
-              code: 'INVALID_CONTENT', 
-              message: 'Content violates policy guidelines',
-              retryable: false 
-            } 
-          },
-          { status: 400 }
-        );
-      }
+    // Handle specific error types
+    if (error.message?.includes('safety system')) {
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'SAFETY_VIOLATION',
+          message: 'The edit request was rejected by the safety system. Please try a different description.'
+        }
+      }, { status: 400 });
     }
 
-    return NextResponse.json(
-      { 
-        error: { 
-          code: 'EDIT_FAILED', 
-          message: 'An unexpected error occurred during image editing',
-          retryable: true 
-        } 
-      },
-      { status: 500 }
-    );
+    if (error.message?.includes('401') || error.message?.includes('unauthorized')) {
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'AUTH_ERROR',
+          message: 'Authentication failed'
+        }
+      }, { status: 401 });
+    }
+
+    if (error.message?.includes('429')) {
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'RATE_LIMIT',
+          message: 'Too many requests. Please wait a moment and try again.'
+        }
+      }, { status: 429 });
+    }
+
+    return NextResponse.json({
+      success: false,
+      error: {
+        code: 'EDIT_FAILED',
+        message: 'Failed to edit image'
+      }
+    }, { status: 500 });
   }
 }
 

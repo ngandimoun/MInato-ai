@@ -952,28 +952,101 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {/* Debug Section - Remove this after fixing */}
+                    {/* Debug Section - Enhanced for video troubleshooting */}
                     <Card className="glass-card border-yellow-500/50">
                       <CardContent className="p-4">
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <h4 className="text-sm font-medium text-yellow-500">Debug Info</h4>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                console.log('Manual refresh triggered');
-                                refreshUserVideos();
-                              }}
-                            >
-                              Refresh Videos
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  console.log('Manual refresh triggered');
+                                  console.log('Current videos state:', userVideos);
+                                  refreshUserVideos();
+                                }}
+                              >
+                                Refresh Videos
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  console.log('=== VIDEO DEBUG INFO ===');
+                                  console.log('userVideos length:', userVideos.length);
+                                  console.log('userVideos data:', userVideos);
+                                  userVideos.forEach((video, index) => {
+                                    console.log(`Video ${index + 1}:`, {
+                                      id: video.id,
+                                      filename: video.filename,
+                                      status: video.status,
+                                      hasUrl: !!video.video_url,
+                                      url: video.video_url,
+                                      created_at: video.created_at
+                                    });
+                                  });
+                                  console.log('authUser:', authUser);
+                                  console.log('authLoading:', authLoading);
+                                  console.log('userVideosLoading:', userVideosLoading);
+                                }}
+                              >
+                                Log Videos
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  console.log('=== MANUAL DB TEST ===');
+                                  try {
+                                    const { getBrowserSupabaseClient } = await import('@/lib/supabase/client');
+                                    const supabase = getBrowserSupabaseClient();
+                                    const { data: { user } } = await supabase.auth.getUser();
+                                    
+                                    if (user) {
+                                      console.log('User ID:', user.id);
+                                      const { data, error } = await supabase
+                                        .from('created_videos')
+                                        .select('*')
+                                        .eq('user_id', user.id)
+                                        .order('created_at', { ascending: false });
+                                      
+                                      console.log('DB Query Result:', { data, error });
+                                      console.log('Raw videos from DB:', data);
+                                    } else {
+                                      console.log('No user authenticated');
+                                    }
+                                  } catch (error) {
+                                    console.error('Manual DB test failed:', error);
+                                  }
+                                }}
+                              >
+                                Test DB
+                              </Button>
+                            </div>
                           </div>
                           <div className="text-xs text-muted-foreground space-y-1">
                             <p>Loading: {userVideosLoading ? 'true' : 'false'}</p>
                             <p>Auth User: {authUser ? authUser.id : 'null'}</p>
                             <p>Videos Count: {userVideos.length}</p>
                             <p>Auth Loading: {authLoading ? 'true' : 'false'}</p>
+                            {userVideos.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                <p className="font-medium">Video Details:</p>
+                                {userVideos.slice(0, 3).map((video, index) => (
+                                  <div key={video.id} className="text-xs bg-gray-800 p-2 rounded">
+                                    <p>Video {index + 1}: {video.filename}</p>
+                                    <p>Status: {video.status}</p>
+                                    <p>Has URL: {video.video_url ? 'Yes' : 'No'}</p>
+                                    <p>URL: {video.video_url ? video.video_url.substring(0, 40) + '...' : 'None'}</p>
+                                  </div>
+                                ))}
+                                {userVideos.length > 3 && (
+                                  <p className="text-xs">... and {userVideos.length - 3} more videos</p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </CardContent>
@@ -1019,76 +1092,139 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                       </div>
                     )}
 
-                    {/* Video Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* Video Grid - Enhanced Visibility for Debugging */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 border-2 border-red-500 min-h-[200px] p-4">
+                      <div className="col-span-full text-sm text-red-500 mb-2">
+                        Video Grid Container - Should contain {userVideos.length} videos
+                      </div>
                       <AnimatePresence>
-                        {userVideos.map((video, index) => (
-                          <motion.div
-                            key={video.id}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
-                            transition={{ delay: HubUtils.UI.getStaggerDelay(index, 0.1) }}
-                            className="relative group"
-                          >
-                            <Card className="glass-card overflow-hidden">
-                              <div className="aspect-video bg-black rounded-t-lg overflow-hidden">
-                                <video
-                                  src={video.video_url}
-                                  controls
-                                  preload="metadata"
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    console.error('Video error:', e);
-                                  }}
-                                >
-                                  <p>Your browser doesn't support HTML5 video.</p>
-                                </video>
-                              </div>
-                              <CardContent className="p-3">
-                                <div className="space-y-2">
-                                  {video.original_text && (
-                                    <p className="text-sm text-muted-foreground line-clamp-2">
-                                      {video.original_text}
-                                    </p>
-                                  )}
-                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                    <span>{new Date(video.created_at).toLocaleDateString()}</span>
-                                    <div className="flex items-center gap-2">
-                                      {video.duration_seconds && (
-                                        <Badge variant="outline" className="text-xs px-1 py-0">
-                                          {video.duration_seconds}s
-                                        </Badge>
-                                      )}
-                                      {video.voice_character && (
-                                        <Badge variant="outline" className="text-xs px-1 py-0">
-                                          {video.voice_character}
-                                        </Badge>
-                                      )}
+                        {userVideos.map((video, index) => {
+                          // Debug logging for each video
+                          console.log(`Rendering video ${index + 1}:`, {
+                            id: video.id,
+                            filename: video.filename,
+                            status: video.status,
+                            hasUrl: !!video.video_url,
+                            url: video.video_url?.substring(0, 50)
+                          });
+                          
+                          return (
+                            <motion.div
+                              key={video.id}
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.9 }}
+                              transition={{ delay: HubUtils.UI.getStaggerDelay(index, 0.1) }}
+                              className="relative group border-2 border-blue-500"
+                              style={{ minHeight: '300px' }}
+                            >
+                              <Card className="glass-card overflow-hidden h-full">
+                                <div className="aspect-video bg-black rounded-t-lg overflow-hidden">
+                                  <video
+                                    src={video.video_url}
+                                    controls
+                                    preload="metadata"
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      console.error('Video error for:', video.filename, e);
+                                    }}
+                                    onLoadStart={() => {
+                                      console.log('Video loading started for:', video.filename);
+                                    }}
+                                  >
+                                    <p>Your browser doesn't support HTML5 video.</p>
+                                  </video>
+                                </div>
+                                <CardContent className="p-3">
+                                  <div className="space-y-2">
+                                    {video.original_text && (
+                                      <p className="text-sm text-muted-foreground line-clamp-2">
+                                        {video.original_text}
+                                      </p>
+                                    )}
+                                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                      <span>{new Date(video.created_at).toLocaleDateString()}</span>
+                                      <div className="flex items-center gap-2">
+                                        {video.duration_seconds && (
+                                          <Badge variant="outline" className="text-xs px-1 py-0">
+                                            {video.duration_seconds}s
+                                          </Badge>
+                                        )}
+                                        {video.voice_character && (
+                                          <Badge variant="outline" className="text-xs px-1 py-0">
+                                            {video.voice_character}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs text-muted-foreground">
+                                        {video.file_size ? `${Math.round(video.file_size / (1024 * 1024))}MB` : 'Unknown size'}
+                                      </span>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => window.open(video.video_url, '_blank')}
+                                        className="h-7 px-2"
+                                      >
+                                        <Download className="h-3 w-3 mr-1" />
+                                        Download
+                                      </Button>
                                     </div>
                                   </div>
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-xs text-muted-foreground">
-                                      {video.file_size ? `${Math.round(video.file_size / (1024 * 1024))}MB` : 'Unknown size'}
-                                    </span>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => window.open(video.video_url, '_blank')}
-                                      className="h-7 px-2"
-                                    >
-                                      <Download className="h-3 w-3 mr-1" />
-                                      Download
-                                    </Button>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </motion.div>
-                        ))}
+                                </CardContent>
+                              </Card>
+                            </motion.div>
+                          );
+                        })}
                       </AnimatePresence>
+                      
+                      {/* Fallback rendering without animation */}
+                      {userVideos.length === 0 && (
+                        <div className="col-span-full text-center text-yellow-500 p-4">
+                          No videos found in userVideos array
+                        </div>
+                      )}
                     </div>
                     
+                    {/* Fallback Static Video Grid (No Animation) */}
+                    <div className="mt-6 p-4 border-2 border-green-500">
+                      <h4 className="text-green-500 text-sm mb-4">Static Video Grid (No Animation) - {userVideos.length} videos</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {userVideos.map((video, index) => (
+                          <div
+                            key={`static-${video.id}`}
+                            className="border border-purple-500 bg-gray-900 rounded-lg overflow-hidden"
+                          >
+                            <div className="aspect-video bg-black">
+                              <video
+                                src={video.video_url}
+                                controls
+                                preload="metadata"
+                                className="w-full h-full object-cover"
+                              >
+                                <p>Video not supported</p>
+                              </video>
+                            </div>
+                            <div className="p-3">
+                              <p className="text-sm text-white">{video.filename}</p>
+                              <p className="text-xs text-gray-400">{video.status}</p>
+                              {video.original_text && (
+                                <p className="text-xs text-gray-300 mt-1">{video.original_text}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Debug info for video rendering */}
+                    {userVideos.length > 0 && (
+                      <div className="text-xs text-muted-foreground text-center">
+                        Debug: {userVideos.length} videos in state, attempting to render them above
+                      </div>
+                    )}
+
                     {/* Auth check */}
                     {!authLoading && !authUser && (
                       <div className="flex flex-col items-center justify-center h-[400px] text-center">

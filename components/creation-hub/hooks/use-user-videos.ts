@@ -63,7 +63,6 @@ export function useUserVideos(options: UseUserVideosOptions = {}): UseUserVideos
         .from('created_videos')
         .select('*')
         .eq('user_id', user.id)
-        .eq('status', 'completed')
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -88,15 +87,31 @@ export function useUserVideos(options: UseUserVideosOptions = {}): UseUserVideos
         }))
       });
 
+      // Filter for videos with URLs (temporarily show all statuses for debugging)
       const validVideos = (data || []).filter((video: any) => {
-        const isValid = video.video_url && video.status === 'completed';
+        const hasUrl = !!video.video_url;
+        const isCompleted = video.status === 'completed';
+        // Temporarily include videos with any status as long as they have URLs
+        const isValid = hasUrl; // Changed from: hasUrl && isCompleted
+        
         if (!isValid) {
-          logger.warn('[useUserVideos] Invalid video filtered out', {
+          logger.warn('[useUserVideos] Video filtered out', {
             id: video.id,
-            hasUrl: !!video.video_url,
-            status: video.status
+            filename: video.filename,
+            hasUrl,
+            status: video.status,
+            isCompleted,
+            reason: !hasUrl ? 'no URL' : !isCompleted ? 'not completed' : 'unknown'
+          });
+        } else {
+          logger.info('[useUserVideos] Valid video included', {
+            id: video.id,
+            filename: video.filename,
+            status: video.status,
+            hasUrl
           });
         }
+        
         return isValid;
       });
 

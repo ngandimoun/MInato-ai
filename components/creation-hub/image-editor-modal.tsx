@@ -51,6 +51,7 @@ import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import type { GeneratedImage } from "./hub-types";
 import { ScrollArea } from "../ui/scroll-area";
+import { useAuth } from "@/context/auth-provider";
 
 interface ImageEditorModalProps {
   image: GeneratedImage | null;
@@ -152,6 +153,7 @@ export function ImageEditorModal({
   onSave, 
   onRegenerate 
 }: ImageEditorModalProps) {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<EditSettings>(DEFAULT_SETTINGS);
   const [history, setHistory] = useState<EditSettings[]>([DEFAULT_SETTINGS]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -209,15 +211,77 @@ export function ImageEditorModal({
 
         ctx.translate(-canvas.width / 2, -canvas.height / 2);
 
-        // Apply filters
-        const filterString = [
+        // Apply comprehensive filters
+        const filterComponents = [
           `brightness(${100 + settings.brightness}%)`,
           `contrast(${100 + settings.contrast}%)`,
           `saturate(${100 + settings.saturation}%)`,
           `hue-rotate(${settings.hue}deg)`,
-        ].join(' ');
+          // Additional exposure and vibrance simulation
+          settings.exposure !== 0 ? `brightness(${100 + settings.exposure * 0.5}%)` : '',
+          settings.vibrance !== 0 ? `saturate(${100 + settings.vibrance * 0.8}%)` : '',
+          // Highlight/shadow simulation through contrast adjustments
+          settings.highlights !== 0 ? `contrast(${100 + settings.highlights * 0.3}%)` : '',
+          settings.shadows !== 0 ? `brightness(${100 + settings.shadows * 0.4}%)` : '',
+          // Warmth simulation through hue rotation
+          settings.warmth !== 0 ? `hue-rotate(${settings.warmth * -0.3}deg)` : '',
+          // Clarity and sharpening simulation through contrast
+          settings.clarity !== 0 ? `contrast(${100 + settings.clarity * 0.5}%)` : '',
+          settings.sharpen !== 0 ? `contrast(${100 + settings.sharpen * 0.3}%)` : '',
+          // Color channel adjustments (simplified)
+          settings.redChannel !== 0 || settings.greenChannel !== 0 || settings.blueChannel !== 0 
+            ? `sepia(${Math.abs(settings.redChannel + settings.greenChannel + settings.blueChannel) * 0.01})` : '',
+        ].filter(Boolean);
 
-        ctx.filter = filterString;
+        // Apply filter presets
+        if (settings.filter !== 'none') {
+          const filterIntensity = settings.filterIntensity / 100;
+          switch (settings.filter) {
+            case 'vivid':
+              filterComponents.push(`saturate(${100 + (50 * filterIntensity)}%)`);
+              filterComponents.push(`contrast(${100 + (20 * filterIntensity)}%)`);
+              break;
+            case 'dramatic':
+              filterComponents.push(`contrast(${100 + (40 * filterIntensity)}%)`);
+              filterComponents.push(`brightness(${100 - (10 * filterIntensity)}%)`);
+              break;
+            case 'bright':
+              filterComponents.push(`brightness(${100 + (30 * filterIntensity)}%)`);
+              filterComponents.push(`saturate(${100 + (20 * filterIntensity)}%)`);
+              break;
+            case 'vintage':
+              filterComponents.push(`sepia(${70 * filterIntensity}%)`);
+              filterComponents.push(`contrast(${100 - (10 * filterIntensity)}%)`);
+              break;
+            case 'cinematic':
+              filterComponents.push(`contrast(${100 + (15 * filterIntensity)}%)`);
+              filterComponents.push(`saturate(${100 - (15 * filterIntensity)}%)`);
+              break;
+            case 'blackwhite':
+              filterComponents.push(`grayscale(${100 * filterIntensity}%)`);
+              break;
+            case 'sepia':
+              filterComponents.push(`sepia(${100 * filterIntensity}%)`);
+              break;
+            case 'cool':
+              filterComponents.push(`hue-rotate(${180 * filterIntensity}deg)`);
+              filterComponents.push(`saturate(${100 + (10 * filterIntensity)}%)`);
+              break;
+            case 'warm':
+              filterComponents.push(`hue-rotate(${-30 * filterIntensity}deg)`);
+              filterComponents.push(`saturate(${100 + (15 * filterIntensity)}%)`);
+              break;
+            case 'soft':
+              filterComponents.push(`blur(${1 * filterIntensity}px)`);
+              filterComponents.push(`brightness(${100 + (10 * filterIntensity)}%)`);
+              break;
+            case 'sharp':
+              filterComponents.push(`contrast(${100 + (25 * filterIntensity)}%)`);
+              break;
+          }
+        }
+
+        ctx.filter = filterComponents.join(' ');
         ctx.drawImage(img, 0, 0);
         ctx.restore();
 
@@ -237,6 +301,65 @@ export function ImageEditorModal({
       setIsProcessing(false);
     }
   }, [image, settings]);
+
+  // Handle AI Enhancement style application
+  const handleEnhancementStyle = useCallback((styleId: string) => {
+    const enhancementSettings: Partial<EditSettings> = {};
+    
+    switch (styleId) {
+      case 'auto':
+        enhancementSettings.brightness = 10;
+        enhancementSettings.contrast = 15;
+        enhancementSettings.saturation = 20;
+        enhancementSettings.vibrance = 15;
+        break;
+      case 'portrait':
+        enhancementSettings.brightness = 5;
+        enhancementSettings.contrast = 10;
+        enhancementSettings.warmth = 10;
+        enhancementSettings.highlights = -20;
+        enhancementSettings.shadows = 20;
+        break;
+      case 'landscape':
+        enhancementSettings.vibrance = 25;
+        enhancementSettings.saturation = 15;
+        enhancementSettings.contrast = 20;
+        enhancementSettings.clarity = 30;
+        break;
+      case 'product':
+        enhancementSettings.contrast = 25;
+        enhancementSettings.brightness = 8;
+        enhancementSettings.saturation = 10;
+        enhancementSettings.sharpen = 40;
+        break;
+      case 'artwork':
+        enhancementSettings.vibrance = 35;
+        enhancementSettings.saturation = 25;
+        enhancementSettings.contrast = 15;
+        enhancementSettings.clarity = 20;
+        break;
+      case 'architecture':
+        enhancementSettings.contrast = 30;
+        enhancementSettings.clarity = 35;
+        enhancementSettings.highlights = -15;
+        enhancementSettings.shadows = 15;
+        break;
+    }
+
+    // Apply the enhancement settings
+    const newSettings = { ...settings, ...enhancementSettings };
+    setSettings(newSettings);
+    
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(newSettings);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+
+    toast({
+      title: "Enhancement Applied",
+      description: `${ENHANCEMENT_STYLES.find(s => s.id === styleId)?.name || 'Enhancement'} style has been applied`,
+    });
+  }, [settings, history, historyIndex]);
 
   // Update settings and add to history
   const updateSetting = useCallback((key: keyof EditSettings, value: any) => {
@@ -310,22 +433,132 @@ export function ImageEditorModal({
     }
   }, [image, previewUrl, onSave, onClose]);
 
-  const handleRegenerate = useCallback(() => {
-    if (!image || !onRegenerate || !enhancementPrompt.trim()) return;
+  const handleRegenerate = useCallback(async () => {
+    if (!image || !enhancementPrompt.trim()) return;
 
-    const modifications = Object.entries(settings)
-      .filter(([_, value]) => {
-        if (typeof value === 'number') return value !== 0;
-        if (typeof value === 'boolean') return value;
-        if (typeof value === 'string') return value !== 'none' && value !== '';
-        return false;
-      })
-      .map(([key, value]) => `${key}: ${value}`)
-      .join(', ');
+    // Basic input validation and safety filtering
+    const cleanPrompt = enhancementPrompt.trim()
+      .replace(/[|{}<>]/g, '') // Remove problematic characters
+      .replace(/\b(efface|erase|delete|remove|destroy|obliterate|eliminate)\b/gi, 'enhance') // Replace potentially problematic words
+      .trim();
+    
+    if (!cleanPrompt) {
+      toast({
+        title: "Invalid Input",
+        description: "Please provide a valid enhancement description",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    onRegenerate(enhancementPrompt, modifications);
-    onClose();
-  }, [image, enhancementPrompt, settings, onRegenerate, onClose]);
+    setIsProcessing(true);
+    try {
+      // For image editing, use ONLY the enhancement prompt - keep it simple and direct
+      let regenerationPrompt = cleanPrompt;
+      
+      // Add any significant visual modifications as simple descriptors
+      const activeModifications = Object.entries(settings)
+        .filter(([key, value]) => {
+          if (typeof value === 'number') return Math.abs(value) > 30; // Only very significant changes
+          if (typeof value === 'string') return value !== 'none' && value !== '';
+          return false;
+        });
+
+      if (activeModifications.length > 0) {
+        const styleDescriptions: string[] = [];
+        
+        // Convert only major technical settings to simple terms
+        activeModifications.forEach(([key, value]) => {
+          switch (key) {
+            case 'brightness':
+              if (value > 30) styleDescriptions.push('brighter');
+              else if (value < -30) styleDescriptions.push('darker');
+              break;
+            case 'filter':
+              if (value !== 'none') styleDescriptions.push(`${value} style`);
+              break;
+          }
+        });
+        
+        if (styleDescriptions.length > 0) {
+          regenerationPrompt += ` and ${styleDescriptions.join(', ')}`;
+        }
+      }
+
+      // Convert current image to blob for editing
+      const imageResponse = await fetch(image.url);
+      const imageBlob = await imageResponse.blob();
+      
+      // Create form data for image editing API
+      const formData = new FormData();
+      formData.append('image', imageBlob, 'image.png');
+      formData.append('prompt', regenerationPrompt);
+      formData.append('model', 'gpt-image-1');
+      formData.append('user', user?.id || 'anonymous');
+
+      const response = await fetch('/api/creation-hub/edit', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Edit failed');
+      }
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error?.message || 'Edit failed');
+      }
+
+      // Update the image URL in place
+      const newImageUrl = data.data.imageUrl;
+      setPreviewUrl(newImageUrl);
+
+      // Update the image object if possible
+      if (image) {
+        image.url = newImageUrl;
+        image.prompt = regenerationPrompt;
+        if (data.data.revisedPrompt) {
+          image.revisedPrompt = data.data.revisedPrompt;
+        }
+      }
+
+      toast({
+        title: "Image Edited Successfully!",
+        description: "Your image has been enhanced with the applied modifications.",
+      });
+
+      // Clear the enhancement prompt
+      setEnhancementPrompt("");
+
+    } catch (error) {
+      console.error('Regeneration error:', error);
+      
+      // Provide more helpful error messages
+      let errorMessage = "Failed to edit the image";
+      if (error instanceof Error) {
+        if (error.message.includes('safety system')) {
+          errorMessage = "The enhancement prompt was rejected by the safety system. Please try a different description.";
+        } else if (error.message.includes('401')) {
+          errorMessage = "Authentication failed. Please sign in again.";
+        } else if (error.message.includes('429')) {
+          errorMessage = "Too many requests. Please wait a moment and try again.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      toast({
+        title: "Edit Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [image, enhancementPrompt, settings]);
 
   const downloadImage = useCallback(() => {
     if (!previewUrl) return;
@@ -378,7 +611,6 @@ export function ImageEditorModal({
                       <ZoomIn className="w-4 h-4" />
                     </Button>
                   </div>
-                    <Star className="w-3 h-3" />
                 </div>
               </div>
             </DialogHeader>
@@ -577,6 +809,121 @@ export function ImageEditorModal({
                                 value={[settings.vibrance]}
                                 onValueChange={([value]) => updateSetting('vibrance', value)}
                                 min={-100}
+                                max={100}
+                                step={1}
+                                className="w-full"
+                              />
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-sm font-medium">Exposure</Label>
+                                <span className="text-xs text-muted-foreground font-medium">{settings.exposure}</span>
+                              </div>
+                              <Slider
+                                value={[settings.exposure]}
+                                onValueChange={([value]) => updateSetting('exposure', value)}
+                                min={-200}
+                                max={200}
+                                step={5}
+                                className="w-full"
+                              />
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-sm font-medium">Highlights</Label>
+                                <span className="text-xs text-muted-foreground font-medium">{settings.highlights}</span>
+                              </div>
+                              <Slider
+                                value={[settings.highlights]}
+                                onValueChange={([value]) => updateSetting('highlights', value)}
+                                min={-100}
+                                max={100}
+                                step={1}
+                                className="w-full"
+                              />
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-sm font-medium">Shadows</Label>
+                                <span className="text-xs text-muted-foreground font-medium">{settings.shadows}</span>
+                              </div>
+                              <Slider
+                                value={[settings.shadows]}
+                                onValueChange={([value]) => updateSetting('shadows', value)}
+                                min={-100}
+                                max={100}
+                                step={1}
+                                className="w-full"
+                              />
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-sm font-medium">Warmth</Label>
+                                <span className="text-xs text-muted-foreground font-medium">{settings.warmth}</span>
+                              </div>
+                              <Slider
+                                value={[settings.warmth]}
+                                onValueChange={([value]) => updateSetting('warmth', value)}
+                                min={-100}
+                                max={100}
+                                step={1}
+                                className="w-full"
+                              />
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        <Card className="border-0 shadow-sm">
+                          <CardHeader className="pb-4">
+                            <CardTitle className="text-base font-medium flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-yellow-500" />
+                              Enhancement
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-6">
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-sm font-medium">Clarity</Label>
+                                <span className="text-xs text-muted-foreground font-medium">{settings.clarity}</span>
+                              </div>
+                              <Slider
+                                value={[settings.clarity]}
+                                onValueChange={([value]) => updateSetting('clarity', value)}
+                                min={-100}
+                                max={100}
+                                step={1}
+                                className="w-full"
+                              />
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-sm font-medium">Sharpen</Label>
+                                <span className="text-xs text-muted-foreground font-medium">{settings.sharpen}</span>
+                              </div>
+                              <Slider
+                                value={[settings.sharpen]}
+                                onValueChange={([value]) => updateSetting('sharpen', value)}
+                                min={0}
+                                max={100}
+                                step={1}
+                                className="w-full"
+                              />
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-sm font-medium">Denoise</Label>
+                                <span className="text-xs text-muted-foreground font-medium">{settings.denoise}</span>
+                              </div>
+                              <Slider
+                                value={[settings.denoise]}
+                                onValueChange={([value]) => updateSetting('denoise', value)}
+                                min={0}
                                 max={100}
                                 step={1}
                                 className="w-full"
@@ -832,6 +1179,7 @@ export function ImageEditorModal({
                                   key={style.id}
                                   size="sm"
                                   variant="outline"
+                                  onClick={() => handleEnhancementStyle(style.id)}
                                   className="h-auto p-4 flex flex-col items-start gap-2 text-left hover:border-primary"
                                 >
                                   <span className="text-sm font-medium">{style.name}</span>
@@ -844,40 +1192,42 @@ export function ImageEditorModal({
                           </CardContent>
                         </Card>
 
-                        {onRegenerate && (
-                          <Card className="border-0 shadow-sm">
-                            <CardHeader className="pb-4">
-                              <CardTitle className="text-base font-medium flex items-center gap-2">
-                                <Wand2 className="w-4 h-4 text-pink-500" />
-                                AI Regeneration
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                              <div className="space-y-3">
-                                <Label className="text-sm font-medium">Enhancement Prompt</Label>
-                                <Input
-                                  placeholder="Describe how you want to improve this image..."
-                                  value={enhancementPrompt}
-                                  onChange={(e) => setEnhancementPrompt(e.target.value)}
-                                  className="w-full"
-                                />
-                              </div>
-                              
-                              <Button
-                                onClick={handleRegenerate}
-                                className="w-full gap-2"
-                                disabled={!enhancementPrompt.trim()}
-                              >
+                        <Card className="border-0 shadow-sm">
+                          <CardHeader className="pb-4">
+                            <CardTitle className="text-base font-medium flex items-center gap-2">
+                              <Wand2 className="w-4 h-4 text-pink-500" />
+                              AI Regeneration
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="space-y-3">
+                              <Label className="text-sm font-medium">Enhancement Prompt</Label>
+                              <Input
+                                placeholder="e.g., replace text with 'AMBROSIA', make more colorful, add sparkles..."
+                                value={enhancementPrompt}
+                                onChange={(e) => setEnhancementPrompt(e.target.value)}
+                                className="w-full"
+                              />
+                            </div>
+                            
+                            <Button
+                              onClick={handleRegenerate}
+                              className="w-full gap-2"
+                              disabled={!enhancementPrompt.trim() || isProcessing}
+                            >
+                              {isProcessing ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                              ) : (
                                 <Wand2 className="w-4 h-4" />
-                                Regenerate with AI
-                              </Button>
-                              
-                              <p className="text-xs text-muted-foreground leading-relaxed">
-                                This will create a new image based on your current edits and enhancement prompt.
-                              </p>
-                            </CardContent>
-                          </Card>
-                        )}
+                              )}
+                              {isProcessing ? 'Editing...' : 'Enhance with AI'}
+                            </Button>
+                            
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              Give simple, direct instructions like "change the text to say X" or "make it more colorful". Avoid complex descriptions.
+                            </p>
+                          </CardContent>
+                        </Card>
                       </div>
                     </ScrollArea>
                   </TabsContent>
