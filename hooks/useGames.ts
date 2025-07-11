@@ -99,7 +99,7 @@ export function useGameMutations() {
         game_id: data.room_id, // Use Supabase room ID for frontend
         room_code: data.room_code, // Include room code for joining
         topic: data.topic, // Include topic for real-time subscriptions
-        auto_started: request.mode === 'solo',
+        auto_started: data.auto_started || (request.mode === 'solo'), // Use backend response or fallback
         preferences_applied: data.preferences_applied,
         message: data.message,
       };

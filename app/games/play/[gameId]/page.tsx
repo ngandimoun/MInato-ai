@@ -652,24 +652,152 @@ export default function GamePlayPage() {
   // Waiting for players or game start
   if (gameData.status === 'lobby') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center space-y-4">
-            <Users className="w-12 h-12 text-primary mx-auto" />
-            <div>
-              <h3 className="text-lg font-semibold">Waiting for Game to Start</h3>
-              <p className="text-muted-foreground">
-                {gameData.mode === 'solo' 
-                  ? "Setting up your solo challenge..."
-                  : `${players?.length || 0}/${gameData.max_players} players joined`
-                }
-              </p>
+      <div className="min-h-screen bg-gradient-to-br from-background via-muted/10 to-background flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-lg"
+        >
+          <Card className="relative overflow-hidden border-2 shadow-xl">
+            {/* Game Header */}
+            <div className="bg-gradient-to-r from-primary/20 to-primary/10 border-b">
+              <CardHeader className="text-center pb-4">
+                <div className="flex items-center justify-center gap-3 mb-3">
+                  <div className="p-3 bg-primary/20 rounded-full">
+                    <Brain className="w-8 h-8 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">
+                      {gameData.game_type_id?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Game'}
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      {gameData.difficulty && (
+                        <Badge variant="secondary" className="mt-1">
+                          {gameData.difficulty.charAt(0).toUpperCase() + gameData.difficulty.slice(1)} Level
+                        </Badge>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Room Code */}
+                {gameData.room_code && (
+                  <div className="bg-background/80 backdrop-blur-sm px-4 py-2 rounded-lg border">
+                    <p className="text-xs text-muted-foreground mb-1">Room Code</p>
+                    <p className="font-mono text-lg font-bold text-primary">
+                      {gameData.room_code}
+                    </p>
+                  </div>
+                )}
+              </CardHeader>
             </div>
-            <Button onClick={handleExitGame} variant="outline" className="w-full">
-              Leave Game
-            </Button>
-          </CardContent>
-        </Card>
+
+            <CardContent className="pt-6 space-y-6">
+              {/* Status Section */}
+              <div className="text-center space-y-3">
+                <motion.div
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center"
+                >
+                  <Users className="w-8 h-8 text-primary" />
+                </motion.div>
+                
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">
+                    {gameData.mode === 'solo' ? 'Preparing Solo Game' : 'Multiplayer Lobby'}
+                  </h3>
+                  <p className="text-muted-foreground">
+                    {gameData.mode === 'solo' 
+                      ? "Setting up your personalized challenge..."
+                      : `Waiting for ${gameData.max_players - (players?.length || 0)} more player${gameData.max_players - (players?.length || 0) !== 1 ? 's' : ''} to join`
+                    }
+                  </p>
+                </div>
+              </div>
+
+              {/* Players Section for Multiplayer */}
+              {gameData.mode === 'multiplayer' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      Players ({players?.length || 0}/{gameData.max_players})
+                    </h4>
+                    <Badge variant="outline">
+                      {players?.length || 0} joined
+                    </Badge>
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    {players?.map((player, index) => (
+                      <motion.div
+                        key={player.user_id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg"
+                      >
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage src={player.avatar_url} />
+                          <AvatarFallback>
+                            {player.username?.charAt(0)?.toUpperCase() || 'P'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{player.username}</p>
+                          <p className="text-xs text-muted-foreground">Ready to play</p>
+                        </div>
+                        {player.user_id === user?.id && (
+                          <Badge variant="secondary" className="text-xs">
+                            You
+                          </Badge>
+                        )}
+                      </motion.div>
+                    ))}
+                    
+                    {/* Empty slots */}
+                    {Array.from({ length: (gameData.max_players || 2) - (players?.length || 0) }).map((_, index) => (
+                      <div
+                        key={`empty-${index}`}
+                        className="flex items-center gap-3 p-3 border-2 border-dashed border-muted-foreground/30 rounded-lg"
+                      >
+                        <div className="w-8 h-8 bg-muted/30 rounded-full flex items-center justify-center">
+                          <Users className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                        <p className="text-sm text-muted-foreground">Waiting for player...</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Game Info */}
+              <div className="bg-muted/30 rounded-lg p-4 space-y-2">
+                <h4 className="font-medium text-sm flex items-center gap-2">
+                  <Trophy className="w-4 h-4" />
+                  Game Details
+                </h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Mode</p>
+                    <p className="font-medium capitalize">{gameData.mode}</p>
+                  </div>
+                                     <div>
+                     <p className="text-muted-foreground">Questions</p>
+                     <p className="font-medium">{gameData.questions?.length || gameData.rounds || 'TBD'}</p>
+                   </div>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <Button onClick={handleExitGame} variant="outline" className="w-full">
+                <Home className="w-4 h-4 mr-2" />
+                Leave Game
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     );
   }

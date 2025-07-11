@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
       }));
 
       await supabase
-        .from('notifications')
+        .from('minato_notifications')
         .insert(notifications);
     } catch (notificationError) {
       console.error('Error sending notifications:', notificationError);

@@ -1178,13 +1178,20 @@ function GameLibraryContent() {
             });
           }
         } else {
-          toast({
-            title: "🎮 Game Created Successfully!",
-            description: result.auto_started 
-              ? "Solo game started immediately. Redirecting to play..."
-              : "Game created! Invite friends or start playing.",
-            duration: 3000,
-          });
+          // Show appropriate toast based on game mode and auto-start status
+          if (request.mode === 'solo') {
+            toast({
+              title: "🎮 Solo Game Started!",
+              description: "Game started immediately. Redirecting to play...",
+              duration: 3000,
+            });
+          } else {
+            toast({
+              title: "🎮 Multiplayer Game Created!",
+              description: "Game lobby created! Invite friends to join or start playing.",
+              duration: 3000,
+            });
+          }
         }
         
         setSelectedGame(null);

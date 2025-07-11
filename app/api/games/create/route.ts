@@ -118,6 +118,7 @@ export async function POST(request: NextRequest) {
       settings_applied: supabaseGameRequest.settings,
       preferences_applied: !!userPreferences,
       is_guest: isGuest,
+      auto_started: body.mode === 'solo', // Solo games are auto-started, multiplayer games stay in lobby
     });
 
   } catch (error) {

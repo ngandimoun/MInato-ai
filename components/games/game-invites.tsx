@@ -12,6 +12,9 @@ import {
   UserPlus, Mail, RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUserInvitations } from "@/hooks/useSupabaseGames";
+import { useAuth } from "@/context/auth-provider";
+import { useToast } from "@/hooks/use-toast";
 
 type GameInvite = {
   id: string;
@@ -31,94 +34,114 @@ type GameInvite = {
   type: "incoming" | "outgoing";
 };
 
-// Mock data for development
-const mockInvites: GameInvite[] = [
-  {
-    id: "1",
-    game_session_id: "game_1",
-    host_user_id: "user2",
-    host_username: "Morgan",
-    host_avatar_url: "/avatars/morgan.jpg",
-    invited_user_id: "current_user",
-    game_type: {
-      display_name: "History Trivia",
-      icon_name: "BookOpen",
-      estimated_duration_minutes: 15
-    },
-    status: "pending",
-    created_at: "2024-01-07T16:30:00Z",
-    expires_at: "2024-01-08T16:30:00Z",
-    type: "incoming"
-  },
-  {
-    id: "2",
-    game_session_id: "game_2", 
-    host_user_id: "current_user",
-    host_username: "You",
-    invited_user_id: "user3",
-    game_type: {
-      display_name: "Science Quiz",
-      icon_name: "Atom",
-      estimated_duration_minutes: 20
-    },
-    status: "pending",
-    created_at: "2024-01-07T15:45:00Z",
-    expires_at: "2024-01-08T15:45:00Z",
-    type: "outgoing"
-  },
-  {
-    id: "3",
-    game_session_id: "game_3",
-    host_user_id: "user4",
-    host_username: "Casey",
-    invited_user_id: "current_user",
-    game_type: {
-      display_name: "Geography Challenge",
-      icon_name: "Globe",
-      estimated_duration_minutes: 25
-    },
-    status: "declined",
-    created_at: "2024-01-07T14:20:00Z",
-    expires_at: "2024-01-08T14:20:00Z",
-    type: "incoming"
-  }
-];
+
 
 export function GameInvites() {
-  const [invites, setInvites] = useState<GameInvite[]>(mockInvites);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const incomingInvites = invites.filter(invite => invite.type === "incoming");
-  const outgoingInvites = invites.filter(invite => invite.type === "outgoing");
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { invitations, isLoading } = useUserInvitations();
+  
+  // Convert from Supabase format to component format
+  const incomingInvites = invitations.map(invite => ({
+    id: invite.id,
+    game_session_id: invite.game_id,
+    host_user_id: invite.host_user_id,
+    host_username: invite.host_username,
+    host_avatar_url: invite.host_avatar,
+    invited_user_id: user?.id || '',
+    game_type: {
+      display_name: invite.display_name,
+      icon_name: 'GameController2', // Default icon
+      estimated_duration_minutes: 15 // Default duration
+    },
+    status: invite.status,
+    created_at: new Date(invite.created_at).toISOString(),
+    expires_at: new Date(invite.expires_at).toISOString(),
+    type: "incoming" as const
+  }));
+  
+  const outgoingInvites: GameInvite[] = []; // TODO: Implement outgoing invites tracking
   const pendingIncoming = incomingInvites.filter(invite => invite.status === "pending");
 
-  const handleAcceptInvite = (inviteId: string) => {
-    console.log("Accepting invite:", inviteId);
-    setInvites(prev => prev.map(invite => 
-      invite.id === inviteId 
-        ? { ...invite, status: "accepted" as const }
-        : invite
-    ));
+  const handleAcceptInvite = async (inviteId: string) => {
+    try {
+      const response = await fetch('/api/games/invitations/respond', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          invitation_id: inviteId,
+          response: 'accepted'
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Invitation Accepted!",
+          description: "Joining the game...",
+        });
+        // The useUserInvitations hook will automatically refresh
+      } else {
+        throw new Error('Failed to accept invitation');
+      }
+    } catch (error) {
+      console.error('Error accepting invite:', error);
+      toast({
+        title: "Error",
+        description: "Failed to accept invitation. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDeclineInvite = (inviteId: string) => {
-    console.log("Declining invite:", inviteId);
-    setInvites(prev => prev.map(invite => 
-      invite.id === inviteId 
-        ? { ...invite, status: "declined" as const }
-        : invite
-    ));
+  const handleDeclineInvite = async (inviteId: string) => {
+    try {
+      const response = await fetch('/api/games/invitations/respond', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          invitation_id: inviteId,
+          response: 'declined'
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Invitation Declined",
+          description: "The invitation has been declined.",
+        });
+        // The useUserInvitations hook will automatically refresh
+      } else {
+        throw new Error('Failed to decline invitation');
+      }
+    } catch (error) {
+      console.error('Error declining invite:', error);
+      toast({
+        title: "Error",
+        description: "Failed to decline invitation. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleCancelInvite = (inviteId: string) => {
+  const handleCancelInvite = async (inviteId: string) => {
+    // TODO: Implement cancel invitation for outgoing invites
     console.log("Canceling invite:", inviteId);
-    setInvites(prev => prev.filter(invite => invite.id !== inviteId));
+    toast({
+      title: "Feature Coming Soon",
+      description: "Canceling sent invitations will be available soon.",
+    });
   };
 
   const refreshInvites = () => {
-    setIsLoading(true);
-    // TODO: Fetch invites from API
-    setTimeout(() => setIsLoading(false), 1000);
+    // The useUserInvitations hook handles refreshing automatically
+    toast({
+      title: "Refreshing",
+      description: "Checking for new invitations...",
+    });
   };
 
   const formatTimeRemaining = (expiresAt: string) => {
