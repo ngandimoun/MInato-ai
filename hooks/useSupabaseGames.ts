@@ -703,6 +703,22 @@ export function useSupabaseGameMutations() {
     }
   }, [user]);
 
+  const deleteGame = useCallback(async (roomId: string): Promise<GameResponse> => {
+    if (!user?.id) {
+      return { success: false, error: "User not authenticated" };
+    }
+
+    try {
+      return await gameService.deleteGameRoom(roomId, user.id);
+    } catch (error) {
+      console.error("Error deleting game:", error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : "Failed to delete game" 
+      };
+    }
+  }, [user]);
+
   return {
     createGameWithQuestions,
     joinGame,
@@ -712,6 +728,7 @@ export function useSupabaseGameMutations() {
     submitAnswer,
     nextQuestion,
     skipQuestion,
+    deleteGame,
   };
 }
 

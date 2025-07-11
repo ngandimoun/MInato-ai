@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import GameLibrary from "@/components/games/game-library";
-import { ActiveGames } from "@/components/games/active-games";
+import ActiveGames from "@/components/games/active-games";
 import { GameInvites } from "@/components/games/game-invites";
 import { GameStats } from "@/components/games/game-stats";
 import { Leaderboards } from "@/components/games/leaderboards";

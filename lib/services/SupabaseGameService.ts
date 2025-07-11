@@ -349,6 +349,71 @@ export class SupabaseGameService {
     }
   }
 
+  async deleteGameRoom(roomId: string, userId: string): Promise<GameResponse> {
+    try {
+      // Get room info and verify user is host
+      const { data: room } = await this.supabase
+        .from('live_game_rooms')
+        .select('topic, host_user_id, status')
+        .eq('id', roomId)
+        .single();
+
+      if (!room) {
+        return { success: false, error: 'Game room not found' };
+      }
+
+      if (room.host_user_id !== userId) {
+        return { success: false, error: 'Only the host can delete the game' };
+      }
+
+      // Allow deleting any game if you're the host
+      // Note: Deleting in-progress games will immediately end them for all players
+
+      // Remove all players from the room first
+      const { error: playersError } = await this.supabase
+        .from('live_game_players')
+        .delete()
+        .eq('room_id', roomId);
+
+      if (playersError) {
+        console.error('Error removing players:', playersError);
+        // Continue with room deletion even if player removal fails
+      }
+
+      // Broadcast game deletion event before deleting
+      await this.broadcastGameEvent(roomId, 'GAME_DELETED', {
+        message: 'Game has been deleted by the host',
+        timestamp: Date.now(),
+      });
+
+      // Delete the game room
+      const { error: deleteError } = await this.supabase
+        .from('live_game_rooms')
+        .delete()
+        .eq('id', roomId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      // Unsubscribe from room channel
+      if (room.topic) {
+        await this.unsubscribeFromRoom(room.topic);
+      }
+
+      return {
+        success: true,
+        message: 'Game deleted successfully',
+      };
+    } catch (error) {
+      console.error('Error deleting game room:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to delete game room',
+      };
+    }
+  }
+
   // ============================================================================
   // GAME FLOW MANAGEMENT
   // ============================================================================
