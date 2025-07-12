@@ -1,3 +1,4 @@
+//app/games/page.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -20,11 +21,20 @@ import { Gamepad2, Trophy, Users, Zap, Sparkles, Target, Crown, Brain, Settings 
 import { useAuth } from "@/context/auth-provider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useNavigation } from "@/context/navigation-context";
+import { Suspense } from "react";
 
 type TabValue = "library" | "active" | "invites" | "stats" | "leaderboards" | "quests" | "tournaments" | "ai-coach" | "settings";
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub";
 
-export default function GamesPage() {
+export default function GamesPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Chargement...</div>}>
+      <GamesPage />
+    </Suspense>
+  );
+}
+
+function GamesPage() {
   const [activeTab, setActiveTab] = useState<TabValue>("library");
   const { user, profile } = useAuth();
   const { navigateWithLoading } = useNavigation();
