@@ -95,7 +95,7 @@
     "mathjs": "^14.4.0",
     "motion": "^12.4.7",
     "neo4j-driver": "^5.28.1",
-    "next": "14.2.16",
+    "next": "^15.3.5",
     "next-themes": "latest",
     "node-fetch": "^2.7.0",
     "openai": "^4.95.0",
