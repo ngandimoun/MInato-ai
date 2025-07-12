@@ -73,6 +73,10 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
   const [authUser, setAuthUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   
+  // NOUVEAUX ÉTATS À AJOUTER
+  const [imagesHaveBeenLoaded, setImagesHaveBeenLoaded] = useState(false);
+  const [videosHaveBeenLoaded, setVideosHaveBeenLoaded] = useState(false);
+  
   // New category-based state
   const [selectedCategory, setSelectedCategory] = useState<ImageCategory | null>(null);
   const [showCategorySelector, setShowCategorySelector] = useState(true);
@@ -150,20 +154,24 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
     });
   }, [userVideos, userVideosLoading, authUser]);
 
-  // Lazy load data when tabs are accessed
+  // Lazy load data when tabs are accessed (CORRIGÉ)
   useEffect(() => {
-    if (activeTab === "gallery" && gallerySubTab === "images" && !userImagesLoading) {
+    // On charge les images seulement si l'onglet est actif ET qu'on ne les a JAMAIS chargées auparavant.
+    if (activeTab === "gallery" && gallerySubTab === "images" && !imagesHaveBeenLoaded) {
       logger.info('[CreationHubPanel] Lazy loading user images');
       refetchUserImages();
+      setImagesHaveBeenLoaded(true); // On marque comme "chargé" pour ne plus le refaire.
     }
-  }, [activeTab, gallerySubTab, userImagesLoading, refetchUserImages]);
+  }, [activeTab, gallerySubTab, imagesHaveBeenLoaded, refetchUserImages]);
 
   useEffect(() => {
-    if (activeTab === "gallery" && gallerySubTab === "videos" && !userVideosLoading) {
+    // On charge les vidéos seulement si l'onglet est actif ET qu'on ne les a JAMAIS chargées auparavant.
+    if (activeTab === "gallery" && gallerySubTab === "videos" && !videosHaveBeenLoaded) {
       logger.info('[CreationHubPanel] Lazy loading user videos');
       refreshUserVideos();
+      setVideosHaveBeenLoaded(true); // On marque comme "chargé" pour ne plus le refaire.
     }
-  }, [activeTab, gallerySubTab, userVideosLoading, refreshUserVideos]);
+  }, [activeTab, gallerySubTab, videosHaveBeenLoaded, refreshUserVideos]);
 
   // Use custom hooks for generation and conversations
   const { generate, isGenerating, progress, error: generationError, cancel } = useImageGeneration({
