@@ -142,51 +142,51 @@ function GamesPage() {
               transition={{ duration: 0.6, delay: 0.2 }}
             >
               <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)} className="space-y-6">
-                <TabsList className="grid w-full grid-cols-5 lg:grid-cols-9 max-w-6xl mx-auto bg-muted/50 border border-border/50">
+                <TabsList className="grid w-full grid-cols-9 lg:grid-cols-9 max-w-6xl mx-auto bg-muted/50 border border-border/50">
                   <TabsTrigger value="library" className="relative">
-                    <Gamepad2 className="w-4 h-4 mr-2" />
+                    <Gamepad2 className="w-3 h-3 mr-1" />
                     <span className="hidden sm:inline">Library</span>
-                    <span className="sm:hidden">Play</span>
+                    <span className="hidden">Play</span>
                   </TabsTrigger>
                   <TabsTrigger value="active" className="relative">
-                    <Zap className="w-4 h-4 mr-2" />
+                    <Zap className="w-3 h-3 mr-1" />
                     <span className="hidden sm:inline">Active</span>
-                    <span className="sm:hidden">Live</span>
+                    <span className="hidden">Live</span>
                   </TabsTrigger>
                   <TabsTrigger value="tournaments" className="relative">
-                    <Trophy className="w-4 h-4 mr-2" />
+                    <Trophy className="w-3 h-3 mr-1" />
                     <span className="hidden sm:inline">Tournaments</span>
-                    <span className="sm:hidden">Tour</span>
+                    <span className="hidden">Tour</span>
                   </TabsTrigger>
                   <TabsTrigger value="ai-coach" className="relative">
-                    <Brain className="w-4 h-4 mr-2" />
+                    <Brain className="w-3 h-3 mr-1" />
                     <span className="hidden sm:inline">AI Coach</span>
-                    <span className="sm:hidden">Coach</span>
+                    <span className="hidden">Coach</span>
                   </TabsTrigger>
                   <TabsTrigger value="settings" className="relative">
-                    <Settings className="w-4 h-4 mr-2" />
+                    <Settings className="w-3 h-3 mr-1" />
                     <span className="hidden sm:inline">Settings</span>
-                    <span className="sm:hidden">Prefs</span>
+                    <span className="hidden">Prefs</span>
                   </TabsTrigger>
-                  <TabsTrigger value="invites" className="relative lg:flex hidden">
-                    <Users className="w-4 h-4 mr-2" />
+                  <TabsTrigger value="invites" className="relative">
+                    <Users className="w-3 h-3 mr-1" />
                     <span className="hidden sm:inline">Invites</span>
-                    <span className="sm:hidden">Join</span>
+                    <span className="hidden">Join</span>
                   </TabsTrigger>
-                  <TabsTrigger value="quests" className="relative lg:flex hidden">
-                    <Target className="w-4 h-4 mr-2" />
+                  <TabsTrigger value="quests" className="relative">
+                    <Target className="w-3 h-3 mr-1" />
                     <span className="hidden sm:inline">Quests</span>
-                    <span className="sm:hidden">Daily</span>
+                    <span className="hidden">Daily</span>
                   </TabsTrigger>
-                  <TabsTrigger value="leaderboards" className="relative lg:flex hidden">
-                    <Crown className="w-4 h-4 mr-2" />
+                  <TabsTrigger value="leaderboards" className="relative">
+                    <Crown className="w-3 h-3 mr-1" />
                     <span className="hidden sm:inline">Ranks</span>
-                    <span className="sm:hidden">Top</span>
+                    <span className="hidden">Top</span>
                   </TabsTrigger>
-                  <TabsTrigger value="stats" className="relative lg:flex hidden">
-                    <Trophy className="w-4 h-4 mr-2" />
+                  <TabsTrigger value="stats" className="relative">
+                    <Trophy className="w-3 h-3 mr-1" />
                     <span className="hidden sm:inline">Stats</span>
-                    <span className="sm:hidden">Me</span>
+                    <span className="hidden">Me</span>
                   </TabsTrigger>
                 </TabsList>
 
