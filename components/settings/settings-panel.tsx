@@ -1099,7 +1099,7 @@ export function SettingsPanel({
                         );
                       })()}
 
-                      <div className="mt-4 space-y-4">
+                      <div className="mt-4 space-y-4 w-[310px] md:w-full">
                         {/* News Preferences */}
                         <TabsContent value="news" className="space-y-4">
                           <Card>
@@ -1278,9 +1278,11 @@ export function SettingsPanel({
                             </CardContent>
                           </Card>
                         </TabsContent>
+
                         <TabsContent value="entertainment" className="space-y-4">
                           {/* Entertainment preferences will go here */}
                         </TabsContent>
+
                         <TabsContent value="shopping" className="space-y-4">
                           <Card>
                             <CardHeader className="pb-2">
@@ -1390,6 +1392,7 @@ export function SettingsPanel({
                             </CardContent>
                           </Card>
                         </TabsContent>
+
                         <TabsContent value="tiktok" className="space-y-4">
                           <Card>
                             <CardHeader className="pb-2">
@@ -1491,6 +1494,7 @@ export function SettingsPanel({
                             </CardContent>
                           </Card>
                         </TabsContent>
+
                         <TabsContent value="events" className="space-y-4">
                           <Card>
                             <CardHeader className="pb-2">
@@ -1625,6 +1629,7 @@ export function SettingsPanel({
                             </CardContent>
                           </Card>
                         </TabsContent>
+
                         <TabsContent value="food" className="space-y-4">
                           <Card>
                             <CardHeader className="pb-2">
@@ -1657,6 +1662,7 @@ export function SettingsPanel({
                             </CardContent>
                           </Card>
                         </TabsContent>
+
                         <TabsContent value="sports" className="space-y-4">
                           <Card>
                             <CardHeader className="pb-2">
@@ -1689,6 +1695,7 @@ export function SettingsPanel({
                             </CardContent>
                           </Card>
                         </TabsContent>
+
                         <TabsContent value="hackernews" className="space-y-4">
                           <Card>
                             <CardHeader className="pb-2">
@@ -1746,6 +1753,7 @@ export function SettingsPanel({
                             </CardContent>
                           </Card>
                         </TabsContent>
+
                         <TabsContent value="interests" className="space-y-4">
                           <Card>
                             <CardHeader className="pb-2">
@@ -1778,6 +1786,7 @@ export function SettingsPanel({
                             </CardContent>
                           </Card>
                         </TabsContent>
+
                         <TabsContent value="dailybrief" className="space-y-4">
                           <Card>
                             <CardHeader className="pb-2">
@@ -1860,13 +1869,14 @@ export function SettingsPanel({
                             </CardContent>
                           </Card>
                         </TabsContent>
+
                       </div>
                     </Tabs>
 
                     <Button
                       onClick={handleSavePreferences}
                       disabled={isSavingPreferences}
-                      className="w-full"
+                      className="w-[300px] md:w-full"
                     >
                       {isSavingPreferences ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                       Save All Preferences
