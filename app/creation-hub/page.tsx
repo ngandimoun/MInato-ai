@@ -1,3 +1,4 @@
+//app/creation-hub/page.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -7,11 +8,20 @@ import { CreationHubPanel } from "@/components/creation-hub/creation-hub-panel";
 import { CreationHubLoading } from "@/components/creation-hub/creation-hub-loading";
 import { logger } from '@/memory-framework/config';
 import { useNavigation } from "@/context/navigation-context";
+import { Suspense } from "react";
 
 // Define view type to match Header component
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub";
 
-export default function CreationHubPage() {
+export default function CreationHubPageWrapper() {
+  return (
+    <Suspense fallback={<CreationHubLoading />}>
+      <CreationHubPage />
+    </Suspense>
+  );
+}
+
+function CreationHubPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { navigateWithLoading } = useNavigation();
