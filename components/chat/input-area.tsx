@@ -233,8 +233,8 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
               <div className="flex items-end">
                 <Popover open={attachmentMenuOpen} onOpenChange={setAttachmentMenuOpen}>
                   <PopoverTrigger asChild>
-                    <Button type="button" size="icon" variant="ghost" className="h-10 w-10 rounded-full ml-1 mb-1 flex-shrink-0 text-muted-foreground hover:text-primary" disabled={disabled}>
-                      <motion.div animate={{ rotate: attachmentMenuOpen ? 45 : 0 }} transition={{ duration: 0.2 }}><Plus className="h-5 w-5" /></motion.div><span className="sr-only">Add attachment</span>
+                    <Button type="button" size="icon" variant="ghost" className="h-8 w-8 bg-primary/10 rounded-full ml-1 mb-1 flex-shrink-0 text-muted-foreground hover:text-primary" disabled={disabled}>
+                      <motion.div animate={{ rotate: attachmentMenuOpen ? 45 : 0 }} transition={{ duration: 0.2 }}><Plus className="h-4 w-4" /></motion.div><span className="sr-only">Add attachment</span>
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent side="top" align="start" className="w-auto p-2 grid grid-cols-2 sm:grid-cols-2 gap-1">
@@ -244,8 +244,8 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
                 </Popover>
                 <TextareaAutosize ref={textareaAutosizeRef} value={message} onChange={e => setMessage(e.target.value)} onKeyDown={handleKeyDown} placeholder="Message Minato..." className="flex-1 max-h-32 resize-none bg-transparent px-3 py-3 text-sm focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50" maxRows={5} disabled={disabled}/>
                 <div className="flex items-center mb-1 mr-1">
-                  {canSend ? ( <Button type="button" size="icon" className="h-10 w-10 rounded-full flex-shrink-0 bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleSend} disabled={disabled}><SendHorizonal className="h-5 w-5" /><span className="sr-only">Send</span></Button>
-                  ) : ( <Button type="button" size="icon" variant="ghost" className="h-10 w-10 rounded-full flex-shrink-0 text-muted-foreground hover:text-primary" onClick={startRecording} disabled={disabled || isRecording}><Mic className="h-5 w-5" /><span className="sr-only">Record</span></Button> )}
+                  {canSend ? ( <Button type="button" size="icon" className="h-8 w-8 rounded-full flex-shrink-0 bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleSend} disabled={disabled}><SendHorizonal className="h-4 w-4" /><span className="sr-only">Send</span></Button>
+                  ) : ( <Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-full flex-shrink-0 text-muted-foreground hover:text-primary" onClick={startRecording} disabled={disabled || isRecording}><Mic className="h-4 w-4" /><span className="sr-only">Record</span></Button> )}
                 </div>
               </div>
             </motion.div>
