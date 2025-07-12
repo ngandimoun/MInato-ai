@@ -1,29 +1,10 @@
 // FILE: middleware.ts
 import { type NextRequest, NextResponse } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
-import { logger } from '@/memory-framework/config';
-import { getGlobalMemoryFramework } from '@/lib/memory-framework-global';
-
-// Initialize memory framework at server startup
-let memoryFrameworkInitialized = false;
-const initializeMemoryFramework = async () => {
-  if (!memoryFrameworkInitialized) {
-    try {
-      logger.info('[Middleware] Initializing global memory framework...');
-      getGlobalMemoryFramework();
-      memoryFrameworkInitialized = true;
-      logger.info('[Middleware] Global memory framework initialized successfully.');
-    } catch (error: any) {
-      logger.error('[Middleware] Failed to initialize global memory framework:', error);
-    }
-  }
-};
 
 export async function middleware(request: NextRequest) {
-  logger.debug(`[Middleware] Running for path: ${request.nextUrl.pathname}`);
-  
-  // Try to initialize memory framework (will only happen once)
-  await initializeMemoryFramework();
+  // Memory framework initialization is handled in API routes where it's needed
+  // Middleware runs in Edge Runtime and cannot use AJV-dependent modules
   
   return await updateSession(request);
   // updateSession now handles redirection logic internally

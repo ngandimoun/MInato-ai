@@ -26,8 +26,21 @@ import { safeJsonParse } from "@/memory-framework/core/utils";
 import type { CompletionUsage } from "openai/resources";
 import { MEDIA_UPLOAD_BUCKET } from "../constants";
 import { supabase } from "../supabaseClient";
-import Ajv from "ajv";
-import { SchemaService } from "../services/schemaService"; // Import SchemaService
+// Conditionally import AJV only when not in Edge Runtime
+let Ajv: any = null;
+let SchemaService: any = null;
+
+// Check if we're in Edge Runtime
+const isEdgeRuntime = process.env.NEXT_RUNTIME === 'edge' || typeof window === 'undefined' && typeof globalThis !== 'undefined' && 'EdgeRuntime' in globalThis;
+
+if (!isEdgeRuntime) {
+  try {
+    Ajv = require("ajv").default || require("ajv");
+    SchemaService = require("../services/schemaService").SchemaService;
+  } catch (error) {
+    console.warn('[LLM Clients] AJV or SchemaService not available in this environment:', error);
+  }
+}
 import { 
   MINATO_MULTI_TOOL_COT_PROMPT_TEMPLATE, 
   MINATO_QUERY_NATURE_CLASSIFIER_PROMPT_TEMPLATE,
@@ -379,18 +392,18 @@ if (!textContentItem || typeof textContentItem.text !== 'string') {
 const responseText: string = textContentItem.text;
 
 
-if (finishReason === "max_output_tokens") {
-  logger.error(`[LLM Clients JSON] Truncated JSON due to max_output_tokens. ${logSuffix}`);
-  const partialResult = safeJsonParse<Partial<T>>(responseText);
-  if (schemaName === "minato_tool_router_v1_1" && (partialResult as any)?.planned_tools) {
-    if (SchemaService.validate(schemaName, partialResult)) {
-        return partialResult as T;
+  if (finishReason === "max_output_tokens") {
+    logger.error(`[LLM Clients JSON] Truncated JSON due to max_output_tokens. ${logSuffix}`);
+    const partialResult = safeJsonParse<Partial<T>>(responseText);
+    if (schemaName === "minato_tool_router_v1_1" && (partialResult as any)?.planned_tools) {
+      if (SchemaService && SchemaService.validate(schemaName, partialResult)) {
+          return partialResult as T;
+      }
+      logger.warn(`[LLM Clients JSON] Partial tool router output failed schema validation. Raw: ${responseText.substring(0,300)}`);
     }
-    logger.warn(`[LLM Clients JSON] Partial tool router output failed schema validation. Raw: ${responseText.substring(0,300)}`);
+    if (partialResult && SchemaService && SchemaService.validate(schemaName, partialResult)) return partialResult as T; 
+    return { error: `JSON generation failed (truncated due to max_output_tokens, and partial result is invalid for schema '${schemaName}'). Finish: ${finishReason}` };
   }
-  if (partialResult && SchemaService.validate(schemaName, partialResult)) return partialResult as T; 
-  return { error: `JSON generation failed (truncated due to max_output_tokens, and partial result is invalid for schema '${schemaName}'). Finish: ${finishReason}` };
-}
 
 
 const result = safeJsonParse<any>(responseText);
@@ -399,10 +412,10 @@ if (!result || typeof result !== "object") {
   return { error: `JSON parsing yielded ${typeof result}. Expected object for schema ${schemaName}.` };
 }
 
-if (!SchemaService.validate(schemaName, result)) {
-    logger.error(`[LLM Clients JSON] Output for schema '${schemaName}' FAILED final validation by SchemaService. ${logSuffix}. Data: ${responseText.substring(0,300)}`);
-    return { error: `Generated JSON does not conform to the schema '${schemaName}'.` };
-}
+  if (SchemaService && !SchemaService.validate(schemaName, result)) {
+      logger.error(`[LLM Clients JSON] Output for schema '${schemaName}' FAILED final validation by SchemaService. ${logSuffix}. Data: ${responseText.substring(0,300)}`);
+      return { error: `Generated JSON does not conform to the schema '${schemaName}'.` };
+  }
 
 if (schemaName === "minato_tool_router_v1_1") {
   if (result.planned_tools && Array.isArray(result.planned_tools)) {

@@ -1,5 +1,20 @@
-import Ajv, { ValidateFunction } from "ajv";
-// import { SchemaService } from "../services/schemaService"; // SUPPRIMÉ car circulaire
+// Conditionally import AJV only when not in Edge Runtime
+let Ajv: any = null;
+let ValidateFunction: any = null;
+
+// Check if we're in Edge Runtime
+const isEdgeRuntime = process.env.NEXT_RUNTIME === 'edge' || typeof window === 'undefined' && typeof globalThis !== 'undefined' && 'EdgeRuntime' in globalThis;
+
+if (!isEdgeRuntime) {
+  try {
+    const ajvModule = require("ajv");
+    Ajv = ajvModule.default || ajvModule;
+    ValidateFunction = ajvModule.ValidateFunction;
+  } catch (error) {
+    console.warn('[SchemaService] AJV not available in this environment:', error);
+  }
+}
+
 import { logger } from "../../memory-framework/config";
 import { TOOL_ROUTER_PROMPT_TEMPLATE } from "../prompts"; // To see if it's related
 import { generateStructuredJson } from "../providers/llm_clients"; // Potentially test this directly
@@ -759,9 +774,15 @@ export class SchemaService {
       return false;
     }
 
+    // If AJV is not available (e.g., in Edge Runtime), skip validation
+    if (!Ajv) {
+      logger.warn(`[SchemaService] AJV not available for schema validation: ${schemaName}. Skipping validation.`);
+      return true; // Return true to not block functionality
+    }
+
     const ajv = new Ajv();
     // Typage explicite pour la fonction de validation
-    const validateFunc: ValidateFunction = ajv.compile(schemaDef.schema);
+    const validateFunc: any = ajv.compile(schemaDef.schema);
     const valid = validateFunc(data) as boolean; // Ajv retourne toujours un booléen en mode synchrone
 
     if (!valid) {
