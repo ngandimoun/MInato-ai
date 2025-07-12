@@ -1,3 +1,5 @@
+//components/listening/user-message.tsx
+'use client'
 import React from "react";
 import { motion } from "framer-motion";
 import { Avatar } from "@/components/ui/avatar";

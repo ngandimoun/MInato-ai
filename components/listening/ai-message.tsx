@@ -1,3 +1,5 @@
+//components/listening/ai-message.tsx
+'use client'
 import React from "react";
 import { Citation } from "./citation";
 import { motion } from "framer-motion";

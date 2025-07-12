@@ -1,3 +1,5 @@
+//components/listening/citation.tsx
+'use client'
 import React from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";

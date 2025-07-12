@@ -1,3 +1,5 @@
+//components/listening/chat-interface.tsx
+'use client'
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Loader2 } from "lucide-react";

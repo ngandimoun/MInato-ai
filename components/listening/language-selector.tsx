@@ -1,3 +1,5 @@
+//components/listening/language-selector.tsx
+'use client'
 import React from "react";
 import { Globe } from "lucide-react";
 import {
