@@ -434,7 +434,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
               <div className="flex items-center gap-1 sm:gap-2">
                 <Wand2 className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden xs:inline">Generate</span>
-                <span className="xs:hidden">Gen Im</span>
+                <span className="hidden md:inline">Gen Im</span>
               </div>
             </TabsTrigger>
            
@@ -445,7 +445,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
               <div className="flex items-center gap-1 sm:gap-2">
                 <Film className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden xs:inline">Gen Vid</span>
-                <span className="xs:hidden">Gen Vid</span>
+                <span className="hidden md:inline">Gen Vid</span>
               </div>
             </TabsTrigger>
 
@@ -456,7 +456,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
               <div className="flex items-center gap-1 sm:gap-2">
                 <Wand2 className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden xs:inline">Create</span>
-                <span className="xs:hidden">Create</span>
+                <span className="hidden md:inline">Create</span>
               </div>
             </TabsTrigger>
 
@@ -468,7 +468,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
               <div className="flex items-center gap-1 sm:gap-2">
                 <ImageIcon className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden xs:inline">Gallery</span>
-                <span className="xs:hidden">Gallery</span>
+                <span className="hidden md:inline">Gallery</span>
                 {images.length > 0 && (
                   <Badge variant="secondary" className="ml-1 text-xs px-1 py-0.5 h-5">
                     {images.length}
@@ -489,7 +489,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
               <div className="flex items-center gap-1 sm:gap-2">
                 <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden xs:inline">AI Leads</span>
-                <span className="xs:hidden">Leads</span>
+                <span className="hidden md:inline">Leads</span>
               </div>
             </TabsTrigger>
 
