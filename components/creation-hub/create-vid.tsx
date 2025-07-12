@@ -675,14 +675,14 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-card p-4"
+        className="glass-card p-4 w-full"
       >
-        <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center gap-3 mb-3 w-full">
           <Globe className="h-5 w-5 text-blue-400" />
           <h3 className="text-lg font-semibold">Language & Voice Settings</h3>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
           <div>
             <label className="block text-sm font-medium mb-2">Language</label>
             <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
@@ -728,9 +728,9 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="glass-card p-6"
+        className="glass-card p-6 w-full"
       >
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col md:flex-row gap-3 items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <ImageIcon className="h-5 w-5 text-purple-400" />
             <h3 className="text-lg font-semibold">Select Media</h3>
@@ -763,7 +763,7 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="relative mb-4"
+            className="relative mb-4 w-full"
           >
             <div className="relative rounded-lg overflow-hidden bg-black/40 p-4">
               <Button
@@ -818,7 +818,7 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
+              className="overflow-hidden w-full"
             >
               <div className="border-t border-gray-700 pt-4 mt-4">
                 <h4 className="text-sm font-medium mb-3 text-gray-300">Your Gallery</h4>
@@ -862,9 +862,9 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="glass-card p-6"
+        className="glass-card p-6 w-full"
       >
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col md:flex-row gap-3 items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Sparkles className="h-5 w-5 text-green-400" />
             <h3 className="text-lg font-semibold">Voice Text</h3>
@@ -900,7 +900,7 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
         </div>
 
         {/* Platform Selector */}
-        <div className="mb-4">
+        <div className="mb-4 w-full">
           <div className="flex items-center gap-2 mb-2">
             <Globe className="h-4 w-4 text-blue-400" />
             <label className="text-sm font-medium">Target Platform & Format</label>
@@ -953,7 +953,7 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
           )}
         </div>
 
-        <div className="relative">
+        <div className="relative w-full">
           <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -975,14 +975,14 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg"
+            className="mt-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg w-full"
           >
             <p className="text-sm text-green-400 mb-2">✨ AI Enhanced version:</p>
             <p className="text-sm text-gray-300">{enhancedText}</p>
           </motion.div>
         )}
 
-        <div className="mt-4">
+        <div className="mt-4 w-full">
           <label className="block text-sm font-medium mb-2">
             Audio Duration: {audioDuration[0]}s
           </label>
