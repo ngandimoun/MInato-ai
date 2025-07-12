@@ -234,7 +234,7 @@ export function RecordingList({
                 key={recording.id}
                 onClick={() => onSelectRecording(recording)}
                 className={cn(
-                  "flex items-start gap-3 mb-3 p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
+                  "flex items-start gap-3 w-[310px] md:w-full mb-3 p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
                   selectedRecordingId === recording.id && "bg-primary/5 border-primary/30"
                 )}
               >
