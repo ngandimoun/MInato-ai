@@ -1,9 +1,10 @@
-//app/listening/page.tsx
+// app/listening/page.tsx
+
 "use client";
 
 import React, { useState, useCallback } from "react";
+import dynamic from 'next/dynamic'; // <-- 1. Importer 'dynamic'
 import { motion, AnimatePresence } from "framer-motion";
-import { RecordingButton } from "@/components/listening/recording-button";
 import { RecordingList } from "@/components/listening/recording-list";
 import { RecordingAnalysis } from "@/components/listening/recording-analysis";
 import { useListening, Recording } from "@/context/listening-context";
@@ -11,7 +12,32 @@ import { Header } from "@/components/header";
 import { useRouter } from "next/navigation";
 import { useNavigation } from "@/context/navigation-context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mic, List, BarChart3 } from "lucide-react";
+import { Mic, List, BarChart3, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button"; // Importez Button pour le fallback
+
+// <-- 2. Déclarer le composant comme dynamique SANS rendu côté serveur (SSR)
+const RecordingButton = dynamic(
+  () => import('@/components/listening/recording-button').then(mod => mod.RecordingButton),
+  { 
+    ssr: false, // La ligne magique qui empêche le rendu sur le serveur
+    // Un fallback de chargement qui correspond visuellement au bouton
+    loading: () => (
+      <div className="flex flex-col items-center">
+        <Button
+          variant="default"
+          size="lg"
+          className="h-16 w-16 rounded-full shadow-lg opacity-50 cursor-not-allowed"
+          disabled
+        >
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </Button>
+        <div className="mt-3 text-center">
+          <div className="text-xs text-muted-foreground">Loading recorder...</div>
+        </div>
+      </div>
+    ),
+  }
+);
 
 // Define view type to match Header component
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub";
@@ -35,7 +61,6 @@ export default function ListeningPage() {
   // Handle view changes
   const handleViewChange = (view: View) => {
     if (view === "listening") {
-      // Already on listening page, do nothing
       return;
     } else if (view === "dashboard") {
       navigateWithLoading("/dashboard", "Loading dashboard...");
@@ -46,7 +71,6 @@ export default function ListeningPage() {
     } else if (view === "creation-hub") {
       navigateWithLoading("/creation-hub", "Loading creation hub...");
     } else {
-      // Navigate to chat page with the specified view
       navigateWithLoading(`/chat?view=${view}`, `Loading ${view}...`);
     }
   };
@@ -54,7 +78,6 @@ export default function ListeningPage() {
   // Handle recording selection
   const handleSelectRecording = useCallback((recording: Recording) => {
     setCurrentRecordingId(recording.id);
-    // On mobile, switch to analyze tab when a recording is selected
     if (window.innerWidth < 1024) {
       setActiveTab("analyze");
     }
@@ -64,7 +87,6 @@ export default function ListeningPage() {
   const handleDeleteRecording = useCallback(async (recordingId: string) => {
     const success = await deleteRecording(recordingId);
     if (success) {
-      // If the deleted recording was selected, clear the selection
       if (currentRecordingId === recordingId) {
         setCurrentRecordingId(null);
       }
@@ -73,24 +95,19 @@ export default function ListeningPage() {
 
   // Handle recording update
   const handleUpdateRecording = useCallback((updatedRecording: Recording) => {
-    // Re-fetch recordings to get the updated data
     fetchRecordings();
   }, [fetchRecordings]);
 
   // Handle segment highlighting
   const handleHighlightSegment = useCallback((segmentId: number) => {
-    // This function will be passed to the ChatInterface to highlight transcript segments
     if (currentAnalysis?.transcript_json) {
-      // Find the segment in the transcript
       const segment = currentAnalysis.transcript_json.find(s => s.id === segmentId);
       if (segment) {
-        // Implement your highlighting logic here
         console.log("Highlighting segment:", segment);
       }
     }
   }, [currentAnalysis]);
 
-  // Find the current recording object from the list
   const currentRecording = recordings.find(r => r.id === currentRecordingId) || null;
 
   return (
@@ -130,7 +147,6 @@ export default function ListeningPage() {
               
               <TabsContent value="record" className="mt-4">
                 <div className="space-y-6">
-                  {/* Recording button */}
                   <div className="flex justify-center mb-4">
                     <RecordingButton
                       onRecordingComplete={(recordingId) => {
@@ -140,7 +156,6 @@ export default function ListeningPage() {
                     />
                   </div>
 
-                  {/* Recordings list */}
                   <RecordingList
                     recordings={recordings}
                     isLoading={isLoading}
@@ -164,7 +179,6 @@ export default function ListeningPage() {
 
           {/* Desktop Layout */}
           <div className="hidden lg:grid lg:grid-cols-3 gap-8">
-            {/* Left column: Recording list and recording button */}
             <div className="lg:col-span-1 space-y-6">
               <AnimatePresence mode="wait">
                 <motion.div
@@ -174,7 +188,6 @@ export default function ListeningPage() {
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.3 }}
                 >
-                  {/* Recording button */}
                   <div className="flex justify-center mb-6">
                     <RecordingButton
                       onRecordingComplete={(recordingId) => {
@@ -185,7 +198,6 @@ export default function ListeningPage() {
                     />
                   </div>
 
-                  {/* Recordings list */}
                   <RecordingList
                     recordings={recordings}
                     isLoading={isLoading}
@@ -199,7 +211,6 @@ export default function ListeningPage() {
               </AnimatePresence>
             </div>
 
-            {/* Right column: Recording analysis */}
             <div className="lg:col-span-2">
               <AnimatePresence mode="wait">
                 <motion.div
@@ -224,4 +235,4 @@ export default function ListeningPage() {
       </div>
     </main>
   );
-} 
+}
