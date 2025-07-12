@@ -1,6 +1,7 @@
 // FILE: app/chat/page.tsx
 "use client";
 
+import { Suspense } from "react";
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChatInterface } from "@/components/chat/chat-interface";
@@ -14,7 +15,7 @@ import { useNavigation } from "@/context/navigation-context";
 
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub"; // Added listening, insights, and creation-hub views
 
-export default function ChatPage() { 
+function ChatPageInner() {
   const [currentView, setCurrentView] = useState<View>("chat");
   const { user, isLoading: isAuthLoading } = useAuth(); 
   const { navigateWithLoading } = useNavigation();
@@ -132,4 +133,12 @@ export default function ChatPage() {
       </div>
     </main>
   )
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense>
+      <ChatPageInner />
+    </Suspense>
+  );
 }
