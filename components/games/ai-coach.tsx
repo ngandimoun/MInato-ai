@@ -73,6 +73,23 @@ interface AICoachData {
   insight_id?: string;
 }
 
+// Déplacement des helpers en haut du fichier pour accessibilité globale
+function getTrendIcon(trend: string) {
+  switch (trend) {
+    case 'improving': return <TrendingUp className="w-4 h-4 text-green-500" />;
+    case 'declining': return <TrendingUp className="w-4 h-4 text-red-500 rotate-180" />;
+    default: return <Target className="w-4 h-4 text-yellow-500" />;
+  }
+}
+
+function getTrendColor(trend: string) {
+  switch (trend) {
+    case 'improving': return 'text-green-500';
+    case 'declining': return 'text-red-500';
+    default: return 'text-yellow-500';
+  }
+}
+
 export default function AICoach() {
   const { user } = useAuth();
   const [coachData, setCoachData] = useState<AICoachData | null>(null);
@@ -116,22 +133,6 @@ export default function AICoach() {
       fetchCoachingInsights();
     }
   }, [user]);
-
-  const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case 'improving': return <TrendingUp className="w-4 h-4 text-green-500" />;
-      case 'declining': return <TrendingUp className="w-4 h-4 text-red-500 rotate-180" />;
-      default: return <Target className="w-4 h-4 text-yellow-500" />;
-    }
-  };
-
-  const getTrendColor = (trend: string) => {
-    switch (trend) {
-      case 'improving': return 'text-green-500';
-      case 'declining': return 'text-red-500';
-      default: return 'text-yellow-500';
-    }
-  };
 
   if (!user) {
     return (
@@ -216,10 +217,22 @@ export default function AICoach() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="insights">Insights</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="trends">Trends</TabsTrigger>
-          <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
+          <TabsTrigger value="insights">
+            <Lightbulb className="w-4 h-4" />
+            <span className="hidden sm:inline">Insights</span>
+          </TabsTrigger>
+          <TabsTrigger value="performance">
+            <BarChart3 className="w-4 h-4" />
+            <span className="hidden sm:inline">Performance</span>
+          </TabsTrigger>
+          <TabsTrigger value="trends">
+            <TrendingUp className="w-4 h-4" />
+            <span className="hidden sm:inline">Trends</span>
+          </TabsTrigger>
+          <TabsTrigger value="recommendations">
+            <BookOpen className="w-4 h-4" />
+            <span className="hidden sm:inline">Recommendations</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="insights" className="space-y-4">
