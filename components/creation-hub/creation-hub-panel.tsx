@@ -152,18 +152,18 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
 
   // Lazy load data when tabs are accessed
   useEffect(() => {
-    if (activeTab === "gallery" && gallerySubTab === "images" && userImages.length === 0 && !userImagesLoading) {
+    if (activeTab === "gallery" && gallerySubTab === "images" && !userImagesLoading) {
       logger.info('[CreationHubPanel] Lazy loading user images');
       refetchUserImages();
     }
-  }, [activeTab, gallerySubTab, userImages.length, userImagesLoading, refetchUserImages]);
+  }, [activeTab, gallerySubTab, userImagesLoading, refetchUserImages]);
 
   useEffect(() => {
-    if (activeTab === "gallery" && gallerySubTab === "videos" && userVideos.length === 0 && !userVideosLoading) {
+    if (activeTab === "gallery" && gallerySubTab === "videos" && !userVideosLoading) {
       logger.info('[CreationHubPanel] Lazy loading user videos');
       refreshUserVideos();
     }
-  }, [activeTab, gallerySubTab, userVideos.length, userVideosLoading, refreshUserVideos]);
+  }, [activeTab, gallerySubTab, userVideosLoading, refreshUserVideos]);
 
   // Use custom hooks for generation and conversations
   const { generate, isGenerating, progress, error: generationError, cancel } = useImageGeneration({
@@ -833,7 +833,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                     )}
 
                     {/* Loading State */}
-                    {userImagesLoading && (
+                    {userImagesLoading && userImages.length === 0 && (
                       <div className="flex items-center justify-center h-32">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         <span className="ml-2 text-muted-foreground">Loading images...</span>
@@ -1085,7 +1085,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                     )}
 
                     {/* Loading State */}
-                    {userVideosLoading && (
+                    {userVideosLoading && userVideos.length === 0 && (
                       <div className="flex items-center justify-center h-32">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         <span className="ml-2 text-muted-foreground">Loading videos...</span>
