@@ -5,18 +5,22 @@ import { GameQuestion } from '@/lib/types/games';
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication - allow both authenticated users and guest users
+    // Get user session from Supabase
     const supabase = await createServerSupabaseClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
-    // For now, allow guest users to generate questions too
-    // In production, you might want to add rate limiting for guests
-    const isGuest = !session?.user;
+    // Log authentication status
+    if (sessionError) {
+      console.log('🔐 Session error:', sessionError.message);
+    }
     
-    if (isGuest) {
-      console.log('🎮 Generating questions for guest user');
+    const isAuthenticated = !!session?.user;
+    const userId = session?.user?.id || 'guest';
+    
+    if (isAuthenticated) {
+      console.log(`🎮 Generating questions for authenticated user: ${userId}`);
     } else {
-      console.log(`🎮 Generating questions for authenticated user: ${session.user.id}`);
+      console.log('🎮 Generating questions for guest/unauthenticated user');
     }
 
     // Parse request body
@@ -36,7 +40,8 @@ export async function POST(request: NextRequest) {
       difficulty,
       rounds: rounds || 10,
       settings,
-      isGuest
+      isAuthenticated,
+      userId: userId.substring(0, 8) + '...'
     });
 
     // Get server-side game orchestrator
@@ -51,19 +56,27 @@ export async function POST(request: NextRequest) {
     );
 
     console.log(`✅ Successfully generated ${questions.length} questions for ${gameType}`);
+    
+    // Log first question for debugging
+    if (questions.length > 0) {
+      console.log('📝 Sample question:', {
+        question: questions[0].question.substring(0, 100) + '...',
+        optionsCount: questions[0].options.length,
+        correctAnswer: questions[0].correct_answer,
+        language: questions[0].question.includes('Qu\'est-ce') ? 'French' : 'English/Other'
+      });
+    }
 
     // Return questions
     return NextResponse.json({
       success: true,
       questions,
     });
-  } catch (error) {
-    console.error('❌ Error generating questions:', error);
+
+  } catch (error: any) {
+    console.error('💥 Error in question generation API:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to generate questions',
-      },
+      { success: false, error: error.message || 'Failed to generate questions' },
       { status: 500 }
     );
   }

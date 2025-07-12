@@ -25,30 +25,24 @@ export async function GET(request: NextRequest) {
     
     console.log('✅ Test questions generated successfully:', {
       count: questions.length,
-      preview: questions.map(q => ({
-        question: q.question.substring(0, 50) + '...',
-        optionsCount: q.options.length,
-        correctAnswer: q.correct_answer
-      }))
+      firstQuestion: questions[0]?.question.substring(0, 50) + '...',
+      settings: testSettings
     });
     
     return NextResponse.json({
       success: true,
-      message: 'Question generation test successful',
-      questions,
-      testSettings
+      message: 'Question generation test completed',
+      questions: questions,
+      settings: testSettings,
+      timestamp: new Date().toISOString()
     });
-  } catch (error) {
-    console.error('❌ Question generation test failed:', error);
     
+  } catch (error: any) {
+    console.error('❌ Question generation test failed:', error);
     return NextResponse.json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      details: {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        name: error instanceof Error ? error.name : undefined
-      }
-    });
+      error: error.message || 'Question generation test failed',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
   }
 } 

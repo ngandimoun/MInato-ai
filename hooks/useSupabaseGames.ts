@@ -638,9 +638,32 @@ export function useSupabaseGameMutations() {
     }
 
     try {
-      return await gameService.startGame(roomId, user.id);
+      console.log(`🚀 [START GAME HOOK] Starting game ${roomId} via API...`);
+      
+      // Use the server-side API endpoint for better reliability
+      const response = await fetch('/api/games/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ roomId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start game');
+      }
+
+      console.log(`✅ [START GAME HOOK] Game started successfully:`, data);
+
+      return {
+        success: true,
+        message: data.message,
+        data: data.data
+      };
     } catch (error) {
-      console.error("Error starting game:", error);
+      console.error("❌ [START GAME HOOK] Error starting game:", error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : "Failed to start game" 

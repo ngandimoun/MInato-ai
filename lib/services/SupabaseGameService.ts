@@ -122,9 +122,14 @@ export interface GameResponse {
 // ============================================================================
 
 export class SupabaseGameService {
-  private supabase = getBrowserSupabaseClient();
+  private supabase: any;
   private channels: Map<string, RealtimeChannel> = new Map();
   private presenceState: Map<string, RealtimePresenceState> = new Map();
+
+  constructor(supabaseClient?: any) {
+    // Use provided client or default to browser client
+    this.supabase = supabaseClient || getBrowserSupabaseClient();
+  }
 
   // ============================================================================
   // ROOM MANAGEMENT
@@ -431,7 +436,7 @@ export class SupabaseGameService {
 
   async startGame(roomId: string, userId: string): Promise<GameResponse> {
     try {
-      console.log(`🚀 Starting game ${roomId} for user ${userId}`);
+      console.log(`🚀 [START GAME] Starting game ${roomId} for user ${userId}`);
       
       // Verify user is host
       const { data: room, error: roomError } = await this.supabase
@@ -442,34 +447,73 @@ export class SupabaseGameService {
         .single();
 
       if (roomError) {
-        console.error('❌ Error fetching room:', roomError);
+        console.error('❌ [START GAME] Error fetching room:', roomError);
         return { success: false, error: 'Failed to fetch room details' };
       }
 
       if (!room) {
-        console.error('❌ Room not found or user is not host');
+        console.error('❌ [START GAME] Room not found or user is not host');
         return { success: false, error: 'Only the host can start the game' };
       }
 
-      console.log(`🎮 Room status: ${room.status}, Host: ${room.host_user_id}`);
+      console.log(`🎮 [START GAME] Room found - Status: ${room.status}, Host: ${room.host_user_id}, Mode: ${room.mode}`);
+      console.log(`📋 [START GAME] Room details:`, {
+        id: room.id,
+        gameType: room.game_type_id,
+        difficulty: room.difficulty,
+        rounds: room.rounds,
+        hasQuestions: !!room.questions && room.questions.length > 0,
+        questionsCount: room.questions?.length || 0,
+        settings: room.settings
+      });
 
       if (room.status !== 'lobby') {
-        console.error(`❌ Game is not in lobby state. Current status: ${room.status}`);
+        console.error(`❌ [START GAME] Game is not in lobby state. Current status: ${room.status}`);
         return { success: false, error: `Game is not in lobby state (current: ${room.status})` };
       }
 
-      // Generate questions if not already present
-      if (!room.questions || room.questions.length === 0) {
+      // Generate questions if not already present OR if it's a multiplayer game
+      // (to ensure multiplayer games get fresh AI-generated questions)
+      const shouldRegenerateQuestions = !room.questions || 
+                                      room.questions.length === 0 || 
+                                      room.mode === 'multiplayer';
+                                      
+      console.log(`🔄 [START GAME] Should regenerate questions: ${shouldRegenerateQuestions} (mode: ${room.mode}, existing questions: ${room.questions?.length || 0})`);
+                                      
+      if (shouldRegenerateQuestions) {
+        console.log(`🔄 [START GAME] Generating ${room.mode === 'multiplayer' ? 'fresh' : 'new'} questions for ${room.mode} game...`);
+        
         const questions = await this.generateQuestions(room);
         
+        console.log(`📊 [START GAME] Generated questions result:`, {
+          questionsCount: questions.length,
+          expectedCount: room.rounds,
+          firstQuestionPreview: questions[0] ? {
+            question: questions[0].question.substring(0, 80) + '...',
+            optionsCount: questions[0].options?.length || 0,
+            hasExplanation: !!questions[0].explanation,
+            language: questions[0].question.includes('Qu\'est-ce') || questions[0].question.includes('Quelle') ? 'French' : 'English/Other'
+          } : 'No questions generated'
+        });
+        
         // Update room with questions
-        await this.supabase
+        const { error: updateError } = await this.supabase
           .from('live_game_rooms')
           .update({ questions })
           .eq('id', roomId);
+          
+        if (updateError) {
+          console.error('❌ [START GAME] Failed to update room with questions:', updateError);
+          throw updateError;
+        }
+          
+        console.log(`✅ [START GAME] Updated room with ${questions.length} ${room.mode === 'multiplayer' ? 'fresh AI-generated' : 'new'} questions`);
+      } else {
+        console.log(`⏭️ [START GAME] Questions already exist for ${room.mode} game, skipping generation`);
       }
 
       // Start the game
+      console.log(`🎯 [START GAME] Updating game status to 'in_progress'...`);
       const { error: startError } = await this.supabase
         .from('live_game_rooms')
         .update({
@@ -479,24 +523,30 @@ export class SupabaseGameService {
         .eq('id', roomId);
 
       if (startError) {
+        console.error('❌ [START GAME] Failed to update game status:', startError);
         throw startError;
       }
 
+      console.log(`✅ [START GAME] Game status updated to 'in_progress'`);
+
       // Set first question
+      console.log(`🎯 [START GAME] Setting current question to index 0...`);
       await this.setCurrentQuestion(roomId, 0);
 
       // Broadcast game start event
+      console.log(`📢 [START GAME] Broadcasting GAME_STARTED event...`);
       await this.broadcastGameEvent(roomId, 'GAME_STARTED', {
         message: 'Game has started!',
         timestamp: Date.now(),
       });
 
+      console.log(`🎉 [START GAME] Game started successfully!`);
       return {
         success: true,
         message: 'Game started successfully',
       };
     } catch (error) {
-      console.error('Error starting game:', error);
+      console.error('❌ [START GAME] Error starting game:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to start game',
@@ -785,52 +835,29 @@ export class SupabaseGameService {
         settings: room.settings
       });
       
-      // Check if we're running on the server (no window object)
-      if (typeof window === 'undefined') {
-        // Server-side: Use the GameOrchestratorServer directly
-        const { getGameOrchestratorServer } = await import('@/lib/core/game-orchestrator-server');
-        const gameOrchestrator = getGameOrchestratorServer();
-        
-        const questions = await gameOrchestrator.generateQuestions(
-          room.game_type_id,
-          room.difficulty,
-          room.rounds,
-          room.settings
-        );
-        
-        console.log(`✅ Generated ${questions.length} questions using server orchestrator with settings:`, {
-          language,
-          aiPersonality,
-          topicFocus,
-          questionsPreview: questions.slice(0, 2).map(q => ({
-            question: q.question.substring(0, 50) + '...',
-            language: q.question.includes('Qu\'est-ce') ? 'French detected' : 'English or other'
-          }))
-        });
-        return questions;
-      } else {
-        // Client-side: Use the regular GameOrchestrator with API calls
-        const { getGameOrchestrator } = await import('@/lib/core/game-orchestrator');
-        const gameOrchestrator = getGameOrchestrator();
-        
-        const questions = await gameOrchestrator.generateQuestions(
-          room.game_type_id,
-          room.difficulty,
-          room.rounds,
-          room.settings
-        );
-        
-        console.log(`✅ Generated ${questions.length} questions using client orchestrator with settings:`, {
-          language,
-          aiPersonality,
-          topicFocus,
-          questionsPreview: questions.slice(0, 2).map(q => ({
-            question: q.question.substring(0, 50) + '...',
-            language: q.question.includes('Qu\'est-ce') ? 'French detected' : 'English or other'
-          }))
-        });
-        return questions;
-      }
+      // Always use server-side generation for better reliability
+      console.log('🔄 Using server-side question generation...');
+      const { getGameOrchestratorServer } = await import('@/lib/core/game-orchestrator-server');
+      const gameOrchestrator = getGameOrchestratorServer();
+      
+      const questions = await gameOrchestrator.generateQuestions(
+        room.game_type_id,
+        room.difficulty,
+        room.rounds,
+        room.settings
+      );
+      
+      console.log(`✅ Generated ${questions.length} questions using server orchestrator with settings:`, {
+        language,
+        aiPersonality,
+        topicFocus,
+        questionsPreview: questions.slice(0, 2).map(q => ({
+          question: q.question.substring(0, 50) + '...',
+          language: q.question.includes('Qu\'est-ce') || q.question.includes('Quelle') ? 'French detected' : 'English or other'
+        }))
+      });
+      return questions;
+      
     } catch (error) {
       console.error('💥 Failed to generate questions:', error);
       console.error('💥 Error details:', {
@@ -1067,15 +1094,34 @@ export class SupabaseGameService {
   }
 
   private async setCurrentQuestion(roomId: string, questionIndex: number): Promise<void> {
+    console.log(`🎯 [SET CURRENT QUESTION] Setting question ${questionIndex} for room ${roomId}`);
+    
     const { data: room } = await this.supabase
       .from('live_game_rooms')
       .select('questions, settings')
       .eq('id', roomId)
       .single();
 
-    if (!room || !room.questions[questionIndex]) {
+    if (!room) {
+      console.error(`❌ [SET CURRENT QUESTION] Room not found: ${roomId}`);
       return;
     }
+
+    if (!room.questions || !Array.isArray(room.questions) || room.questions.length === 0) {
+      console.error(`❌ [SET CURRENT QUESTION] No questions found in room ${roomId}`);
+      return;
+    }
+
+    if (!room.questions[questionIndex]) {
+      console.error(`❌ [SET CURRENT QUESTION] Question at index ${questionIndex} not found. Available questions: ${room.questions.length}`);
+      return;
+    }
+
+    console.log(`✅ [SET CURRENT QUESTION] Found question ${questionIndex}:`, {
+      question: room.questions[questionIndex].question?.substring(0, 50) + '...',
+      optionsCount: room.questions[questionIndex].options?.length || 0,
+      correctAnswer: room.questions[questionIndex].correct_answer
+    });
 
     const question = room.questions[questionIndex];
     
@@ -1136,7 +1182,7 @@ export class SupabaseGameService {
       })
       .eq('room_id', roomId);
 
-    console.log(`📡 Broadcasting NEW_QUESTION event for question ${questionIndex}`);
+    console.log(`📡 [SET CURRENT QUESTION] Broadcasting NEW_QUESTION event for question ${questionIndex}`);
     
     // Broadcast new question
     await this.broadcastGameEvent(roomId, 'NEW_QUESTION', {
@@ -1145,7 +1191,7 @@ export class SupabaseGameService {
       timestamp: Date.now(),
     });
     
-    console.log(`✅ NEW_QUESTION event broadcasted for question ${questionIndex}`);
+    console.log(`✅ [SET CURRENT QUESTION] NEW_QUESTION event broadcasted for question ${questionIndex}`);
   }
 
   private async finishGame(roomId: string): Promise<GameResponse> {
