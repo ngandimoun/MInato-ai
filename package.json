@@ -12,7 +12,6 @@
     "test:stripe:webhooks": "npx ts-node tests/stripe-webhook-simulation.test.ts"
   },
   "dependencies": {
-    "@clerk/themes": "^2.2.37",
     "@emotion/is-prop-valid": "latest",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@heroicons/react": "^2.2.0",
