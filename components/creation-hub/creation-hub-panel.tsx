@@ -956,7 +956,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                     <Card className="glass-card border-yellow-500/50">
                       <CardContent className="p-4">
                         <div className="space-y-2">
-                          <div className="flex items-center justify-between">
+                          <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
                             <h4 className="text-sm font-medium text-yellow-500">Debug Info</h4>
                             <div className="flex gap-2">
                               <Button
@@ -968,7 +968,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                                   refreshUserVideos();
                                 }}
                               >
-                                Refresh Videos
+                                Refresh
                               </Button>
                               <Button
                                 size="sm"
