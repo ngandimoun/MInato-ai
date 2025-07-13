@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
         // Global XP leaderboard with manual join
         const { data: globalStats, error: globalError } = await supabase
           .from('user_game_stats')
-          .select('user_id, current_level, total_xp_earned, total_games_played, total_games_won, total_score')
-          .order('total_xp_earned', { ascending: false })
+          .select('user_id, level, xp_points, total_games_played, total_wins, total_score')
+          .order('xp_points', { ascending: false })
           .limit(limit);
 
         if (globalError) {
@@ -52,12 +52,12 @@ export async function GET(request: NextRequest) {
             user_id: user.user_id,
             name: profile?.full_name || profile?.first_name || 'Anonymous Player',
             avatar_url: profile?.avatar_url,
-            level: user.current_level,
-            xp_points: user.total_xp_earned,
+            level: user.level,
+            xp_points: user.xp_points,
             total_games: user.total_games_played,
-            total_wins: user.total_games_won,
+            total_wins: user.total_wins,
             win_rate: user.total_games_played > 0 
-              ? Math.round((user.total_games_won / user.total_games_played) * 100) 
+              ? Math.round((user.total_wins / user.total_games_played) * 100) 
               : 0,
             total_score: user.total_score,
           };
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
         // Also get their game stats for level info
         const { data: weeklyStats, error: weeklyStatsError } = await supabase
           .from('user_game_stats')
-          .select('user_id, current_level')
+          .select('user_id, level')
           .in('user_id', weeklyUserIds);
 
         if (weeklyStatsError) {
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
             user_id: userId,
             name: profile?.full_name || profile?.first_name || 'Anonymous Player',
             avatar_url: profile?.avatar_url,
-            level: stats?.current_level || 1,
+            level: stats?.level || 1,
             weekly_wins: wins,
           };
         });
@@ -146,7 +146,7 @@ export async function GET(request: NextRequest) {
         // Category-specific leaderboard based on game type stats
         const { data: categoryStats, error: categoryError } = await supabase
           .from('user_game_stats')
-          .select('user_id, game_type_stats, current_level, total_xp_earned')
+          .select('user_id, game_type_stats, level, xp_points')
           .not('game_type_stats', 'is', null);
 
         if (categoryError) {
@@ -161,7 +161,7 @@ export async function GET(request: NextRequest) {
 
             return {
               user_id: user.user_id,
-              level: user.current_level,
+              level: user.level,
               category_games: categoryData.games_played || 0,
               category_wins: categoryData.wins || 0,
               category_best_score: categoryData.best_score || 0,
@@ -221,15 +221,15 @@ export async function GET(request: NextRequest) {
         // Find user's actual rank in global leaderboard
         const { data: userRankData } = await supabase
           .from('user_game_stats')
-          .select('user_id, total_xp_earned')
-          .gt('total_xp_earned', 0)
-          .order('total_xp_earned', { ascending: false });
+          .select('user_id, xp_points')
+          .gt('xp_points', 0)
+          .order('xp_points', { ascending: false });
 
         const userRank = userRankData?.findIndex((u: any) => u.user_id === user.id) + 1;
         if (userRank > 0) {
           const { data: userData } = await supabase
             .from('user_game_stats')
-            .select('user_id, current_level, total_xp_earned, total_games_played, total_games_won, total_score')
+            .select('user_id, level, xp_points, total_games_played, total_wins, total_score')
             .eq('user_id', user.id)
             .single();
 
@@ -245,12 +245,12 @@ export async function GET(request: NextRequest) {
               user_id: user.id,
               name: userProfile?.full_name || userProfile?.first_name || 'Anonymous Player',
               avatar_url: userProfile?.avatar_url,
-              level: userData.current_level,
-              xp_points: userData.total_xp_earned,
+              level: userData.level,
+              xp_points: userData.xp_points,
               total_games: userData.total_games_played,
-              total_wins: userData.total_games_won,
+              total_wins: userData.total_wins,
               win_rate: userData.total_games_played > 0 
-                ? Math.round((userData.total_games_won / userData.total_games_played) * 100) 
+                ? Math.round((userData.total_wins / userData.total_games_played) * 100) 
                 : 0,
               total_score: userData.total_score,
             };

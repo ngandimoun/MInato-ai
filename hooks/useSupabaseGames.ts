@@ -811,8 +811,6 @@ export function useUserGameStats() {
   const [stats, setStats] = useState<UserGameStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const supabase = getBrowserSupabaseClient();
-
   useEffect(() => {
     if (!user?.id) {
       setIsLoading(false);
@@ -821,50 +819,28 @@ export function useUserGameStats() {
 
     const fetchUserStats = async () => {
       try {
-        const { data, error } = await supabase
-          .from('user_game_stats')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
-
-        if (error && error.code !== 'PGRST116') { // PGRST116 = not found
-          throw error;
+        const response = await fetch('/api/games/user-stats');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch user stats');
         }
-
-        if (data) {
-          const statsRow = data as UserStatsRow;
+        
+        const data = await response.json();
+        
+        if (data.success) {
           setStats({
-            total_games_played: statsRow.total_games_played,
-            total_wins: statsRow.total_wins,
-            total_score: statsRow.total_score,
-            level: statsRow.level,
-            xp_points: statsRow.xp_points,
-            current_streak: 0, // Add to your schema if needed
-            best_streak: 0, // Add to your schema if needed
-            favorite_game_types: statsRow.favorite_game_types,
-            achievements: statsRow.achievements,
+            total_games_played: data.stats.total_games_played,
+            total_wins: data.stats.total_wins,
+            total_score: data.stats.total_score,
+            level: data.stats.level,
+            xp_points: data.stats.xp_points,
+            current_streak: data.stats.current_streak,
+            best_streak: data.stats.best_streak,
+            favorite_game_types: data.stats.favorite_game_types,
+            achievements: data.stats.achievements,
           });
         } else {
-          // Create initial stats if none exist
-          const { data: newStats, error: createError } = await supabase
-            .from('user_game_stats')
-            .insert({ user_id: user.id })
-            .select()
-            .single();
-
-          if (createError) throw createError;
-
-          setStats({
-            total_games_played: 0,
-            total_wins: 0,
-            total_score: 0,
-            level: 1,
-            xp_points: 0,
-            current_streak: 0,
-            best_streak: 0,
-            favorite_game_types: [],
-            achievements: [],
-          });
+          throw new Error(data.error || 'Failed to fetch user stats');
         }
       } catch (error) {
         console.error('Error fetching user stats:', error);

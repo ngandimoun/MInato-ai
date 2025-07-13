@@ -14,6 +14,7 @@ export type ImageCategory =
 
 // ===== Enhanced Language Support =====
 export const SUPPORTED_LANGUAGES = [
+  // Major World Languages
   { code: 'en', name: 'English', flag: '🇺🇸' },
   { code: 'es', name: 'Español', flag: '🇪🇸' },
   { code: 'fr', name: 'Français', flag: '🇫🇷' },
@@ -26,6 +27,8 @@ export const SUPPORTED_LANGUAGES = [
   { code: 'zh', name: '中文', flag: '🇨🇳' },
   { code: 'ar', name: 'العربية', flag: '🇸🇦' },
   { code: 'hi', name: 'हिन्दी', flag: '🇮🇳' },
+  
+  // European Languages
   { code: 'th', name: 'ไทย', flag: '🇹🇭' },
   { code: 'vi', name: 'Tiếng Việt', flag: '🇻🇳' },
   { code: 'tr', name: 'Türkçe', flag: '🇹🇷' },
@@ -48,17 +51,75 @@ export const SUPPORTED_LANGUAGES = [
   { code: 'lv', name: 'Latviešu', flag: '🇱🇻' },
   { code: 'lt', name: 'Lietuvių', flag: '🇱🇹' },
   { code: 'uk', name: 'Українська', flag: '🇺🇦' },
+  
+  // Asian & Pacific Languages
   { code: 'id', name: 'Bahasa Indonesia', flag: '🇮🇩' },
   { code: 'ms', name: 'Bahasa Melayu', flag: '🇲🇾' },
   { code: 'tl', name: 'Filipino', flag: '🇵🇭' },
+  { code: 'bn', name: 'বাংলা', flag: '🇧🇩' },
+  { code: 'ur', name: 'اردو', flag: '🇵🇰' },
+  { code: 'fa', name: 'فارسی', flag: '🇮🇷' },
+  { code: 'ta', name: 'தமிழ்', flag: '🇮🇳' },
+  { code: 'te', name: 'తెలుగు', flag: '🇮🇳' },
+  { code: 'ml', name: 'മലയാളം', flag: '🇮🇳' },
+  { code: 'kn', name: 'ಕನ್ನಡ', flag: '🇮🇳' },
+  { code: 'gu', name: 'ગુજરાતી', flag: '🇮🇳' },
+  { code: 'pa', name: 'ਪੰਜਾਬੀ', flag: '🇮🇳' },
+  { code: 'mr', name: 'मराठी', flag: '🇮🇳' },
+  { code: 'ne', name: 'नेपाली', flag: '🇳🇵' },
+  { code: 'si', name: 'සිංහල', flag: '🇱🇰' },
+  { code: 'my', name: 'မြန်မာ', flag: '🇲🇲' },
+  { code: 'km', name: 'ខ្មែរ', flag: '🇰🇭' },
+  { code: 'lo', name: 'ລາວ', flag: '🇱🇦' },
+  { code: 'ka', name: 'ქართული', flag: '🇬🇪' },
+  { code: 'hy', name: 'Հայերեն', flag: '🇦🇲' },
+  { code: 'az', name: 'Azərbaycan', flag: '🇦🇿' },
+  { code: 'kk', name: 'Қазақша', flag: '🇰🇿' },
+  { code: 'uz', name: 'O\'zbekcha', flag: '🇺🇿' },
+  { code: 'ky', name: 'Кыргызча', flag: '🇰🇬' },
+  { code: 'tg', name: 'Тоҷикӣ', flag: '🇹🇯' },
+  { code: 'mn', name: 'Монгол', flag: '🇲🇳' },
+  
+  // African Languages
   { code: 'sw', name: 'Kiswahili', flag: '🇰🇪' },
   { code: 'af', name: 'Afrikaans', flag: '🇿🇦' },
+  { code: 'am', name: 'አማርኛ', flag: '🇪🇹' },
+  { code: 'ha', name: 'Hausa', flag: '🇳🇬' },
+  { code: 'ig', name: 'Igbo', flag: '🇳🇬' },
+  { code: 'yo', name: 'Yorùbá', flag: '🇳🇬' },
+  { code: 'zu', name: 'isiZulu', flag: '🇿🇦' },
+  { code: 'xh', name: 'isiXhosa', flag: '🇿🇦' },
+  
+  // European Regional Languages
   { code: 'is', name: 'Íslenska', flag: '🇮🇸' },
   { code: 'mt', name: 'Malti', flag: '🇲🇹' },
   { code: 'ga', name: 'Gaeilge', flag: '🇮🇪' },
   { code: 'cy', name: 'Cymraeg', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
   { code: 'eu', name: 'Euskera', flag: '🇪🇸' },
-  { code: 'ca', name: 'Català', flag: '🇪🇸' }
+  { code: 'ca', name: 'Català', flag: '🇪🇸' },
+  { code: 'gl', name: 'Galego', flag: '🇪🇸' },
+  { code: 'br', name: 'Brezhoneg', flag: '🇫🇷' },
+  { code: 'co', name: 'Corsu', flag: '🇫🇷' },
+  { code: 'lb', name: 'Lëtzebuergesch', flag: '🇱🇺' },
+  
+  // Latin American Variants
+  { code: 'pt-br', name: 'Português (Brasil)', flag: '🇧🇷' },
+  { code: 'es-mx', name: 'Español (México)', flag: '🇲🇽' },
+  { code: 'es-ar', name: 'Español (Argentina)', flag: '🇦🇷' },
+  
+  // Other Major Languages
+  { code: 'la', name: 'Latina', flag: '🏛️' },
+  { code: 'eo', name: 'Esperanto', flag: '🌍' },
+  { code: 'jv', name: 'Basa Jawa', flag: '🇮🇩' },
+  { code: 'su', name: 'Basa Sunda', flag: '🇮🇩' },
+  { code: 'ceb', name: 'Cebuano', flag: '🇵🇭' },
+  { code: 'war', name: 'Waray', flag: '🇵🇭' },
+  { code: 'ilo', name: 'Ilokano', flag: '🇵🇭' },
+  { code: 'haw', name: 'ʻŌlelo Hawaiʻi', flag: '🇺🇸' },
+  { code: 'mi', name: 'Te Reo Māori', flag: '🇳🇿' },
+  { code: 'sm', name: 'Gagana Samoa', flag: '🇼🇸' },
+  { code: 'to', name: 'Lea Faka-Tonga', flag: '🇹🇴' },
+  { code: 'fj', name: 'Na Vosa Vakaviti', flag: '🇫🇯' }
 ];
 
 // ===== Category Metadata =====
@@ -97,12 +158,12 @@ export const CATEGORY_INFO: Record<ImageCategory, CategoryInfo> = {
   'ui-components': {
     id: 'ui-components',
     name: 'Website & App UI',
-    description: 'Create modern UI elements for digital interfaces and applications',
+    description: 'Create professional, production-ready UI elements following modern UX/UI best practices and platform-specific design guidelines',
     icon: 'Monitor',
     color: '#45B7D1',
     gradient: 'from-blue-400 to-purple-500',
-    examples: ['Buttons', 'Icons', 'Hero images', 'UI elements', 'App interfaces'],
-    tags: ['ui', 'ux', 'web', 'app', 'interface', 'design', 'digital']
+    examples: ['Professional buttons', 'Mobile app interfaces', 'Web layouts', 'Form elements', 'Navigation systems', 'Dashboard components'],
+    tags: ['ui', 'ux', 'web', 'app', 'interface', 'design', 'digital', 'professional', 'accessibility', 'responsive']
   },
   'marketing': {
     id: 'marketing',
@@ -589,6 +650,139 @@ export const LOGO_BRAND_FORM: CategoryForm = {
         { value: 'bold-impact', label: 'Bold Impact', description: 'Strong, attention-grabbing' }
       ]
     },
+    {
+      id: 'targetAudience',
+      type: 'select',
+      label: 'Target Audience *',
+      required: true,
+      description: 'Who is your primary target audience?',
+      options: [
+        { value: 'business-professionals', label: 'Business Professionals', description: 'Corporate decision makers, B2B' },
+        { value: 'general-consumers', label: 'General Consumers', description: 'Everyday customers, B2C' },
+        { value: 'young-adults', label: 'Young Adults (18-35)', description: 'Millennials and Gen Z' },
+        { value: 'families', label: 'Families', description: 'Parents and family units' },
+        { value: 'seniors', label: 'Seniors (55+)', description: 'Mature, established audience' },
+        { value: 'tech-enthusiasts', label: 'Tech Enthusiasts', description: 'Early adopters, tech-savvy users' },
+        { value: 'creative-professionals', label: 'Creative Professionals', description: 'Designers, artists, creatives' },
+        { value: 'luxury-market', label: 'Luxury Market', description: 'High-end, premium customers' },
+        { value: 'global-audience', label: 'Global Audience', description: 'International, diverse market' }
+      ]
+    },
+    {
+      id: 'logoUsage',
+      type: 'multiselect',
+      label: 'Primary Usage *',
+      required: true,
+      description: 'Where will this logo be primarily used? (select multiple)',
+      multiple: true,
+      options: [
+        { value: 'website-digital', label: 'Website & Digital', description: 'Online presence, social media' },
+        { value: 'business-cards', label: 'Business Cards', description: 'Professional networking materials' },
+        { value: 'letterhead-documents', label: 'Letterhead & Documents', description: 'Official business documents' },
+        { value: 'signage-storefront', label: 'Signage & Storefront', description: 'Physical location displays' },
+        { value: 'merchandise-products', label: 'Merchandise & Products', description: 'Branded items and packaging' },
+        { value: 'vehicle-graphics', label: 'Vehicle Graphics', description: 'Cars, trucks, delivery vehicles' },
+        { value: 'advertising-marketing', label: 'Advertising & Marketing', description: 'Promotional materials, ads' },
+        { value: 'mobile-app', label: 'Mobile App', description: 'App icons and mobile interfaces' }
+      ]
+    },
+    {
+      id: 'competitorInfo',
+      type: 'textarea',
+      label: 'Competitor Context',
+      placeholder: 'Describe 2-3 main competitors and what makes your brand different',
+      description: 'Help us understand your competitive landscape (optional)',
+      validation: { max: 300, message: 'Competitor info should be under 300 characters' }
+    },
+    {
+      id: 'logoSymbol',
+      type: 'textarea',
+      label: 'Symbol/Icon Ideas',
+      placeholder: 'Shield for security, leaf for sustainability, arrow for growth, etc.',
+      description: 'Any specific symbols or concepts you want incorporated (optional)',
+      validation: { max: 200, message: 'Symbol ideas should be under 200 characters' },
+      conditional: { dependsOn: 'logoType', showWhen: ['pictorial', 'abstract', 'combination', 'emblem', 'mascot'] }
+    },
+    {
+      id: 'fontPreference',
+      type: 'select',
+      label: 'Font Style Preference',
+      description: 'What type of typography appeals to you?',
+      conditional: { dependsOn: 'logoType', showWhen: ['wordmark', 'lettermark', 'combination', 'emblem', 'monogram'] },
+      options: [
+        { value: 'sans-serif-modern', label: 'Sans-Serif Modern', description: 'Clean, contemporary fonts' },
+        { value: 'serif-traditional', label: 'Serif Traditional', description: 'Classic, established fonts' },
+        { value: 'script-elegant', label: 'Script Elegant', description: 'Flowing, sophisticated fonts' },
+        { value: 'display-unique', label: 'Display Unique', description: 'Distinctive, custom-style fonts' },
+        { value: 'geometric-structured', label: 'Geometric Structured', description: 'Mathematical, precise fonts' },
+        { value: 'handwritten-organic', label: 'Handwritten Organic', description: 'Personal, crafted appearance' }
+      ]
+    },
+    {
+      id: 'customColorValues',
+      type: 'text',
+      label: 'Specific Brand Colors',
+      placeholder: '#1a365d, #2d3748, #ffffff',
+      description: 'Enter existing brand colors as hex codes (if you have them)',
+      validation: { max: 100, message: 'Color values should be under 100 characters' }
+    },
+    {
+      id: 'logoVersions',
+      type: 'multiselect',
+      label: 'Logo Versions Needed',
+      description: 'Which versions do you need? (select multiple)',
+      multiple: true,
+      options: [
+        { value: 'full-color', label: 'Full Color', description: 'Primary logo with all colors' },
+        { value: 'single-color', label: 'Single Color', description: 'One-color version' },
+        { value: 'black-white', label: 'Black & White', description: 'Monochrome version' },
+        { value: 'reverse-white', label: 'Reverse (White)', description: 'White version for dark backgrounds' },
+        { value: 'horizontal', label: 'Horizontal Layout', description: 'Wide format version' },
+        { value: 'vertical', label: 'Vertical Layout', description: 'Stacked format version' },
+        { value: 'icon-only', label: 'Icon Only', description: 'Symbol without text' },
+        { value: 'favicon', label: 'Favicon', description: 'Small web icon version' }
+      ]
+    },
+    {
+      id: 'outputFormats',
+      type: 'multiselect',
+      label: 'Output Formats *',
+      required: true,
+      description: 'What file formats do you need? (select multiple)',
+      multiple: true,
+      options: [
+        { value: 'vector-svg', label: 'Vector (SVG)', description: 'Scalable vector format' },
+        { value: 'vector-ai', label: 'Vector (AI)', description: 'Adobe Illustrator format' },
+        { value: 'high-res-png', label: 'High-Res PNG', description: 'Transparent background, 300 DPI' },
+        { value: 'web-png', label: 'Web PNG', description: 'Optimized for web use' },
+        { value: 'print-eps', label: 'Print EPS', description: 'Professional printing format' },
+        { value: 'social-media-kit', label: 'Social Media Kit', description: 'Various sizes for platforms' }
+      ]
+    },
+    {
+      id: 'budgetRange',
+      type: 'select',
+      label: 'Project Scope',
+      description: 'What level of logo development do you need?',
+      options: [
+        { value: 'basic-logo', label: 'Basic Logo', description: 'Single logo design' },
+        { value: 'logo-variations', label: 'Logo + Variations', description: 'Logo with multiple versions' },
+        { value: 'brand-package', label: 'Brand Package', description: 'Logo + color palette + fonts' },
+        { value: 'complete-identity', label: 'Complete Identity', description: 'Full brand identity system' }
+      ]
+    },
+    {
+      id: 'timelineUrgency',
+      type: 'select',
+      label: 'Timeline',
+      description: 'When do you need this completed?',
+      options: [
+        { value: 'rush-24h', label: 'Rush (24 hours)', description: 'Urgent delivery needed' },
+        { value: 'standard-3-5days', label: 'Standard (3-5 days)', description: 'Normal timeline' },
+        { value: 'extended-1-2weeks', label: 'Extended (1-2 weeks)', description: 'More time for refinement' },
+        { value: 'flexible', label: 'Flexible', description: 'No specific deadline' }
+      ]
+    }
 
   ]
 };
@@ -697,6 +891,161 @@ export const UI_COMPONENTS_FORM: CategoryForm = {
         { value: 'focus', label: 'Focus', description: 'Keyboard focus state' }
       ]
     },
+    {
+      id: 'componentText',
+      type: 'text',
+      label: 'Button/Component Text',
+      placeholder: 'Get Started, Sign Up, Learn More',
+      description: 'Text that should appear on buttons or in the component',
+      validation: { max: 50, message: 'Component text should be under 50 characters' },
+      conditional: { dependsOn: 'componentType', showWhen: ['button', 'navigation', 'form-elements', 'modals'] }
+    },
+    {
+      id: 'iconStyle',
+      type: 'select',
+      label: 'Icon Style',
+      description: 'What style of icons do you need?',
+      conditional: { dependsOn: 'componentType', showWhen: ['icon-set', 'button', 'navigation'] },
+      options: [
+        { value: 'outline', label: 'Outline', description: 'Line-based, minimal icons' },
+        { value: 'filled', label: 'Filled', description: 'Solid, filled icons' },
+        { value: 'duotone', label: 'Duotone', description: 'Two-color icons' },
+        { value: 'gradient', label: 'Gradient', description: 'Icons with gradient fills' },
+        { value: 'flat', label: 'Flat', description: 'Simple, flat design icons' },
+        { value: 'realistic', label: 'Realistic', description: 'Detailed, realistic icons' }
+      ]
+    },
+    {
+      id: 'iconList',
+      type: 'textarea',
+      label: 'Required Icons',
+      placeholder: 'home, user, settings, search, heart, shopping cart, notification, etc.',
+      description: 'List the specific icons you need (comma-separated)',
+      validation: { max: 300, message: 'Icon list should be under 300 characters' },
+      conditional: { dependsOn: 'componentType', showWhen: ['icon-set'] }
+    },
+    {
+      id: 'componentSize',
+      type: 'select',
+      label: 'Component Size *',
+      required: true,
+      description: 'What size should the component be?',
+      options: [
+        { value: 'small', label: 'Small', description: 'Compact size for dense layouts' },
+        { value: 'medium', label: 'Medium', description: 'Standard size for most uses' },
+        { value: 'large', label: 'Large', description: 'Prominent size for main actions' },
+        { value: 'extra-large', label: 'Extra Large', description: 'Hero elements and key features' },
+        { value: 'responsive', label: 'Responsive', description: 'Multiple sizes for different screens' },
+        { value: 'custom', label: 'Custom', description: 'Specify exact dimensions' }
+      ]
+    },
+    {
+      id: 'customSize',
+      type: 'text',
+      label: 'Custom Dimensions',
+      placeholder: '320x60px or 200x40px',
+      description: 'Specify width x height in pixels',
+      conditional: { dependsOn: 'componentSize', showWhen: ['custom'] }
+    },
+    {
+      id: 'outputFormat',
+      type: 'select',
+      label: 'Output Format *',
+      required: true,
+      description: 'How should the component be delivered?',
+      options: [
+        { value: 'png-transparent', label: 'PNG (Transparent)', description: 'High quality with transparency' },
+        { value: 'svg-vector', label: 'SVG (Vector)', description: 'Scalable vector format' },
+        { value: 'multiple-formats', label: 'Multiple Formats', description: 'PNG, SVG, and other formats' },
+        { value: 'design-system', label: 'Design System', description: 'Complete component library' },
+        { value: 'code-ready', label: 'Code Ready', description: 'With CSS/HTML specifications' }
+      ]
+    },
+    {
+      id: 'brandColorValues',
+      type: 'text',
+      label: 'Brand Color Values',
+      placeholder: '#1a365d, #2d3748, #ffffff',
+      description: 'Enter your brand colors as hex codes',
+      validation: { max: 100, message: 'Brand colors should be under 100 characters' },
+      conditional: { dependsOn: 'colorTheme', showWhen: ['brand-colors'] }
+    },
+    {
+      id: 'accessibilityLevel',
+      type: 'select',
+      label: 'Accessibility Requirements',
+      description: 'What accessibility standards should be met?',
+      options: [
+        { value: 'basic', label: 'Basic', description: 'Standard color contrast and sizing' },
+        { value: 'wcag-aa', label: 'WCAG AA', description: 'Web Content Accessibility Guidelines AA' },
+        { value: 'wcag-aaa', label: 'WCAG AAA', description: 'Highest accessibility standards' },
+        { value: 'colorblind-friendly', label: 'Colorblind Friendly', description: 'Safe for color vision deficiency' },
+        { value: 'high-contrast', label: 'High Contrast', description: 'Enhanced contrast for visibility' }
+      ]
+    },
+    {
+      id: 'userContext',
+      type: 'select',
+      label: 'User Context & Environment',
+      description: 'Where and how will users interact with this component?',
+      options: [
+        { value: 'focused-task', label: 'Focused Task', description: 'Users are concentrated on completing a specific task' },
+        { value: 'casual-browsing', label: 'Casual Browsing', description: 'Users are exploring or browsing casually' },
+        { value: 'mobile-on-go', label: 'Mobile On-the-Go', description: 'Users are mobile, potentially distracted' },
+        { value: 'desktop-work', label: 'Desktop Work', description: 'Professional work environment with full attention' },
+        { value: 'tablet-leisure', label: 'Tablet Leisure', description: 'Relaxed tablet usage, often in comfortable settings' },
+        { value: 'emergency-critical', label: 'Emergency/Critical', description: 'Time-sensitive or critical user actions' },
+        { value: 'first-time-user', label: 'First-time User', description: 'New users learning the interface' },
+        { value: 'power-user', label: 'Power User', description: 'Experienced users who value efficiency' }
+      ]
+    },
+    {
+      id: 'performanceRequirements',
+      type: 'select',
+      label: 'Performance Requirements',
+      description: 'What are the performance constraints?',
+      options: [
+        { value: 'standard', label: 'Standard', description: 'Normal web performance expectations' },
+        { value: 'fast-loading', label: 'Fast Loading', description: 'Optimized for quick initial load' },
+        { value: 'low-bandwidth', label: 'Low Bandwidth', description: 'Optimized for slow internet connections' },
+        { value: 'mobile-first', label: 'Mobile First', description: 'Prioritized for mobile device performance' },
+        { value: 'high-interaction', label: 'High Interaction', description: 'Smooth animations and micro-interactions' },
+        { value: 'data-heavy', label: 'Data Heavy', description: 'Components handling large amounts of data' }
+      ]
+    },
+    {
+      id: 'businessGoal',
+      type: 'select',
+      label: 'Primary Business Goal',
+      description: 'What business objective should this component support?',
+      options: [
+        { value: 'conversion', label: 'Conversion', description: 'Drive users to take specific actions' },
+        { value: 'engagement', label: 'Engagement', description: 'Keep users active and involved' },
+        { value: 'retention', label: 'Retention', description: 'Encourage users to return' },
+        { value: 'onboarding', label: 'Onboarding', description: 'Help new users get started' },
+        { value: 'productivity', label: 'Productivity', description: 'Help users complete tasks efficiently' },
+        { value: 'discovery', label: 'Discovery', description: 'Help users find relevant content' },
+        { value: 'trust-building', label: 'Trust Building', description: 'Establish credibility and confidence' },
+        { value: 'brand-awareness', label: 'Brand Awareness', description: 'Reinforce brand identity and values' }
+      ]
+    },
+    {
+      id: 'technicalConstraints',
+      type: 'multiselect',
+      label: 'Technical Constraints',
+      description: 'Any technical limitations to consider? (select multiple)',
+      multiple: true,
+      options: [
+        { value: 'legacy-browser', label: 'Legacy Browser Support', description: 'Must work on older browsers' },
+        { value: 'no-javascript', label: 'No JavaScript', description: 'Must work without JavaScript' },
+        { value: 'offline-capable', label: 'Offline Capable', description: 'Must function without internet' },
+        { value: 'print-friendly', label: 'Print Friendly', description: 'Must look good when printed' },
+        { value: 'screen-reader', label: 'Screen Reader Optimized', description: 'Enhanced screen reader support' },
+        { value: 'keyboard-only', label: 'Keyboard Only', description: 'Must work with keyboard navigation only' },
+        { value: 'touch-only', label: 'Touch Only', description: 'Designed for touch-only devices' },
+        { value: 'high-dpi', label: 'High DPI Support', description: 'Optimized for high-resolution displays' }
+      ]
+    }
 
   ]
 };
@@ -787,14 +1136,14 @@ export const DATA_VIZ_FORM: CategoryForm = {
       description: 'Optional title for your chart',
       validation: { max: 100, message: 'Title should be under 100 characters' }
     },
-    // {
-    //   id: 'textLanguage',
-    //   type: 'language-select',
-    //   label: 'Text Language *',
-    //   required: true,
-    //   description: 'Language for labels and text',
-    //   defaultValue: 'en'
-    // },
+    {
+      id: 'textLanguage',
+      type: 'language-select',
+      label: 'Text Language *',
+      required: true,
+      description: 'Language for labels and text in the chart',
+      defaultValue: 'en'
+    },
     {
       id: 'outputFormat',
       type: 'select',
@@ -1092,7 +1441,43 @@ export const ILLUSTRATIONS_FORM: CategoryForm = {
         { value: 'technical-diagram', label: 'Technical Diagram', description: 'Instructional or educational visuals' },
         { value: 'editorial-art', label: 'Editorial Art', description: 'Article or blog post illustrations' },
         { value: 'book-cover', label: 'Book Cover Art', description: 'Cover design for books or ebooks' },
-        { value: 'pattern-design', label: 'Pattern Design', description: 'Repeating decorative patterns' }
+        { value: 'pattern-design', label: 'Pattern Design', description: 'Repeating decorative patterns' },
+        { value: 'infographic', label: 'Infographic', description: 'Data visualization and information graphics' },
+        { value: 'icon-illustration', label: 'Icon Illustration', description: 'Detailed illustrative icons' }
+      ]
+    },
+    {
+      id: 'illustrationPurpose',
+      type: 'select',
+      label: 'Intended Use *',
+      required: true,
+      description: 'How will this illustration be used?',
+      options: [
+        { value: 'website-digital', label: 'Website/Digital', description: 'Online use, web graphics' },
+        { value: 'print-materials', label: 'Print Materials', description: 'Brochures, flyers, books' },
+        { value: 'social-media', label: 'Social Media', description: 'Posts, stories, profiles' },
+        { value: 'presentations', label: 'Presentations', description: 'Slides, pitch decks' },
+        { value: 'merchandise', label: 'Merchandise', description: 'T-shirts, mugs, products' },
+        { value: 'app-ui', label: 'App/UI Design', description: 'Mobile apps, software interfaces' },
+        { value: 'marketing-advertising', label: 'Marketing/Advertising', description: 'Campaigns, promotions' },
+        { value: 'educational-content', label: 'Educational Content', description: 'Tutorials, courses, guides' }
+      ]
+    },
+    {
+      id: 'targetAudience',
+      type: 'select',
+      label: 'Target Audience *',
+      required: true,
+      description: 'Who is the primary audience for this illustration?',
+      options: [
+        { value: 'children', label: 'Children (3-12)', description: 'Young kids, playful and colorful' },
+        { value: 'teenagers', label: 'Teenagers (13-19)', description: 'Youth, trendy and dynamic' },
+        { value: 'young-adults', label: 'Young Adults (20-35)', description: 'Modern, tech-savvy audience' },
+        { value: 'professionals', label: 'Business Professionals', description: 'Corporate, sophisticated audience' },
+        { value: 'general-public', label: 'General Public', description: 'Broad, universal appeal' },
+        { value: 'seniors', label: 'Seniors (55+)', description: 'Mature, traditional preferences' },
+        { value: 'creative-industry', label: 'Creative Industry', description: 'Designers, artists, creatives' },
+        { value: 'technical-audience', label: 'Technical Audience', description: 'Engineers, developers, tech workers' }
       ]
     },
     {
@@ -1122,6 +1507,48 @@ export const ILLUSTRATIONS_FORM: CategoryForm = {
       validation: { min: 30, max: 400, message: 'Description should be between 30-400 characters' }
     },
     {
+      id: 'specificElements',
+      type: 'textarea',
+      label: 'Specific Elements to Include',
+      placeholder: 'Must include: company logo, specific objects, text elements, symbols, etc.',
+      description: 'List any specific elements that must be included in the illustration',
+      validation: { max: 300, message: 'Elements description should be under 300 characters' }
+    },
+    {
+      id: 'textContent',
+      type: 'textarea',
+      label: 'Text Content',
+      placeholder: 'Any text that should appear in the illustration',
+      description: 'Enter any text that should be included in the illustration',
+      validation: { max: 200, message: 'Text content should be under 200 characters' },
+      conditional: { dependsOn: 'illustrationType', showWhen: ['infographic', 'editorial-art', 'technical-diagram'] }
+    },
+    {
+      id: 'dimensions',
+      type: 'select',
+      label: 'Output Dimensions *',
+      required: true,
+      description: 'Choose the output size and format',
+      options: [
+        { value: 'square-1080', label: 'Square (1080x1080)', description: 'Social media posts, Instagram' },
+        { value: 'landscape-1920', label: 'Landscape (1920x1080)', description: 'Website headers, presentations' },
+        { value: 'portrait-1080', label: 'Portrait (1080x1920)', description: 'Stories, mobile screens' },
+        { value: 'print-letter', label: 'Print Letter (8.5x11")', description: 'Standard print documents' },
+        { value: 'print-a4', label: 'Print A4 (210x297mm)', description: 'International print standard' },
+        { value: 'book-cover', label: 'Book Cover (6x9")', description: 'Standard book cover size' },
+        { value: 'banner-web', label: 'Web Banner (1200x300)', description: 'Website banners, headers' },
+        { value: 'custom-size', label: 'Custom Size', description: 'Specify custom dimensions' }
+      ]
+    },
+    {
+      id: 'customDimensions',
+      type: 'text',
+      label: 'Custom Dimensions',
+      placeholder: '1200x800 pixels or 5x7 inches',
+      description: 'Specify width x height with units (pixels, inches, or cm)',
+      conditional: { dependsOn: 'dimensions', showWhen: ['custom-size'] }
+    },
+    {
       id: 'colorPalette',
       type: 'visual-cards',
       label: 'Color Palette *',
@@ -1133,8 +1560,18 @@ export const ILLUSTRATIONS_FORM: CategoryForm = {
         { value: 'earth-natural', label: 'Earth & Natural', description: 'Organic, nature-inspired tones' },
         { value: 'monochromatic', label: 'Monochromatic', description: 'Single color with variations' },
         { value: 'warm-tones', label: 'Warm Tones', description: 'Reds, oranges, yellows' },
-        { value: 'cool-tones', label: 'Cool Tones', description: 'Blues, greens, purples' }
+        { value: 'cool-tones', label: 'Cool Tones', description: 'Blues, greens, purples' },
+        { value: 'brand-colors', label: 'Brand Colors', description: 'Use specific brand colors' }
       ]
+    },
+    {
+      id: 'brandColorValues',
+      type: 'text',
+      label: 'Brand Color Values',
+      placeholder: '#1a365d, #2d3748, #ffffff',
+      description: 'Enter your brand colors as hex codes',
+      validation: { max: 100, message: 'Brand colors should be under 100 characters' },
+      conditional: { dependsOn: 'colorPalette', showWhen: ['brand-colors'] }
     },
     {
       id: 'mood',
@@ -1148,10 +1585,23 @@ export const ILLUSTRATIONS_FORM: CategoryForm = {
         { value: 'professional-serious', label: 'Professional & Serious', description: 'Business-focused tone' },
         { value: 'mysterious-dramatic', label: 'Mysterious & Dramatic', description: 'Intriguing, intense mood' },
         { value: 'playful-fun', label: 'Playful & Fun', description: 'Light-hearted, entertaining' },
-        { value: 'inspirational', label: 'Inspirational', description: 'Motivating, aspirational' }
+        { value: 'inspirational', label: 'Inspirational', description: 'Motivating, aspirational' },
+        { value: 'modern-sleek', label: 'Modern & Sleek', description: 'Contemporary, sophisticated' },
+        { value: 'warm-friendly', label: 'Warm & Friendly', description: 'Approachable, welcoming' }
       ]
     },
-
+    {
+      id: 'complexity',
+      type: 'select',
+      label: 'Detail Level',
+      description: 'How detailed should the illustration be?',
+      options: [
+        { value: 'simple-minimal', label: 'Simple & Minimal', description: 'Clean, basic elements only' },
+        { value: 'moderate-detail', label: 'Moderate Detail', description: 'Balanced complexity' },
+        { value: 'highly-detailed', label: 'Highly Detailed', description: 'Rich, intricate artwork' },
+        { value: 'photorealistic', label: 'Photorealistic', description: 'Maximum detail and realism' }
+      ]
+    }
   ]
 };
 
@@ -1174,7 +1624,9 @@ export const PRODUCT_MOCKUPS_FORM: CategoryForm = {
         { value: 'electronics', label: 'Electronics', description: 'Phone cases, laptop sleeves, gadgets' },
         { value: 'home-decor', label: 'Home Decor', description: 'Pillows, wall art, decorative items' },
         { value: 'packaging', label: 'Packaging', description: 'Boxes, bags, product containers' },
-        { value: 'books-media', label: 'Books & Media', description: 'Books, magazines, CDs, DVDs' }
+        { value: 'books-media', label: 'Books & Media', description: 'Books, magazines, CDs, DVDs' },
+        { value: 'signage', label: 'Signage', description: 'Posters, banners, signs' },
+        { value: 'tech-devices', label: 'Tech Devices', description: 'Tablets, phones, laptops' }
       ]
     },
     {
@@ -1187,6 +1639,23 @@ export const PRODUCT_MOCKUPS_FORM: CategoryForm = {
       validation: { min: 5, max: 100, message: 'Product description should be 5-100 characters' }
     },
     {
+      id: 'productBrand',
+      type: 'text',
+      label: 'Product Brand/Name',
+      placeholder: 'Nike, Apple, Custom Brand',
+      description: 'Brand name or product line (if applicable)',
+      validation: { max: 50, message: 'Brand name should be under 50 characters' }
+    },
+    {
+      id: 'designUpload',
+      type: 'upload',
+      label: 'Design to Apply',
+      description: 'Upload your logo, artwork, or design that will be applied to the product',
+      accept: 'image/*',
+      maxFiles: 3,
+      multiple: true
+    },
+    {
       id: 'designDescription',
       type: 'textarea',
       label: 'Design Description *',
@@ -1194,6 +1663,48 @@ export const PRODUCT_MOCKUPS_FORM: CategoryForm = {
       placeholder: 'Minimalist logo design with company name in modern sans-serif font, positioned center chest, white text on black shirt',
       description: 'Describe the design that will be applied to the product',
       validation: { min: 20, max: 300, message: 'Design description should be 20-300 characters' }
+    },
+    {
+      id: 'designPlacement',
+      type: 'select',
+      label: 'Design Placement *',
+      required: true,
+      description: 'Where should the design be positioned on the product?',
+      options: [
+        { value: 'center-front', label: 'Center Front', description: 'Main front center position' },
+        { value: 'left-chest', label: 'Left Chest', description: 'Small logo placement on left chest' },
+        { value: 'full-front', label: 'Full Front', description: 'Large design covering front area' },
+        { value: 'back-center', label: 'Back Center', description: 'Center of back panel' },
+        { value: 'sleeve', label: 'Sleeve', description: 'On sleeve or arm area' },
+        { value: 'all-over', label: 'All Over', description: 'Pattern covering entire product' },
+        { value: 'bottom-corner', label: 'Bottom Corner', description: 'Small corner placement' },
+        { value: 'custom-position', label: 'Custom Position', description: 'Specify exact placement' }
+      ]
+    },
+    {
+      id: 'customPlacement',
+      type: 'text',
+      label: 'Custom Placement Details',
+      placeholder: 'Top right corner, 2 inches from edge',
+      description: 'Describe the exact placement for your design',
+      conditional: { dependsOn: 'designPlacement', showWhen: ['custom-position'] }
+    },
+    {
+      id: 'mockupPurpose',
+      type: 'select',
+      label: 'Mockup Purpose *',
+      required: true,
+      description: 'How will this mockup be used?',
+      options: [
+        { value: 'ecommerce-listing', label: 'E-commerce Listing', description: 'Online store product photos' },
+        { value: 'marketing-materials', label: 'Marketing Materials', description: 'Ads, brochures, promotions' },
+        { value: 'social-media', label: 'Social Media', description: 'Posts, stories, advertising' },
+        { value: 'client-presentation', label: 'Client Presentation', description: 'Showing designs to clients' },
+        { value: 'portfolio-showcase', label: 'Portfolio Showcase', description: 'Designer portfolio display' },
+        { value: 'print-advertising', label: 'Print Advertising', description: 'Magazines, newspapers, flyers' },
+        { value: 'website-display', label: 'Website Display', description: 'Company website, landing pages' },
+        { value: 'concept-visualization', label: 'Concept Visualization', description: 'Design concept exploration' }
+      ]
     },
     {
       id: 'mockupStyle',
@@ -1211,6 +1722,22 @@ export const PRODUCT_MOCKUPS_FORM: CategoryForm = {
       ]
     },
     {
+      id: 'targetAudience',
+      type: 'select',
+      label: 'Target Audience',
+      description: 'Who is the target customer for this product?',
+      options: [
+        { value: 'young-adults', label: 'Young Adults (18-35)', description: 'Trendy, modern audience' },
+        { value: 'professionals', label: 'Business Professionals', description: 'Corporate, sophisticated buyers' },
+        { value: 'families', label: 'Families', description: 'Parents and family-oriented customers' },
+        { value: 'teens', label: 'Teenagers', description: 'Youth market, trendy styles' },
+        { value: 'luxury-buyers', label: 'Luxury Buyers', description: 'High-end, premium market' },
+        { value: 'eco-conscious', label: 'Eco-Conscious', description: 'Sustainability-focused consumers' },
+        { value: 'tech-enthusiasts', label: 'Tech Enthusiasts', description: 'Technology-focused customers' },
+        { value: 'general-market', label: 'General Market', description: 'Broad consumer appeal' }
+      ]
+    },
+    {
       id: 'background',
       type: 'select',
       label: 'Background *',
@@ -1222,10 +1749,74 @@ export const PRODUCT_MOCKUPS_FORM: CategoryForm = {
         { value: 'office-workplace', label: 'Office Workplace', description: 'Professional work setting' },
         { value: 'outdoor-natural', label: 'Outdoor Natural', description: 'Nature or outdoor environment' },
         { value: 'urban-city', label: 'Urban City', description: 'Street, cafe, or city environment' },
-        { value: 'textured', label: 'Textured', description: 'Wood, marble, or textured surface' }
+        { value: 'textured', label: 'Textured', description: 'Wood, marble, or textured surface' },
+        { value: 'gradient', label: 'Gradient', description: 'Smooth color transition background' },
+        { value: 'transparent', label: 'Transparent', description: 'No background for versatile use' }
       ]
     },
-
+    {
+      id: 'lightingStyle',
+      type: 'select',
+      label: 'Lighting Style',
+      description: 'What type of lighting should be used?',
+      options: [
+        { value: 'natural-soft', label: 'Natural Soft', description: 'Soft, natural lighting' },
+        { value: 'studio-professional', label: 'Studio Professional', description: 'Controlled studio lighting' },
+        { value: 'dramatic-shadow', label: 'Dramatic Shadow', description: 'Strong shadows and contrast' },
+        { value: 'bright-even', label: 'Bright Even', description: 'Evenly lit, minimal shadows' },
+        { value: 'warm-cozy', label: 'Warm Cozy', description: 'Warm, inviting atmosphere' },
+        { value: 'cool-modern', label: 'Cool Modern', description: 'Cool, contemporary lighting' }
+      ]
+    },
+    {
+      id: 'additionalProps',
+      type: 'textarea',
+      label: 'Additional Props/Elements',
+      placeholder: 'Coffee cup, laptop, plants, books, etc.',
+      description: 'List any additional items that should appear in the scene',
+      validation: { max: 200, message: 'Props description should be under 200 characters' }
+    },
+    {
+      id: 'colorVariations',
+      type: 'multiselect',
+      label: 'Product Color Variations',
+      description: 'Show the product in multiple colors (optional)',
+      multiple: true,
+      options: [
+        { value: 'black', label: 'Black', description: 'Classic black version' },
+        { value: 'white', label: 'White', description: 'Clean white version' },
+        { value: 'navy', label: 'Navy Blue', description: 'Professional navy option' },
+        { value: 'gray', label: 'Gray', description: 'Neutral gray version' },
+        { value: 'red', label: 'Red', description: 'Bold red option' },
+        { value: 'blue', label: 'Blue', description: 'Classic blue version' },
+        { value: 'green', label: 'Green', description: 'Fresh green option' },
+        { value: 'custom-colors', label: 'Custom Colors', description: 'Specify custom color palette' }
+      ]
+    },
+    {
+      id: 'customColors',
+      type: 'text',
+      label: 'Custom Color Values',
+      placeholder: '#1a365d, #2d3748, #e53e3e',
+      description: 'Enter custom colors as hex codes',
+      validation: { max: 100, message: 'Custom colors should be under 100 characters' },
+      conditional: { dependsOn: 'colorVariations', showWhen: ['custom-colors'] }
+    },
+    {
+      id: 'outputFormat',
+      type: 'select',
+      label: 'Output Format *',
+      required: true,
+      description: 'Choose the final image format and orientation',
+      options: [
+        { value: 'square-1080', label: 'Square (1080x1080)', description: 'Social media posts, Instagram' },
+        { value: 'landscape-1920', label: 'Landscape (1920x1080)', description: 'Website banners, presentations' },
+        { value: 'portrait-1080', label: 'Portrait (1080x1920)', description: 'Stories, mobile displays' },
+        { value: 'ecommerce-standard', label: 'E-commerce Standard (1200x1200)', description: 'Online store listings' },
+        { value: 'print-quality', label: 'Print Quality (300 DPI)', description: 'High resolution for printing' },
+        { value: 'web-optimized', label: 'Web Optimized (72 DPI)', description: 'Fast loading for websites' }
+      ]
+    }
   ]
 };
 
@@ -1259,6 +1850,75 @@ export const LETTERHEAD_FORM: CategoryForm = {
       placeholder: 'Acme Corporation',
       description: 'Your company or organization name',
       validation: { min: 2, max: 80, message: 'Company name should be 2-80 characters' }
+    },
+    {
+      id: 'companyLogo',
+      type: 'upload',
+      label: 'Company Logo',
+      description: 'Upload your existing company logo to incorporate into the design',
+      accept: 'image/*',
+      maxFiles: 1,
+      multiple: false
+    },
+    {
+      id: 'industry',
+      type: 'select',
+      label: 'Industry *',
+      required: true,
+      description: 'What industry is your business in?',
+      options: [
+        { value: 'technology', label: 'Technology', description: 'Software, IT, hardware' },
+        { value: 'healthcare', label: 'Healthcare', description: 'Medical, wellness, pharmaceuticals' },
+        { value: 'finance', label: 'Finance', description: 'Banking, investment, insurance' },
+        { value: 'education', label: 'Education', description: 'Schools, training, e-learning' },
+        { value: 'retail', label: 'Retail', description: 'E-commerce, stores, consumer goods' },
+        { value: 'food-beverage', label: 'Food & Beverage', description: 'Restaurants, catering, drinks' },
+        { value: 'real-estate', label: 'Real Estate', description: 'Property, construction, architecture' },
+        { value: 'consulting', label: 'Consulting', description: 'Business services, advisory' },
+        { value: 'creative', label: 'Creative', description: 'Design, media, entertainment' },
+        { value: 'non-profit', label: 'Non-Profit', description: 'Charity, community organizations' },
+        { value: 'automotive', label: 'Automotive', description: 'Cars, transportation, logistics' },
+        { value: 'sports-fitness', label: 'Sports & Fitness', description: 'Gyms, athletics, wellness' },
+        { value: 'beauty-fashion', label: 'Beauty & Fashion', description: 'Cosmetics, clothing, accessories' },
+        { value: 'legal', label: 'Legal Services', description: 'Law firms, legal consultancy' },
+        { value: 'manufacturing', label: 'Manufacturing', description: 'Production, industrial' },
+        { value: 'other', label: 'Other', description: 'Different industry' }
+      ]
+    },
+    {
+      id: 'documentPurpose',
+      type: 'select',
+      label: 'Document Purpose *',
+      required: true,
+      description: 'What will this document be primarily used for?',
+      options: [
+        { value: 'client-communication', label: 'Client Communication', description: 'Letters to clients and customers' },
+        { value: 'business-correspondence', label: 'Business Correspondence', description: 'Professional business letters' },
+        { value: 'proposals-quotes', label: 'Proposals & Quotes', description: 'Business proposals and quotations' },
+        { value: 'contracts-agreements', label: 'Contracts & Agreements', description: 'Legal documents and contracts' },
+        { value: 'invoicing-billing', label: 'Invoicing & Billing', description: 'Financial documents and invoices' },
+        { value: 'internal-memos', label: 'Internal Memos', description: 'Company internal communications' },
+        { value: 'marketing-materials', label: 'Marketing Materials', description: 'Promotional business documents' },
+        { value: 'official-notices', label: 'Official Notices', description: 'Formal announcements and notices' }
+      ]
+    },
+    {
+      id: 'letterContent',
+      type: 'textarea',
+      label: 'Letter Content',
+      placeholder: 'Dear [Recipient Name],\n\nI am writing to inform you about...\n\n[Your letter content here]\n\nSincerely,\n[Your Name]\n[Your Title]',
+      description: 'Enter the actual content of your letter (optional - this helps create a more realistic template)',
+      validation: { max: 1000, message: 'Letter content should be under 1000 characters' },
+      conditional: { dependsOn: 'documentType', showWhen: ['letterhead', 'memo-template'] }
+    },
+    {
+      id: 'recipientInfo',
+      type: 'textarea',
+      label: 'Recipient Information',
+      placeholder: '[Recipient Name]\n[Company Name]\n[Address]\n[City, State ZIP]',
+      description: 'Sample recipient information for template layout (optional)',
+      validation: { max: 200, message: 'Recipient info should be under 200 characters' },
+      conditional: { dependsOn: 'documentType', showWhen: ['letterhead', 'proposal-cover'] }
     },
     {
       id: 'contactInfo',
@@ -1299,6 +1959,15 @@ export const LETTERHEAD_FORM: CategoryForm = {
       ]
     },
     {
+      id: 'brandColors',
+      type: 'text',
+      label: 'Brand Colors',
+      placeholder: '#1a365d, #2d3748, #ffffff',
+      description: 'Enter your brand colors as hex codes (e.g., #1a365d)',
+      validation: { max: 100, message: 'Brand colors should be under 100 characters' },
+      conditional: { dependsOn: 'colorScheme', showWhen: ['brand-colors'] }
+    },
+    {
       id: 'includeDesignElements',
       type: 'multiselect',
       label: 'Design Elements',
@@ -1309,10 +1978,36 @@ export const LETTERHEAD_FORM: CategoryForm = {
         { value: 'decorative-line', label: 'Decorative Line', description: 'Accent lines or borders' },
         { value: 'watermark', label: 'Watermark', description: 'Subtle background branding' },
         { value: 'footer-line', label: 'Footer Line', description: 'Bottom accent or separator' },
-        { value: 'header-accent', label: 'Header Accent', description: 'Top decorative element' }
+        { value: 'header-accent', label: 'Header Accent', description: 'Top decorative element' },
+        { value: 'date-field', label: 'Date Field', description: 'Pre-formatted date area' },
+        { value: 'signature-line', label: 'Signature Line', description: 'Space for handwritten signature' }
       ]
     },
-
+    {
+      id: 'formatSize',
+      type: 'select',
+      label: 'Document Format *',
+      required: true,
+      description: 'Choose the output format and size',
+      options: [
+        { value: 'standard-letter', label: 'US Letter (8.5" x 11")', description: 'Standard US business letter size' },
+        { value: 'a4-document', label: 'A4 (210mm x 297mm)', description: 'International A4 standard' },
+        { value: 'legal-size', label: 'Legal Size (8.5" x 14")', description: 'US legal document size' },
+        { value: 'executive-size', label: 'Executive (7.25" x 10.5")', description: 'Premium executive letterhead' }
+      ]
+    },
+    {
+      id: 'printingMethod',
+      type: 'select',
+      label: 'Intended Printing Method',
+      description: 'How will you primarily print this document?',
+      options: [
+        { value: 'office-printer', label: 'Office Printer', description: 'Standard office inkjet/laser printer' },
+        { value: 'professional-printing', label: 'Professional Printing', description: 'Commercial print shop' },
+        { value: 'digital-only', label: 'Digital Only', description: 'Primarily for digital use/PDF' },
+        { value: 'high-end-printing', label: 'High-End Printing', description: 'Premium printing with special finishes' }
+      ]
+    }
   ]
 };
 

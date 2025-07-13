@@ -421,11 +421,11 @@ try {
 
     if (result.response) {
       const fullTextResponse = result.response;
-      const chunkSize = 30; 
+      const chunkSize = 100; // Increased from 30 to 100 for faster streaming
       for (let i = 0; i < fullTextResponse.length; i += chunkSize) {
         const chunk = fullTextResponse.substring(i, i + chunkSize);
         controller.enqueue(encoder.encode(createSSEEvent("text-chunk", { text: chunk })));
-        await new Promise(resolve => setTimeout(resolve, 10)); 
+        // Removed artificial delay for faster streaming
       }
     }
 

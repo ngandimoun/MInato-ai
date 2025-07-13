@@ -265,6 +265,10 @@ export class Orchestrator {
   private memoryFramework: CompanionCoreMemory;
   private availableToolsForRouter: SdkResponsesApiTool[] = [];
   private toolNameResolutionCache: Map<string, string> = new Map();
+  private userNameCache: Map<string, { name: string; timestamp: number }> = new Map();
+  private readonly USER_NAME_CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+  private personaCache: Map<string, { persona: any; timestamp: number }> = new Map();
+  private readonly PERSONA_CACHE_TTL = 10 * 60 * 1000; // 10 minutes cache
   constructor() {
     logger.info(`[Orch] Initializing Orchestrator (Planning: ${PLANNING_MODEL_NAME_ORCH}, Chat/Vision: ${CHAT_VISION_MODEL_NAME_ORCH}, Max ${(appConfig.openai.maxToolsPerTurn || 3)} Tools/Turn)...`);
     try {
@@ -304,15 +308,29 @@ export class Orchestrator {
       logger.warn("[Orch getUserFirstName] No userId.");
       return DEFAULT_USER_NAME;
     }
+
+    // Check cache first
+    const cached = this.userNameCache.get(userId);
+    if (cached && Date.now() - cached.timestamp < this.USER_NAME_CACHE_TTL) {
+      return cached.name;
+    }
+
     try {
       const state = await supabaseAdmin.getUserState(userId);
-      if (state?.user_first_name?.trim()) return state.user_first_name.trim();
-      const profile = await supabaseAdmin.getUserProfile(userId);
-      return (
-        profile?.first_name?.trim() ||
-        profile?.full_name?.trim()?.split(" ")[0] ||
-        DEFAULT_USER_NAME
-      );
+      let name = DEFAULT_USER_NAME;
+      
+      if (state?.user_first_name?.trim()) {
+        name = state.user_first_name.trim();
+      } else {
+        const profile = await supabaseAdmin.getUserProfile(userId);
+        name = profile?.first_name?.trim() ||
+               profile?.full_name?.trim()?.split(" ")[0] ||
+               DEFAULT_USER_NAME;
+      }
+      
+      // Cache the result
+      this.userNameCache.set(userId, { name, timestamp: Date.now() });
+      return name;
     } catch (error: any) {
       logger.warn(`[Orch getUserFirstName] Failed fetch for user ${userId.substring(0, 8)}: ${error.message}`);
       return DEFAULT_USER_NAME;
@@ -494,16 +512,22 @@ Category-to-Sources Mapping:
 - general: ${defaultCategorySources.general.join(", ")}
 `;
             const extractionPrompt =
-`You are an expert news search query formulator.
+`You are an expert multilingual news search query formulator.
 Given the user query: "${cleanUserQueryForExtraction.replace(/"/g, '\"')}"
 
 ${categorySourceMapping}
 
 Your tasks are, in order:
-1. Determine the single best news category from this list: ${availableCategories.join(", ")}.
-2. Based on the determined category AND the user query, extract the most essential search keywords. Be concise. If the query is conversational (e.g., "tell me news about X"), extract only "X".
+1. Determine the single best news category from this list: ${availableCategories.join(", ")} (handle multilingual queries).
+2. Based on the determined category AND the user query, extract the most essential search keywords in English. Be concise. If the query is conversational in any language (e.g., "tell me news about X", "dime noticias sobre X", "raconte-moi les nouvelles sur X"), extract only "X" and translate to English if needed.
 3. Critically, based *primarily on the category you selected in step 1*, identify up to 3-5 most relevant news sources from the mapping above. For example, if the category is 'sports', you MUST pick only from the sports sources listed. Do NOT pick general sources like 'bbc-news', 'cnn', or 'reuters' for sports unless the query is about general sports news, not a specific athlete, team, or event.
    If unsure or if the query is very generic despite a category, you can use broad sources like 'google-news', or leave sources empty.
+
+Multilingual keyword translation examples:
+- "noticias sobre tecnología" → keywords: "technology", category: "technology"
+- "nouvelles sur le football" → keywords: "football", category: "sports"
+- "Nachrichten über Politik" → keywords: "politics", category: "general"
+- "notícias sobre economia" → keywords: "economy", category: "business"
 
 Respond in STRICT JSON format:
 {
@@ -745,21 +769,30 @@ Example 2 JSON:
             // --- END: ADVANCED CLEANING ---
             // Try LLM extraction first
             try {
-              const extractionPrompt = `You are an expert sports information assistant. Given the user query: "${cleanedUserInputForFallback.replace(/"/g, '\"')}"
+              const extractionPrompt = `You are an expert multilingual sports information assistant. Given the user query: "${cleanedUserInputForFallback.replace(/"/g, '\"')}"
 
 Your tasks are:
 1. Ignore any references to the tool, API, or the assistant's name (e.g., 'using TheSportsDB', 'with SportsInfoTool', 'sporttool', 'minato', etc.).
-2. Extract the most likely sports team name from the query. IMPORTANT RULES:
+2. Extract the most likely sports team name from the query. IMPORTANT MULTILINGUAL RULES:
    - For tournament/competition queries (e.g., "FIFA Club World Cup", "Champions League", "World Cup"), try to identify a specific team if mentioned, otherwise return null
-   - For team vs team queries (e.g., 'arsenal vs utd'), extract ONLY the first team mentioned
-   - Remove filler words like "the", "next", "game", "of", "on", etc.
+   - For team vs team queries (e.g., 'arsenal vs utd', 'Barcelona contra Real Madrid'), extract ONLY the first team mentioned
+   - Remove filler words in any language: "the", "next", "game", "of", "on", "el", "la", "le", "der", "die", "das", "il", "lo", "o", "a", etc.
    - Focus on actual team names, not competitions or tournaments
-   - Translate non-English team names to English equivalents
+   - Translate non-English team names to English equivalents:
+     * "Real Madrid" stays "Real Madrid"
+     * "FC Barcelona" becomes "Barcelona"
+     * "Bayern München" becomes "Bayern Munich"
+     * "Atlético de Madrid" becomes "Atletico Madrid"
+     * "Manchester United" stays "Manchester United"
+     * "Arsenal" stays "Arsenal"
+     * "Paris Saint-Germain" becomes "PSG" or "Paris Saint-Germain"
+     * "Juventus" stays "Juventus"
+     * "AC Milan" stays "AC Milan" or "Milan"
 
-3. Determine the type of information requested: one of "next_game", "last_game", or "team_info":
-   - "next_game" for upcoming matches, schedules, "when play", "next match"
-   - "last_game" for recent results, scores, "last match", "result"
-   - "team_info" for general team information, stats, "about", "tell me about"
+3. Determine the type of information requested based on multilingual keywords:
+   - "next_game" for: "próximo", "siguiente", "prochain", "nächste", "prossimo", "next", "upcoming", "when play", "quando joga"
+   - "last_game" for: "último", "pasado", "dernier", "letzte", "ultimo", "last", "recent", "result", "resultado", "résultat"
+   - "team_info" for: "sobre", "acerca", "à propos", "über", "riguardo", "about", "info", "information", "tell me"
 
 EXAMPLES:
 Query: "When is Arsenal's next match?"
@@ -899,22 +932,27 @@ CRITICAL: If no specific team can be identified (e.g., tournament-only queries),
             // --- END: ADVANCED CLEANING ---
             // Try LLM extraction first
             try {
-              const extractionPrompt = `You are an expert Reddit assistant. Given the user query: "${cleanedUserInputForReddit.replace(/"/g, '\"')}"
+              const extractionPrompt = `You are an expert multilingual Reddit assistant. Given the user query: "${cleanedUserInputForReddit.replace(/"/g, '\"')}"
 
 Your tasks are:
 1. Ignore any references to the tool, API, or the assistant's name (e.g., 'using RedditTool', 'with Reddit API', 'minato', etc.).
-2. Extract the most likely subreddit based on topic keywords:
-   - AI/Machine Learning/ChatGPT/GPT → "MachineLearning"
-   - Politics/Trump/Biden/Election/Government → "politics"
-   - Technology/Tech → "technology"
-   - Crypto/Bitcoin/Cryptocurrency → "CryptoCurrency"
-   - Gaming/Games → "gaming"
-   - Programming/Coding → "programming"
-   - News/Current Events → "worldnews"
-   - Funny/Humor/Memes → "funny"
+2. Extract the most likely subreddit based on topic keywords (handle multiple languages):
+   - AI/Machine Learning/ChatGPT/GPT/IA/Inteligencia Artificial/Intelligence Artificielle → "MachineLearning"
+   - Politics/Política/Politique/Politik/Trump/Biden/Election/Government → "politics"
+   - Technology/Tech/Tecnología/Technologie/Technologie/Tecnologia → "technology"
+   - Crypto/Bitcoin/Cryptocurrency/Criptomoneda/Cryptomonnaie/Kryptowährung → "CryptoCurrency"
+   - Gaming/Games/Juegos/Jeux/Spiele/Giochi → "gaming"
+   - Programming/Coding/Programación/Programmation/Programmierung → "programming"
+   - News/Current Events/Noticias/Nouvelles/Nachrichten/Notícias → "worldnews"
+   - Funny/Humor/Memes/Gracioso/Drôle/Lustig/Divertente → "funny"
    - Only use "all" if the query is extremely general
-3. Determine the filter: one of 'hot', 'new', 'top', or 'rising'. If not specified, use 'hot'.
-4. If the filter is 'top', extract the time period if present (e.g., 'day', 'week', etc.), else use 'week'.
+3. Determine the filter based on multilingual keywords:
+   - 'hot' for: "popular", "populares", "populaire", "beliebt", "popolare", "hot", "trending"
+   - 'new' for: "new", "nuevo", "nouveau", "neu", "nuovo", "recent", "reciente"
+   - 'top' for: "top", "mejor", "meilleur", "beste", "migliore", "best"
+   - 'rising' for: "rising", "subiendo", "montant", "aufsteigend", "in crescita"
+   - Default to 'hot' if not specified
+4. If the filter is 'top', extract the time period if present, else use 'week'.
 5. Set limit to 8 unless the user specifies otherwise.
 
 Respond in STRICT JSON format:
@@ -1195,13 +1233,16 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
           }
           // Try LLM extraction first
           try {
-            const extractionPrompt = `You are an expert recipe assistant. Given the user query: "${cleanedUserInputForRecipe.replace(/"/g, '\"')}"
+            const extractionPrompt = `You are an expert multilingual recipe assistant. Given the user query: "${cleanedUserInputForRecipe.replace(/"/g, '\"')}"
 
 Your tasks are:
 1. Ignore any references to the tool, API, or the assistant's name (e.g., 'using RecipeTool', 'with Recipe API', 'minato', etc.).
-2. If the user wants a random recipe (e.g., 'random recipe', 'give me any recipe', 'surprise me'), set "random" to true and leave "query" empty.
-3. Otherwise, extract the most likely main ingredient, dish, or cuisine as a concise search query (e.g., 'pasta', 'chicken curry', 'carbonara').
-4. If the query is too generic (e.g., just 'recipe', 'food', 'meal'), set "random" to true and leave "query" empty.
+2. If the user wants a random recipe in any language (e.g., 'random recipe', 'receta aleatoria', 'recette aléatoire', 'zufälliges Rezept', 'ricetta casuale', 'receita aleatória', 'give me any recipe', 'surprise me', 'sorpréndeme'), set "random" to true and leave "query" empty.
+3. Otherwise, extract the most likely main ingredient, dish, or cuisine as a concise English search query:
+   - Translate dish names to English: 'pasta', 'chicken curry', 'carbonara', 'paella', 'ratatouille', 'schnitzel', 'risotto', 'feijoada'
+   - Keep common international dishes: 'pizza', 'sushi', 'tacos', 'curry', 'pasta'
+   - Translate ingredients: 'pollo' → 'chicken', 'pescado' → 'fish', 'carne' → 'meat', 'verduras' → 'vegetables'
+4. If the query is too generic in any language (e.g., 'recipe', 'receta', 'recette', 'rezept', 'ricetta', 'receita', 'food', 'comida', 'meal'), set "random" to true and leave "query" empty.
 
 Respond in STRICT JSON format:
 {
@@ -1888,22 +1929,37 @@ Respond in STRICT JSON format:
             cleanedUserInputForSetter = cleanedUserInputForSetter.trim();
             
             try {
-              const extractionPrompt = `You are an expert reminder parsing assistant. Given the user request: "${cleanedUserInputForSetter.replace(/"/g, '\"')}"
+              const extractionPrompt = `You are an expert multilingual reminder parsing assistant. Given the user request: "${cleanedUserInputForSetter.replace(/"/g, '\"')}"
 
 Your tasks are:
-1. Extract what the user wants to be reminded about (content)
-2. Extract when they want to be reminded (trigger_datetime_description)
+1. Extract what the user wants to be reminded about (content) - translate to English if needed
+2. Extract when they want to be reminded (trigger_datetime_description) - normalize time expressions
 3. Determine if it's recurring (daily, weekly, monthly, yearly)
 4. Categorize the reminder (task, habit, medication, appointment, goal)
 5. Assign priority (low, medium, high)
 
-Common patterns:
-- "remind me to call mom tomorrow" → content: "call mom", trigger_datetime_description: "tomorrow"
-- "remind me about the meeting at 3pm" → content: "meeting", trigger_datetime_description: "at 3pm"
-- "remind me to take medication every morning at 8am" → content: "take medication", trigger_datetime_description: "tomorrow at 8am", recurrence: "daily"
-- "exam tomorrow" → content: "exam", trigger_datetime_description: "tomorrow"
-- "workout every day at 6pm" → content: "workout", trigger_datetime_description: "today at 6pm", recurrence: "daily", category: "habit"
-- "doctor appointment next Monday at 2pm" → content: "doctor appointment", trigger_datetime_description: "next Monday at 2pm", category: "appointment"
+Multilingual time expressions to normalize:
+- "mañana" (Spanish) → "tomorrow"
+- "demain" (French) → "tomorrow"
+- "morgen" (German) → "tomorrow"
+- "domani" (Italian) → "tomorrow"
+- "amanhã" (Portuguese) → "tomorrow"
+- "hoy" (Spanish) → "today"
+- "aujourd'hui" (French) → "today"
+- "heute" (German) → "today"
+- "oggi" (Italian) → "today"
+- "hoje" (Portuguese) → "today"
+- "cada día" (Spanish) → "daily"
+- "chaque jour" (French) → "daily"
+- "jeden Tag" (German) → "daily"
+- "ogni giorno" (Italian) → "daily"
+- "todos os dias" (Portuguese) → "daily"
+
+Common multilingual patterns:
+- "recuérdame llamar a mamá mañana" → content: "call mom", trigger_datetime_description: "tomorrow"
+- "rappelle-moi le rendez-vous à 15h" → content: "appointment", trigger_datetime_description: "at 3pm"
+- "erinnere mich daran, Medikamente zu nehmen" → content: "take medication", trigger_datetime_description: "tomorrow"
+- "ricordami di fare esercizio ogni giorno" → content: "exercise", trigger_datetime_description: "today", recurrence: "daily"
 
 Respond in STRICT JSON format:
 {
@@ -2093,13 +2149,21 @@ Respond in STRICT JSON format:
         const translatedArgs = { ...actualToolArgs };
         const textArgumentFields = ['query', 'searchPrompt', 'keyword', 'teamName', 'subreddit', 'searchQuery', 'prompt', 'text', 'message', 'description', 'title'];
         
+        // Track original language and translations for context
+        let detectedLanguage: string | undefined;
+        const originalArgs: Record<string, string> = {};
+        
         for (const field of textArgumentFields) {
           if (translatedArgs[field] && typeof translatedArgs[field] === 'string' && translatedArgs[field].trim()) {
+            originalArgs[field] = translatedArgs[field]; // Store original
             try {
               const translationResult = await translateToEnglishForTools(translatedArgs[field], userId);
               if (translationResult.wasTranslated) {
                 logger.info(`${logPrefix} Translated '${field}' from ${translationResult.detectedLanguage || 'unknown'} to English: "${translatedArgs[field]}" -> "${translationResult.translatedText}"`);
                 translatedArgs[field] = translationResult.translatedText;
+                if (!detectedLanguage && translationResult.detectedLanguage) {
+                  detectedLanguage = translationResult.detectedLanguage;
+                }
               }
             } catch (error) {
               logger.warn(`${logPrefix} Failed to translate '${field}': ${error}. Using original text.`);
@@ -2122,7 +2186,19 @@ Respond in STRICT JSON format:
             userId,
             lang: apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0],
             sessionId: apiContext?.sessionId,
-            context: { ...(apiContext || {}), userState, sessionId: apiContext?.sessionId, runId: apiContext?.runId, userName: await this.getUserFirstName(userId), abortSignal: abortController.signal, workflowVariables: {} },
+            context: { 
+              ...(apiContext || {}), 
+              userState, 
+              sessionId: apiContext?.sessionId, 
+              runId: apiContext?.runId, 
+              userName: await this.getUserFirstName(userId), 
+              abortSignal: abortController.signal, 
+              workflowVariables: {},
+              // Enhanced multilingual context
+              originalLanguage: detectedLanguage,
+              originalArgs: originalArgs,
+              userPreferredLanguage: apiContext?.lang || userState?.preferred_locale?.split("-")[0] || (appConfig as any).defaultLocale.split("-")[0]
+            },
           };
           const output: ToolOutput = await tool.execute(toolInput, abortController.signal);
           clearTimeout(timeoutId);
@@ -2427,7 +2503,20 @@ Respond in STRICT JSON format:
       const effectiveApiContext = { ...(apiContext || {}), userName, lang, locale: userState?.preferred_locale || (appConfig as any).defaultLocale, runId };
       
       try { // Bloc try pour la récupération de la persona (ceci est OK)
-        const persona = await this.memoryFramework.getPersonaById(personaId, userId);
+        // Check persona cache first
+        const personaCacheKey = `${userId}:${personaId}`;
+        const cachedPersona = this.personaCache.get(personaCacheKey);
+        let persona;
+        
+        if (cachedPersona && Date.now() - cachedPersona.timestamp < this.PERSONA_CACHE_TTL) {
+          persona = cachedPersona.persona;
+          logger.debug(`[${turnIdentifier}] Using cached persona "${personaId}"`);
+        } else {
+          persona = await this.memoryFramework.getPersonaById(personaId, userId);
+          // Cache the result
+          this.personaCache.set(personaCacheKey, { persona, timestamp: Date.now() });
+        }
+        
         if (persona?.system_prompt) {
           personaSpecificInstructions = persona.system_prompt;
           personaNameForPrompt = persona.name || personaId;
@@ -2654,10 +2743,11 @@ Respond in STRICT JSON format:
         (history.length > 0 && history.some(msg => (msg as any).isAudioMessage === true))
       );
       
-      // If this is from a voice/audio message, add a hint to prefer direct conversation
+      // Enhanced audio message handling with language context
       if (isAudioMessage) {
-        logger.info(`[${turnIdentifier}] Audio/voice message detected. Will be more conservative with tool usage.`);
-        textQueryForRouter = `[VOICE CONVERSATION: This is a spoken conversation. Respond naturally and avoid using tools unless explicitly requested.] ` + textQueryForRouter;
+        const detectedLang = apiContext?.detectedLanguage || apiContext?.lang || lang;
+        logger.info(`[${turnIdentifier}] Audio/voice message detected in language: ${detectedLang}. Will be more conservative with tool usage.`);
+        textQueryForRouter = `[VOICE CONVERSATION: This is a spoken conversation in ${detectedLang}. Respond naturally and avoid using tools unless explicitly requested.] ` + textQueryForRouter;
       }
       
       // Determine if this is any kind of media upload (with or without text)
@@ -2818,16 +2908,20 @@ Respond in STRICT JSON format:
         messagesForGpt4o.push({ role: "system", content: `Context from attached video: ${videoSummaryForContext}`, timestamp: Date.now() });
       }
       // retrievedMemoryContext est déjà initialisé au début de la fonction
-      const entitiesForMemorySearch: string[] = [textQueryForRouter.substring(0, 70)];
-      // Ensure finalStructuredResult is not null and has a title property (with type safety)
-      if (finalStructuredResult && !Array.isArray(finalStructuredResult) && typeof (finalStructuredResult as any).title === 'string') {
-        entitiesForMemorySearch.push((finalStructuredResult as any).title);
-      }
-      if (entitiesForMemorySearch.length > 0 && entitiesForMemorySearch.some(e => e.trim() !== "")) {
-        logger.info(`[${turnIdentifier}] Performing targeted memory search for ${CHAT_VISION_MODEL_NAME_ORCH}... Entities: ${entitiesForMemorySearch.join('; ').substring(0, 100)}`);
-        const memoryResults = await this.memoryFramework.search_memory(entitiesForMemorySearch.join(" "), userId, { limit: 3, offset: 0 }, runId, { enableHybridSearch: true, enableGraphSearch: false, enableConflictResolution: true });
-        if (memoryResults.results.length > 0) {
-          retrievedMemoryContext = `INTERNAL CONTEXT - RELEVANT MEMORIES (Use these to add helpful related context for ${userName}):\n${memoryResults.results.map(r => `- ${r.content.substring(0, 150)}...`).join("\n")}`;
+      // Skip memory search for short queries to improve response speed
+      if (textQueryForRouter.length > 10 && !textQueryForRouter.toLowerCase().match(/^(hi|hello|thanks?|yes|no|ok|okay)$/)) {
+        const entitiesForMemorySearch: string[] = [textQueryForRouter.substring(0, 50)]; // Reduced from 70 to 50
+        // Ensure finalStructuredResult is not null and has a title property (with type safety)
+        if (finalStructuredResult && !Array.isArray(finalStructuredResult) && typeof (finalStructuredResult as any).title === 'string') {
+          entitiesForMemorySearch.push((finalStructuredResult as any).title);
+        }
+        if (entitiesForMemorySearch.length > 0 && entitiesForMemorySearch.some(e => e.trim() !== "")) {
+          logger.info(`[${turnIdentifier}] Performing targeted memory search for ${CHAT_VISION_MODEL_NAME_ORCH}... Entities: ${entitiesForMemorySearch.join('; ').substring(0, 100)}`);
+          // Reduced search complexity for faster response
+          const memoryResults = await this.memoryFramework.search_memory(entitiesForMemorySearch.join(" "), userId, { limit: 2, offset: 0 }, runId, { enableHybridSearch: false, enableGraphSearch: false, enableConflictResolution: false });
+          if (memoryResults.results.length > 0) {
+            retrievedMemoryContext = `INTERNAL CONTEXT - RELEVANT MEMORIES (Use these to add helpful related context for ${userName}):\n${memoryResults.results.map(r => `- ${r.content.substring(0, 100)}...`).join("\n")}`;
+          }
         }
       }
     } catch (error: any) { // Catch du bloc try principal
@@ -3378,7 +3472,7 @@ function stripSystemPrefixes(input: string): string {
   return input;
 }
 
-// Translation function to detect and translate non-English text to English for tools
+// Enhanced translation function to detect and translate non-English text to English for tools
 async function translateToEnglishForTools(
   text: string,
   userId: string
@@ -3387,35 +3481,88 @@ async function translateToEnglishForTools(
     return { translatedText: text, wasTranslated: false };
   }
 
-  // Simple heuristic to detect if text is likely English
-  const englishWords = /\b(the|and|or|but|in|on|at|to|for|of|with|by|from|up|about|into|through|during|before|after|above|below|between|among|under|over|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|can|must|shall|get|got|make|made|take|took|come|came|go|went|see|saw|know|knew|think|thought|say|said|tell|told|give|gave|find|found|want|wanted|need|needed|use|used|work|worked|call|called|try|tried|ask|asked|turn|turned|move|moved|live|lived|show|showed|play|played|run|ran|walk|walked|look|looked|seem|seemed|feel|felt|become|became|leave|left|put|put|mean|meant|keep|kept|let|let|begin|began|help|helped|talk|talked|turn|turned|start|started|might|right|new|good|high|small|large|next|early|young|important|few|public|bad|same|able)\b/gi;
-  
-  const matches = text.match(englishWords);
-  const englishWordCount = matches ? matches.length : 0;
-  const totalWords = text.split(/\s+/).length;
-  const englishRatio = totalWords > 0 ? englishWordCount / totalWords : 0;
+  // Enhanced language detection patterns for better accuracy
+  const languagePatterns = {
+    en: /\b(the|and|or|but|in|on|at|to|for|of|with|by|from|up|about|into|through|during|before|after|above|below|between|among|under|over|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|can|must|shall|get|got|make|made|take|took|come|came|go|went|see|saw|know|knew|think|thought|say|said|tell|told|give|gave|find|found|want|wanted|need|needed|use|used|work|worked|call|called|try|tried|ask|asked|turn|turned|move|moved|live|lived|show|showed|play|played|run|ran|walk|walked|look|looked|seem|seemed|feel|felt|become|became|leave|left|put|put|mean|meant|keep|kept|let|let|begin|began|help|helped|talk|talked|turn|turned|start|started|might|right|new|good|high|small|large|next|early|young|important|few|public|bad|same|able)\b/gi,
+    es: /\b(el|la|los|las|un|una|de|del|en|con|por|para|que|no|se|es|son|fue|ser|estar|tener|hacer|ver|dar|saber|querer|llegar|pasar|deber|poner|parecer|quedar|creer|hablar|llevar|dejar|seguir|encontrar|llamar|venir|pensar|salir|volver|tomar|conocer|vivir|sentir|tratar|mirar|contar|empezar|esperar|buscar|existir|entrar|trabajar|escribir|perder|producir|ocurrir|entender|pedir|recibir|recordar|terminar|permitir|aparecer|conseguir|comenzar|servir|sacar|necesitar|mantener|resultar|leer|caer|cambiar|presentar|crear|abrir|considerar|oír|acabar|convertir|ganar|formar|traer|partir|morir|aceptar|realizar|suponer|comprender|lograr|explicar|preguntar|tocar|reconocer|estudiar|alcanzar|nacer|dirigir|correr|utilizar|pagar|ayudar|gustar|jugar|escuchar|cumplir|ofrecer|descubrir|levantar|intentar|usar|decidir|desarrollar|incluir|continuar|construir|establecer|aprender|romper|aplicar|representar|organizar|indicar|desaparecer|gastar|mostrar|determinar|comer|vender|imaginar|preparar|especial|nuevo|primer|último|gran|pequeño|nacional|público|mal|nuevo|mayor|social|político|económico|humano|popular|tradicional|cultural|actual|general|personal|natural|físico|final|médico|negro|blanco|rojo|verde|azul|amarillo|rosa|gris|marrón|naranja|violeta|morado)\b/gi,
+    fr: /\b(le|la|les|un|une|des|de|du|dans|sur|avec|pour|par|sans|sous|vers|chez|entre|pendant|avant|après|depuis|jusqu|contre|malgré|selon|parmi|outre|hormis|sauf|concernant|moyennant|nonobstant|touchant|suivant|voici|voilà|être|avoir|faire|dire|aller|voir|savoir|prendre|venir|vouloir|pouvoir|falloir|devoir|croire|trouver|donner|parler|aimer|passer|mettre|demander|tenir|sembler|laisser|rester|partir|sortir|arriver|entrer|monter|descendre|naître|mourir|devenir|revenir|retourner|rentrer|tomber|repartir|ressortir|remonter|redescendre|nouveau|grand|petit|bon|mauvais|beau|joli|jeune|vieux|long|court|haut|bas|gros|mince|large|étroit|chaud|froid|français|anglais|allemand|italien|espagnol|chinois|japonais|russe|arabe|noir|blanc|rouge|vert|bleu|jaune|rose|gris|marron|orange|violet|pourpre)\b/gi,
+    de: /\b(der|die|das|ein|eine|eines|einem|einen|einer|und|oder|aber|denn|sondern|in|an|auf|bei|mit|nach|von|zu|vor|über|unter|zwischen|durch|für|gegen|ohne|um|während|wegen|trotz|statt|außer|bis|seit|ab|aus|hinter|neben|entlang|gemäß|laut|zufolge|binnen|kraft|mangels|mittels|seitens|ungeachtet|zwecks|sein|haben|werden|können|müssen|sollen|wollen|dürfen|mögen|lassen|gehen|kommen|sehen|wissen|sagen|machen|geben|nehmen|finden|denken|sprechen|leben|arbeiten|spielen|lernen|fahren|laufen|essen|trinken|schlafen|wachen|lieben|hassen|kaufen|verkaufen|helfen|brauchen|verstehen|erklären|zeigen|hören|fühlen|riechen|schmecken|schauen|lesen|schreiben|rechnen|zählen|messen|wiegen|groß|klein|gut|schlecht|schön|hässlich|jung|alt|neu|alt|lang|kurz|hoch|niedrig|dick|dünn|breit|schmal|warm|kalt|heiß|kühl|deutsch|englisch|französisch|spanisch|italienisch|chinesisch|japanisch|russisch|arabisch|schwarz|weiß|rot|grün|blau|gelb|rosa|grau|braun|orange|lila|violett)\b/gi,
+    it: /\b(il|lo|la|i|gli|le|un|uno|una|di|a|da|in|con|su|per|tra|fra|e|o|ma|però|anche|ancora|già|più|molto|poco|tanto|quanto|come|quando|dove|perché|se|che|chi|cosa|cui|quale|essere|avere|fare|dire|andare|vedere|sapere|dare|stare|venire|dovere|potere|volere|uscire|partire|tornare|rimanere|diventare|sembrare|parere|piacere|servire|bastare|occorrere|bisognare|mancare|restare|riuscire|succedere|capitare|accadere|nascere|morire|vivere|crescere|invecchiare|grande|piccolo|buono|cattivo|bello|brutto|giovane|vecchio|nuovo|vecchio|lungo|corto|alto|basso|grosso|sottile|largo|stretto|caldo|freddo|italiano|inglese|francese|spagnolo|tedesco|cinese|giapponese|russo|arabo|nero|bianco|rosso|verde|blu|giallo|rosa|grigio|marrone|arancione|viola|porpora)\b/gi,
+    pt: /\b(o|a|os|as|um|uma|de|da|do|das|dos|em|na|no|nas|nos|com|por|para|sem|sob|sobre|entre|contra|durante|antes|depois|desde|até|através|mediante|conforme|segundo|perante|ante|após|ser|estar|ter|haver|fazer|dizer|ir|ver|saber|dar|ficar|vir|querer|poder|dever|conseguir|parecer|deixar|encontrar|falar|chegar|passar|trazer|levar|colocar|pôr|sair|voltar|entrar|nascer|morrer|viver|crescer|envelhecer|grande|pequeno|bom|mau|bonito|feio|jovem|velho|novo|velho|longo|curto|alto|baixo|grosso|fino|largo|estreito|quente|frio|português|inglês|francês|espanhol|alemão|chinês|japonês|russo|árabe|preto|branco|vermelho|verde|azul|amarelo|rosa|cinza|marrom|laranja|roxo|violeta)\b/gi,
+    ru: /\b(и|в|не|на|я|быть|тот|он|оно|она|они|а|то|все|она|так|его|но|да|ты|к|у|же|вы|за|бы|по|только|ее|мне|было|вот|от|меня|еще|нет|о|из|ему|теперь|когда|даже|ну|вдруг|ли|если|уже|или|ни|быть|мочь|сказать|что|знать|хотеть|видеть|идти|есть|делать|жить|думать|говорить|работать|играть|учиться|ехать|бежать|есть|пить|спать|любить|ненавидеть|покупать|продавать|помогать|нужен|понимать|объяснять|показывать|слышать|чувствовать|смотреть|читать|писать|считать|мерить|большой|маленький|хороший|плохой|красивый|некрасивый|молодой|старый|новый|старый|длинный|короткий|высокий|низкий|толстый|тонкий|широкий|узкий|теплый|холодный|русский|английский|французский|испанский|немецкий|китайский|японский|арабский|черный|белый|красный|зеленый|синий|желтый|розовый|серый|коричневый|оранжевый|фиолетовый)\b/gi,
+    ar: /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/g,
+    zh: /[\u4e00-\u9fff]/g,
+    ja: /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff]/g,
+    ko: /[\uac00-\ud7af]/g,
+    hi: /[\u0900-\u097f]/g
+  };
 
-  // If more than 40% of words are common English words, assume it's English
-  if (englishRatio > 0.4) {
+  // Check for non-Latin scripts first (they're more definitive)
+  for (const [lang, pattern] of Object.entries(languagePatterns)) {
+    if (['ar', 'zh', 'ja', 'ko', 'hi'].includes(lang)) {
+      const matches = text.match(pattern);
+      if (matches && matches.length > 0) {
+        // For non-Latin scripts, even a few characters indicate the language
+        const ratio = matches.length / text.length;
+        if (ratio > 0.1) { // 10% threshold for non-Latin scripts
+          // Proceed with LLM translation since it's clearly not English
+          break;
+        }
+      }
+    }
+  }
+
+  // For Latin scripts, use word-based detection
+  let bestLanguage = 'en';
+  let bestScore = 0;
+
+  for (const [lang, pattern] of Object.entries(languagePatterns)) {
+    if (['ar', 'zh', 'ja', 'ko', 'hi'].includes(lang)) continue; // Skip non-Latin scripts
+
+    const matches = text.match(pattern);
+    const wordCount = matches ? matches.length : 0;
+    const totalWords = text.split(/\s+/).length;
+    const score = totalWords > 0 ? wordCount / totalWords : 0;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestLanguage = lang;
+    }
+  }
+
+  // If more than 35% of words are English (lowered from 40% for better detection), assume it's English
+  if (bestLanguage === 'en' && bestScore > 0.35) {
     return { translatedText: text, wasTranslated: false };
   }
 
   try {
-    // Use LLM to detect language and translate to English
-    const translationPrompt = `You are a language detection and translation expert. 
+    // Enhanced LLM prompt with better language detection and translation
+    const translationPrompt = `You are an expert multilingual translator and language detection specialist.
 
 Given this text: "${text.replace(/"/g, '\\"')}"
 
 Tasks:
-1. Detect the language of the text
-2. If the text is NOT in English, translate it to English while preserving the meaning and context
-3. If the text is already in English, return it as-is
+1. Detect the primary language of the text (use ISO 639-1 codes)
+2. If the text is NOT in English, translate it to English while preserving:
+   - Original meaning and context
+   - Technical terms and proper nouns appropriately
+   - Cultural nuances where possible
+   - Intent and tone
+3. If the text is already in English, return it unchanged
+4. Handle mixed-language text by translating non-English portions
+
+Special considerations:
+- For sports teams, translate to commonly used English names (e.g., "Real Madrid" stays "Real Madrid", "FC Barcelona" becomes "Barcelona")
+- For brand names and proper nouns, keep original unless there's a standard English equivalent
+- For technical terms, use standard English equivalents
+- Preserve numbers, dates, and measurements
 
 Respond in JSON format:
 {
-  "detectedLanguage": "language_code (e.g., 'fr', 'es', 'de', 'en')",
+  "detectedLanguage": "primary_language_code (e.g., 'fr', 'es', 'de', 'en', 'zh', 'ja', 'ar', etc.)",
   "isEnglish": boolean,
-  "translatedText": "the text translated to English or original if already English"
+  "translatedText": "the text translated to English or original if already English",
+  "confidence": "high|medium|low - confidence in language detection"
 }`;
 
     const translationSchema = {
@@ -3423,9 +3570,10 @@ Respond in JSON format:
       properties: {
         detectedLanguage: { type: "string" },
         isEnglish: { type: "boolean" },
-        translatedText: { type: "string" }
+        translatedText: { type: "string" },
+        confidence: { type: "string", enum: ["high", "medium", "low"] }
       },
-      required: ["detectedLanguage", "isEnglish", "translatedText"],
+      required: ["detectedLanguage", "isEnglish", "translatedText", "confidence"],
       additionalProperties: false
     };
 
@@ -3433,17 +3581,19 @@ Respond in JSON format:
       detectedLanguage: string;
       isEnglish: boolean;
       translatedText: string;
+      confidence: string;
     }>(
       translationPrompt,
       text,
       translationSchema,
-      "minato_text_translation_v1",
+      "minato_enhanced_translation_v2",
       [],
       (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
       userId
     );
 
     if (result && typeof result === "object" && !('error' in result)) {
+      logger.info(`[Translation] Detected: ${result.detectedLanguage} (confidence: ${result.confidence}), Translated: ${!result.isEnglish ? 'Yes' : 'No'}`);
       return {
         translatedText: result.translatedText || text,
         wasTranslated: !result.isEnglish,
@@ -3451,7 +3601,7 @@ Respond in JSON format:
       };
     }
   } catch (error) {
-    logger.warn(`Translation failed for text: "${text.substring(0, 50)}..." - Error: ${error}`);
+    logger.warn(`Enhanced translation failed for text: "${text.substring(0, 50)}..." - Error: ${error}`);
   }
 
   // Fallback: return original text

@@ -44,7 +44,7 @@ export const MAX_CSV_XLSX_SIZE_BYTES = 50 * 1024 * 1024;
 // --- Gestion de Session ---
 export const SESSION_ID_PREFIX = "sess_";
 export const MAX_CHAT_HISTORY = 10; 
-export const DEFAULT_TOOL_TIMEOUT_MS = 20000; 
+export const DEFAULT_TOOL_TIMEOUT_MS = 12000; // Reduced from 20s to 12s for faster responses 
 
 // --- Constantes API OpenAI Realtime ---
 // For WebRTC SDP exchange, the client constructs this with model name query param

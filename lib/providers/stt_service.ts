@@ -116,6 +116,71 @@ async function createSdkFileObject(
 }
 
 export class STTService {
+  // Simple language detection based on common words and patterns
+  private detectLanguageFromText(text: string): string | null {
+    if (!text || text.trim().length === 0) return null;
+    
+    const lowerText = text.toLowerCase();
+    
+    // Spanish indicators
+    if (/\b(el|la|los|las|un|una|de|en|con|por|para|que|no|se|es|son|fue|ser|estar|tener|hacer|ver|dar|saber|querer|llegar|pasar|deber|poner|parecer|quedar|creer|hablar|llevar|dejar|seguir|encontrar|llamar|venir|pensar|salir|volver|tomar|conocer|vivir|sentir|tratar|mirar|contar|empezar|esperar|buscar|existir|entrar|trabajar|escribir|perder|producir|ocurrir|entender|pedir|recibir|recordar|terminar|permitir|aparecer|conseguir|comenzar|servir|sacar|necesitar|mantener|resultar|leer|caer|cambiar|presentar|crear|abrir|considerar|oír|acabar|convertir|ganar|formar|traer|partir|morir|aceptar|realizar|suponer|comprender|lograr|explicar|preguntar|tocar|reconocer|estudiar|alcanzar|nacer|dirigir|correr|utilizar|pagar|ayudar|gustar|jugar|escuchar|cumplir|ofrecer|descubrir|levantar|intentar|usar|decidir|desarrollar|incluir|continuar|construir|establecer|aprender|romper|aplicar|representar|organizar|indicar|desaparecer|gastar|mostrar|determinar|comer|vender|imaginar|preparar)\b/.test(lowerText)) {
+      return 'es';
+    }
+    
+    // French indicators  
+    if (/\b(le|la|les|un|une|des|de|du|dans|sur|avec|pour|par|sans|sous|vers|chez|entre|pendant|avant|après|depuis|jusqu|contre|malgré|selon|parmi|outre|hormis|sauf|concernant|moyennant|nonobstant|touchant|suivant|voici|voilà|être|avoir|faire|dire|aller|voir|savoir|prendre|venir|vouloir|pouvoir|falloir|devoir|croire|trouver|donner|parler|aimer|passer|mettre|demander|tenir|sembler|laisser|rester|partir|sortir|arriver|entrer|monter|descendre|naître|mourir|devenir|revenir|retourner|rentrer|tomber|repartir|ressortir|remonter|redescendre)\b/.test(lowerText)) {
+      return 'fr';
+    }
+    
+    // German indicators
+    if (/\b(der|die|das|ein|eine|eines|einem|einen|einer|und|oder|aber|denn|sondern|in|an|auf|bei|mit|nach|von|zu|vor|über|unter|zwischen|durch|für|gegen|ohne|um|während|wegen|trotz|statt|außer|bis|seit|ab|aus|hinter|neben|entlang|gemäß|laut|zufolge|binnen|kraft|mangels|mittels|seitens|ungeachtet|zwecks|sein|haben|werden|können|müssen|sollen|wollen|dürfen|mögen|lassen|gehen|kommen|sehen|wissen|sagen|machen|geben|nehmen|finden|denken|sprechen|leben|arbeiten|spielen|lernen|fahren|laufen|essen|trinken|schlafen|wachen|lieben|hassen|kaufen|verkaufen|helfen|brauchen|verstehen|erklären|zeigen|hören|fühlen|riechen|schmecken|schauen|lesen|schreiben|rechnen|zählen|messen|wiegen)\b/.test(lowerText)) {
+      return 'de';
+    }
+    
+    // Italian indicators
+    if (/\b(il|lo|la|i|gli|le|un|uno|una|di|a|da|in|con|su|per|tra|fra|e|o|ma|però|anche|ancora|già|più|molto|poco|tanto|quanto|come|quando|dove|perché|se|che|chi|cosa|cui|quale|essere|avere|fare|dire|andare|vedere|sapere|dare|stare|venire|dovere|potere|volere|uscire|partire|tornare|rimanere|diventare|sembrare|parere|piacere|servire|bastare|occorrere|bisognare|mancare|restare|riuscire|succedere|capitare|accadere|nascere|morire|vivere|crescere|invecchiare)\b/.test(lowerText)) {
+      return 'it';
+    }
+    
+    // Portuguese indicators
+    if (/\b(o|a|os|as|um|uma|de|da|do|das|dos|em|na|no|nas|nos|com|por|para|sem|sob|sobre|entre|contra|durante|antes|depois|desde|até|através|mediante|conforme|segundo|perante|ante|após|ser|estar|ter|haver|fazer|dizer|ir|ver|saber|dar|ficar|vir|querer|poder|dever|conseguir|parecer|deixar|encontrar|falar|chegar|passar|trazer|levar|colocar|pôr|sair|voltar|entrar|nascer|morrer|viver|crescer|envelhecer)\b/.test(lowerText)) {
+      return 'pt';
+    }
+    
+    // Russian indicators (Cyrillic script)
+    if (/[а-яё]/i.test(text)) {
+      return 'ru';
+    }
+    
+    // Chinese indicators
+    if (/[\u4e00-\u9fff]/.test(text)) {
+      return 'zh';
+    }
+    
+    // Japanese indicators
+    if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) {
+      return 'ja';
+    }
+    
+    // Korean indicators
+    if (/[\uac00-\ud7af]/.test(text)) {
+      return 'ko';
+    }
+    
+    // Arabic indicators
+    if (/[\u0600-\u06ff]/.test(text)) {
+      return 'ar';
+    }
+    
+    // Hindi indicators
+    if (/[\u0900-\u097f]/.test(text)) {
+      return 'hi';
+    }
+    
+    // Default to null if no clear indicators
+    return null;
+  }
+
   async transcribeAudio(
     audioSource: string | Buffer | Readable,
     language?: string,
@@ -191,7 +256,7 @@ export class STTService {
           0,
           50
         )}... (${fileSizeForLogging} bytes), Format: ${DEFAULT_RESPONSE_FORMAT}, Lang: ${
-          language || "auto"
+          language || "auto-detect"
         }, Prompt: ${prompt ? "Yes" : "No"}`
       );
 
@@ -253,8 +318,15 @@ export class STTService {
 
       if (resultText && resultLang) { // language n'est pas toujours retourné
         logger.info(
-          `[STTService] Transcription language assumed/provided: ${resultLang}`
+          `[STTService] Transcription language detected/provided: ${resultLang}`
         );
+      } else if (resultText) {
+        // Try to detect language from the transcribed text if not provided by API
+        const detectedLang = this.detectLanguageFromText(resultText);
+        if (detectedLang) {
+          resultLang = detectedLang;
+          logger.info(`[STTService] Language detected from transcription text: ${resultLang}`);
+        }
       }
 
       return {

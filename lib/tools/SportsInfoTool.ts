@@ -87,9 +87,18 @@ COMPREHENSIVE ANALYSIS GUIDELINES:
    - Default to "last_game" if the user mentions "score" or appears to be asking about a match result
 
 3. MULTILINGUAL UNDERSTANDING:
-   - Recognize team names and sports terminology in multiple languages
+   - Recognize team names and sports terminology in multiple languages (Spanish, French, German, Italian, Portuguese, etc.)
    - Identify query intent across different language patterns
    - Always translate non-English team names to their English equivalents
+   - Handle common multilingual sports terms:
+     * "partido" (Spanish) = "match/game"
+     * "équipe" (French) = "team"
+     * "Mannschaft" (German) = "team"
+     * "squadra" (Italian) = "team"
+     * "próximo" (Spanish/Portuguese) = "next"
+     * "último" (Spanish) = "last"
+     * "dernier" (French) = "last"
+     * "nächste" (German) = "next"
 
 OUTPUT FORMAT (JSON):
 {

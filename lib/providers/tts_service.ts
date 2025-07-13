@@ -166,6 +166,13 @@ function generateDynamicTtsInstructions(
 }
 
 export class TTSService {
+  private ttsCache: Map<string, { url: string; timestamp: number }> = new Map();
+  private readonly TTS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes cache
+
+  private generateCacheKey(text: string, voice: string, instructions?: string | null): string {
+    return `${voice}:${instructions || 'default'}:${text.substring(0, 100)}`;
+  }
+
   private async postProcessAudio(inputBuffer: Buffer, targetFormat: TTSStorageFormat): Promise<Buffer> {
     const logPrefix = "[TTSService PostProcess]";
     if (!(appConfig as any).enableTtsPostProcessing) {
@@ -283,6 +290,14 @@ export class TTSService {
     const effectiveInstructions = instructionsInput?.trim() || generateDynamicTtsInstructions(text, intentType);
     logger.debug(`${logPrefix} Using TTS instructions: "${effectiveInstructions}" for voice ${selectedVoice}`);
 
+    // Check cache first
+    const cacheKey = this.generateCacheKey(text, selectedVoice, effectiveInstructions);
+    const cached = this.ttsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.TTS_CACHE_TTL) {
+      logger.info(`${logPrefix} Using cached TTS for user ${userId.substring(0, 8)}...`);
+      return { url: cached.url };
+    }
+
     // Request lossless format from OpenAI if post-processing is enabled
     const openAiRequestFormat: TTSStreamFormat = (appConfig as any).enableTtsPostProcessing ? "wav" : storageFormat;
 
@@ -337,6 +352,10 @@ export class TTSService {
       if (!publicUrl) throw new Error("Failed to generate audio URL after upload.");
 
       logger.info(`${logPrefix} TTS audio stored successfully. URL: ${publicUrl.substring(0, 100)}...`);
+      
+      // Cache the result
+      this.ttsCache.set(cacheKey, { url: publicUrl, timestamp: Date.now() });
+      
       return { url: publicUrl, error: undefined };
     } catch (error: any) {
       let errorMessage = "TTS generation/storage failed.";

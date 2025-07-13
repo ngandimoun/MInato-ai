@@ -24,23 +24,37 @@ export function getStandardFieldsPromptSection(formValues: CategoryFormValues, v
 
   // Language specification
   if (formValues.textLanguage && formValues.textLanguage !== 'en') {
-    const languageName = formValues.textLanguage === 'es' ? 'Spanish' :
-                        formValues.textLanguage === 'fr' ? 'French' :
-                        formValues.textLanguage === 'de' ? 'German' :
-                        formValues.textLanguage === 'it' ? 'Italian' :
-                        formValues.textLanguage === 'pt' ? 'Portuguese' :
-                        formValues.textLanguage === 'ru' ? 'Russian' :
-                        formValues.textLanguage === 'ja' ? 'Japanese' :
-                        formValues.textLanguage === 'ko' ? 'Korean' :
-                        formValues.textLanguage === 'zh' ? 'Chinese' :
-                        formValues.textLanguage === 'ar' ? 'Arabic' :
-                        formValues.textLanguage === 'hi' ? 'Hindi' : 'the selected language';
+    const languageMap: Record<string, string> = {
+      'es': 'Spanish', 'fr': 'French', 'de': 'German', 'it': 'Italian', 'pt': 'Portuguese', 
+      'ru': 'Russian', 'ja': 'Japanese', 'ko': 'Korean', 'zh': 'Chinese', 'ar': 'Arabic', 
+      'hi': 'Hindi', 'th': 'Thai', 'vi': 'Vietnamese', 'tr': 'Turkish', 'pl': 'Polish', 
+      'nl': 'Dutch', 'sv': 'Swedish', 'da': 'Danish', 'no': 'Norwegian', 'fi': 'Finnish', 
+      'el': 'Greek', 'he': 'Hebrew', 'cs': 'Czech', 'hu': 'Hungarian', 'ro': 'Romanian', 
+      'bg': 'Bulgarian', 'hr': 'Croatian', 'sk': 'Slovak', 'sl': 'Slovenian', 'et': 'Estonian', 
+      'lv': 'Latvian', 'lt': 'Lithuanian', 'uk': 'Ukrainian', 'id': 'Indonesian', 'ms': 'Malay', 
+      'tl': 'Filipino', 'bn': 'Bengali', 'ur': 'Urdu', 'fa': 'Persian', 'ta': 'Tamil', 
+      'te': 'Telugu', 'ml': 'Malayalam', 'kn': 'Kannada', 'gu': 'Gujarati', 'pa': 'Punjabi', 
+      'mr': 'Marathi', 'ne': 'Nepali', 'si': 'Sinhala', 'my': 'Burmese', 'km': 'Khmer', 
+      'lo': 'Lao', 'ka': 'Georgian', 'hy': 'Armenian', 'az': 'Azerbaijani', 'kk': 'Kazakh', 
+      'uz': 'Uzbek', 'ky': 'Kyrgyz', 'tg': 'Tajik', 'mn': 'Mongolian', 'sw': 'Swahili', 
+      'af': 'Afrikaans', 'am': 'Amharic', 'ha': 'Hausa', 'ig': 'Igbo', 'yo': 'Yoruba', 
+      'zu': 'Zulu', 'xh': 'Xhosa', 'is': 'Icelandic', 'mt': 'Maltese', 'ga': 'Irish', 
+      'cy': 'Welsh', 'eu': 'Basque', 'ca': 'Catalan', 'gl': 'Galician', 'br': 'Breton', 
+      'co': 'Corsican', 'lb': 'Luxembourgish', 'pt-br': 'Brazilian Portuguese', 'es-mx': 'Mexican Spanish', 
+      'es-ar': 'Argentinian Spanish', 'la': 'Latin', 'eo': 'Esperanto', 'jv': 'Javanese', 
+      'su': 'Sundanese', 'ceb': 'Cebuano', 'war': 'Waray', 'ilo': 'Ilokano', 'haw': 'Hawaiian', 
+      'mi': 'Maori', 'sm': 'Samoan', 'to': 'Tongan', 'fj': 'Fijian'
+    };
+    
+    const languageName = languageMap[formValues.textLanguage] || 'the selected language';
     
     sections.push(`LANGUAGE SPECIFICATION:
 - Text Language: All text elements must be in ${languageName}
-- Typography: Use appropriate fonts that support ${languageName} characters
+- Typography: Use appropriate fonts that support ${languageName} characters and writing system
 - Cultural Context: Ensure design elements are culturally appropriate for ${languageName}-speaking audiences
-- Text Direction: Apply correct text direction and layout conventions for ${languageName}`);
+- Text Direction: Apply correct text direction and layout conventions for ${languageName} (LTR/RTL)
+- Script Support: Proper rendering of ${languageName} script, including diacritics and special characters
+- Localization: Cultural adaptation of visual elements, colors, and symbols appropriate for ${languageName} regions`);
   }
 
   // Human model integration
@@ -217,6 +231,42 @@ export const LOGO_BRAND_TEMPLATE: PromptTemplate = {
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
     const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
     
+    // Target audience integration
+    const audienceSection = formValues.targetAudience 
+      ? `Target Audience Framework:
+Primary Audience: ${formValues.targetAudience}
+- Demographic Resonance: Visual elements specifically calibrated for ${formValues.targetAudience} preferences and cultural expectations
+- Psychological Appeal: Design approach tapping into ${formValues.targetAudience} values, aspirations, and decision-making factors
+- Cultural Sensitivity: Logo design appropriate for ${formValues.targetAudience} cultural background and market context
+- Age Appropriateness: Visual sophistication and style aligned with ${formValues.targetAudience} generational preferences
+- Economic Positioning: Design quality and approach reflecting ${formValues.targetAudience} purchasing power and value expectations
+- Communication Style: Visual language that speaks directly to ${formValues.targetAudience} communication preferences and lifestyle`
+      : 'Universal Appeal Design: Logo crafted for broad market appeal and cross-demographic effectiveness';
+
+    // Usage context integration
+    const usageSection = formValues.logoUsageContext 
+      ? `Usage Context Optimization:
+Primary Applications: ${formValues.logoUsageContext}
+- Application Versatility: Logo design optimized for ${formValues.logoUsageContext} while maintaining effectiveness across multiple formats
+- Scale Performance: Visual elements maintaining clarity and impact from ${formValues.logoUsageContext} to business cards and large signage
+- Medium Adaptability: Design approach ensuring effectiveness across print, digital, embroidery, and promotional product applications
+- Context Appropriateness: Logo sophistication and style matching ${formValues.logoUsageContext} professional and cultural requirements
+- Brand Integration: Logo seamlessly supporting ${formValues.logoUsageContext} marketing goals and brand positioning strategy
+- Future Flexibility: Design structure allowing adaptation for evolving ${formValues.logoUsageContext} needs and market expansion`
+      : 'Multi-Context Design: Logo optimized for versatile application across various business and marketing contexts';
+
+    // Output formats integration
+    const formatsSection = formValues.outputFormats 
+      ? `Technical Format Requirements:
+Required Outputs: ${formValues.outputFormats}
+- Format Optimization: Logo design specifically structured for optimal performance in ${formValues.outputFormats}
+- Resolution Independence: Vector-based approach ensuring crisp reproduction across all ${formValues.outputFormats} specifications
+- Color Management: Professional color space handling ensuring consistent appearance across ${formValues.outputFormats} applications
+- File Preparation: Complete logo package including ${formValues.outputFormats} with appropriate technical specifications
+- Production Readiness: Logo files prepared for immediate implementation across ${formValues.outputFormats} without additional processing
+- Quality Assurance: Technical validation ensuring logo meets professional standards for all ${formValues.outputFormats} requirements`
+      : 'Standard Format Delivery: Logo prepared in essential business formats for comprehensive brand implementation';
+    
     const sloganSection = formValues.slogan 
       ? `Brand Messaging Integration:
 Primary Slogan: "${formValues.slogan}"
@@ -231,6 +281,12 @@ Primary Slogan: "${formValues.slogan}"
     return `Design an iconic, instantly recognizable logo that becomes the cornerstone of ${formValues.companyName}'s brand identity and market presence.
 
 ${standardFieldsSection}
+
+${audienceSection}
+
+${usageSection}
+
+${formatsSection}
 
 BRAND IDENTITY SPECIFICATIONS:
 Company: ${formValues.companyName}
@@ -358,133 +414,340 @@ export const UI_COMPONENTS_TEMPLATE: PromptTemplate = {
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
     const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
     
-    const functionalitySection = formValues.functionality 
-      ? `Interface Functionality Specifications:
-Core Function: ${formValues.functionality}
-- Interaction States: Default, hover, active, focus, disabled, loading states clearly defined
-- State Transitions: Smooth, purposeful animations lasting 200-300ms for optimal user experience
-- Feedback Mechanisms: Visual indicators confirming user actions and system responses
-- Error States: Clear visual communication of validation issues or system errors
-- Success Indicators: Positive reinforcement for completed actions and successful interactions
-- Progressive Disclosure: Information revealed appropriately based on user context and need
-- Microinteractions: Subtle animations enhancing perceived responsiveness and user delight`
-      : 'Static Component Design: Focus on visual excellence and layout perfection for presentation purposes';
+    // Dimensions integration
+    const dimensionsSection = formValues.componentDimensions 
+      ? `Component Specifications Framework:
+Dimensions: ${formValues.componentDimensions}
+- Responsive Design: Component scaling beautifully across ${formValues.componentDimensions} and various screen sizes
+- Pixel Perfect: Precise measurements ensuring crisp rendering at ${formValues.componentDimensions} specifications
+- Grid Alignment: Component fitting seamlessly into common design system grid structures
+- Accessibility Standards: Size specifications meeting touch target and visibility requirements
+- Platform Optimization: Dimensions suitable for web, mobile, and desktop application contexts
+- Scalability Planning: Component structure supporting future size variations and responsive adaptations`
+      : 'Flexible Sizing: Component optimized for various dimensions and responsive design requirements';
+
+    // Content integration
+    const contentSection = formValues.componentContent 
+      ? `Content Integration Strategy:
+Component Content: "${formValues.componentContent}"
+- Typography Hierarchy: Text treatment optimized for ${formValues.componentContent} readability and visual impact
+- Content Flow: Information architecture supporting natural reading patterns and user comprehension
+- Micro-copy Excellence: Every word contributing to user understanding and positive interaction experience
+- Localization Ready: Content structure supporting translation and international usage requirements
+- Accessibility Compliance: Text treatment meeting screen reader and accessibility standard requirements
+- Brand Voice Integration: Content tone and presentation aligned with overall brand personality and communication style`
+      : 'Content-Ready Design: Component structure accommodating various text lengths and content types';
+
+    // Interaction states integration
+    const interactionSection = formValues.interactionState 
+      ? `Interaction Design Framework:
+Supported States: ${formValues.interactionState}
+- State Clarity: Clear visual differentiation between ${formValues.interactionState} ensuring intuitive user understanding
+- Transition Smoothness: Elegant animations and micro-interactions enhancing state changes and user feedback
+- Accessibility Standards: State changes communicated through multiple sensory channels for universal accessibility
+- Performance Optimization: State implementations maintaining smooth performance across various devices and browsers
+- User Feedback: Immediate visual confirmation of user actions and system responses through state design
+- Error Prevention: State design guiding users toward successful interactions and preventing common mistakes`
+      : 'Standard Interaction Design: Component supporting essential interactive states and user feedback';
+
+    // User context and environment integration
+    const userContextSection = formValues.userContext 
+      ? `User Context Optimization:
+Usage Environment: ${formValues.userContext}
+- Context-Aware Design: Interface elements specifically optimized for ${formValues.userContext} usage patterns and attention levels
+- Environmental Considerations: Design approach accounting for ${formValues.userContext} typical distractions and constraints
+- Interaction Patterns: User interface behaviors aligned with ${formValues.userContext} expectations and mental models
+- Cognitive Load Management: Information presentation optimized for ${formValues.userContext} cognitive capacity and focus levels
+- Task Completion Support: Design elements facilitating successful task completion within ${formValues.userContext} constraints
+- Error Recovery: Mistake prevention and recovery mechanisms appropriate for ${formValues.userContext} stress levels and time constraints`
+      : 'Universal Context Design: Interface optimized for various user contexts and environments';
+
+    // Performance requirements integration
+    const performanceSection = formValues.performanceRequirements 
+      ? `Performance Optimization Framework:
+Performance Target: ${formValues.performanceRequirements}
+- Loading Strategy: Component architecture optimized for ${formValues.performanceRequirements} loading characteristics and user expectations
+- Resource Efficiency: Asset optimization and delivery methods aligned with ${formValues.performanceRequirements} constraints
+- Interaction Responsiveness: Animation and feedback timing calibrated for ${formValues.performanceRequirements} performance standards
+- Network Considerations: Design approach accounting for ${formValues.performanceRequirements} connectivity limitations and data usage
+- Device Optimization: Component structure and complexity appropriate for ${formValues.performanceRequirements} device capabilities
+- Progressive Enhancement: Graceful degradation strategy ensuring core functionality under ${formValues.performanceRequirements} constraints`
+      : 'Standard Performance: Component optimized for typical web performance expectations and device capabilities';
+
+    // Business goal integration
+    const businessGoalSection = formValues.businessGoal 
+      ? `Business Objective Alignment:
+Primary Goal: ${formValues.businessGoal}
+- Design Psychology: Visual elements and interaction patterns specifically chosen to support ${formValues.businessGoal} objectives
+- User Journey Optimization: Component placement and behavior aligned with ${formValues.businessGoal} conversion funnels and user flows
+- Behavioral Triggers: Subtle design cues encouraging user actions that advance ${formValues.businessGoal} business metrics
+- Success Metrics: Design elements that can be measured and optimized for ${formValues.businessGoal} key performance indicators
+- Competitive Advantage: Design approach that differentiates the product while advancing ${formValues.businessGoal} objectives
+- Long-term Value: Component design supporting both immediate ${formValues.businessGoal} goals and sustained user satisfaction`
+      : 'General Business Support: Component designed to support overall user experience and business objectives';
+
+    // Technical constraints integration
+    const technicalConstraintsSection = formValues.technicalConstraints 
+      ? `Technical Implementation Framework:
+Constraints: ${formValues.technicalConstraints}
+- Constraint Compliance: Component architecture fully compatible with ${formValues.technicalConstraints} technical limitations
+- Progressive Enhancement: Graceful functionality degradation ensuring core features work under ${formValues.technicalConstraints} restrictions
+- Accessibility Integration: Enhanced accessibility features specifically addressing ${formValues.technicalConstraints} requirements
+- Cross-Platform Compatibility: Component design ensuring consistent experience across ${formValues.technicalConstraints} technical environments
+- Performance Optimization: Implementation approach optimized for ${formValues.technicalConstraints} performance characteristics
+- Future-Proofing: Design structure allowing evolution while maintaining ${formValues.technicalConstraints} compatibility requirements`
+      : 'Standard Technical Approach: Component designed for modern web standards with broad compatibility';
+
+    // Enhanced platform-specific design guidelines
+    const platformGuidelines = (() => {
+      switch (formValues.platform) {
+        case 'ios-app':
+          return `iOS Human Interface Guidelines Compliance:
+- Native iOS Design Language: Components following Apple's design principles and visual hierarchy
+- Touch Targets: Minimum 44pt touch targets for optimal finger interaction on all iOS devices
+- Typography: San Francisco font family with appropriate weights and optical sizes for iOS readability
+- Color Semantics: iOS system colors for semantic meanings (destructive red, blue for links, etc.)
+- Spacing: 8pt grid system aligned with iOS interface guidelines and safe area considerations
+- Animation: iOS-native motion curves and timing (ease-in-out, spring animations) for familiar feel
+- Accessibility: VoiceOver compatibility, Dynamic Type support, and high contrast mode considerations
+- Dark Mode: Automatic adaptation between light and dark appearances with proper color schemes`;
+
+        case 'android-app':
+          return `Material Design 3 Guidelines Compliance:
+- Material You Design System: Components following Google's latest Material Design principles
+- Touch Targets: Minimum 48dp touch targets for optimal accessibility across Android devices
+- Typography: Roboto font family with Material Design type scale and weight hierarchy
+- Color System: Material Design color roles (primary, secondary, tertiary) with proper semantic usage
+- Elevation: Material Design elevation system using shadows and surface tinting
+- Motion: Material motion principles with emphasis on purposeful, smooth, and responsive animations
+- Accessibility: TalkBack support, contrast ratios meeting WCAG guidelines, and scalable text
+- Dynamic Color: Adaptive color schemes that respond to user's wallpaper and system preferences`;
+
+        case 'web-desktop':
+          return `Modern Web Desktop Interface Standards:
+- Desktop Interaction Patterns: Hover states, keyboard navigation, and cursor feedback optimized for mouse/trackpad
+- Responsive Grid: CSS Grid and Flexbox layouts adapting to various desktop screen sizes (1280px to 4K)
+- Typography: Web-safe fonts with proper line heights and letter spacing for extended reading sessions
+- Color Accessibility: WCAG 2.1 AA compliance with 4.5:1 contrast ratios for normal text, 3:1 for large text
+- Performance: Optimized for fast loading with CSS animations using transform and opacity properties
+- Browser Compatibility: Consistent rendering across Chrome, Firefox, Safari, and Edge latest versions
+- Keyboard Navigation: Full tab order, focus indicators, and keyboard shortcuts for power users
+- Loading States: Skeleton screens and progressive loading for perceived performance enhancement`;
+
+        case 'web-mobile':
+          return `Mobile Web Interface Optimization:
+- Touch-First Design: 44px minimum touch targets with adequate spacing to prevent mis-taps
+- Mobile Viewport: Responsive design for 320px to 768px widths with proper viewport meta tag considerations
+- Performance: Lightweight components optimized for 3G networks and slower mobile processors
+- Gesture Support: Swipe, pinch-to-zoom, and long-press interactions where appropriate
+- Thumb Navigation: Interface elements positioned within comfortable thumb reach zones
+- Mobile Typography: Larger text sizes (16px minimum) to prevent zoom on iOS and improve readability
+- Battery Optimization: Reduced animations and efficient CSS to preserve mobile device battery
+- Offline Considerations: Progressive enhancement for intermittent connectivity scenarios`;
+
+        default:
+          return `Universal Design Principles:
+- Cross-Platform Consistency: Design elements that work effectively across all platforms and devices
+- Responsive Adaptation: Components that scale and adapt gracefully from mobile to desktop
+- Accessibility First: Universal design principles ensuring usability for all users regardless of abilities
+- Performance Optimization: Lightweight, efficient components with fast loading and smooth interactions
+- Modern Standards: Contemporary design patterns following current UX/UI best practices and conventions`;
+      }
+    })();
+
+    // Intelligent color system based on design system and UX principles
+    const intelligentColorSystem = (() => {
+      const userColorTheme = formValues.colorTheme;
+      const designSystem = formValues.designSystem;
+      
+      return `Professional Color Architecture:
+Selected Theme: ${userColorTheme}
+Design System: ${designSystem}
+
+INTELLIGENT COLOR APPLICATION:
+- Color Psychology: Strategic use of colors based on proven psychological impact and user behavior research
+- Semantic Color Roles: Error states (red spectrum), success (green spectrum), warning (amber), info (blue) with proper contrast
+- Hierarchy Through Color: Primary actions use high-contrast colors, secondary actions use muted tones
+- Accessibility First: All color combinations exceed WCAG 2.1 AA standards (4.5:1 contrast ratio minimum)
+- Cultural Sensitivity: Color choices appropriate for global audiences avoiding problematic cultural associations
+- Brand Integration: User's color preferences intelligently incorporated while maintaining usability standards
+
+PROFESSIONAL COLOR RULES:
+- Primary Action Colors: High contrast, attention-grabbing colors for main CTAs (typically blue, green, or brand primary)
+- Secondary Actions: Neutral tones (grays) or low-saturation colors to avoid competing with primary actions
+- Destructive Actions: Red spectrum colors with adequate warning and confirmation patterns
+- Background Hierarchy: Light neutral backgrounds with subtle contrast variations for content organization
+- Text Color Optimization: Dark text on light backgrounds (or vice versa) with sufficient contrast for readability
+- Interactive State Colors: Hover states 10-15% darker/lighter, active states with immediate visual feedback
+
+DESIGN SYSTEM COLOR COMPLIANCE:
+${designSystem === 'material-design' ? '- Material Design Color System: Primary, secondary, and tertiary color roles with proper tonal palettes' :
+  designSystem === 'ios-human' ? '- iOS Color System: System colors, semantic colors, and adaptive colors for light/dark modes' :
+  designSystem === 'fluent-design' ? '- Fluent Design Color: Neutral palette with accent colors and proper elevation tinting' :
+  '- Modern Color System: Professional color palette with semantic roles and accessibility compliance'}
+
+ANTI-PATTERNS AVOIDED:
+- Never use user-selected colors blindly without considering contrast, accessibility, or usability
+- Avoid rainbow interfaces or excessive color variety that creates visual chaos
+- Prevent low-contrast combinations that harm readability and accessibility
+- Eliminate colors that don't serve a functional purpose or create visual hierarchy
+- Reject color choices that conflict with platform conventions or user expectations`;
+    })();
+
+    // Component-specific professional guidelines
+    const componentSpecificGuidelines = (() => {
+      switch (formValues.componentType) {
+        case 'button':
+          return `Professional Button Design Standards:
+- Visual Hierarchy: Primary buttons with high contrast, secondary buttons with subtle styling
+- State Management: Clear visual feedback for hover, active, disabled, and loading states
+- Touch Targets: Minimum 44px height with adequate horizontal padding for comfortable interaction
+- Typography: Medium to semibold font weights with appropriate letter spacing for button text
+- Corner Radius: Consistent with design system (4px for sharp, 8px for moderate, 16px+ for rounded)
+- Shadow/Elevation: Subtle shadows or borders to indicate interactivity and provide depth
+- Loading States: Spinner or progress indication during async operations with disabled appearance
+- Icon Integration: Proper spacing between icons and text, consistent icon sizing and alignment`;
+
+        case 'form-elements':
+          return `Form Element UX Excellence:
+- Input Field Design: Clear borders, proper padding, and focus states with accessible color indicators
+- Label Positioning: Above inputs for optimal scanning, with proper association for screen readers
+- Error Handling: Inline validation with clear error messages and recovery guidance
+- Placeholder Text: Helpful hints that don't replace labels, with sufficient contrast for visibility
+- Field Sizing: Appropriate input sizes based on expected content length and mobile considerations
+- Required Field Indicators: Clear asterisks or other indicators with proper explanation
+- Progressive Disclosure: Complex forms broken into logical steps with clear progress indication
+- Keyboard Navigation: Proper tab order and keyboard shortcuts for efficient form completion`;
+
+        case 'navigation':
+          return `Navigation Component Excellence:
+- Information Architecture: Clear hierarchy with logical grouping and intuitive categorization
+- Active State Indication: Clear visual feedback showing current page/section location
+- Responsive Behavior: Graceful adaptation from desktop horizontal to mobile hamburger menu
+- Accessibility: Proper ARIA labels, keyboard navigation, and screen reader compatibility
+- Visual Weight: Primary navigation more prominent than secondary navigation elements
+- Breadcrumb Integration: Clear path indication for deep navigation structures
+- Search Integration: Prominent search functionality for content-heavy sites
+- Mobile Optimization: Touch-friendly targets with adequate spacing for finger navigation`;
+
+        case 'dashboard':
+          return `Dashboard Interface Design:
+- Information Density: Balanced layout avoiding both cluttered and sparse extremes
+- Data Visualization: Clear charts and metrics with proper labeling and context
+- Widget Organization: Logical grouping with consistent sizing and spacing patterns
+- Responsive Grid: Flexible layout adapting to various screen sizes and orientations
+- Progressive Disclosure: Detailed views accessible through drill-down interactions
+- Real-time Updates: Live data with appropriate refresh indicators and loading states
+- Customization: User-configurable layouts while maintaining overall design consistency
+- Performance: Optimized for fast loading and smooth interactions with large datasets`;
+
+        default:
+          return `Universal Component Standards:
+- Consistency: Aligned with established design system patterns and conventions
+- Usability: Intuitive interactions following platform-specific user expectations
+- Accessibility: Full compliance with WCAG 2.1 guidelines and platform accessibility features
+- Performance: Optimized for smooth interactions and fast loading across all devices
+- Scalability: Design approach supporting future enhancements and system evolution`;
+      }
+    })();
     
-    return `Create a pixel-perfect, production-ready UI component that exemplifies modern interface design excellence and optimal user experience.
+    return `Create a professional, production-ready ${formValues.componentType} that exemplifies modern UX/UI design excellence and follows industry best practices for ${formValues.platform} development.
 
 ${standardFieldsSection}
 
+${dimensionsSection}
+
+${contentSection}
+
+${interactionSection}
+
+${userContextSection}
+
+${performanceSection}
+
+${businessGoalSection}
+
+${technicalConstraintsSection}
+
 COMPONENT SPECIFICATIONS:
 Component Type: ${formValues.componentType}
-Application Context: ${formValues.platform}
-Design Framework: ${formValues.designSystem}
+Target Platform: ${formValues.platform}
+Design System: ${formValues.designSystem}
 User Experience Goal: ${formValues.userExperience}
 
-DESIGN ARCHITECTURE FRAMEWORK:
-Visual Hierarchy & Layout:
-- Information Architecture: Content organized using clear typographic hierarchy and logical grouping
-- Scanning Patterns: Layout optimized for F-pattern and Z-pattern reading behaviors
-- Content Prioritization: Most important elements receive primary visual emphasis
-- Whitespace Strategy: Generous padding and margins creating breathing room and focus
-- Grid Alignment: Mathematical precision using 8px grid system for perfect pixel alignment
-- Responsive Considerations: Component scales gracefully across device sizes and orientations
+${platformGuidelines}
 
-Typography Excellence:
-- Font Selection: Production-ready web fonts optimized for screen readability
-- Type Scale: Harmonious size relationships using modular scale ratios (1.2, 1.25, or 1.333)
-- Line Height: Optimal leading for comfortable reading (1.4-1.6 for body text)
-- Letter Spacing: Subtle tracking adjustments enhancing readability without affecting character recognition
-- Font Weight Distribution: Strategic use of weights creating clear information hierarchy
-- Color Contrast: WCAG AAA compliance ensuring accessibility across vision capabilities
+${intelligentColorSystem}
 
-COLOR SYSTEM ARCHITECTURE:
-Primary Color Application:
-- Brand Integration: ${formValues.designSystem} color palette seamlessly integrated throughout component
-- Semantic Colors: Error (red), warning (amber), success (green), info (blue) consistently applied
-- Neutral Foundation: Grayscale system providing structural backbone and content hierarchy
-- Accent Strategy: Highlight colors used sparingly for maximum impact and visual interest
+${componentSpecificGuidelines}
 
-Interactive Color States:
-- Idle States: Subtle, inviting colors encouraging user interaction
-- Hover Effects: 10-15% brightness/saturation increase indicating interactivity
-- Active States: Deeper color variants providing immediate tactile feedback
-- Focus Indicators: High-contrast outlines meeting accessibility requirements
-- Disabled States: Reduced opacity (40-60%) clearly communicating unavailable functionality
+PROFESSIONAL UX/UI DESIGN FRAMEWORK:
+
+VISUAL HIERARCHY & INFORMATION ARCHITECTURE:
+- Scanning Patterns: Layout optimized for F-pattern and Z-pattern reading behaviors with strategic element placement
+- Content Prioritization: Most important elements receive primary visual emphasis through size, color, and positioning
+- Whitespace Strategy: Generous negative space creating breathing room, focus, and visual separation between elements
+- Grid Alignment: Mathematical precision using 8px/4px grid system for pixel-perfect alignment and consistency
+- Typography Hierarchy: Clear information hierarchy using size, weight, and color to guide user attention
+- Progressive Disclosure: Information revealed appropriately based on user context and task completion needs
 
 INTERACTION DESIGN EXCELLENCE:
-${functionalitySection}
-
-User Experience Optimization:
-- Cognitive Load Reduction: Interface elements immediately understandable without learning curve
-- Task Completion Efficiency: Streamlined user flows minimizing steps to goal achievement
-- Error Prevention: Design patterns preventing common user mistakes before they occur
+- Micro-interactions: Subtle animations providing immediate feedback for user actions (200-300ms duration)
+- State Communication: Clear visual differentiation between idle, hover, active, focus, disabled, and loading states
+- Error Prevention: Design patterns that prevent common user mistakes before they occur
 - Recovery Mechanisms: Clear pathways for users to correct mistakes or change decisions
 - Contextual Help: Tooltips and guidance appearing precisely when users need assistance
+- Cognitive Load Reduction: Interface elements immediately understandable without learning curve
 
-Touch & Mouse Interaction:
-- Target Sizing: Minimum 44px touch targets for optimal mobile usability
-- Gesture Support: Swipe, pinch, and tap gestures appropriately implemented where applicable
-- Hover States: Meaningful preview information and visual feedback for desktop users
-- Keyboard Navigation: Full accessibility via tab, arrow keys, enter, and escape
-- Screen Reader Optimization: Semantic HTML structure supporting assistive technologies
-
-TECHNICAL IMPLEMENTATION STANDARDS:
-Code Quality & Performance:
-- Semantic HTML: Proper element usage ensuring accessibility and SEO optimization
-- CSS Architecture: Modular, maintainable stylesheets using BEM or utility-first methodologies
-- Performance Budget: Component loads within 200ms on 3G networks
-- Image Optimization: All graphics compressed and served in next-generation formats (WebP, AVIF)
-- JavaScript Efficiency: Minimal DOM manipulation with event delegation and debouncing
-
-Cross-Platform Compatibility:
-- Browser Support: Consistent rendering across Chrome, Firefox, Safari, Edge latest versions
-- Device Testing: Perfect display on iOS, Android, Windows, and macOS across screen densities
-- Resolution Independence: Crisp appearance on standard, Retina, and high-DPI displays
-- Feature Degradation: Graceful fallbacks for unsupported browser features
-- Progressive Enhancement: Core functionality available regardless of JavaScript availability
-
-ACCESSIBILITY EXCELLENCE:
-Universal Design Principles:
-- Screen Reader Compatibility: Proper ARIA labels, roles, and properties throughout component
-- Keyboard Navigation: Complete functionality accessible via keyboard-only interaction
+ACCESSIBILITY & INCLUSIVE DESIGN:
+- Screen Reader Compatibility: Proper semantic HTML structure with ARIA labels, roles, and properties
+- Keyboard Navigation: Complete functionality accessible via keyboard-only interaction with logical tab order
 - Color Independence: Information conveyed through multiple visual cues beyond color alone
 - Motion Sensitivity: Respectful animation implementation with prefer-reduced-motion support
 - Zoom Compatibility: Maintains usability at 200% zoom levels required by accessibility standards
+- High Contrast Support: Design adaptation for users requiring enhanced visual contrast
 
-Inclusive Design Considerations:
-- Cognitive Accessibility: Simple, predictable interface patterns reducing mental processing load
-- Motor Accessibility: Generous click targets and forgiving interaction zones
-- Visual Accessibility: High contrast ratios and scalable text supporting various vision needs
-- Temporary Disabilities: Design resilience for users with temporary limitations (injury, distraction)
+TECHNICAL IMPLEMENTATION STANDARDS:
+- Performance Budget: Component loads within 200ms on 3G networks with optimized assets
+- Cross-Browser Compatibility: Consistent rendering across Chrome, Firefox, Safari, Edge latest versions
+- Responsive Design: Graceful scaling across device sizes from 320px mobile to 4K desktop displays
+- Code Quality: Semantic HTML structure with maintainable CSS following BEM or atomic design principles
+- Asset Optimization: Images compressed and served in next-generation formats (WebP, AVIF)
+- Progressive Enhancement: Core functionality available regardless of JavaScript availability
 
-${formValues.platform} PLATFORM OPTIMIZATION:
-Native Platform Integration:
-- Operating System Conventions: Respects ${formValues.platform} design guidelines and user expectations
-- Platform-Specific Patterns: Leverages familiar interaction patterns users already understand
-- System Integration: Harmonious coexistence with platform UI and system-level controls
-- Performance Characteristics: Optimized for ${formValues.platform} hardware and software capabilities
+MODERN DESIGN TRENDS INTEGRATION:
+- Contemporary Aesthetics: Current design trends balanced with timeless usability principles
+- Material Authenticity: Realistic shadows, depth, and surface treatments appropriate for platform
+- Motion Design: Purposeful animations that enhance rather than distract from user tasks
+- Typography Excellence: Modern font stacks with optimal readability across all devices and contexts
+- Iconography: Consistent icon style with proper sizing, alignment, and semantic meaning
+- Surface Treatment: Appropriate use of gradients, shadows, and textures for visual interest and depth
 
-Design System Compliance:
-- ${formValues.designSystem} Standards: Faithful implementation of established design tokens and patterns
-- Component Library Integration: Seamless compatibility with existing design system components
-- Documentation Standards: Self-documenting design enabling efficient developer handoff
-- Maintenance Considerations: Design approach supporting long-term system evolution
+BUSINESS IMPACT OPTIMIZATION:
+- Conversion Optimization: Design elements proven to increase user engagement and task completion
+- Brand Alignment: Visual approach supporting brand identity while maintaining usability standards
+- User Retention: Interface design encouraging continued use and positive user experience
+- Competitive Advantage: Modern design approach distinguishing product from competitors
+- Scalability Planning: Design structure supporting organizational growth and feature expansion
+- Maintenance Efficiency: Design approach minimizing long-term maintenance and update costs
 
-PRODUCTION READINESS VALIDATION:
-
-Quality Assurance Checklist:
+QUALITY ASSURANCE VALIDATION:
 - Pixel Perfection: Every element precisely positioned and sized according to design specifications
 - Interaction Consistency: All interactive elements behave predictably across component instances
 - Error Handling: Robust performance under edge cases and unexpected user inputs
 - Performance Validation: Component meets or exceeds loading and interaction performance benchmarks
 - Accessibility Audit: Full compliance with WCAG 2.1 Level AA standards verified through testing
+- User Testing: Design validated through usability testing with representative user groups
 
-Developer Handoff Excellence:
-- Technical Specifications: Complete implementation guidance including measurements, colors, and behaviors
+PROFESSIONAL DELIVERABLE STANDARDS:
+- Developer Handoff: Complete implementation guidance including measurements, colors, and behaviors
 - Asset Preparation: All required graphics exported in appropriate formats and resolutions
 - Animation Specifications: Detailed timing, easing, and transition requirements documented
 - Component Variants: All necessary states and variations clearly defined and delivered
-- Integration Notes: Platform-specific implementation considerations and best practices included`;
+- Documentation: Comprehensive usage guidelines and implementation best practices included
+- Future Compatibility: Design approach ensuring compatibility with evolving platform requirements
+
+This component will exemplify professional web and app development standards, creating interfaces that users intuitively understand and enjoy using while meeting all technical and accessibility requirements for modern digital products.`;
   },
 
   qualityEnhancements: {
@@ -1349,6 +1612,54 @@ export const ILLUSTRATIONS_TEMPLATE: PromptTemplate = {
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
     const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
     
+    // Purpose and usage context integration
+    const purposeSection = formValues.illustrationPurpose 
+      ? `Illustration Purpose Framework:
+Primary Use Case: ${formValues.illustrationPurpose}
+- Communication Objective: Visual elements specifically designed to support ${formValues.illustrationPurpose} messaging and audience engagement
+- Context Optimization: Illustration style and content calibrated for ${formValues.illustrationPurpose} viewing environment and usage requirements
+- Audience Alignment: Visual approach tailored to ${formValues.illustrationPurpose} target audience sophistication and cultural expectations
+- Message Amplification: Artistic elements reinforcing ${formValues.illustrationPurpose} key themes and communication objectives
+- Brand Integration: Illustration seamlessly supporting ${formValues.illustrationPurpose} brand identity and marketing goals
+- Impact Maximization: Visual design optimized for maximum effectiveness in ${formValues.illustrationPurpose} application context`
+      : 'Versatile Illustration Design: Artwork optimized for multiple usage contexts and communication purposes';
+
+    // Target audience integration
+    const audienceSection = formValues.targetAudience 
+      ? `Target Audience Optimization:
+Intended Viewers: ${formValues.targetAudience}
+- Cultural Sensitivity: Visual elements appropriate for ${formValues.targetAudience} cultural background and expectations
+- Age Appropriateness: Illustration style and content calibrated for ${formValues.targetAudience} demographic preferences
+- Sophistication Level: Artistic complexity and messaging depth aligned with ${formValues.targetAudience} intellectual engagement
+- Emotional Resonance: Visual approach designed to create meaningful connection with ${formValues.targetAudience} values and interests
+- Accessibility Considerations: Illustration ensuring inclusivity and comprehension across ${formValues.targetAudience} diverse needs
+- Engagement Strategy: Visual elements encouraging ${formValues.targetAudience} interaction and positive response`
+      : 'Universal Appeal Design: Illustration crafted for broad audience engagement and cross-demographic effectiveness';
+
+    // Dimensions and format integration
+    const dimensionsSection = formValues.illustrationDimensions 
+      ? `Technical Specifications Framework:
+Output Dimensions: ${formValues.illustrationDimensions}
+- Resolution Optimization: Illustration quality calibrated for ${formValues.illustrationDimensions} display requirements and viewing distance
+- Aspect Ratio Mastery: Composition design maximizing visual impact within ${formValues.illustrationDimensions} proportional constraints
+- Scale Flexibility: Illustration elements maintaining clarity and impact across various size applications from ${formValues.illustrationDimensions}
+- Print Readiness: Technical specifications ensuring excellent reproduction quality for ${formValues.illustrationDimensions} print applications
+- Digital Excellence: File preparation optimized for ${formValues.illustrationDimensions} digital display and web usage requirements
+- Future Scalability: Design approach allowing effective resizing and format adaptation beyond ${formValues.illustrationDimensions} specifications`
+      : 'Adaptive Format Design: Illustration optimized for flexible sizing and multiple output format requirements';
+
+    // Specific requirements integration
+    const requirementsSection = formValues.specificRequirements 
+      ? `Custom Requirements Implementation:
+Special Specifications: ${formValues.specificRequirements}
+- Technical Compliance: Illustration meeting all specified ${formValues.specificRequirements} technical and creative constraints
+- Creative Integration: Artistic approach seamlessly incorporating ${formValues.specificRequirements} while maintaining visual excellence
+- Quality Assurance: Design validation ensuring ${formValues.specificRequirements} are met without compromising artistic integrity
+- Professional Standards: Implementation of ${formValues.specificRequirements} following industry best practices and creative excellence
+- Client Satisfaction: Illustration approach exceeding ${formValues.specificRequirements} expectations through superior artistic execution
+- Innovation Opportunity: Creative interpretation of ${formValues.specificRequirements} adding unique value and artistic distinction`
+      : 'Creative Freedom Approach: Illustration design optimized for maximum artistic impact and creative expression';
+    
     const moodSection = formValues.mood 
       ? `Atmospheric Design Framework:
 Emotional Tone: ${formValues.mood}
@@ -1376,6 +1687,14 @@ Dominant Palette: ${formValues.colorPreference}
     return `Create a masterpiece-quality artistic illustration that transcends mere visual representation to become compelling artistic storytelling with emotional depth and technical excellence.
 
 ${standardFieldsSection}
+
+${purposeSection}
+
+${audienceSection}
+
+${dimensionsSection}
+
+${requirementsSection}
 
 ARTISTIC VISION SPECIFICATIONS:
 Subject Matter: ${formValues.subject}
@@ -1514,6 +1833,42 @@ export const PRODUCT_MOCKUPS_TEMPLATE: PromptTemplate = {
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
     const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
     
+    // Design upload integration
+    const designUploadSection = formValues.designUpload 
+      ? `User Design Integration Framework:
+Provided Design Asset: ${formValues.designUpload}
+- Design Preservation: Maintain exact user design integrity while optimizing placement and presentation for mockup effectiveness
+- Brand Consistency: Ensure design treatment aligns with existing brand guidelines and product identity standards
+- Scale Optimization: Design sizing that maintains recognition while supporting product visibility and professional balance
+- Application Realism: Design placement following natural product usage patterns and realistic application methods
+- Quality Enhancement: Design reproduction optimized for both print and digital mockup presentation maintaining crisp appearance
+- Context Integration: User design seamlessly incorporated into product environment and usage scenario`
+      : 'Original Design Creation: Develop compelling design that perfectly complements product mockup and brand objectives';
+
+    // Brand elements integration
+    const brandElementsSection = formValues.brandElements 
+      ? `Brand Identity Implementation:
+Brand Elements: ${formValues.brandElements}
+- Consistent Application: ${formValues.brandElements} strategically integrated throughout mockup maintaining brand recognition
+- Professional Standards: Brand element treatment following established corporate identity guidelines and market expectations
+- Product Harmony: Brand elements complementing product design without overwhelming primary product presentation
+- Market Positioning: Brand application reinforcing intended market positioning and customer perception goals
+- Cross-Platform Consistency: Brand treatment suitable for various marketing channels and product presentation contexts
+- Quality Assurance: Brand element reproduction maintaining clarity and impact across different mockup applications`
+      : 'Brand-Neutral Approach: Product mockup optimized for versatile brand application and customization flexibility';
+
+    // Usage context integration
+    const usageContextSection = formValues.usageContext 
+      ? `Application Context Framework:
+Primary Usage: ${formValues.usageContext}
+- Context Authenticity: Mockup scenario accurately representing ${formValues.usageContext} real-world application and user experience
+- Audience Relevance: Visual approach tailored to ${formValues.usageContext} target customer demographic and lifestyle
+- Message Amplification: Mockup elements reinforcing ${formValues.usageContext} key benefits and product value proposition
+- Emotional Connection: Scene design creating meaningful connection with ${formValues.usageContext} intended user experience
+- Purchase Motivation: Mockup presentation encouraging customer desire and purchase intent for ${formValues.usageContext} application
+- Market Differentiation: Unique presentation approach distinguishing product from competitors in ${formValues.usageContext} market`
+      : 'Versatile Application Design: Mockup optimized for multiple usage contexts and market applications';
+    
     const settingSection = formValues.setting 
       ? `Environmental Context Architecture:
 Scene Setting: ${formValues.setting}
@@ -1540,6 +1895,12 @@ Viewing Angle: ${formValues.angle}
     return `Create a commercial-grade product mockup that transforms ordinary product presentation into compelling, sales-driving visual storytelling with professional photography excellence.
 
 ${standardFieldsSection}
+
+${designUploadSection}
+
+${brandElementsSection}
+
+${usageContextSection}
 
 PRODUCT PRESENTATION SPECIFICATIONS:
 Product Category: ${formValues.productType}
@@ -1665,6 +2026,69 @@ export const LETTERHEAD_TEMPLATE: PromptTemplate = {
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
     const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
     
+    // Logo integration section
+    const logoSection = formValues.logoUpload 
+      ? `Existing Logo Integration Framework:
+User-Provided Logo: ${formValues.logoUpload}
+- Logo Preservation: Maintain exact logo integrity while optimizing placement and sizing for letterhead hierarchy
+- Brand Consistency: Ensure logo treatment aligns with existing brand guidelines and corporate identity standards
+- Scale Optimization: Logo sizing that maintains recognition while supporting document readability and professional balance
+- Position Strategy: Logo placement maximizing brand recognition while creating elegant document flow and information hierarchy
+- Color Harmony: Logo colors integrated seamlessly with overall letterhead color palette and design approach
+- Quality Enhancement: Logo reproduction optimized for both print and digital use maintaining crisp, professional appearance
+- Brand Authority: Logo positioning reinforcing corporate credibility and market leadership perception`
+      : 'Logo Creation Opportunity: Design original logo mark that perfectly complements letterhead design and corporate identity goals';
+
+    // Content and purpose integration
+    const contentPurposeSection = formValues.documentPurpose 
+      ? `Document Purpose Optimization:
+Primary Use Case: ${formValues.documentPurpose}
+- Communication Context: Design elements specifically calibrated for ${formValues.documentPurpose} effectiveness and professional impact
+- Reader Expectations: Layout and visual hierarchy aligned with ${formValues.documentPurpose} audience sophistication and requirements
+- Information Priority: Design emphasis supporting ${formValues.documentPurpose} key messaging and communication objectives
+- Professional Tone: Visual approach reinforcing ${formValues.documentPurpose} appropriate level of formality and business relationship
+- Action Orientation: Design elements encouraging desired reader response and engagement with ${formValues.documentPurpose} content
+- Relationship Building: Visual framework supporting long-term business relationship development through ${formValues.documentPurpose} communications`
+      : 'Versatile Communication Design: Letterhead optimized for various business communication purposes and professional contexts';
+
+    // Letter content integration
+    const letterContentSection = formValues.letterContent 
+      ? `Content Integration Strategy:
+Letter Content Preview: "${formValues.letterContent}"
+- Content Hierarchy: Letterhead design creating optimal visual flow supporting content readability and message comprehension
+- Message Amplification: Header design elements reinforcing letter content themes and business communication objectives
+- Reading Experience: Typography and spacing optimized for comfortable consumption of provided content length and complexity
+- Professional Context: Letterhead sophistication level appropriate for content tone and business relationship formality
+- Visual Balance: Header-to-content ratio ensuring letterhead presence without overwhelming primary message delivery
+- Signature Space: Document layout accommodating content length while providing appropriate signature and closing areas`
+      : 'Content-Ready Layout: Flexible design accommodating various letter lengths and business communication requirements';
+
+    // Brand colors integration
+    const brandColorsSection = formValues.brandColors 
+      ? `Corporate Color Implementation:
+Brand Color Palette: ${formValues.brandColors}
+- Color Psychology: Strategic application of ${formValues.brandColors} reinforcing intended corporate personality and market positioning
+- Professional Balance: Color intensity and application ensuring business document appropriateness and readability standards
+- Print Optimization: Color specifications ensuring accurate reproduction across various printing methods and paper stocks
+- Digital Consistency: Color values maintaining brand integrity across electronic document distribution and screen displays
+- Accessibility Compliance: Color contrast ratios meeting professional standards and ensuring universal document accessibility
+- Competitive Differentiation: Color application creating distinctive corporate identity while maintaining professional market acceptance
+- Brand Equity Building: Consistent color implementation supporting long-term brand recognition and corporate identity development`
+      : 'Strategic Color Selection: Professional color palette chosen to enhance corporate credibility and document effectiveness';
+
+    // Industry-specific enhancements
+    const industrySection = formValues.industry 
+      ? `Industry-Specific Design Framework:
+Business Sector: ${formValues.industry}
+- Professional Standards: Design approach following established ${formValues.industry} industry conventions and expectations
+- Regulatory Compliance: Visual elements and information presentation meeting any sector-specific legal requirements
+- Competitive Positioning: Design sophistication appropriate for ${formValues.industry} market leadership and professional standing
+- Client Expectations: Visual approach aligned with ${formValues.industry} customer sophistication and business relationship expectations
+- Cultural Sensitivity: Design elements appropriate for ${formValues.industry} international business context and cultural considerations
+- Trust Building: Visual elements reinforcing ${formValues.industry} professional competence and reliability perception`
+      : 'Universal Business Appeal: Design approach suitable for cross-industry professional communication and business development';
+
+    // Contact details integration
     const contactSection = formValues.contactDetails 
       ? `Corporate Contact Architecture:
 Contact Information: ${formValues.contactDetails}
@@ -1677,17 +2101,6 @@ Contact Information: ${formValues.contactDetails}
 - Brand Integration: Contact presentation seamlessly incorporated within overall letterhead design framework`
       : 'Minimal Contact Approach: Essential contact information strategically placed without overwhelming design elegance';
     
-    const industrySection = formValues.industry 
-      ? `Industry-Specific Design Framework:
-Business Sector: ${formValues.industry}
-- Professional Standards: Design approach following established ${formValues.industry} industry conventions and expectations
-- Regulatory Compliance: Visual elements and information presentation meeting any sector-specific legal requirements
-- Competitive Positioning: Design sophistication appropriate for ${formValues.industry} market leadership and professional standing
-- Client Expectations: Visual approach aligned with ${formValues.industry} customer sophistication and business relationship expectations
-- Cultural Sensitivity: Design elements appropriate for ${formValues.industry} international business context and cultural considerations
-- Trust Building: Visual elements reinforcing ${formValues.industry} professional competence and reliability perception`
-      : 'Universal Business Appeal: Design approach suitable for cross-industry professional communication and business development';
-    
     return `Design an executive-quality corporate letterhead that elevates business correspondence to reflect organizational excellence and professional authority.
 
 ${standardFieldsSection}
@@ -1697,6 +2110,14 @@ Company Identity: ${formValues.companyName}
 Business Sector: ${formValues.industry}
 Design Philosophy: ${formValues.letterheadStyle}
 Communication Context: ${formValues.correspondenceType}
+
+${logoSection}
+
+${contentPurposeSection}
+
+${letterContentSection}
+
+${brandColorsSection}
 
 EXECUTIVE PRESENCE FRAMEWORK:
 Professional Authority Architecture:
@@ -2096,9 +2517,13 @@ export function getCategoryPromptSuggestions(categoryId: ImageCategory): string[
       'Bold fitness brand logo with dynamic elements'
     ],
     'ui-components': [
-      'Call-to-action button with gradient and hover effects',
-      'Navigation icons set for mobile app',
-      'Hero banner for e-commerce website'
+      'Professional call-to-action button with accessibility features and hover states',
+      'Modern navigation bar for responsive web application',
+      'Mobile app interface following Material Design 3 guidelines',
+      'Dashboard widget with data visualization and loading states',
+      'Form elements with inline validation and error handling',
+      'Icon set following iOS Human Interface Guidelines',
+      'Hero banner optimized for conversion and performance'
     ],
     'marketing': [
       'Elegant wedding invitation with floral design',
