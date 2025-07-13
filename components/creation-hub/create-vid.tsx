@@ -32,6 +32,7 @@ import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/auth-provider';
 import { useUserImages } from './hooks/use-user-images';
 import type { CreatedVideo } from './hooks/use-user-videos';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // Language support
 const SUPPORTED_LANGUAGES = [
@@ -73,6 +74,7 @@ interface GalleryImage {
 
 interface CreateVidProps {
   onVideoCreated?: (video: CreatedVideo) => void;
+  language?: string;
 }
 
 // Social media platform configurations
@@ -236,7 +238,7 @@ export const SOCIAL_MEDIA_PLATFORMS: SocialMediaPlatform[] = [
   }
 ];
 
-export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
+export default function CreateVid({ onVideoCreated, language = "en" }: CreateVidProps = {}) {
   const { user } = useAuth();
   const { images: galleryImages, loading: galleryLoading } = useUserImages();
   
@@ -258,15 +260,72 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
   const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [selectedVoice, setSelectedVoice] = useState('alloy');
   const [audioDuration, setAudioDuration] = useState([5]);
+  const [showLanguageSelect, setShowLanguageSelect] = useState(false);
   
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [isFrameSequence, setIsFrameSequence] = useState(false);
+  const [frameSequenceInfo, setFrameSequenceInfo] = useState<any>(null);
   
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Translation setup
+  const { translateText } = useTranslation();
+  const [translatedText, setTranslatedText] = useState({
+    createVideo: "Create Video",
+    selectMedia: "Select Media",
+    upload: "Upload",
+    gallery: "Gallery",
+    voiceText: "Voice Text",
+    enhanceAI: "Enhance AI",
+    preview: "Preview",
+    targetPlatform: "Target Platform & Format",
+    audioSettings: "Audio Settings",
+    voice: "Voice",
+    duration: "Duration",
+    seconds: "seconds",
+    generate: "Generate",
+    authRequired: "Authentication Required",
+    authRequiredDesc: "Please sign in to create videos",
+    missingContent: "Missing Content",
+    missingContentDesc: "Please add media or text to create a video",
+    videoCreated: "Video created!",
+    videoCreatedDesc: "Your video has been generated successfully",
+    download: "Download",
+    createNew: "Create New",
+    frameSequenceCreated: "Frame Sequence Created!",
+    frameSequenceDesc: "Frame sequences were created successfully. The frames are stored on the server.",
+    cannotDownload: "Cannot Download",
+    cannotDownloadDesc: "Frame sequences cannot be downloaded directly. Follow the instructions to convert frames to video.",
+    instructions: "Instructions:",
+    step1: "Find the frame sequence files in your temporary directory",
+    step2: "Use the provided instructions to convert frames to video",
+    step3: "Or download individual frames for manual editing",
+    noFFmpeg: "Note: FFmpeg is not available in the serverless environment, so only frame sequences are generated.",
+    settings: "Settings",
+    generating: "Generating...",
+    processing: "Processing media..."
+  });
+
+  // Initialize translations
+  useEffect(() => {
+    translateUI();
+  }, [language]);
+
+  // Translate UI elements - simplified version
+  const translateUI = async () => {
+    try {
+      if (language === 'en') return;
+      
+      // Implement translation as needed
+    } catch (error) {
+      console.error('Translation error:', error);
+    }
+  };
 
   // Helper functions for platform/format data
   const getSelectedPlatformData = () => {
@@ -537,8 +596,8 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
   const handleGenerateVideo = useCallback(async () => {
     if (!user) {
       toast({
-        title: "Authentication required",
-        description: "Please sign in to create videos",
+        title: translatedText.authRequired,
+        description: translatedText.authRequiredDesc,
         variant: "destructive",
       });
       return;
@@ -546,8 +605,8 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
 
     if (!selectedMedia && !text.trim()) {
       toast({
-        title: "Missing content",
-        description: "Please add media or text to create a video",
+        title: translatedText.missingContent,
+        description: translatedText.missingContentDesc,
         variant: "destructive",
       });
       return;
@@ -594,46 +653,49 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
       }
 
       const result = await response.json();
-      
-      if (result.success && result.videoUrl) {
-        setGeneratedVideoUrl(result.videoUrl);
-        
-        // Use the database record if available, otherwise create a fallback object
-        let createdVideo: CreatedVideo;
-        
-        if (result.record) {
-          // Use the actual database record
-          createdVideo = result.record;
-        } else {
-          // Fallback: create video object manually (for when database insert fails)
-          createdVideo = {
-            id: `video_${Date.now()}`,
-            user_id: user.id,
-            filename: result.metadata?.filename || 'video.mp4',
-            video_url: result.videoUrl,
-            original_text: text || undefined,
-            voice_character: selectedVoice || undefined,
-            audio_duration: audioDuration[0] || undefined,
-            duration_seconds: result.metadata?.duration || audioDuration[0] || undefined,
-            status: 'completed',
-            media_files_count: selectedMedia ? 1 : 0,
-            file_size: result.metadata?.fileSize || undefined,
-            metadata: result.metadata || {},
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            completed_at: new Date().toISOString()
-          };
-        }
-        
-        toast({
-          title: "Video created!",
-          description: "Your video has been generated successfully",
+
+      // Handle the frame sequence response (now the only option)
+      if (result.success) {
+        // Set frame sequence mode (we always use this now)
+        setIsFrameSequence(true);
+        setFrameSequenceInfo({
+          metadataPath: result.metadataPath,
+          instructionsPath: result.instructionsPath,
+          message: result.message
         });
         
+        // Create a placeholder video info
+        const placeholderVideoInfo = {
+          id: `frame_sequence_${Date.now()}`,
+          user_id: user.id,
+          filename: 'frame_sequence.webm',
+          video_url: result.instructionsPath || '#',
+          original_text: text || undefined,
+          voice_character: selectedVoice || undefined,
+          audio_duration: audioDuration[0] || undefined,
+          status: 'completed',
+          media_files_count: selectedMedia ? 1 : 0,
+          metadata: {
+            frameSequence: true,
+            metadataPath: result.metadataPath,
+            instructionsPath: result.instructionsPath,
+            message: result.message
+          },
+          created_at: new Date().toISOString(),
+        };
+
+        // Set generated video URL to a special value for the UI
+        setGeneratedVideoUrl("frames-created");
+
+        toast({
+          title: translatedText.frameSequenceCreated,
+          description: translatedText.frameSequenceDesc,
+        });
+
         // Add to gallery if callback provided
-        onVideoCreated?.(createdVideo);
+        onVideoCreated?.(placeholderVideoInfo as CreatedVideo);
       } else {
-        throw new Error(result.error || 'Video generation failed');
+        throw new Error(result.error || 'Frame sequence generation failed');
       }
 
     } catch (error) {
@@ -647,7 +709,7 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
       setIsGenerating(false);
       setProgress(0);
     }
-  }, [user, selectedMedia, text, selectedVoice, selectedLanguage, audioDuration, onVideoCreated]);
+  }, [user, selectedMedia, text, selectedVoice, selectedLanguage, audioDuration, translatedText, onVideoCreated]);
 
   // Clear selection
   const handleClearMedia = useCallback(() => {
@@ -657,443 +719,202 @@ export default function CreateVid({ onVideoCreated }: CreateVidProps = {}) {
     setSelectedMedia(null);
   }, [selectedMedia]);
 
+  // Download video function - this is now redundant since frame sequences can't be downloaded
+  const handleDownload = useCallback(() => {
+    toast({
+      title: translatedText.cannotDownload,
+      description: translatedText.cannotDownloadDesc,
+      variant: "destructive",
+    });
+    return;
+  }, [translatedText]);
+
+  // Video player view - now always shows frame sequence info
+  const renderVideoPlayer = () => {
+    return (
+      <div className="p-6 border border-dashed border-primary/40 rounded-lg flex flex-col items-center justify-center text-center">
+        <Sparkles className="h-10 w-10 text-primary/70 mb-4" />
+        <h3 className="text-lg font-medium mb-2">{translatedText.frameSequenceCreated}</h3>
+        <p className="text-muted-foreground mb-4">
+          {translatedText.frameSequenceDesc}
+        </p>
+        <div className="bg-muted/50 p-4 rounded-md text-sm text-left w-full mb-4">
+          <p className="font-medium mb-2">{translatedText.instructions}</p>
+          <ol className="list-decimal pl-5 space-y-1">
+            <li>{translatedText.step1}</li>
+            <li>{translatedText.step2}</li>
+            <li>{translatedText.step3}</li>
+          </ol>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {translatedText.noFFmpeg}
+        </p>
+      </div>
+    );
+  };
+
+  // Main render - simplified version
   return (
     <div className="space-y-6">
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,video/*"
-        onChange={(e) => handleFileUpload(e.target.files)}
-        className="hidden"
-      />
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <VideoIcon className="h-5 w-5 text-primary" />
+          <h2 className="text-xl font-semibold">{translatedText.createVideo}</h2>
+        </div>
+        <Badge 
+          variant="outline" 
+          className="bg-primary/10 hover:bg-primary/20 cursor-pointer flex items-center gap-1"
+          onClick={() => setShowLanguageSelect(prev => !prev)}
+        >
+          <Globe className="h-3 w-3" />
+          {SUPPORTED_LANGUAGES.find(l => l.code === selectedLanguage)?.flag || '🌐'}
+          <ChevronDown className="h-3 w-3 ml-1" />
+        </Badge>
+      </div>
       
-      {/* Hidden audio element for voice preview */}
-      <audio ref={audioRef} className="hidden" />
-
-      {/* Language Selection */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-card p-4 w-full"
-      >
-        <div className="flex items-center gap-3 mb-3 w-full">
-          <Globe className="h-5 w-5 text-blue-400" />
-          <h3 className="text-lg font-semibold">Language & Voice Settings</h3>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-          <div>
-            <label className="block text-sm font-medium mb-2">Language</label>
-            <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
-              <SelectTrigger className="bg-black/20 border-gray-700">
-                <SelectValue placeholder="Select language" />
-              </SelectTrigger>
-              <SelectContent>
-                {SUPPORTED_LANGUAGES.map((lang) => (
-                  <SelectItem key={lang.code} value={lang.code}>
-                    <span className="flex items-center gap-2">
-                      <span>{lang.flag}</span>
-                      <span>{lang.name}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Voice Character</label>
-            <Select value={selectedVoice} onValueChange={setSelectedVoice}>
-              <SelectTrigger className="bg-black/20 border-gray-700">
-                <SelectValue placeholder="Select voice" />
-              </SelectTrigger>
-              <SelectContent>
-                {VOICE_OPTIONS.map((voice) => (
-                  <SelectItem key={voice.id} value={voice.id}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{voice.name}</span>
-                      <span className="text-xs text-gray-400">{voice.description}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Media Selection */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="glass-card p-6 w-full"
-      >
-        <div className="flex flex-col md:flex-row gap-3 items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <ImageIcon className="h-5 w-5 text-purple-400" />
-            <h3 className="text-lg font-semibold">Select Media</h3>
-          </div>
-          
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              className="bg-black/20 border-gray-700 hover:bg-black/40"
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Upload
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowGallery(!showGallery)}
-              className="bg-black/20 border-gray-700 hover:bg-black/40"
-            >
-              <ImageIcon className="h-4 w-4 mr-2" />
-              Gallery
-            </Button>
-          </div>
-        </div>
-
-        {/* Selected Media Display */}
-        {selectedMedia && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="relative mb-4 w-full"
+      {/* Language selector dropdown */}
+      <AnimatePresence>
+        {showLanguageSelect && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
           >
-            <div className="relative rounded-lg overflow-hidden bg-black/40 p-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClearMedia}
-                className="absolute top-2 right-2 z-10 bg-black/60 hover:bg-black/80"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-              
-              {('file' in selectedMedia && selectedMedia.type === 'image') || (!('file' in selectedMedia)) ? (
-                <img
-                  src={selectedMedia.url}
-                  alt={'name' in selectedMedia ? selectedMedia.name : 'Selected image'}
-                  className="w-full h-48 object-cover rounded-lg"
-                />
-              ) : (
-                <video
-                  src={selectedMedia.url}
-                  className="w-full h-48 object-cover rounded-lg"
-                  controls
-                />
-              )}
-              
-              <div className="mt-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {'file' in selectedMedia ? (
-                    selectedMedia.type === 'image' ? <ImageIcon className="h-4 w-4" /> : <VideoIcon className="h-4 w-4" />
-                  ) : (
-                    <ImageIcon className="h-4 w-4" />
-                  )}
-                  <span className="text-sm font-medium">
-                    {'name' in selectedMedia ? selectedMedia.name : 'Gallery image'}
-                  </span>
-                </div>
-                
-                {'prompt' in selectedMedia && (
-                  <Badge variant="secondary" className="text-xs">
-                    Gallery
-                  </Badge>
-                )}
+            <div className="p-4 bg-muted/40 rounded-lg">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                {SUPPORTED_LANGUAGES.map(lang => (
+                  <Button
+                    key={lang.code}
+                    variant={selectedLanguage === lang.code ? "secondary" : "ghost"}
+                    size="sm"
+                    className="justify-start gap-2"
+                    onClick={() => {
+                      setSelectedLanguage(lang.code);
+                      setShowLanguageSelect(false);
+                    }}
+                  >
+                    <span>{lang.flag}</span>
+                    <span className="text-xs">{lang.name}</span>
+                  </Button>
+                ))}
               </div>
             </div>
           </motion.div>
         )}
-
-        {/* Gallery Grid */}
-        <AnimatePresence>
-          {showGallery && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden w-full"
-            >
-              <div className="border-t border-gray-700 pt-4 mt-4">
-                <h4 className="text-sm font-medium mb-3 text-gray-300">Your Gallery</h4>
-                
-                {galleryLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  </div>
-                ) : galleryImages.length > 0 ? (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-64 overflow-y-auto">
-                    {galleryImages.map((image) => (
-                      <motion.div
-                        key={image.id}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="relative cursor-pointer group"
-                        onClick={() => handleGallerySelect(image)}
-                      >
-                        <img
-                          src={image.url}
-                          alt={image.prompt}
-                          className="w-full h-20 object-cover rounded-lg border-2 border-transparent group-hover:border-blue-400 transition-colors"
-                        />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                          <Check className="h-5 w-5 text-white" />
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-400 text-sm py-4">No images in your gallery yet.</p>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
-
-      {/* Text Input with AI Enhancement */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="glass-card p-6 w-full"
-      >
-        <div className="flex flex-col md:flex-row gap-3 items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Sparkles className="h-5 w-5 text-green-400" />
-            <h3 className="text-lg font-semibold">Voice Text</h3>
-          </div>
+      </AnimatePresence>
+      
+      {/* Content based on whether video is generated */}
+      {generatedVideoUrl ? (
+        // Show video player
+        <div className="space-y-4">
+          {renderVideoPlayer()}
           
-          <div className="flex gap-2">
+          <div className="flex justify-between">
             <Button
               variant="outline"
-              size="sm"
-              onClick={handleEnhanceText}
-              disabled={!selectedMedia || isEnhancing}
-              className="bg-black/20 border-gray-700 hover:bg-black/40"
+              onClick={() => {
+                setGeneratedVideoUrl(null);
+                setText('');
+                setEnhancedText('');
+                setSelectedMedia(null);
+                setProgress(0);
+                setIsFrameSequence(false);
+              }}
             >
-              {isEnhancing ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Wand2 className="h-4 w-4 mr-2" />
-              )}
-              Enhance AI
+              {translatedText.createNew}
             </Button>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleVoicePreview}
-              disabled={!text.trim()}
-              className="bg-black/20 border-gray-700 hover:bg-black/40"
+            <Button 
+              onClick={handleDownload} 
+              disabled={isFrameSequence}
             >
-              <Play className="h-4 w-4 mr-2" />
-              Preview
+              <Download className="mr-2 h-4 w-4" />
+              {translatedText.download}
             </Button>
           </div>
         </div>
+      ) : (
+        // Show simplified creation form
+        <div className="space-y-6">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*"
+            onChange={(e) => handleFileUpload(e.target.files)}
+            className="hidden"
+          />
+          
+          {/* Hidden audio element for voice preview */}
+          <audio ref={audioRef} className="hidden" />
 
-        {/* Platform Selector */}
-        <div className="mb-4 w-full">
-          <div className="flex items-center gap-2 mb-2">
-            <Globe className="h-4 w-4 text-blue-400" />
-            <label className="text-sm font-medium">Target Platform & Format</label>
+          {/* Basic form UI */}
+          <div className="p-4 border border-gray-700 rounded-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <Globe className="h-5 w-5 text-primary" />
+              <h3 className="text-lg font-semibold">{translatedText.settings}</h3>
+            </div>
+            
+            {/* Text input */}
+            <Textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Enter text for voice generation..."
+              className="min-h-[120px] bg-black/20 border-gray-700 resize-none mb-4"
+            />
+            
+            {/* Duration slider */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">
+                {translatedText.duration}: {audioDuration[0]} {translatedText.seconds}
+              </label>
+              <Slider
+                value={audioDuration}
+                onValueChange={setAudioDuration}
+                max={30}
+                min={1}
+                step={1}
+                className="w-full"
+              />
+            </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Platform Selection */}
-            <div>
-              <Select value={selectedPlatform} onValueChange={handlePlatformChange}>
-                <SelectTrigger className="bg-black/20 border-gray-700">
-                  <SelectValue placeholder="Select platform" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SOCIAL_MEDIA_PLATFORMS.map((platform) => (
-                    <SelectItem key={platform.id} value={platform.id}>
-                      {platform.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Format Selection */}
-            <div>
-              <Select value={selectedFormat} onValueChange={setSelectedFormat}>
-                <SelectTrigger className="bg-black/20 border-gray-700">
-                  <SelectValue placeholder="Select format" />
-                </SelectTrigger>
-                <SelectContent>
-                  {getSelectedPlatformData()?.formats.map((format) => (
-                    <SelectItem key={format.id} value={format.id}>
-                      {format.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Format Info */}
-          {getSelectedFormatData() && (
-            <div className="mt-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-              <p className="text-xs text-blue-400">
-                {getSelectedFormatData()?.description} • 
-                Max {getSelectedFormatData()?.maxCharacters} chars • 
-                {getSelectedFormatData()?.aspectRatio} • 
-                ~{getSelectedFormatData()?.recommendedDuration}s
+          {/* Generate Button */}
+          <Button
+            onClick={handleGenerateVideo}
+            disabled={(!selectedMedia && !text.trim()) || isGenerating}
+            className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 h-12 text-lg font-semibold shadow-lg"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                {translatedText.generating} {progress}%
+              </>
+            ) : (
+              <>
+                <VideoIcon className="h-5 w-5 mr-2" />
+                {translatedText.createVideo}
+              </>
+            )}
+          </Button>
+          
+          {/* Progress indicator */}
+          {isGenerating && (
+            <div className="mt-3 bg-black/20 rounded-lg p-4">
+              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-purple-600 to-blue-600"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-sm text-gray-400 mt-2 text-center">
+                {translatedText.processing}
               </p>
             </div>
           )}
         </div>
-
-        <div className="relative w-full">
-          <Textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={`Enter text for voice generation in ${SUPPORTED_LANGUAGES.find(l => l.code === selectedLanguage)?.name || 'English'}...`}
-            className="min-h-[120px] bg-black/20 border-gray-700 resize-none pr-20"
-          />
-          
-          {/* Character Counter */}
-          {getSelectedFormatData() && (
-            <div className="absolute bottom-2 right-2 text-xs text-gray-400">
-              <span className={text.length > (getSelectedFormatData()?.maxCharacters || 0) ? 'text-red-400' : 'text-gray-400'}>
-                {text.length}/{getSelectedFormatData()?.maxCharacters}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {enhancedText && enhancedText !== text && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg w-full"
-          >
-            <p className="text-sm text-green-400 mb-2">✨ AI Enhanced version:</p>
-            <p className="text-sm text-gray-300">{enhancedText}</p>
-          </motion.div>
-        )}
-
-        <div className="mt-4 w-full">
-          <label className="block text-sm font-medium mb-2">
-            Audio Duration: {audioDuration[0]}s
-          </label>
-          <Slider
-            value={audioDuration}
-            onValueChange={setAudioDuration}
-            max={30}
-            min={1}
-            step={1}
-            className="w-full"
-          />
-        </div>
-      </motion.div>
-
-      {/* Generate Button */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-      >
-        <Button
-          onClick={handleGenerateVideo}
-          disabled={(!selectedMedia && !text.trim()) || isGenerating}
-          className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 h-12 text-lg font-semibold shadow-lg"
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-              Creating Video... {progress}%
-            </>
-          ) : (
-            <>
-              <VideoIcon className="h-5 w-5 mr-2" />
-              Create Video
-            </>
-          )}
-        </Button>
-
-        {isGenerating && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-3 bg-black/20 rounded-lg p-4"
-          >
-            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-gradient-to-r from-purple-600 to-blue-600"
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 0.3 }}
-              />
-            </div>
-            <p className="text-sm text-gray-400 mt-2 text-center">
-              Processing your media and generating voice...
-            </p>
-          </motion.div>
-        )}
-      </motion.div>
-
-      {/* Generated Video */}
-      <AnimatePresence>
-        {generatedVideoUrl && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="glass-card p-6"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <VideoIcon className="h-5 w-5 text-green-400" />
-                <h3 className="text-lg font-semibold">Your Video</h3>
-              </div>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(generatedVideoUrl, '_blank')}
-                className="bg-black/20 border-gray-700 hover:bg-black/40"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download
-              </Button>
-            </div>
-
-            <video
-              src={generatedVideoUrl}
-              controls
-              preload="metadata"
-              className="w-full rounded-lg shadow-lg"
-              style={{ maxHeight: '400px' }}
-              onError={(e) => {
-                console.error('Video error:', e);
-                toast({
-                  title: "Video playback error",
-                  description: "There was an issue loading the video. Check the console for details.",
-                  variant: "destructive",
-                });
-              }}
-              onLoadedData={() => {
-                console.log('Video loaded successfully');
-              }}
-              onCanPlay={() => {
-                console.log('Video can start playing');
-              }}
-            >
-              <p>Your browser doesn't support HTML5 video. <a href={generatedVideoUrl} target="_blank" rel="noopener noreferrer">Download the video</a></p>
-            </video>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      )}
     </div>
   );
 } 

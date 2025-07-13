@@ -351,24 +351,11 @@ async function downloadImageFromUrl(url: string, outputPath: string): Promise<vo
 export async function POST(request: NextRequest) {
   const logPrefix = '[API Video Create]';
   const tempDir = path.join(os.tmpdir(), `video-create-${uuidv4()}`);
-  let useAlternativeVideoService = false;
   
   try {
-    // Check FFmpeg availability
-    const ffmpegConfig = await checkFFmpegAvailability();
-    if (!ffmpegConfig.isAvailable) {
-      logger.warn(`${logPrefix} FFmpeg not available, will use alternative video service`, { error: ffmpegConfig.error });
-      useAlternativeVideoService = true;
-    } else {
-      try {
-        // Try to ensure FFmpeg is properly configured
-        await ensureFfmpegConfigured();
-        logger.info(`${logPrefix} FFmpeg configured successfully`);
-      } catch (ffmpegError) {
-        logger.warn(`${logPrefix} FFmpeg configuration failed, falling back to alternative service`, { ffmpegError });
-        useAlternativeVideoService = true;
-      }
-    }
+    // Always use alternative video service - skip FFmpeg checks
+    const useAlternativeVideoService = true;
+    logger.info(`${logPrefix} Using alternative video service by default`);
     
     // Create temp directory
     await fs.mkdir(tempDir, { recursive: true });
@@ -413,8 +400,6 @@ export async function POST(request: NextRequest) {
 
     const ttsService = new TTSService();
     let audioPath: string | null = null;
-    let videoPath: string | null = null;
-    let finalVideoPath: string | null = null;
 
     // Generate TTS audio if text is provided
     let actualAudioDuration = duration; // Start with estimated duration
@@ -440,251 +425,120 @@ export async function POST(request: NextRequest) {
       const audioBuffer = await audioResponse.arrayBuffer();
       await fs.writeFile(audioPath, Buffer.from(audioBuffer));
       
-      // Get actual audio duration for precise video timing
-      actualAudioDuration = await getAudioDuration(audioPath);
-      logger.info(`${logPrefix} TTS audio generated. Estimated: ${duration}s, Actual: ${actualAudioDuration}s`);
+      // For alternative service, we'll just use the specified duration
+      actualAudioDuration = duration;
+      logger.info(`${logPrefix} TTS audio generated. Using specified duration: ${actualAudioDuration}s`);
     }
 
-    // Process media content
-    if (useAlternativeVideoService) {
-      logger.info(`${logPrefix} Using alternative video service (no FFmpeg)`);
+    // Generate frame sequence with alternative service
+    logger.info(`${logPrefix} Using alternative video service (no FFmpeg)`);
+    
+    // Use alternative video service for frame sequence generation
+    const frames = [];
+    
+    if (mediaFile || mediaUrl) {
+      let mediaPath: string;
+      const frame: any = {};
       
-      // Use alternative video service for frame sequence generation
-      const frames = [];
-      
-      if (mediaFile || mediaUrl) {
-        let mediaPath: string;
-        const frame: any = {};
-        
-        if (mediaFile) {
-          const fileExtension = mediaFile.name.split('.').pop()?.toLowerCase() || '';
-          mediaPath = path.join(tempDir, `media.${fileExtension}`);
-          const mediaBuffer = await mediaFile.arrayBuffer();
-          await fs.writeFile(mediaPath, Buffer.from(mediaBuffer));
-          frame.imagePath = mediaPath;
-        } else if (mediaUrl) {
-          frame.imageUrl = mediaUrl;
-        }
-        
-        if (text?.trim()) {
-          frame.text = text;
-        }
-        
-        // Create multiple frames for the actual audio duration
-        const framesNeeded = Math.ceil(actualAudioDuration * 30); // 30 FPS
-        for (let i = 0; i < Math.min(framesNeeded, 150); i++) { // Limit to 150 frames
-          frames.push({ ...frame });
-        }
-      } else if (text?.trim()) {
-        // Text-only frames
-        const framesNeeded = Math.ceil(actualAudioDuration * 30);
-        for (let i = 0; i < Math.min(framesNeeded, 150); i++) {
-          frames.push({ text: text });
-        }
+      if (mediaFile) {
+        const fileExtension = mediaFile.name.split('.').pop()?.toLowerCase() || '';
+        mediaPath = path.join(tempDir, `media.${fileExtension}`);
+        const mediaBuffer = await mediaFile.arrayBuffer();
+        await fs.writeFile(mediaPath, Buffer.from(mediaBuffer));
+        frame.imagePath = mediaPath;
+      } else if (mediaUrl) {
+        frame.imageUrl = mediaUrl;
       }
       
-      // Generate frame sequence
-      const metadataPath = await alternativeVideoService.createVideoFromImages(frames, {
-        width: 1280,
-        height: 720,
-        duration: actualAudioDuration,
-        frameRate: 30,
-        format: 'webm'
-      });
-      
-      // Create conversion instructions
-      const instructionsPath = await alternativeVideoService.convertFramesToVideo(metadataPath);
-      
-      // For now, return the frame sequence information
-      logger.info(`${logPrefix} Frame sequence created. See instructions: ${instructionsPath}`);
-      
-      return NextResponse.json({
-        success: true,
-        message: 'Video frames created successfully! FFmpeg is required to convert frames to video.',
-        metadataPath: metadataPath,
-        instructionsPath: instructionsPath,
-        alternativeService: true,
-        installFFmpeg: 'Please install FFmpeg to enable full video creation. See instructions in the returned file.'
-      });
-      
-    } else {
-      // Use FFmpeg-based video creation
-      if (mediaFile || mediaUrl) {
-        let mediaPath: string;
-        let isImage = false;
-        let isVideo = false;
-
-        if (mediaFile) {
-          // Handle uploaded file
-          const fileExtension = mediaFile.name.split('.').pop()?.toLowerCase() || '';
-          isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension);
-          isVideo = ['mp4', 'mov', 'avi', 'webm', 'mkv'].includes(fileExtension);
-          
-          mediaPath = path.join(tempDir, `media.${fileExtension}`);
-          const mediaBuffer = await mediaFile.arrayBuffer();
-          await fs.writeFile(mediaPath, Buffer.from(mediaBuffer));
-          
-          logger.info(`${logPrefix} Media file saved: ${isImage ? 'image' : isVideo ? 'video' : 'unknown'}`);
-        } else if (mediaUrl) {
-          // Handle media URL (from gallery)
-          const urlExtension = mediaUrl.split('.').pop()?.toLowerCase() || 'jpg';
-          isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(urlExtension);
-          isVideo = ['mp4', 'mov', 'avi', 'webm', 'mkv'].includes(urlExtension);
-          
-          mediaPath = path.join(tempDir, `media.${urlExtension}`);
-          await downloadImageFromUrl(mediaUrl, mediaPath);
-          
-          logger.info(`${logPrefix} Media URL downloaded: ${isImage ? 'image' : isVideo ? 'video' : 'unknown'}`);
-        } else {
-          throw new Error('No valid media source provided');
-        }
-
-        // Create video from media
-        videoPath = path.join(tempDir, 'video.mp4');
-        
-        if (isImage) {
-          // Create video from single image
-          const videoDuration = audioPath ? actualAudioDuration : 5; // Use audio duration or default
-          await createVideoFromImage(mediaPath, videoPath, videoDuration);
-        } else if (isVideo) {
-          // Process single video
-          const videoDuration = audioPath ? actualAudioDuration : undefined;
-          await processVideo(mediaPath, videoPath, videoDuration);
-        } else {
-          throw new Error('Unsupported media format');
-        }
-      } else if (text?.trim()) {
-        // Text-only video with black background
-        videoPath = path.join(tempDir, 'video.mp4');
-        await createTextOnlyVideo(videoPath, actualAudioDuration);
+      if (text?.trim()) {
+        frame.text = text;
       }
-
-      // Combine video and audio if both exist
-      if (videoPath && audioPath) {
-        finalVideoPath = path.join(tempDir, 'final-video.mp4');
-        await addAudioToVideo(videoPath, audioPath, finalVideoPath);
-        logger.info(`${logPrefix} Video and audio combined successfully`);
-      } else {
-        finalVideoPath = videoPath;
+      
+      // Create multiple frames for the actual audio duration
+      const framesNeeded = Math.ceil(actualAudioDuration * 30); // 30 FPS
+      for (let i = 0; i < Math.min(framesNeeded, 150); i++) { // Limit to 150 frames
+        frames.push({ ...frame });
+      }
+    } else if (text?.trim()) {
+      // Text-only frames
+      const framesNeeded = Math.ceil(actualAudioDuration * 30);
+      for (let i = 0; i < Math.min(framesNeeded, 150); i++) {
+        frames.push({ text: text });
       }
     }
-
-    // Only proceed with upload if using FFmpeg (not alternative service)
-    if (!useAlternativeVideoService) {
-      if (!finalVideoPath) {
-        throw new Error('Failed to create video');
-      }
-
-      // Upload to Supabase storage
-      const videoBuffer = await fs.readFile(finalVideoPath);
-      const fileName = `${user.id}/${Date.now()}-${uuidv4()}.mp4`;
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('created-videos')
-        .upload(fileName, videoBuffer, {
-          contentType: 'video/mp4',
-          cacheControl: '3600'
-        });
-
-      if (uploadError) {
-        logger.error(`${logPrefix} Upload failed`, { uploadError });
-        throw new Error(`Upload failed: ${uploadError.message}`);
-      }
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('created-videos')
-        .getPublicUrl(uploadData.path);
-
-      // Get file size for metadata
-      const videoStats = await fs.stat(finalVideoPath);
-      const fileSizeBytes = videoStats.size;
-      
-      // Store record in database
-      const { data: insertedRecord, error: dbError } = await supabase
-        .from('created-videos')
-        .insert({
-          user_id: user.id,
-          filename: fileName,
-          video_url: publicUrl,
-          original_text: text || null,
-          voice_character: voice,
-          audio_duration: actualAudioDuration,
-          duration_seconds: actualAudioDuration,
-          status: 'completed',
-          media_files_count: (mediaFile || mediaUrl) ? 1 : 0,
-          file_size: fileSizeBytes
-        })
-        .select()
-        .single();
-
-      if (dbError) {
-        logger.error(`${logPrefix} Database insert failed`, { 
-          dbError: {
-            message: dbError.message,
-            details: dbError.details,
-            hint: dbError.hint,
-            code: dbError.code
-          },
-          insertData: {
-            user_id: user.id,
-            filename: fileName,
-            audio_duration: actualAudioDuration,
-            duration_seconds: actualAudioDuration,
-            status: 'completed'
-          }
-        });
-        // Don't fail the request, just log the error
-        logger.warn(`${logPrefix} Video created but not saved to database`);
-      } else {
-        logger.info(`${logPrefix} Video record saved to database successfully`, {
-          recordId: insertedRecord?.id,
-          userId: user.id
-        });
-      }
-
-      logger.info(`${logPrefix} Video creation completed successfully`);
-      logger.info(`${logPrefix} Final video URL: ${publicUrl}`);
-      logger.info(`${logPrefix} Video file size: ${Math.round(fileSizeBytes / 1024)} KB`);
-
-      return NextResponse.json({
-        success: true,
-        videoUrl: publicUrl,
-        message: 'Video created successfully',
+    
+    // Generate frame sequence
+    const metadataPath = await alternativeVideoService.createVideoFromImages(frames, {
+      width: 1280,
+      height: 720,
+      duration: actualAudioDuration,
+      frameRate: 30,
+      format: 'webm'
+    });
+    
+    // Create conversion instructions
+    const instructionsPath = await alternativeVideoService.convertFramesToVideo(metadataPath);
+    
+    // Return frame sequence information
+    logger.info(`${logPrefix} Frame sequence created. See instructions: ${instructionsPath}`);
+    
+    // Store record in database
+    const { data: insertedRecord, error: dbError } = await supabase
+      .from('created-videos')
+      .insert({
+        user_id: user.id,
+        filename: `frame_sequence_${Date.now()}.webm`,
+        video_url: instructionsPath || null,
+        original_text: text || null,
+        voice_character: voice,
+        audio_duration: actualAudioDuration,
+        duration_seconds: actualAudioDuration,
+        status: 'frame_sequence',
+        media_files_count: (mediaFile || mediaUrl) ? 1 : 0,
         metadata: {
-          fileSize: fileSizeBytes,
-          duration: actualAudioDuration,
-          filename: fileName
-        },
-        // Include the database record for frontend to use
-        record: insertedRecord || null
-      });
-    }
+          frameSequence: true,
+          metadataPath,
+          instructionsPath,
+        }
+      })
+      .select()
+      .single();
 
-  } catch (error) {
-    logger.error(`${logPrefix} Error creating video:`, error);
-    
-    // Check if it's an FFmpeg-related error
-    const errorMessage = error instanceof Error ? error.message : 'Failed to create video';
-    const isFFmpegError = errorMessage.toLowerCase().includes('ffmpeg') || 
-                          errorMessage.toLowerCase().includes('enoent') ||
-                          errorMessage.toLowerCase().includes('spawn');
-    
-    if (isFFmpegError && !useAlternativeVideoService) {
-      // If FFmpeg error and we haven't tried alternative service yet, suggest it
-      return NextResponse.json({
-        success: false,
-        error: 'FFmpeg is not properly configured. The system can create frame sequences that you can convert to video manually.',
-        userFriendly: true,
-        suggestAlternative: true,
-        installGuide: createUserFriendlyError(errorMessage)
-      }, { status: 500 });
+    if (dbError) {
+      logger.error(`${logPrefix} Database insert failed`, { 
+        dbError: {
+          message: dbError.message,
+          details: dbError.details,
+          hint: dbError.hint,
+          code: dbError.code
+        }
+      });
+      // Don't fail the request, just log the error
+      logger.warn(`${logPrefix} Frame sequence created but not saved to database`);
+    } else {
+      logger.info(`${logPrefix} Frame sequence record saved to database successfully`, {
+        recordId: insertedRecord?.id,
+        userId: user.id
+      });
     }
     
     return NextResponse.json({
+      success: true,
+      message: 'Video frames created successfully!',
+      metadataPath: metadataPath,
+      instructionsPath: instructionsPath,
+      alternativeService: true,
+      record: insertedRecord || null
+    });
+    
+  } catch (error) {
+    logger.error(`${logPrefix} Error creating video:`, error);
+    
+    // Send error response
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create video';
+    return NextResponse.json({
       success: false,
-      error: isFFmpegError ? createUserFriendlyError(errorMessage) : errorMessage,
-      userFriendly: isFFmpegError
+      error: errorMessage
     }, { status: 500 });
   } finally {
     // Cleanup temp directory
@@ -695,13 +549,11 @@ export async function POST(request: NextRequest) {
       logger.error(`${logPrefix} Error cleaning up temp files:`, cleanupError);
     }
     
-    // Cleanup alternative video service if used
-    if (useAlternativeVideoService) {
-      try {
-        await alternativeVideoService.cleanup();
-      } catch (cleanupError) {
-        logger.error(`${logPrefix} Error cleaning up alternative video service:`, cleanupError);
-      }
+    // Cleanup alternative video service
+    try {
+      await alternativeVideoService.cleanup();
+    } catch (cleanupError) {
+      logger.error(`${logPrefix} Error cleaning up alternative video service:`, cleanupError);
     }
   }
 } 
