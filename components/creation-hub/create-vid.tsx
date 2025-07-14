@@ -14,7 +14,15 @@ import {
   Loader2,
   X,
   Check,
-  ChevronDown
+  ChevronDown,
+  Mic,
+  Volume2,
+  Camera,
+  Settings,
+  Zap,
+  Star,
+  Heart,
+  Share2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,12 +58,12 @@ const SUPPORTED_LANGUAGES = [
 
 // Voice options (existing anime-inspired voices)
 const VOICE_OPTIONS = [
-  { id: 'alloy', name: 'Naruto', description: 'Energetic and determined' },
-  { id: 'echo', name: 'Sasuke', description: 'Cool and composed' },
-  { id: 'fable', name: 'Sakura', description: 'Bright and caring' },
-  { id: 'onyx', name: 'Kakashi', description: 'Calm and wise' },
-  { id: 'nova', name: 'Hinata', description: 'Gentle and soft' },
-  { id: 'shimmer', name: 'Tsunade', description: 'Strong and confident' },
+  { id: 'alloy', name: 'Naruto', description: 'Energetic and determined', icon: '⚡' },
+  { id: 'echo', name: 'Sasuke', description: 'Cool and composed', icon: '🌙' },
+  { id: 'fable', name: 'Sakura', description: 'Bright and caring', icon: '🌸' },
+  { id: 'onyx', name: 'Kakashi', description: 'Calm and wise', icon: '🎭' },
+  { id: 'nova', name: 'Hinata', description: 'Gentle and soft', icon: '💜' },
+  { id: 'shimmer', name: 'Tsunade', description: 'Strong and confident', icon: '💎' },
 ];
 
 interface MediaFile {
@@ -242,8 +250,8 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
   const { user } = useAuth();
   const { images: galleryImages, loading: galleryLoading } = useUserImages();
   
-  // Media selection state
-  const [selectedMedia, setSelectedMedia] = useState<MediaFile | GalleryImage | null>(null);
+  // Media selection state - Updated to support multiple files
+  const [selectedMedia, setSelectedMedia] = useState<(MediaFile | GalleryImage)[]>([]);
   const [showGallery, setShowGallery] = useState(false);
   
   // Text and enhancement state
@@ -306,9 +314,12 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
     step2: "Use the provided instructions to convert frames to video",
     step3: "Or download individual frames for manual editing",
     noFFmpeg: "Note: FFmpeg is not available in the serverless environment, so only frame sequences are generated.",
-    settings: "Settings",
-    generating: "Generating...",
-    processing: "Processing media..."
+    languageVoiceSettings: "Language & Voice Settings",
+    language: "Language",
+    voiceCharacter: "Voice Character",
+    audioDuration: "Audio Duration",
+    creatingVideo: "Creating Video",
+    processingMedia: "Processing Media"
   });
 
   // Initialize translations
@@ -316,18 +327,91 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
     translateUI();
   }, [language]);
 
-  // Translate UI elements - simplified version
   const translateUI = async () => {
     try {
-      if (language === 'en') return;
-      
-      // Implement translation as needed
+      const translations = await Promise.all([
+        translateText("Create Video", language, "en"),
+          translateText("Select Media", language, "en"),
+          translateText("Upload", language, "en"),
+          translateText("Gallery", language, "en"),
+        translateText("Voice Text", language, "en"),
+        translateText("Enhance AI", language, "en"),
+        translateText("Preview", language, "en"),
+        translateText("Target Platform & Format", language, "en"),
+        translateText("Audio Settings", language, "en"),
+        translateText("Voice", language, "en"),
+        translateText("Duration", language, "en"),
+        translateText("seconds", language, "en"),
+        translateText("Generate", language, "en"),
+        translateText("Authentication Required", language, "en"),
+          translateText("Please sign in to create videos", language, "en"),
+        translateText("Missing Content", language, "en"),
+          translateText("Please add media or text to create a video", language, "en"),
+          translateText("Video created!", language, "en"),
+        translateText("Your video has been generated successfully", language, "en"),
+        translateText("Download", language, "en"),
+        translateText("Create New", language, "en"),
+        translateText("Frame Sequence Created!", language, "en"),
+        translateText("Frame sequences were created successfully. The frames are stored on the server.", language, "en"),
+        translateText("Cannot Download", language, "en"),
+        translateText("Frame sequences cannot be downloaded directly. Follow the instructions to convert frames to video.", language, "en"),
+        translateText("Instructions:", language, "en"),
+        translateText("Find the frame sequence files in your temporary directory", language, "en"),
+        translateText("Use the provided instructions to convert frames to video", language, "en"),
+        translateText("Or download individual frames for manual editing", language, "en"),
+        translateText("Note: FFmpeg is not available in the serverless environment, so only frame sequences are generated.", language, "en"),
+        translateText("Language & Voice Settings", language, "en"),
+        translateText("Language", language, "en"),
+        translateText("Voice Character", language, "en"),
+        translateText("Audio Duration", language, "en"),
+        translateText("Creating Video", language, "en"),
+        translateText("Processing Media", language, "en")
+      ]);
+
+      setTranslatedText({
+        createVideo: translations[0],
+        selectMedia: translations[1],
+        upload: translations[2],
+        gallery: translations[3],
+        voiceText: translations[4],
+        enhanceAI: translations[5],
+        preview: translations[6],
+        targetPlatform: translations[7],
+        audioSettings: translations[8],
+        voice: translations[9],
+        duration: translations[10],
+        seconds: translations[11],
+        generate: translations[12],
+        authRequired: translations[13],
+        authRequiredDesc: translations[14],
+        missingContent: translations[15],
+        missingContentDesc: translations[16],
+        videoCreated: translations[17],
+        videoCreatedDesc: translations[18],
+        download: translations[19],
+        createNew: translations[20],
+        frameSequenceCreated: translations[21],
+        frameSequenceDesc: translations[22],
+        cannotDownload: translations[23],
+        cannotDownloadDesc: translations[24],
+        instructions: translations[25],
+        step1: translations[26],
+        step2: translations[27],
+        step3: translations[28],
+        noFFmpeg: translations[29],
+        languageVoiceSettings: translations[30],
+        language: translations[31],
+        voiceCharacter: translations[32],
+        audioDuration: translations[33],
+        creatingVideo: translations[34],
+        processingMedia: translations[35]
+      });
     } catch (error) {
       console.error('Translation error:', error);
     }
   };
 
-  // Helper functions for platform/format data
+  // Helper functions for platform selection
   const getSelectedPlatformData = () => {
     return SOCIAL_MEDIA_PLATFORMS.find(p => p.id === selectedPlatform);
   };
@@ -337,7 +421,6 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
     return platform?.formats.find(f => f.id === selectedFormat);
   };
 
-  // Handle platform selection
   const handlePlatformChange = (platformId: string) => {
     setSelectedPlatform(platformId);
     const platform = SOCIAL_MEDIA_PLATFORMS.find(p => p.id === platformId);
@@ -346,232 +429,205 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
     }
   };
 
-  // Auto-calculate duration based on text length and selected format
-  useEffect(() => {
-    if (text.trim()) {
-      const words = text.trim().split(/\s+/).length;
-      // Average speaking speed: 150-160 words per minute, so about 2.5-2.7 words per second
-      // Adding some buffer time for natural speech patterns
-      const estimatedDuration = Math.max(3, Math.min(30, Math.ceil(words / 2.2)));
-      
-      // Use format's recommended duration as a guide
-      const formatData = getSelectedFormatData();
-      const recommendedDuration = formatData?.recommendedDuration || estimatedDuration;
-      
-      // Balance between estimated and recommended duration
-      const finalDuration = Math.max(3, Math.min(30, Math.round((estimatedDuration + recommendedDuration) / 2)));
-      setAudioDuration([finalDuration]);
-    }
-  }, [text, selectedFormat]);
-
-  // Handle file upload
-  const handleFileUpload = useCallback((files: FileList | null) => {
+  // File upload handler - Updated to support multiple files (max 5)
+  const handleFileUpload = (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
-    const file = files[0];
-    const maxImageSize = 10 * 1024 * 1024; // 10MB
-    const maxVideoSize = 50 * 1024 * 1024; // 50MB
+    const maxFiles = 5;
+    const currentCount = selectedMedia.length;
+    const availableSlots = maxFiles - currentCount;
 
-    if (file.type.startsWith('image/')) {
-      if (file.size > maxImageSize) {
-        toast({
-          title: "File too large",
-          description: "Images must be under 10MB",
-          variant: "destructive",
-        });
-        return;
-      }
-    } else if (file.type.startsWith('video/')) {
-      if (file.size > maxVideoSize) {
-        toast({
-          title: "File too large", 
-          description: "Videos must be under 50MB",
-          variant: "destructive",
-        });
-        return;
-      }
-    } else {
+    if (files.length > availableSlots) {
       toast({
-        title: "Invalid file type",
-        description: "Please upload an image or video file",
+        title: "Too many files",
+        description: `You can only upload ${availableSlots} more file(s). Maximum is ${maxFiles} files.`,
         variant: "destructive",
       });
       return;
     }
 
-    const mediaFile: MediaFile = {
-      file,
-      url: URL.createObjectURL(file),
-      type: file.type.startsWith('image/') ? 'image' : 'video',
-      name: file.name
-    };
+    const newMediaFiles: MediaFile[] = [];
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+        toast({
+          title: "Invalid file type",
+          description: `${file.name} is not a valid image or video file`,
+          variant: "destructive",
+        });
+        continue;
+      }
 
-    setSelectedMedia(mediaFile);
+      const url = URL.createObjectURL(file);
+      const mediaFile: MediaFile = {
+        file,
+        url,
+        type: file.type.startsWith('image/') ? 'image' : 'video',
+        name: file.name
+      };
+
+      newMediaFiles.push(mediaFile);
+    }
+
+    setSelectedMedia(prev => [...prev, ...newMediaFiles]);
     setShowGallery(false);
-  }, []);
+  };
 
-  // Handle gallery selection
-  const handleGallerySelect = useCallback((image: GalleryImage) => {
-    setSelectedMedia(image);
-    setShowGallery(false);
-  }, []);
-
-  // AI enhance text based on selected media
-  const handleEnhanceText = useCallback(async () => {
-    if (!selectedMedia) {
+  // Gallery selection handler - Updated for multiple selection
+  const handleGallerySelect = (image: GalleryImage) => {
+    const maxFiles = 5;
+    
+    if (selectedMedia.length >= maxFiles) {
       toast({
-        title: "No media selected",
-        description: "Please select an image or video first",
+        title: "Maximum files reached",
+        description: `You can only select up to ${maxFiles} files`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if image is already selected
+    const isAlreadySelected = selectedMedia.some(media => 
+      !('file' in media) && media.id === image.id
+    );
+
+    if (isAlreadySelected) {
+      toast({
+        title: "Already selected",
+        description: "This image is already selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedMedia(prev => [...prev, image]);
+    setShowGallery(false);
+  };
+
+  // Clear all media handler
+  const handleClearMedia = () => {
+    selectedMedia.forEach(media => {
+      if ('file' in media) {
+        URL.revokeObjectURL(media.url);
+      }
+    });
+    setSelectedMedia([]);
+  };
+
+  // Remove single media handler
+  const handleRemoveMedia = (index: number) => {
+    const mediaToRemove = selectedMedia[index];
+    if ('file' in mediaToRemove) {
+      URL.revokeObjectURL(mediaToRemove.url);
+    }
+    setSelectedMedia(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Text enhancement handler - Fixed to work with media selection
+  const handleEnhanceText = async () => {
+    // Only require at least one media file - text is optional
+    if (selectedMedia.length === 0) {
+      toast({
+        title: "Media required",
+        description: "Please select at least one media file to enhance text",
         variant: "destructive",
       });
       return;
     }
 
     setIsEnhancing(true);
-    
     try {
-      let analysisPrompt = '';
-      let mediaData = null;
-      
-      // Get platform and format data
-      const platformData = getSelectedPlatformData();
-      const formatData = getSelectedFormatData();
-      const languageName = SUPPORTED_LANGUAGES.find(l => l.code === selectedLanguage)?.name || 'English';
-      
-      // Build platform-specific prompt
-      const platformPrompt = formatData?.promptModifier || 'Create engaging social media content.';
-      const basePrompt = `Analyze this content and create compelling ${languageName} text for ${platformData?.name} ${formatData?.name}. ${platformPrompt}`;
+      // Get the first media file URL for image analysis
+      const firstMedia = selectedMedia[0];
+      let imageUrl = firstMedia.url;
 
-      // Prepare data based on media type
-      if ('file' in selectedMedia) {
-        // Uploaded media file
-        if (selectedMedia.type === 'image') {
-          // Convert image to base64 for vision analysis
+      // Convert uploaded file to data URI if it's a blob URL
+      if ('file' in firstMedia && firstMedia.file) {
+        imageUrl = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
-          const base64Promise = new Promise<string>((resolve, reject) => {
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(selectedMedia.file);
-          });
-          
-          mediaData = await base64Promise;
-          analysisPrompt = `${basePrompt} Focus on benefits, emotions, and persuasive language that works specifically for ${formatData?.name}.`;
-        } else {
-          // Video analysis using existing video analysis service
-          const formData = new FormData();
-          formData.append('video', selectedMedia.file);
-          formData.append('prompt', `${basePrompt} Write as if you're trying to sell or promote what's shown in the video. Focus on benefits, emotions, and persuasive language for ${formatData?.name}.`);
-          
-          const response = await fetch('/api/video/analyze', {
-            method: 'POST',
-            body: formData,
-          });
-          
-          if (!response.ok) {
-            throw new Error('Video analysis failed');
-          }
-          
-          const result = await response.json();
-          if (result.success && result.summary) {
-            setEnhancedText(result.summary);
-            setText(result.summary);
-            toast({
-              title: "Text enhanced!",
-              description: "AI analyzed your video and generated a description",
-            });
-            return;
-          } else {
-            throw new Error(result.error || 'Video analysis failed');
-          }
-        }
-      } else {
-        // Gallery image - already has URL
-        mediaData = selectedMedia.url;
-        analysisPrompt = `${basePrompt} Original prompt was: "${selectedMedia.prompt}". Transform this into persuasive sales copy that promotes the product/item shown. Focus on benefits and emotions that work for ${formatData?.name}.`;
-      }
-
-      // For images, use the insights vision API
-      if (mediaData && selectedMedia && (!('file' in selectedMedia) || selectedMedia.type === 'image')) {
-        const enhanceResponse = await fetch('/api/ai/enhance-description', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            imageUrl: mediaData,
-            currentText: text,
-            language: selectedLanguage,
-            analysisPrompt,
-            platform: selectedPlatform,
-            format: selectedFormat,
-            maxCharacters: formatData?.maxCharacters,
-            platformData: platformData,
-            formatData: formatData
-          }),
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(firstMedia.file);
         });
+      }
+      
+      // Get platform and format data for API
+      const platformData = SOCIAL_MEDIA_PLATFORMS.find(p => p.id === selectedPlatform);
+      const formatData = platformData?.formats.find(f => f.id === selectedFormat);
+      
+      const response = await fetch('/api/ai/enhance-description', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageUrl: imageUrl,
+          currentText: text.trim() || '', // Send text even if empty
+          description: text.trim() || '', // Backward compatibility
+          platform: selectedPlatform,
+          format: selectedFormat,
+          language: selectedLanguage,
+          maxCharacters: formatData?.maxCharacters || 125,
+          platformData: platformData,
+          formatData: formatData,
+          analysisPrompt: text.trim() 
+            ? `Enhance this text for ${platformData?.name} ${formatData?.name}: "${text.trim()}". Make it more engaging and compelling while staying within character limits.`
+            : `Analyze this image and create compelling marketing copy for ${platformData?.name} ${formatData?.name}. Focus on benefits, emotions, and persuasive language that would work great for social media. Make it engaging, concise, and sales-oriented.`
+        }),
+      });
 
-        if (!enhanceResponse.ok) {
-          throw new Error('Enhancement failed');
-        }
-
-        const enhanceResult = await enhanceResponse.json();
-        if (enhanceResult.success && enhanceResult.enhancedText) {
-          setEnhancedText(enhanceResult.enhancedText);
-          setText(enhanceResult.enhancedText);
-          
-          const characterInfo = enhanceResult.characterLimit 
-            ? ` (${enhanceResult.characterCount}/${enhanceResult.characterLimit} chars)`
-            : '';
-          
-          toast({
-            title: "Text enhanced!",
-            description: `AI optimized your text for ${enhanceResult.formatInfo?.name || 'social media'}${characterInfo}`,
-          });
-        } else {
-          throw new Error(enhanceResult.error || 'Enhancement failed');
-        }
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Enhancement failed');
       }
 
+      const data = await response.json();
+      
+      if (data.success) {
+        setEnhancedText(data.enhancedText);
+        // If original text was empty, also set it as the main text
+        if (!text.trim()) {
+          setText(data.enhancedText);
+        }
+        toast({
+          title: "Text enhanced!",
+          description: `Generated ${data.characterCount}/${data.characterLimit || 'unlimited'} characters`,
+        });
+      } else {
+        throw new Error(data.error || 'Enhancement failed');
+      }
     } catch (error) {
       console.error('Enhancement error:', error);
       toast({
         title: "Enhancement failed",
-        description: error instanceof Error ? error.message : "Failed to enhance text",
+        description: error instanceof Error ? error.message : "Could not enhance text. Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsEnhancing(false);
     }
-  }, [selectedMedia, text, selectedLanguage, selectedPlatform, selectedFormat]);
+  };
 
-  // Voice preview
-  const handleVoicePreview = useCallback(async () => {
-    if (!text.trim()) {
-      toast({
-        title: "No text to preview",
-        description: "Please enter some text first",
-        variant: "destructive",
-      });
-      return;
-    }
+  // Voice preview handler
+  const handleVoicePreview = async () => {
+    if (!text.trim()) return;
 
     try {
-      const previewText = text.substring(0, 100) + (text.length > 100 ? '...' : '');
-      
       const response = await fetch('/api/tts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          text: previewText,
+          text: enhancedText || text,
           voice: selectedVoice,
-          language: selectedLanguage
+          language: selectedLanguage,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Voice preview failed');
+        throw new Error('TTS failed');
       }
 
       const audioBlob = await response.blob();
@@ -579,18 +635,29 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
       
       if (audioRef.current) {
         audioRef.current.src = audioUrl;
-        audioRef.current.play().catch(console.error);
+        audioRef.current.play();
       }
-
     } catch (error) {
-      console.error('Voice preview error:', error);
+      console.error('TTS error:', error);
       toast({
         title: "Preview failed",
-        description: "Failed to generate voice preview",
+        description: "Could not generate voice preview",
         variant: "destructive",
       });
     }
-  }, [text, selectedVoice, selectedLanguage]);
+  };
+
+  // Download handler
+  const handleDownload = () => {
+    if (generatedVideoUrl) {
+      const link = document.createElement('a');
+      link.href = generatedVideoUrl;
+      link.download = 'generated-video.mp4';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
 
   // Generate video
   const handleGenerateVideo = useCallback(async () => {
@@ -603,7 +670,7 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
       return;
     }
 
-    if (!selectedMedia && !text.trim()) {
+    if (selectedMedia.length === 0 && !text.trim()) {
       toast({
         title: translatedText.missingContent,
         description: translatedText.missingContentDesc,
@@ -619,12 +686,15 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
       const formData = new FormData();
       
       // Add media if selected
-      if (selectedMedia) {
-        if ('file' in selectedMedia) {
-          formData.append('media', selectedMedia.file);
-        } else {
-          formData.append('mediaUrl', selectedMedia.url);
-        }
+      if (selectedMedia.length > 0) {
+        selectedMedia.forEach((media, index) => {
+          if ('file' in media) {
+            formData.append(`media_${index}`, media.file);
+          } else {
+            formData.append(`mediaUrl_${index}`, media.url);
+          }
+        });
+        formData.append('mediaCount', selectedMedia.length.toString());
       }
       
       // Add text and settings
@@ -653,268 +723,831 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
       }
 
       const result = await response.json();
-
-      // Handle the frame sequence response (now the only option)
+      
       if (result.success) {
-        // Set frame sequence mode (we always use this now)
-        setIsFrameSequence(true);
-        setFrameSequenceInfo({
-          metadataPath: result.metadataPath,
-          instructionsPath: result.instructionsPath,
-          message: result.message
-        });
+        if (result.isFrameSequence) {
+          setIsFrameSequence(true);
+          setFrameSequenceInfo(result);
+        } else {
+          setGeneratedVideoUrl(result.videoUrl);
+        }
         
-        // Create a placeholder video info
-        const placeholderVideoInfo = {
-          id: `frame_sequence_${Date.now()}`,
-          user_id: user.id,
-          filename: 'frame_sequence.webm',
-          video_url: result.instructionsPath || '#',
-          original_text: text || undefined,
-          voice_character: selectedVoice || undefined,
-          audio_duration: audioDuration[0] || undefined,
-          status: 'completed',
-          media_files_count: selectedMedia ? 1 : 0,
-          metadata: {
-            frameSequence: true,
-            metadataPath: result.metadataPath,
-            instructionsPath: result.instructionsPath,
-            message: result.message
-          },
-          created_at: new Date().toISOString(),
-        };
-
-        // Set generated video URL to a special value for the UI
-        setGeneratedVideoUrl("frames-created");
+                 // Call the callback if provided
+         if (onVideoCreated) {
+           onVideoCreated({
+             id: Date.now().toString(),
+             user_id: user.id,
+             filename: 'generated-video.mp4',
+             video_url: result.videoUrl || '',
+             original_text: text,
+             voice_character: selectedVoice,
+             audio_duration: audioDuration[0],
+             status: 'completed',
+             media_files_count: selectedMedia.length,
+             created_at: new Date().toISOString(),
+             updated_at: new Date().toISOString(),
+             completed_at: new Date().toISOString(),
+             video_type: 'created',
+             prompt: text
+           });
+         }
 
         toast({
-          title: translatedText.frameSequenceCreated,
-          description: translatedText.frameSequenceDesc,
+          title: translatedText.videoCreated,
+          description: translatedText.videoCreatedDesc,
         });
-
-        // Add to gallery if callback provided
-        onVideoCreated?.(placeholderVideoInfo as CreatedVideo);
       } else {
-        throw new Error(result.error || 'Frame sequence generation failed');
+        throw new Error(result.error || 'Video generation failed');
       }
-
     } catch (error) {
       console.error('Video generation error:', error);
       toast({
         title: "Generation failed",
-        description: error instanceof Error ? error.message : "Failed to generate video",
+        description: "Could not generate video. Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsGenerating(false);
-      setProgress(0);
     }
-  }, [user, selectedMedia, text, selectedVoice, selectedLanguage, audioDuration, translatedText, onVideoCreated]);
+  }, [user, selectedMedia, text, selectedVoice, selectedLanguage, audioDuration, selectedPlatform, selectedFormat, onVideoCreated, translatedText]);
 
-  // Clear selection
-  const handleClearMedia = useCallback(() => {
-    if (selectedMedia && 'file' in selectedMedia) {
-      URL.revokeObjectURL(selectedMedia.url);
-    }
-    setSelectedMedia(null);
-  }, [selectedMedia]);
-
-  // Download video function - this is now redundant since frame sequences can't be downloaded
-  const handleDownload = useCallback(() => {
-    toast({
-      title: translatedText.cannotDownload,
-      description: translatedText.cannotDownloadDesc,
-      variant: "destructive",
-    });
-    return;
-  }, [translatedText]);
-
-  // Video player view - now always shows frame sequence info
+  // Video player view (when video is generated)
   const renderVideoPlayer = () => {
-    return (
-      <div className="p-6 border border-dashed border-primary/40 rounded-lg flex flex-col items-center justify-center text-center">
-        <Sparkles className="h-10 w-10 text-primary/70 mb-4" />
-        <h3 className="text-lg font-medium mb-2">{translatedText.frameSequenceCreated}</h3>
-        <p className="text-muted-foreground mb-4">
-          {translatedText.frameSequenceDesc}
-        </p>
-        <div className="bg-muted/50 p-4 rounded-md text-sm text-left w-full mb-4">
-          <p className="font-medium mb-2">{translatedText.instructions}</p>
-          <ol className="list-decimal pl-5 space-y-1">
-            <li>{translatedText.step1}</li>
-            <li>{translatedText.step2}</li>
-            <li>{translatedText.step3}</li>
-          </ol>
+    if (isFrameSequence) {
+      // Frame sequence created (alternative service)
+      return (
+        <div className="p-6 border border-dashed border-primary/40 rounded-lg flex flex-col items-center justify-center text-center">
+          <Sparkles className="h-10 w-10 text-primary/70 mb-4" />
+          <h3 className="text-lg font-medium mb-2">{translatedText.frameSequenceCreated}</h3>
+          <p className="text-muted-foreground mb-4">
+            {translatedText.frameSequenceDesc}
+          </p>
+          <div className="bg-muted/50 p-4 rounded-md text-sm text-left w-full mb-4">
+            <p className="font-medium mb-2">{translatedText.instructions}</p>
+            <ol className="list-decimal pl-5 space-y-1">
+              <li>{translatedText.step1}</li>
+              <li>{translatedText.step2}</li>
+              <li>{translatedText.step3}</li>
+            </ol>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {translatedText.noFFmpeg}
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {translatedText.noFFmpeg}
-        </p>
+      );
+    }
+
+    return (
+      <div className="relative rounded-lg overflow-hidden bg-black aspect-video">
+        <video
+          src={generatedVideoUrl || undefined}
+          className="w-full h-full"
+          controls
+          autoPlay
+          playsInline
+          loop
+        />
+        <Button
+          variant="outline"
+          size="icon"
+          className="absolute bottom-4 right-4 bg-background/80 hover:bg-background rounded-full"
+          onClick={handleDownload}
+        >
+          <Download className="h-5 w-5" />
+        </Button>
       </div>
     );
   };
 
-  // Main render - simplified version
+  // Main render
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <VideoIcon className="h-5 w-5 text-primary" />
-          <h2 className="text-xl font-semibold">{translatedText.createVideo}</h2>
-        </div>
-        <Badge 
-          variant="outline" 
-          className="bg-primary/10 hover:bg-primary/20 cursor-pointer flex items-center gap-1"
-          onClick={() => setShowLanguageSelect(prev => !prev)}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 p-4 md:p-6">
+      <div className="max-w-4xl mx-auto space-y-8">
+        {/* Header */}
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative"
         >
-          <Globe className="h-3 w-3" />
-          {SUPPORTED_LANGUAGES.find(l => l.code === selectedLanguage)?.flag || '🌐'}
-          <ChevronDown className="h-3 w-3 ml-1" />
-        </Badge>
-      </div>
-      
-      {/* Language selector dropdown */}
-      <AnimatePresence>
-        {showLanguageSelect && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="p-4 bg-muted/40 rounded-lg">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                {SUPPORTED_LANGUAGES.map(lang => (
-                  <Button
-                    key={lang.code}
-                    variant={selectedLanguage === lang.code ? "secondary" : "ghost"}
-                    size="sm"
-                    className="justify-start gap-2"
-                    onClick={() => {
-                      setSelectedLanguage(lang.code);
-                      setShowLanguageSelect(false);
-                    }}
-                  >
-                    <span>{lang.flag}</span>
-                    <span className="text-xs">{lang.name}</span>
-                  </Button>
-                ))}
+          <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 via-blue-600/20 to-cyan-600/20 rounded-2xl blur-xl" />
+          <div className="relative backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-2xl">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-blue-500 rounded-xl blur opacity-75" />
+                  <div className="relative bg-gradient-to-r from-purple-600 to-blue-600 p-3 rounded-xl">
+                    <VideoIcon className="h-8 w-8 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-white via-purple-200 to-blue-200 bg-clip-text text-transparent">
+                    {translatedText.createVideo}
+                  </h1>
+                  <p className="text-white/60 text-sm md:text-base">
+                    Generate stunning videos with AI magic ✨
+                  </p>
+                </div>
               </div>
+              
+              {/* <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowLanguageSelect(prev => !prev)}
+                className="cursor-pointer"
+              >
+                <Badge 
+                  variant="outline" 
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20 transition-all duration-300 flex items-center gap-2 px-4 py-2"
+                >
+                  <Globe className="h-4 w-4" />
+                  {SUPPORTED_LANGUAGES.find(l => l.code === selectedLanguage)?.flag || '🌐'}
+                  <span className="hidden sm:inline">{SUPPORTED_LANGUAGES.find(l => l.code === selectedLanguage)?.name}</span>
+                  <ChevronDown className="h-3 w-3" />
+                </Badge>
+              </motion.div> */}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Language selector dropdown */}
+        <AnimatePresence>
+          {showLanguageSelect && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0, y: -20 }}
+              animate={{ opacity: 1, height: 'auto', y: 0 }}
+              exit={{ opacity: 0, height: 0, y: -20 }}
+              className="overflow-hidden"
+            >
+              <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-2xl">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {SUPPORTED_LANGUAGES.map(lang => (
+                    <motion.div
+                      key={lang.code}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Button
+                        variant={selectedLanguage === lang.code ? "secondary" : "ghost"}
+                        size="sm"
+                        className={`w-full justify-start gap-2 transition-all duration-300 ${
+                          selectedLanguage === lang.code 
+                            ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg' 
+                            : 'hover:bg-white/10 text-white/80'
+                        }`}
+                        onClick={() => {
+                          setSelectedLanguage(lang.code);
+                          setShowLanguageSelect(false);
+                        }}
+                      >
+                        <span className="text-lg">{lang.flag}</span>
+                        <span className="text-xs font-medium">{lang.name}</span>
+                      </Button>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        {/* Content based on whether video is generated */}
+        {generatedVideoUrl ? (
+          // Show video player
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="space-y-6"
+          >
+            <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-2xl">
+              {renderVideoPlayer()}
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-between">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setGeneratedVideoUrl(null);
+                  setText('');
+                  setEnhancedText('');
+                  handleClearMedia();
+                  setProgress(0);
+                  setIsFrameSequence(false);
+                }}
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm"
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                {translatedText.createNew}
+              </Button>
+              <Button 
+                onClick={handleDownload} 
+                disabled={isFrameSequence}
+                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {translatedText.download}
+              </Button>
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
-      
-      {/* Content based on whether video is generated */}
-      {generatedVideoUrl ? (
-        // Show video player
-        <div className="space-y-4">
-          {renderVideoPlayer()}
-          
-          <div className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setGeneratedVideoUrl(null);
-                setText('');
-                setEnhancedText('');
-                setSelectedMedia(null);
-                setProgress(0);
-                setIsFrameSequence(false);
-              }}
-            >
-              {translatedText.createNew}
-            </Button>
-            <Button 
-              onClick={handleDownload} 
-              disabled={isFrameSequence}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              {translatedText.download}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        // Show simplified creation form
-        <div className="space-y-6">
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,video/*"
-            onChange={(e) => handleFileUpload(e.target.files)}
-            className="hidden"
-          />
-          
-          {/* Hidden audio element for voice preview */}
-          <audio ref={audioRef} className="hidden" />
-
-          {/* Basic form UI */}
-          <div className="p-4 border border-gray-700 rounded-lg">
-            <div className="flex items-center gap-3 mb-4">
-              <Globe className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold">{translatedText.settings}</h3>
-            </div>
-            
-            {/* Text input */}
-            <Textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Enter text for voice generation..."
-              className="min-h-[120px] bg-black/20 border-gray-700 resize-none mb-4"
+        ) : (
+          // Show creation form
+          <div className="space-y-8">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              onChange={(e) => handleFileUpload(e.target.files)}
+              className="hidden"
             />
             
-            {/* Duration slider */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">
-                {translatedText.duration}: {audioDuration[0]} {translatedText.seconds}
-              </label>
-              <Slider
-                value={audioDuration}
-                onValueChange={setAudioDuration}
-                max={30}
-                min={1}
-                step={1}
-                className="w-full"
-              />
-            </div>
-          </div>
-          
-          {/* Generate Button */}
-          <Button
-            onClick={handleGenerateVideo}
-            disabled={(!selectedMedia && !text.trim()) || isGenerating}
-            className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 h-12 text-lg font-semibold shadow-lg"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                {translatedText.generating} {progress}%
-              </>
-            ) : (
-              <>
-                <VideoIcon className="h-5 w-5 mr-2" />
-                {translatedText.createVideo}
-              </>
-            )}
-          </Button>
-          
-          {/* Progress indicator */}
-          {isGenerating && (
-            <div className="mt-3 bg-black/20 rounded-lg p-4">
-              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-purple-600 to-blue-600"
-                  style={{ width: `${progress}%` }}
-                />
+            {/* Hidden audio element for voice preview */}
+            <audio ref={audioRef} className="hidden" />
+
+            {/* Language & Voice Settings */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="relative"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 rounded-2xl blur-xl" />
+              <div className="relative backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-2xl">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg blur opacity-75" />
+                    <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 p-2 rounded-lg">
+                      <Settings className="h-5 w-5 text-white" />
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-bold text-white">{translatedText.languageVoiceSettings}</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium text-white/80">{translatedText.language}</label>
+                    <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                      <SelectTrigger className="bg-white/10 border-white/20 text-white backdrop-blur-sm hover:bg-white/20 transition-all duration-300">
+                        <SelectValue placeholder="Select language" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900/95 border-white/20 backdrop-blur-xl">
+                        {SUPPORTED_LANGUAGES.map((lang) => (
+                          <SelectItem key={lang.code} value={lang.code} className="text-white hover:bg-white/10">
+                            <span className="flex items-center gap-2">
+                              <span>{lang.flag}</span>
+                              <span>{lang.name}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium text-white/80">{translatedText.voiceCharacter}</label>
+                    <Select value={selectedVoice} onValueChange={setSelectedVoice}>
+                      <SelectTrigger className="bg-white/10 border-white/20 text-white backdrop-blur-sm hover:bg-white/20 transition-all duration-300">
+                        <SelectValue placeholder="Select voice" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900/95 border-white/20 backdrop-blur-xl">
+                        {VOICE_OPTIONS.map((voice) => (
+                          <SelectItem key={voice.id} value={voice.id} className="text-white hover:bg-white/10">
+                            <div className="flex items-center gap-3">
+                              <span className="text-lg">{voice.icon}</span>
+                              <div>
+                                <span className="font-medium">{voice.name}</span>
+                                <p className="text-xs text-white/60">{voice.description}</p>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
-              <p className="text-sm text-gray-400 mt-2 text-center">
-                {translatedText.processing}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+            </motion.div>
+
+            {/* Media Selection */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="relative"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-red-600/20 rounded-2xl blur-xl" />
+              <div className="relative backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-2xl">
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg blur opacity-75" />
+                      <div className="relative bg-gradient-to-r from-purple-600 to-pink-600 p-2 rounded-lg">
+                        <ImageIcon className="h-5 w-5 text-white" />
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-bold text-white">{translatedText.selectMedia}</h3>
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm transition-all duration-300"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        {translatedText.upload}
+                      </Button>
+                    </motion.div>
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowGallery(!showGallery)}
+                        className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm transition-all duration-300"
+                      >
+                        <Camera className="h-4 w-4 mr-2" />
+                        {translatedText.gallery}
+                      </Button>
+                    </motion.div>
+                  </div>
+                </div>
+
+                {/* Selected Media Display */}
+                {selectedMedia.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="relative mb-6"
+                  >
+                    <div className="relative rounded-xl overflow-hidden bg-black/40 p-4 border border-white/10">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-white font-medium">
+                          Selected Media ({selectedMedia.length}/5)
+                        </h4>
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={handleClearMedia}
+                          className="bg-red-500/80 hover:bg-red-500 text-white rounded-full p-2 transition-all duration-300"
+                        >
+                          <X className="h-4 w-4" />
+                        </motion.button>
+                      </div>
+                      
+                      {/* Display based on number of selected media */}
+                      {selectedMedia.length === 1 ? (
+                        /* Single media - display large and natural */
+                        <div className="relative group">
+                          <div className="relative rounded-lg overflow-hidden bg-black/20 max-w-2xl mx-auto">
+                            {('file' in selectedMedia[0] && selectedMedia[0].type === 'image') || (!('file' in selectedMedia[0])) ? (
+                              <img
+                                src={selectedMedia[0].url}
+                                alt={'name' in selectedMedia[0] ? selectedMedia[0].name : 'Selected image'}
+                                className="w-full max-h-96 object-contain rounded-lg"
+                              />
+                            ) : (
+                              <video
+                                src={selectedMedia[0].url}
+                                className="w-full max-h-96 object-contain rounded-lg"
+                                controls
+                              />
+                            )}
+                            
+                            {/* Remove button for single media */}
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => handleRemoveMedia(0)}
+                              className="absolute top-3 right-3 bg-red-500/80 hover:bg-red-500 text-white rounded-full p-2 transition-all duration-300"
+                            >
+                              <X className="h-4 w-4" />
+                            </motion.button>
+                          </div>
+                          
+                          <div className="mt-3 flex items-center justify-center gap-2 text-white">
+                            {'file' in selectedMedia[0] ? (
+                              selectedMedia[0].type === 'image' ? <ImageIcon className="h-4 w-4" /> : <VideoIcon className="h-4 w-4" />
+                            ) : (
+                              <ImageIcon className="h-4 w-4" />
+                            )}
+                            <span className="text-sm font-medium">
+                              {'name' in selectedMedia[0] ? selectedMedia[0].name : 'Gallery image'}
+                            </span>
+                            {'prompt' in selectedMedia[0] && (
+                              <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-200 border-purple-500/30">
+                                Gallery
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        /* Multiple media - responsive grid */
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {selectedMedia.map((media, index) => (
+                            <div key={index} className="relative group">
+                              <div className="relative rounded-lg overflow-hidden bg-black/20">
+                                {('file' in media && media.type === 'image') || (!('file' in media)) ? (
+                                  <img
+                                    src={media.url}
+                                    alt={'name' in media ? media.name : 'Selected image'}
+                                    className="w-full max-h-48 sm:max-h-56 object-contain rounded-lg"
+                                  />
+                                ) : (
+                                  <video
+                                    src={media.url}
+                                    className="w-full max-h-48 sm:max-h-56 object-contain rounded-lg"
+                                    controls
+                                  />
+                                )}
+                                
+                                {/* Remove individual media button */}
+                                <motion.button
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => handleRemoveMedia(index)}
+                                  className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full p-1 transition-all duration-300"
+                                >
+                                  <X className="h-3 w-3" />
+                                </motion.button>
+                              </div>
+                              
+                              <div className="mt-2 flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-white">
+                                  {'file' in media ? (
+                                    media.type === 'image' ? <ImageIcon className="h-3 w-3" /> : <VideoIcon className="h-3 w-3" />
+                                  ) : (
+                                    <ImageIcon className="h-3 w-3" />
+                                  )}
+                                  <span className="text-xs font-medium truncate max-w-20">
+                                    {'name' in media ? media.name : 'Gallery image'}
+                                  </span>
+                                </div>
+                                
+                                {'prompt' in media && (
+                                  <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-200 border-purple-500/30">
+                                    Gallery
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Gallery Grid */}
+                <AnimatePresence>
+                  {showGallery && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="border-t border-white/20 pt-6 mt-6">
+                        <h4 className="text-sm font-medium mb-4 text-white/80 flex items-center gap-2">
+                          <Star className="h-4 w-4" />
+                          Your Gallery
+                        </h4>
+                        
+                        {galleryLoading ? (
+                          <div className="flex items-center justify-center py-12">
+                            <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
+                          </div>
+                        ) : galleryImages.length > 0 ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                            {galleryImages.map((image) => {
+                              const isSelected = selectedMedia.some(media => 
+                                !('file' in media) && media.id === image.id
+                              );
+                              
+                              return (
+                                <motion.div
+                                  key={image.id}
+                                  whileHover={{ scale: 1.05, y: -5 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  className={`relative cursor-pointer group ${isSelected ? 'ring-2 ring-purple-400' : ''}`}
+                                  onClick={() => handleGallerySelect(image)}
+                                >
+                                  <div className="absolute inset-0 bg-gradient-to-t from-purple-600/50 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300" />
+                                                                  <img
+                                  src={image.url}
+                                  alt={image.prompt}
+                                  className={`w-full aspect-square object-cover rounded-lg border-2 transition-all duration-300 shadow-lg ${
+                                    isSelected 
+                                      ? 'border-purple-400 opacity-80' 
+                                      : 'border-transparent group-hover:border-purple-400'
+                                  }`}
+                                />
+                                  <div className={`absolute inset-0 rounded-lg flex items-center justify-center transition-opacity duration-300 ${
+                                    isSelected 
+                                      ? 'bg-purple-500/30 opacity-100' 
+                                      : 'bg-black/60 opacity-0 group-hover:opacity-100'
+                                  }`}>
+                                    <Check className={`h-5 w-5 text-white ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
+                                  </div>
+                                </motion.div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <ImageIcon className="h-12 w-12 text-white/40 mx-auto mb-3" />
+                            <p className="text-white/60 text-sm">No images in your gallery yet.</p>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+
+            {/* Text Input with AI Enhancement */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="relative w-[280px] mx-auto md:w-full"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-green-600/20 via-emerald-600/20 to-teal-600/20 rounded-2xl blur-xl" />
+              <div className="relative backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-2xl">
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg blur opacity-75" />
+                      <div className="relative bg-gradient-to-r from-green-600 to-emerald-600 p-2 rounded-lg">
+                        <Mic className="h-5 w-5 text-white" />
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-bold text-white">{translatedText.voiceText}</h3>
+                  </div>
+                  
+                  <div className="flex gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleEnhanceText}
+                        disabled={selectedMedia.length === 0 || isEnhancing}
+                        className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isEnhancing ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Zap className="h-4 w-4 mr-2" />
+                        )}
+                        {translatedText.enhanceAI}
+                      </Button>
+                    
+                    
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleVoicePreview}
+                        disabled={!text.trim()}
+                        className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm transition-all duration-300"
+                      >
+                        <Volume2 className="h-4 w-4 mr-2" />
+                       <span className='hidden md:inline'> {translatedText.preview}</span>
+                      </Button>
+                  </div>
+                </div>
+
+                {/* Platform Selector */}
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Share2 className="h-4 w-4 text-blue-400" />
+                    <label className="text-sm font-medium text-white/80">{translatedText.targetPlatform}</label>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Platform Selection */}
+                    <div>
+                      <Select value={selectedPlatform} onValueChange={handlePlatformChange}>
+                        <SelectTrigger className="bg-white/10 border-white/20 text-white backdrop-blur-sm hover:bg-white/20 transition-all duration-300">
+                          <SelectValue placeholder="Select platform" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-900/95 border-white/20 backdrop-blur-xl">
+                          {SOCIAL_MEDIA_PLATFORMS.map((platform) => (
+                            <SelectItem key={platform.id} value={platform.id} className="text-white hover:bg-white/10">
+                              {platform.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Format Selection */}
+                    <div>
+                      <Select value={selectedFormat} onValueChange={setSelectedFormat}>
+                        <SelectTrigger className="bg-white/10 border-white/20 text-white backdrop-blur-sm hover:bg-white/20 transition-all duration-300">
+                          <SelectValue placeholder="Select format" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-900/95 border-white/20 backdrop-blur-xl">
+                          {getSelectedPlatformData()?.formats.map((format) => (
+                            <SelectItem key={format.id} value={format.id} className="text-white hover:bg-white/10">
+                              {format.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Format Info */}
+                  {getSelectedFormatData() && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg backdrop-blur-sm"
+                    >
+                      <p className="text-xs text-blue-300">
+                        {getSelectedFormatData()?.description} • 
+                        Max {getSelectedFormatData()?.maxCharacters} chars • 
+                        {getSelectedFormatData()?.aspectRatio} • 
+                        ~{getSelectedFormatData()?.recommendedDuration}s
+                      </p>
+                    </motion.div>
+                  )}
+                </div>
+
+                <div className="relative mb-6">
+                  <Textarea
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder={`Enter text for voice generation in ${SUPPORTED_LANGUAGES.find(l => l.code === selectedLanguage)?.name || 'English'}...`}
+                    className="min-h-[120px] bg-white/10 border-white/20 text-white placeholder:text-white/50 resize-none pr-20 backdrop-blur-sm transition-all duration-300 focus:bg-white/20"
+                  />
+                  
+                  {/* Character Counter */}
+                  {getSelectedFormatData() && (
+                    <div className="absolute bottom-3 right-3 text-xs">
+                      <span className={text.length > (getSelectedFormatData()?.maxCharacters || 0) ? 'text-red-400' : 'text-white/60'}>
+                        {text.length}/{getSelectedFormatData()?.maxCharacters}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {enhancedText && enhancedText !== text && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-6 p-4 bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 border border-green-500/20 rounded-lg backdrop-blur-sm"
+                  >
+                    <p className="text-sm text-green-300 mb-2 flex items-center gap-2">
+                      <Sparkles className="h-4 w-4" />
+                      ✨ AI Enhanced version:
+                    </p>
+                    <p className="text-sm text-white/90">{enhancedText}</p>
+                  </motion.div>
+                )}
+
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-white/80 flex items-center gap-2">
+                    <Volume2 className="h-4 w-4" />
+                    {translatedText.audioDuration}: {audioDuration[0]}s
+                  </label>
+                  <div className="px-3">
+                    <Slider
+                      value={audioDuration}
+                      onValueChange={setAudioDuration}
+                      max={30}
+                      min={1}
+                      step={1}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Generate Button */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="relative"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-600/30 via-blue-600/30 to-cyan-600/30 rounded-2xl blur-xl" />
+              {/* <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="relative w-[300px] mx-auto md:w-full"
+              > */}
+                <Button
+                  onClick={handleGenerateVideo}
+                  disabled={(selectedMedia.length === 0 && !text.trim()) || isGenerating}
+                  className="w-[280px] md:w-full bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 hover:from-purple-700 hover:via-blue-700 hover:to-cyan-700 h-14 text-lg font-bold shadow-2xl border-0 relative overflow-hidden group"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-6 w-6 mr-3 animate-spin" />
+                      {translatedText.creatingVideo} {progress}%
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-6 w-6 mr-3" />
+                      {translatedText.generate}
+                    </>
+                  )}
+                </Button>
+              {/* </motion.div> */}
+
+              {isGenerating && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-6 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6"
+                >
+                  <div className="relative h-3 bg-white/20 rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progress}%` }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                    />
+                  </div>
+                  <p className="text-sm text-white/80 mt-3 text-center flex items-center justify-center gap-2">
+                    <Heart className="h-4 w-4 text-pink-400 animate-pulse" />
+                    {translatedText.processingMedia}
+                  </p>
+                </motion.div>
+              )}
+            </motion.div>
+
+            {/* Generated Video */}
+            <AnimatePresence>
+              {generatedVideoUrl && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                  className="relative"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-green-600/20 via-emerald-600/20 to-teal-600/20 rounded-2xl blur-xl" />
+                  <div className="relative backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-2xl">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg blur opacity-75" />
+                          <div className="relative bg-gradient-to-r from-green-600 to-emerald-600 p-2 rounded-lg">
+                            <VideoIcon className="h-5 w-5 text-white" />
+                          </div>
+                        </div>
+                        <h3 className="text-xl font-bold text-white">Your Video</h3>
+                      </div>
+                      
+                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(generatedVideoUrl, '_blank')}
+                          className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm transition-all duration-300"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          {translatedText.download}
+                        </Button>
+                      </motion.div>
+                    </div>
+
+                    <div className="relative rounded-xl overflow-hidden">
+                      <video
+                        src={generatedVideoUrl}
+                        controls
+                        preload="metadata"
+                        className="w-full rounded-xl shadow-2xl"
+                        style={{ maxHeight: '400px' }}
+                        onError={(e) => {
+                          console.error('Video error:', e);
+                          toast({
+                            title: "Video playback error",
+                            description: "There was an issue loading the video. Check the console for details.",
+                            variant: "destructive",
+                          });
+                        }}
+                        onLoadedData={() => {
+                          console.log('Video loaded successfully');
+                        }}
+                        onCanPlay={() => {
+                          console.log('Video can start playing');
+                        }}
+                      >
+                        <p>Your browser doesn't support HTML5 video. <a href={generatedVideoUrl} target="_blank" rel="noopener noreferrer">Download the video</a></p>
+                      </video>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
     </div>
   );
 } 

@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: participantGames, error: participantError } = await participantGamesQuery
-      .order('game_sessions_history.finished_at', { ascending: false })
+      .order('joined_at', { ascending: false })
       .limit(limit)
       .range(offset, offset + limit - 1)
 

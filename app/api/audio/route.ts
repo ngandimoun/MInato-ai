@@ -7,7 +7,7 @@ import { ChatMessage, OrchestratorResponse } from "@/lib/types/index";
 import { checkRateLimit } from "@/lib/rate-limiter";
 import {
   RATE_LIMIT_ID_AUDIO_INPUT,
-  MEDIA_UPLOAD_BUCKET,
+  AUDIO_BUCKET,
   MAX_AUDIO_SIZE_BYTES,
   ALLOWED_AUDIO_TYPES,
   SIGNED_URL_EXPIRY_SECONDS,
@@ -352,7 +352,7 @@ export async function POST(req: NextRequest) {
       `${logPrefix} Uploading audio to Supabase path: ${uploadPath}`
     );
     const { data: uploadData, error: uploadError } = await supabaseAdminForStorage.storage
-      .from(MEDIA_UPLOAD_BUCKET)
+      .from(AUDIO_BUCKET)
       .upload(uploadPath, audioBuffer, {
         contentType: detectedMimeType!,
         upsert: true,
@@ -369,7 +369,7 @@ export async function POST(req: NextRequest) {
     );
 
     const { data: signedUrlData } = await supabaseAdminForStorage.storage
-      .from(MEDIA_UPLOAD_BUCKET)
+      .from(AUDIO_BUCKET)
       .createSignedUrl(uploadData.path, SIGNED_URL_EXPIRY_SECONDS);
     if (!signedUrlData?.signedUrl) {
       logger.error(
@@ -455,7 +455,7 @@ export async function POST(req: NextRequest) {
         `${logPrefix} Scheduling background cleanup for: ${finalUploadPath}`
       );
       supabaseAdminForStorage.storage
-        .from(MEDIA_UPLOAD_BUCKET)
+        .from(AUDIO_BUCKET)
         .remove([finalUploadPath])
         .then(({ data, error: removeError }: any) => {
           if (removeError)

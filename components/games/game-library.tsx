@@ -74,6 +74,8 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   TrendingUp: require('lucide-react').TrendingUp,
   Map: require('lucide-react').Map,
   Gamepad2: require('lucide-react').Gamepad2,
+  Trophy: require('lucide-react').Trophy,
+  Code: require('lucide-react').Code,
 };
 
 function getIcon(iconName: string) {
@@ -650,16 +652,7 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
         { value: 'revolution_reform', label: '✊ Revolution & Reform', description: 'Political and social transformations' },
         { value: 'biographical_figures', label: '👤 Biographical Figures', description: 'Famous historical personalities' }
       ],
-      'language_master': [
-        { value: 'etymology_origins', label: '📚 Etymology & Origins', description: 'Word histories and linguistic roots' },
-        { value: 'translation_challenges', label: '🔄 Translation Challenges', description: 'Cross-language communication' },
-        { value: 'linguistic_patterns', label: '🔤 Linguistic Patterns', description: 'Grammar, syntax, and language structure' },
-        { value: 'cultural_expressions', label: '🌍 Cultural Expressions', description: 'Idioms, proverbs, and cultural language' },
-        { value: 'dead_languages', label: '📜 Dead Languages', description: 'Latin, Ancient Greek, and historical languages' },
-        { value: 'modern_languages', label: '🗣️ Modern Languages', description: 'Contemporary global languages' },
-        { value: 'sign_languages', label: '👐 Sign Languages', description: 'Visual-gestural communication systems' },
-        { value: 'language_families', label: '🌳 Language Families', description: 'Related languages and linguistic evolution' }
-      ],
+
       'art_appreciation': [
         { value: 'classical_art', label: '🏛️ Classical Art', description: 'Ancient Greek and Roman artistic traditions' },
         { value: 'renaissance_masters', label: '🎨 Renaissance Masters', description: 'Da Vinci, Michelangelo, and artistic revolution' },
@@ -709,6 +702,58 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
         { value: 'population_demographics', label: '👥 Population & Demographics', description: 'Human geography and population patterns' },
         { value: 'economic_geography', label: '💼 Economic Geography', description: 'Resources, trade, and economic regions' },
         { value: 'geographical_phenomena', label: '🌋 Geographical Phenomena', description: 'Earthquakes, volcanoes, and natural processes' }
+      ],
+
+      // NEW GAMES TOPIC MAPPINGS
+      'sport_guru': [
+        { value: 'football_soccer', label: '⚽ Football/Soccer', description: 'World football, FIFA, leagues, and legendary players' },
+        { value: 'american_football', label: '🏈 American Football', description: 'NFL, college football, rules, and history' },
+        { value: 'basketball', label: '🏀 Basketball', description: 'NBA, international basketball, rules, and stars' },
+        { value: 'rugby', label: '🏉 Rugby', description: 'Rugby union, league, World Cup, and techniques' },
+        { value: 'tennis', label: '🎾 Tennis', description: 'Grand Slams, ATP, WTA, and tennis legends' },
+        { value: 'baseball', label: '⚾ Baseball', description: 'MLB, World Series, rules, and baseball history' },
+        { value: 'cricket', label: '🏏 Cricket', description: 'Test cricket, ODI, T20, and cricket nations' },
+        { value: 'olympic_sports', label: '🏅 Olympic Sports', description: 'Summer and Winter Olympics, records, and athletes' }
+      ],
+      'global_linguist': [
+        { value: 'english_language', label: '🇬🇧 English Language', description: 'Grammar, vocabulary, literature, and linguistics' },
+        { value: 'french_language', label: '🇫🇷 French Language', description: 'Français grammar, vocabulary, and culture' },
+        { value: 'spanish_language', label: '🇪🇸 Spanish Language', description: 'Español grammar, vocabulary, and dialects' },
+        { value: 'german_language', label: '🇩🇪 German Language', description: 'Deutsch grammar, vocabulary, and structure' },
+        { value: 'japanese_language', label: '🇯🇵 Japanese Language', description: 'Hiragana, katakana, kanji, and Japanese culture' },
+        { value: 'chinese_language', label: '🇨🇳 Chinese Language', description: 'Mandarin, characters, tones, and Chinese culture' },
+        { value: 'latin_classical', label: '🏛️ Latin & Classical', description: 'Latin grammar, classical languages, and etymology' },
+        { value: 'linguistics_theory', label: '📚 Linguistics Theory', description: 'Language families, syntax, phonetics, and morphology' }
+      ],
+      'programming_challenge': [
+        { value: 'javascript', label: '🟨 JavaScript', description: 'ES6+, Node.js, frameworks, and web development' },
+        { value: 'python', label: '🐍 Python', description: 'Syntax, libraries, data science, and applications' },
+        { value: 'java', label: '☕ Java', description: 'OOP, Spring, enterprise development, and JVM' },
+        { value: 'cpp_c', label: '⚙️ C/C++', description: 'System programming, memory management, and performance' },
+        { value: 'react_frontend', label: '⚛️ React & Frontend', description: 'Components, hooks, state management, and UI' },
+        { value: 'algorithms', label: '🧮 Algorithms', description: 'Sorting, searching, complexity, and problem solving' },
+        { value: 'data_structures', label: '📊 Data Structures', description: 'Arrays, trees, graphs, and optimization' },
+        { value: 'web_development', label: '🌐 Web Development', description: 'Full-stack, APIs, databases, and deployment' }
+      ],
+      'retro_nostalgia': [
+        { value: 'retro_gaming', label: '🕹️ Retro Gaming', description: 'Classic consoles, arcade games, and gaming history' },
+        { value: 'classic_anime', label: '📺 Classic Anime', description: 'Vintage anime series, studios, and iconic characters' },
+        { value: 'vintage_manga', label: '📖 Vintage Manga', description: 'Classic manga series, artists, and storytelling' },
+        { value: 'retro_music', label: '🎵 Retro Music', description: '70s, 80s, 90s hits, bands, and musical movements' },
+        { value: 'classic_movies', label: '🎬 Classic Movies', description: 'Vintage cinema, directors, and film history' },
+        { value: 'retro_culture', label: '🌈 Retro Culture', description: 'Fashion, trends, technology, and lifestyle' },
+        { value: 'vintage_cities', label: '🏙️ Vintage Cities', description: 'Urban development, architecture, and city history' },
+        { value: 'nostalgic_stories', label: '📚 Nostalgic Stories', description: 'Classic tales, folklore, and cultural narratives' }
+      ],
+      'strategy_thinker': [
+        { value: 'game_theory', label: '🎯 Game Theory', description: 'Nash equilibrium, strategic decisions, and economics' },
+        { value: 'chess_strategy', label: '♟️ Chess Strategy', description: 'Openings, tactics, endgames, and chess masters' },
+        { value: 'business_strategy', label: '💼 Business Strategy', description: 'Corporate tactics, market analysis, and competition' },
+        { value: 'military_strategy', label: '⚔️ Military Strategy', description: 'Historical battles, tactics, and strategic thinking' },
+        { value: 'decision_making', label: '🧠 Decision Making', description: 'Cognitive biases, rational choice, and psychology' },
+        { value: 'negotiation_tactics', label: '🤝 Negotiation Tactics', description: 'Persuasion, diplomacy, and conflict resolution' },
+        { value: 'strategic_planning', label: '📋 Strategic Planning', description: 'Long-term thinking, resource allocation, and goals' },
+        { value: 'competitive_analysis', label: '📊 Competitive Analysis', description: 'Market positioning, SWOT analysis, and advantages' }
       ]
     };
 
@@ -1254,13 +1299,38 @@ function GameLibraryContent() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-          <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-        </div>
+        <motion.div
+          className="flex items-center justify-between"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <motion.div
+            className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded"
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.div
+            className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded"
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
+          />
+        </motion.div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-64 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+            <motion.div
+              key={i}
+              className="h-64 bg-gray-200 dark:bg-gray-700 rounded-xl relative overflow-hidden"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
+            >
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
+                animate={{ x: ["-100%", "100%"] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear", delay: i * 0.2 }}
+              />
+            </motion.div>
           ))}
         </div>
       </div>
@@ -1280,180 +1350,531 @@ function GameLibraryContent() {
     <div className="space-y-6">
       {/* Header and Filters */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            🎮 <SimpleTranslatableText>AI Game Library</SimpleTranslatableText>
-          </h2>
-          <div className="flex items-center gap-4">
-            <GameLanguageSelector 
-              value={currentLanguage}
-              onValueChange={setLanguage}
-              isTranslating={isTranslating}
-              variant="compact"
-              className="ml-auto"
-            />
-            <div className="text-sm text-gray-600 dark:text-gray-400">
+        <motion.div
+          className="flex items-center justify-between"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <motion.h2
+            className="text-2xl font-bold text-gray-900 dark:text-white"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+          >
+            <motion.span
+              animate={{ rotate: [0, 10, -10, 0] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", repeatDelay: 3 }}
+              className="inline-block"
+            >
+              🎮
+            </motion.span>
+            {" "}
+            <SimpleTranslatableText>AI Game Library</SimpleTranslatableText>
+          </motion.h2>
+          <motion.div
+            className="flex items-center gap-4"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          >
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              transition={{ duration: 0.2 }}
+            >
+              <GameLanguageSelector 
+                value={currentLanguage}
+                onValueChange={setLanguage}
+                isTranslating={isTranslating}
+                variant="compact"
+                className="ml-auto"
+              />
+            </motion.div>
+            <motion.div
+              className="text-sm text-gray-600 dark:text-gray-400"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              whileHover={{ scale: 1.05 }}
+            >
               <SimpleTranslatableText>
                 {`${filteredAndSortedGames.length} games available`}
               </SimpleTranslatableText>
-            </div>
-          </div>
-        </div>
+            </motion.div>
+          </motion.div>
+        </motion.div>
 
-        <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-          <p className="text-sm text-blue-700 dark:text-blue-300">
-            <TranslatableText className="font-semibold">🤖 AI-Powered Games:</TranslatableText>
+        <motion.div
+          className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl border border-blue-200 dark:border-blue-800 relative overflow-hidden"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          whileHover={{ scale: 1.01 }}
+        >
+          {/* Animated background pattern */}
+          <motion.div
+            className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5"
+            animate={{
+              background: [
+                "linear-gradient(90deg, rgb(59 130 246 / 0.05) 0%, rgb(147 51 234 / 0.05) 100%)",
+                "linear-gradient(90deg, rgb(147 51 234 / 0.05) 0%, rgb(59 130 246 / 0.05) 100%)",
+              ],
+            }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          />
+          
+          <motion.p
+            className="text-sm text-blue-700 dark:text-blue-300 relative z-10"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+          >
+            <motion.span
+              className="font-semibold"
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", repeatDelay: 2 }}
+            >
+              <TranslatableText>🤖 AI-Powered Games:</TranslatableText>
+            </motion.span>
             <span> </span>
             <TranslatableText>
               Each game features dynamically generated content, personalized difficulty, and intelligent responses. From classic trivia to creative storytelling!
             </TranslatableText>
-          </p>
-        </div>
+          </motion.p>
+        </motion.div>
 
         {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+        <motion.div
+          className="flex flex-col sm:flex-row gap-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+        >
+          <motion.div
+            className="relative flex-1"
+            whileHover={{ scale: 1.01 }}
+            transition={{ duration: 0.2 }}
+          >
+            <motion.div
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              animate={{ 
+                rotate: searchTerm ? [0, 360] : 0,
+                scale: searchTerm ? [1, 1.2, 1] : 1
+              }}
+              transition={{ 
+                duration: 0.5,
+                ease: "easeInOut"
+              }}
+            >
+              <Search className="h-4 w-4" />
+            </motion.div>
             <Input
               placeholder="Search games..." // Note: placeholder translation requires special handling
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-10 transition-all duration-300 focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
             />
-          </div>
+            {searchTerm && (
+              <motion.div
+                className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  ✕
+                </button>
+              </motion.div>
+            )}
+          </motion.div>
           
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full sm:w-48">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">
-                <TranslatableText>All Categories</TranslatableText>
-              </SelectItem>
-              {categories.map((category: string) => (
-                <SelectItem key={category} value={category}>
-                  <GameCategoryText category={category} />
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                     <motion.div
+             whileHover={{ scale: 1.01 }}
+             initial={{ opacity: 0, x: 20 }}
+             animate={{ opacity: 1, x: 0 }}
+             transition={{ duration: 0.5, delay: 0.4 }}
+           >
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-full sm:w-48 transition-all duration-300 hover:bg-muted/50">
+                <motion.div
+                  className="flex items-center"
+                  whileHover={{ x: 2 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <motion.div
+                    animate={{ rotate: selectedCategory !== "all" ? 180 : 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Filter className="h-4 w-4 mr-2" />
+                  </motion.div>
+                  <SelectValue placeholder="Category" />
+                </motion.div>
+              </SelectTrigger>
+              <SelectContent>
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <SelectItem value="all">
+                    <TranslatableText>All Categories</TranslatableText>
+                  </SelectItem>
+                  {categories.map((category: string, index: number) => (
+                    <motion.div
+                      key={category}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.2, delay: index * 0.05 }}
+                    >
+                      <SelectItem value={category}>
+                        <GameCategoryText category={category} />
+                      </SelectItem>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              </SelectContent>
+            </Select>
+          </motion.div>
 
-          <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-            <SelectTrigger className="w-full sm:w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="name">
-                <TranslatableText>Name</TranslatableText>
-              </SelectItem>
-              <SelectItem value="popularity">
-                <TranslatableText>Popularity</TranslatableText>
-              </SelectItem>
-              <SelectItem value="duration">
-                <TranslatableText>Duration</TranslatableText>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+                     <motion.div
+             whileHover={{ scale: 1.01 }}
+             initial={{ opacity: 0, x: 20 }}
+             animate={{ opacity: 1, x: 0 }}
+             transition={{ duration: 0.5, delay: 0.5 }}
+           >
+            <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+              <SelectTrigger className="w-full sm:w-40 transition-all duration-300 hover:bg-muted/50">
+                <motion.div
+                  whileHover={{ x: 2 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <SelectValue />
+                </motion.div>
+              </SelectTrigger>
+              <SelectContent>
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {[
+                    { value: "name", label: "Name" },
+                    { value: "popularity", label: "Popularity" },
+                    { value: "duration", label: "Duration" },
+                  ].map((option, index) => (
+                    <motion.div
+                      key={option.value}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.2, delay: index * 0.05 }}
+                    >
+                      <SelectItem value={option.value}>
+                        <TranslatableText>{option.label}</TranslatableText>
+                      </SelectItem>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              </SelectContent>
+            </Select>
+          </motion.div>
+        </motion.div>
       </div>
 
       {/* Games Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence>
-          {filteredAndSortedGames.map((game: GameLibraryItem) => {
+          {filteredAndSortedGames.map((game: GameLibraryItem, index: number) => {
             const IconComponent = getIcon(game.icon_name);
             
             return (
               <motion.div
                 key={game.id}
                 layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8, y: -20 }}
+                transition={{ 
+                  duration: 0.4,
+                  delay: index * 0.1,
+                  type: "spring",
+                  stiffness: 100,
+                  damping: 15
+                }}
+                whileHover={{ 
+                  y: -8,
+                  scale: 1.02,
+                  transition: { duration: 0.2 }
+                }}
+                whileTap={{ scale: 0.98 }}
               >
-                <Card className="h-full hover:shadow-xl transition-all duration-300 group cursor-pointer border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-                  <CardHeader className="pb-4">
+                <Card className="h-full group cursor-pointer border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm relative overflow-hidden">
+                  {/* Animated background gradient on hover */}
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 group-hover:opacity-100"
+                    initial={{ opacity: 0 }}
+                    whileHover={{ opacity: 1 }}
+                    transition={{ duration: 0.3 }}
+                  />
+                  
+                  {/* Shine effect on hover */}
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 opacity-0 group-hover:opacity-100"
+                    initial={{ x: "-100%" }}
+                    whileHover={{ x: "100%" }}
+                    transition={{ duration: 0.6, ease: "easeInOut" }}
+                  />
+
+                  <CardHeader className="pb-4 relative z-10">
                     <div className="flex items-start justify-between">
-                      <div className={cn(
-                        "w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center",
-                        getColorClasses(game.color_theme)
-                      )}>
-                        <IconComponent className="h-6 w-6" />
-                      </div>
+                      <motion.div
+                        className={cn(
+                          "w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center relative overflow-hidden",
+                          getColorClasses(game.color_theme)
+                        )}
+                        whileHover={{ 
+                          rotate: [0, -10, 10, 0],
+                          scale: [1, 1.1, 1],
+                        }}
+                        transition={{ 
+                          duration: 0.5,
+                          ease: "easeInOut"
+                        }}
+                      >
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ 
+                            duration: 20, 
+                            repeat: Infinity, 
+                            ease: "linear",
+                            repeatDelay: 2
+                          }}
+                          className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent"
+                        />
+                        <IconComponent className="h-6 w-6 relative z-10" />
+                      </motion.div>
+                      
                       <div className="flex gap-1">
                         {game.is_popular && (
-                          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">
-                            <Star className="h-3 w-3 mr-1" />
-                            <TranslatableText>Popular</TranslatableText>
-                          </Badge>
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 0.2 }}
+                            whileHover={{ 
+                              scale: 1.1,
+                              rotate: [0, -5, 5, 0],
+                              transition: { duration: 0.3 }
+                            }}
+                          >
+                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">
+                              <motion.div
+                                animate={{ rotate: [0, 10, -10, 0] }}
+                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                              >
+                                <Star className="h-3 w-3 mr-1" />
+                              </motion.div>
+                              <TranslatableText>Popular</TranslatableText>
+                            </Badge>
+                          </motion.div>
                         )}
                         {game.is_new && (
-                          <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
-                            <Zap className="h-3 w-3 mr-1" />
-                            <TranslatableText>New</TranslatableText>
-                          </Badge>
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 0.3 }}
+                            whileHover={{ 
+                              scale: 1.1,
+                              transition: { duration: 0.2 }
+                            }}
+                          >
+                            <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                              <motion.div
+                                animate={{ 
+                                  scale: [1, 1.2, 1],
+                                  rotate: [0, 180, 360]
+                                }}
+                                transition={{ 
+                                  duration: 1.5, 
+                                  repeat: Infinity, 
+                                  ease: "easeInOut",
+                                  repeatDelay: 1
+                                }}
+                              >
+                                <Zap className="h-3 w-3 mr-1" />
+                              </motion.div>
+                              <TranslatableText>New</TranslatableText>
+                            </Badge>
+                          </motion.div>
                         )}
                       </div>
                     </div>
                     
-                    <CardTitle className="text-lg group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      <TranslatableText>{game.display_name}</TranslatableText>
-                    </CardTitle>
-                    <TranslatableDescription className="text-sm line-clamp-2" maxLength={120}>
-                      {game.description}
-                    </TranslatableDescription>
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 }}
+                    >
+                      <CardTitle className="text-lg group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
+                        <motion.div
+                          whileHover={{ x: 2 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <TranslatableText>{game.display_name}</TranslatableText>
+                        </motion.div>
+                      </CardTitle>
+                      <motion.div
+                        initial={{ opacity: 0.7 }}
+                        whileHover={{ opacity: 1 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <TranslatableDescription className="text-sm line-clamp-2" maxLength={120}>
+                          {game.description}
+                        </TranslatableDescription>
+                      </motion.div>
+                    </motion.div>
                   </CardHeader>
 
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                      <div className="flex items-center gap-1">
-                        <Users className="h-4 w-4" />
+                  <CardContent className="space-y-4 relative z-10">
+                    <motion.div
+                      className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <motion.div
+                        className="flex items-center gap-1"
+                        whileHover={{ scale: 1.05 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <motion.div
+                          animate={{ 
+                            scale: [1, 1.1, 1],
+                            rotate: [0, 5, -5, 0]
+                          }}
+                          transition={{ 
+                            duration: 2, 
+                            repeat: Infinity, 
+                            ease: "easeInOut",
+                            repeatDelay: 3
+                          }}
+                        >
+                          <Users className="h-4 w-4" />
+                        </motion.div>
                         <TranslatableText>
                           {game.min_players === game.max_players 
                             ? `${game.min_players} players`
                             : `${game.min_players}-${game.max_players} players`
                           }
                         </TranslatableText>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
+                      </motion.div>
+                      <motion.div
+                        className="flex items-center gap-1"
+                        whileHover={{ scale: 1.05 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ 
+                            duration: 8, 
+                            repeat: Infinity, 
+                            ease: "linear"
+                          }}
+                        >
+                          <Clock className="h-4 w-4" />
+                        </motion.div>
                         <TranslatableText>{`${game.estimated_duration_minutes}min`}</TranslatableText>
-                      </div>
-                    </div>
+                      </motion.div>
+                    </motion.div>
 
-                    <div className="flex flex-wrap gap-1">
-                      {game.difficulty_levels.slice(0, 3).map((level: string) => (
-                        <Badge key={level} variant="outline" className="text-xs">
-                          <DifficultyText difficulty={level} />
-                        </Badge>
+                    <motion.div
+                      className="flex flex-wrap gap-1"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                    >
+                      {game.difficulty_levels.slice(0, 3).map((level: string, levelIndex: number) => (
+                        <motion.div
+                          key={level}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.4 + levelIndex * 0.1 }}
+                          whileHover={{ 
+                            scale: 1.05,
+                            y: -1,
+                            transition: { duration: 0.2 }
+                          }}
+                        >
+                          <Badge variant="outline" className="text-xs">
+                            <DifficultyText difficulty={level} />
+                          </Badge>
+                        </motion.div>
                       ))}
                       {game.difficulty_levels.length > 3 && (
-                        <Badge variant="outline" className="text-xs">
-                          <TranslatableText>{`+${game.difficulty_levels.length - 3} more`}</TranslatableText>
-                        </Badge>
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.7 }}
+                          whileHover={{ 
+                            scale: 1.05,
+                            transition: { duration: 0.2 }
+                          }}
+                        >
+                          <Badge variant="outline" className="text-xs">
+                            <TranslatableText>{`+${game.difficulty_levels.length - 3} more`}</TranslatableText>
+                          </Badge>
+                        </motion.div>
                       )}
-                    </div>
+                    </motion.div>
 
-                    <div className="flex gap-2">
-                      {/* <Button 
-                        variant="outline"
-                        size="sm"
+                    <motion.div
+                      className="flex gap-2"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.5 }}
+                    >
+                      <motion.div
                         className="flex-1"
-                        onClick={() => setDemoGame(game.display_name)}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                       >
-                        <Play className="h-4 w-4 mr-1" />
-                        <TranslatableButtonText>Demo</TranslatableButtonText>
-                      </Button> */}
-                      <Button 
-                        className="flex-1 group-hover:bg-blue-600 transition-colors"
-                        onClick={() => setSelectedGame(game.id)}
-                      >
-                        🎯 <TranslatableButtonText>Play Now</TranslatableButtonText>
-                      </Button>
-                    </div>
+                        <Button 
+                          className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white border-0 shadow-lg group-hover:shadow-xl transition-all duration-300"
+                          onClick={() => setSelectedGame(game.id)}
+                        >
+                          <motion.div
+                            className="flex items-center gap-2"
+                            whileHover={{ x: 2 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <motion.span
+                              animate={{ rotate: [0, 360] }}
+                              transition={{ 
+                                duration: 2, 
+                                repeat: Infinity, 
+                                ease: "linear",
+                                repeatDelay: 3
+                              }}
+                            >
+                              🎯
+                            </motion.span>
+                            <TranslatableButtonText>Play Now</TranslatableButtonText>
+                          </motion.div>
+                        </Button>
+                      </motion.div>
+                    </motion.div>
                   </CardContent>
+
+                  {/* Hover glow effect */}
+                  <motion.div
+                    className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 -z-10"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    whileHover={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                  />
                 </Card>
               </motion.div>
             );
@@ -1462,14 +1883,35 @@ function GameLibraryContent() {
       </div>
 
       {filteredAndSortedGames.length === 0 && (
-        <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">
+        <motion.div
+          className="text-center py-12"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <motion.div
+            className="text-gray-400 mb-4"
+            animate={{ y: [0, -5, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <motion.div
+              className="text-6xl mb-4"
+              animate={{ rotate: [0, 10, -10, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            >
+              🎮
+            </motion.div>
             <TranslatableText>No games found</TranslatableText>
-          </div>
-          <p className="text-gray-600 dark:text-gray-400">
+          </motion.div>
+          <motion.p
+            className="text-gray-600 dark:text-gray-400"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+          >
             <TranslatableText>Try adjusting your search or filter criteria</TranslatableText>
-          </p>
-        </div>
+          </motion.p>
+        </motion.div>
       )}
 
       {/* Game Creation Modal */}

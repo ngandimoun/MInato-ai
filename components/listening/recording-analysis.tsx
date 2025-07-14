@@ -65,7 +65,7 @@ export function RecordingAnalysis({
   
   // Translated content state
   const [translatedSummary, setTranslatedSummary] = useState<string | null>(null);
-  const [translatedThemes, setTranslatedThemes] = useState<Array<{theme: string; transcript_segment_ids: number[]}> | null>(null);
+  const [translatedThemes, setTranslatedThemes] = useState<Array<{theme: string; importance?: "high" | "medium" | "low"; transcript_segment_ids: number[]}> | null>(null);
   const [translatedNotes, setTranslatedNotes] = useState<Record<string, string[]> | null>(null);
   const [translatedTranscript, setTranslatedTranscript] = useState<Array<{id: number; start: number; end: number; text: string; speaker?: string}> | null>(null);
 
@@ -97,6 +97,7 @@ export function RecordingAnalysis({
       
       const translatedThemesData = analysis.key_themes_json.map((theme, index) => ({
         theme: translatedTexts[index] || theme.theme,
+        importance: theme.importance,
         transcript_segment_ids: theme.transcript_segment_ids,
       }));
       
@@ -486,6 +487,14 @@ export function RecordingAnalysis({
                 />
               </div>
               <ScrollArea className="h-[calc(100%-60px)] p-4">
+                {analysis.content_type && (
+                  <div className="mb-4">
+                    <Badge variant="outline" className="mb-2">
+                      {analysis.content_type.charAt(0).toUpperCase() + analysis.content_type.slice(1)}
+                    </Badge>
+                  </div>
+                )}
+                
                 <h3 className="text-lg font-semibold mb-2">Executive Summary</h3>
                 <p className="text-sm mb-6">
                   {summaryLanguage === "en" ? analysis.summary_text : (translatedSummary || analysis.summary_text)}
@@ -493,6 +502,38 @@ export function RecordingAnalysis({
                     <span className="ml-2 text-xs text-muted-foreground">(Translating...)</span>
                   )}
                 </p>
+                
+                {/* Speaker Information */}
+                {analysis.speakers_json && analysis.speakers_json.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold mb-2">Speakers</h3>
+                    <div className="space-y-3">
+                      {analysis.speakers_json.map((speaker, index) => (
+                        <div key={index} className="p-3 border rounded-lg">
+                          <div className="flex justify-between items-center mb-1">
+                            <h4 className="text-sm font-medium">
+                              {speaker.possible_name || speaker.speaker_id}
+                              {speaker.role && speaker.role !== "unknown" && (
+                                <span className="text-xs ml-2 text-muted-foreground">({speaker.role})</span>
+                              )}
+                            </h4>
+                            <Badge variant="outline" className="text-xs">{speaker.speaking_segments?.length || 0} segments</Badge>
+                          </div>
+                          {speaker.key_contributions && speaker.key_contributions.length > 0 && (
+                            <div className="mt-2">
+                              <p className="text-xs text-muted-foreground mb-1">Key contributions:</p>
+                              <ul className="text-xs space-y-1 pl-4">
+                                {speaker.key_contributions.map((contribution, i) => (
+                                  <li key={i} className="list-disc">{contribution}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
                 <h3 className="text-lg font-semibold mb-2">Key Themes</h3>
                 <div className="space-y-3 mb-6">
@@ -502,10 +543,45 @@ export function RecordingAnalysis({
                       className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
                       onClick={() => seekToSegment(theme.transcript_segment_ids?.[0])}
                     >
-                      <p className="text-sm font-medium">{theme.theme}</p>
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm font-medium">{theme.theme}</p>
+                        {theme.importance && (
+                          <Badge variant={
+                            theme.importance === "high" ? "default" : 
+                            theme.importance === "medium" ? "secondary" : "outline"
+                          } className="text-xs">{theme.importance}</Badge>
+                        )}
+                      </div>
                     </div>
                   )) || <p className="text-muted-foreground text-sm">No key themes identified</p>}
                 </div>
+                
+                {/* Key Moments */}
+                {analysis.key_moments_json && analysis.key_moments_json.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold mb-2">Key Moments</h3>
+                    <div className="space-y-3">
+                      {analysis.key_moments_json.map((moment, index) => (
+                        <div 
+                          key={index} 
+                          className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                          onClick={() => seekToSegment(moment.segment_id)}
+                        >
+                          <div className="flex justify-between items-center mb-1">
+                            <Badge variant="outline" className="capitalize text-xs">{moment.moment_type.replace('_', ' ')}</Badge>
+                            {moment.importance && (
+                              <Badge variant={
+                                moment.importance === "high" ? "default" : 
+                                moment.importance === "medium" ? "secondary" : "outline"
+                              } className="text-xs">{moment.importance}</Badge>
+                            )}
+                          </div>
+                          <p className="text-sm">{moment.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
                 <h3 className="text-lg font-semibold mb-2">Structured Notes</h3>
                 <div className="space-y-4">
@@ -545,6 +621,17 @@ export function RecordingAnalysis({
                       (s) => s.segment_id === segment.id
                     );
                     const sentiment = sentimentData?.sentiment || "neutral";
+                    const intensity = sentimentData?.intensity || "medium";
+
+                    // Get speaker information if available
+                    const speaker = analysis.speakers_json?.find(speaker => 
+                      speaker.speaking_segments?.includes(segment.id)
+                    );
+                    
+                    // Check if this is a key moment
+                    const keyMoment = analysis.key_moments_json?.find(
+                      (moment) => moment.segment_id === segment.id
+                    );
                     
                     return (
                       <div
@@ -552,21 +639,48 @@ export function RecordingAnalysis({
                         className={cn(
                           "p-3 border rounded-lg transition-colors",
                           highlightedSegmentId === segment.id ? "bg-primary/10 border-primary/50" : "",
-                          currentTime >= segment.start && currentTime <= segment.end ? "bg-secondary/20" : ""
+                          currentTime >= segment.start && currentTime <= segment.end ? "bg-secondary/20" : "",
+                          keyMoment ? "border-primary/30" : ""
                         )}
                       >
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="text-xs font-medium text-muted-foreground">
-                            {formatTime(segment.start)}
-                          </span>
-                          <Badge
-                            variant="outline" 
-                            className={cn("text-xs", getSentimentClass(sentiment))}
-                          >
-                            {sentiment}
-                          </Badge>
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {formatTime(segment.start)}
+                            </span>
+                            {speaker && (
+                              <Badge variant="secondary" className="text-xs">
+                                {speaker.possible_name || speaker.speaker_id}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {keyMoment && (
+                              <Badge 
+                                variant="outline" 
+                                className="text-xs border-primary/50 text-primary"
+                              >
+                                Key Moment
+                              </Badge>
+                            )}
+                            <Badge
+                              variant="outline" 
+                              className={cn(
+                                "text-xs", 
+                                getSentimentClass(sentiment),
+                                intensity === "high" ? "font-medium" : ""
+                              )}
+                            >
+                              {sentiment}
+                            </Badge>
+                          </div>
                         </div>
                         <p className="text-sm">{segment.text}</p>
+                        {keyMoment && (
+                          <div className="mt-2 p-2 bg-muted/40 rounded text-xs">
+                            <span className="font-medium">{keyMoment.moment_type.replace('_', ' ').charAt(0).toUpperCase() + keyMoment.moment_type.replace('_', ' ').slice(1)}:</span> {keyMoment.description}
+                          </div>
+                        )}
                         <div className="flex justify-end mt-1">
                           <Button 
                             variant="ghost" 
@@ -600,13 +714,23 @@ export function RecordingAnalysis({
                         className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
                         onClick={() => seekToSegment(item.transcript_segment_id)}
                       >
-                        <div className="flex justify-between">
+                        <div className="flex justify-between items-center">
                           <h4 className="text-sm font-medium">{item.task}</h4>
-                          {item.due_date_iso && (
-                            <Badge variant="outline">Due: {new Date(item.due_date_iso).toLocaleDateString()}</Badge>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {item.priority && (
+                              <Badge variant={
+                                item.priority === "high" ? "destructive" : 
+                                item.priority === "medium" ? "default" : "outline"
+                              }>
+                                {item.priority}
+                              </Badge>
+                            )}
+                            {item.due_date_iso && (
+                              <Badge variant="outline">Due: {new Date(item.due_date_iso).toLocaleDateString()}</Badge>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-muted-foreground mt-2">
                           Assigned to: {item.assigned_to}
                         </p>
                       </div>

@@ -224,26 +224,43 @@ logger.info(
 );
 useEffect(() => {
 let isMounted = true;
-setIsLoading(true);
-supabaseClient.auth
-  .getSession()
-  .then((response: { data: { session: Session | null } }) => {
-    const { session: initialSession } = response.data;
+let authListener: { subscription: { unsubscribe: () => void } } | null = null;
+
+const initializeAuth = async () => {
+  try {
+    setIsLoading(true);
+    const { data: { session: initialSession } } = await supabaseClient.auth.getSession();
+    
     if (!isMounted) return;
+    
     logger.debug(
       "[AuthProvider Mount] Initial Supabase session state:",
       initialSession
         ? `User: ${initialSession.user.id.substring(0, 8)}`
         : "No session"
     );
+    
     setSession(initialSession);
     setUser(initialSession?.user ?? null);
-    setIsLoading(false); 
-  });
+    setIsLoading(false);
+  } catch (error) {
+    logger.error("[AuthProvider Mount] Error getting initial session:", error);
+    if (isMounted) {
+      setSession(null);
+      setUser(null);
+      setIsLoading(false);
+    }
+  }
+};
 
-const { data: authListener } = supabaseClient.auth.onAuthStateChange(
+// Initialize auth state
+initializeAuth();
+
+// Set up auth state listener
+const { data: listener } = supabaseClient.auth.onAuthStateChange(
   async (_event: any, newSession: any) => {
     if (!isMounted) return;
+    
     logger.info(
       `[AuthProvider onAuthStateChange] Event: ${_event}`,
       newSession?.user
@@ -254,7 +271,7 @@ const { data: authListener } = supabaseClient.auth.onAuthStateChange(
     const previousUserId = user?.id;
     setSession(newSession);
     setUser(newSession?.user ?? null);
-    setIsLoading(false); 
+    setIsLoading(false);
 
     if (_event === "SIGNED_OUT") {
       setProfile(null);
@@ -267,18 +284,23 @@ const { data: authListener } = supabaseClient.auth.onAuthStateChange(
         previousUserId !== newSession.user.id)
     ) {
       if (_event === "SIGNED_IN" || previousUserId !== newSession.user.id) {
-        setProfile(null); 
-        setState(null); 
+        setProfile(null);
+        setState(null);
       }
     }
   }
 );
+
+authListener = listener;
+
 return () => {
   isMounted = false;
-  authListener?.subscription?.unsubscribe();
+  if (authListener?.subscription?.unsubscribe) {
+    authListener.subscription.unsubscribe();
+  }
 };
 
-}, [supabaseClient, user?.id]);
+}, [supabaseClient]); // Removed user?.id to prevent unnecessary re-subscriptions
 useEffect(() => {
 if (!isLoading && user && (!profile || !state)) {
 fetchUserProfileAndState();

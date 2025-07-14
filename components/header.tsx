@@ -38,13 +38,32 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
   const [notifCount, setNotifCount] = React.useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
 
-  // Function to decrement count immediately for optimistic updates
-  const decrementCount = () => {
-    setNotifCount((prevCount) => Math.max(0, prevCount - 1))
-  }
+  // Memoize the navigation handler
+  const handleNavigation = React.useCallback((view: View) => {
+    // Only navigate if the view is different
+    if (view !== currentView) {
+      // Map views to their corresponding paths
+      const pathMap: Record<View, string> = {
+        chat: "/chat?view=chat",
+        settings: "/chat?view=settings",
+        memory: "/chat?view=memory",
+        dashboard: "/dashboard",
+        games: "/games",
+        listening: "/listening",
+        insights: "/insights",
+        "creation-hub": "/creation-hub"
+      };
 
-  // Function to fetch notification count
+      // Use the navigation context to handle the transition
+      navigateWithLoading(pathMap[view]);
+      onViewChange(view);
+    }
+  }, [currentView, navigateWithLoading, onViewChange]);
+
+  // Optimize notification polling
   const fetchNotifCount = React.useCallback(async () => {
+    if (!user) return; // Don't fetch if no user
+    
     try {
       const res = await fetch("/api/notifications/subscribe")
       if (!res.ok) throw new Error("Failed to fetch notifications")
@@ -54,21 +73,60 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
     } catch {
       setNotifCount(0)
     }
-  }, [])
+  }, [user]);
 
+  // Optimize notification polling interval
   React.useEffect(() => {
-    let isMounted = true
-    fetchNotifCount()
+    let isMounted = true;
+    let interval: NodeJS.Timeout | null = null;
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user) {
+        fetchNotifCount();
+      }
+    };
 
-    const interval = setInterval(() => {
-      if (isMounted) fetchNotifCount()
-    }, 30000)
+    if (user) {
+      // Initial fetch
+      fetchNotifCount();
+      
+      // Set up interval only when page is visible
+      interval = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          fetchNotifCount();
+        }
+      }, 60000);
+
+      // Listen for visibility changes
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
 
     return () => {
-      isMounted = false
-      clearInterval(interval)
-    }
-  }, [fetchNotifCount])
+      isMounted = false;
+      if (interval) {
+        clearInterval(interval);
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchNotifCount, user]);
+
+  // Update mobile navigation handler
+  const handleMobileNavClick = React.useCallback((view: View) => {
+    handleNavigation(view);
+    setMobileMenuOpen(false);
+  }, [handleNavigation]);
+
+  // Function to decrement count immediately for optimistic updates
+  const decrementCount = () => {
+    setNotifCount((prevCount) => Math.max(0, prevCount - 1))
+  }
+
+  // Context value
+  const notificationContextValue = {
+    notifCount,
+    setNotifCount,
+    decrementCount,
+  }
 
   const navItems: { id: View; icon: React.ReactNode; label: string }[] = [
     { id: "chat", icon: <MessageSquare size={20} />, label: "Chat" },
@@ -80,18 +138,6 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
     { id: "dashboard", icon: <ShoppingBag size={20} />, label: "Dashboard" }, // Added Dashboard nav item
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },
   ]
-
-  const handleMobileNavClick = (view: View) => {
-    onViewChange(view)
-    setMobileMenuOpen(false)
-  }
-
-  // Context value
-  const notificationContextValue = {
-    notifCount,
-    setNotifCount,
-    decrementCount,
-  }
 
   return (
     <NotificationContext.Provider value={notificationContextValue}>
@@ -120,7 +166,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => onViewChange(item.id)}
+                      onClick={() => handleNavigation(item.id)}
                       className={cn(
                         "relative flex items-center justify-center rounded-full px-3 py-1.5 text-sm font-medium transition-colors h-8",
                         "hover:bg-background/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",

@@ -27,23 +27,40 @@ export interface AnalysisResult {
     text: string;
     speaker?: string;
   }>;
+  content_type?: string;
   summary_text: string;
+  speakers_json?: Array<{
+    speaker_id: string;
+    possible_name: string | null;
+    speaking_segments: number[];
+    role?: string;
+    key_contributions?: string[];
+  }>;
   key_themes_json: Array<{
     theme: string;
+    importance?: "high" | "medium" | "low";
     transcript_segment_ids: number[];
   }>;
   action_items_json: Array<{
     task: string;
     assigned_to: string;
+    priority?: "high" | "medium" | "low";
     due_date_iso?: string;
     transcript_segment_id: number;
   }>;
   sentiment_analysis_json: Array<{
     segment_id: number;
     sentiment: "positive" | "negative" | "neutral";
-    score: number;
+    intensity?: "high" | "medium" | "low";
+    score?: number;
   }>;
   structured_notes_json: Record<string, string[]>;
+  key_moments_json?: Array<{
+    moment_type: string;
+    description: string;
+    segment_id: number;
+    importance?: "high" | "medium" | "low";
+  }>;
 }
 
 interface ListeningContextType {
@@ -177,58 +194,80 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
     
-    // Subscribe to changes in the audio_recordings table
-    const channel = supabase
-      .channel('recordings-channel')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'audio_recordings',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          const updatedRecording = payload.new as Recording;
-          
-          // Update the recording in the list
-          setRecordings((prev) =>
-            prev.map((rec) => (rec.id === updatedRecording.id ? updatedRecording : rec))
-          );
-          
-          // If this is the currently selected recording, refresh the details
-          if (currentRecordingId === updatedRecording.id) {
-            if (updatedRecording.status === "completed") {
-              // Fetch the updated analysis
-              fetch(`/api/recordings/${updatedRecording.id}`)
-                .then((response) => response.json())
-                .then(({ analysis }) => {
-                  setCurrentAnalysis(analysis);
-                  toast({
-                    title: "Analysis Complete",
-                    description: "Your recording analysis is now ready",
-                  });
-                })
-                .catch((error) => {
-                  console.error("Error fetching updated analysis:", error);
-                });
-            } else if (updatedRecording.status === "failed") {
-              toast({
-                title: "Processing Failed",
-                description: "There was an error processing your recording",
-                variant: "destructive",
-              });
+    let channel: any = null;
+    let isMounted = true;
+    
+    const setupRealtimeSubscription = async () => {
+      try {
+        // Create a unique channel name to avoid conflicts
+        const channelName = `recordings-${user.id}-${Date.now()}`;
+        
+        channel = supabase
+          .channel(channelName)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'audio_recordings',
+              filter: `user_id=eq.${user.id}`,
+            },
+            (payload: { new: any; old: any }) => {
+              if (!isMounted) return;
+              
+              const updatedRecording = payload.new as Recording;
+              
+              // Update the recording in the list
+              setRecordings((prev) =>
+                prev.map((rec) => (rec.id === updatedRecording.id ? updatedRecording : rec))
+              );
+              
+              // If this is the currently selected recording, refresh the details
+              if (currentRecordingId === updatedRecording.id) {
+                if (updatedRecording.status === "completed") {
+                  // Fetch the updated analysis
+                  fetch(`/api/recordings/${updatedRecording.id}`)
+                    .then((response) => response.json())
+                    .then(({ analysis }) => {
+                      if (isMounted) {
+                        setCurrentAnalysis(analysis);
+                        toast({
+                          title: "Analysis Complete",
+                          description: "Your recording analysis is now ready",
+                        });
+                      }
+                    })
+                    .catch((error) => {
+                      console.error("Error fetching updated analysis:", error);
+                    });
+                } else if (updatedRecording.status === "failed") {
+                  if (isMounted) {
+                    toast({
+                      title: "Processing Failed",
+                      description: "There was an error processing your recording",
+                      variant: "destructive",
+                    });
+                  }
+                }
+              }
             }
-          }
-        }
-      )
-      .subscribe();
+          )
+          .subscribe();
+      } catch (error) {
+        console.error("Error setting up realtime subscription:", error);
+      }
+    };
+    
+    setupRealtimeSubscription();
     
     // Cleanup subscription
     return () => {
-      supabase.removeChannel(channel);
+      isMounted = false;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
-  }, [user, currentRecordingId, toast, supabase]);
+  }, [user?.id, currentRecordingId, toast]); // Use user?.id instead of user object
 
   // Fetch recordings when user changes
   useEffect(() => {

@@ -25,46 +25,50 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const navigateWithLoading = useCallback((path: string, message?: string) => {
-    setNavigating(true, message);
-    router.push(path);
-    
-    // Auto-hide loading after a reasonable timeout
-    setTimeout(() => {
-      setNavigating(false);
-    }, 2000);
+    // Only trigger navigation if we're going to a different path
+    if (window.location.pathname !== path) {
+      setNavigating(true, message);
+      router.push(path);
+    }
   }, [router, setNavigating]);
 
-  // Hide loading when the component unmounts or path changes
+  // Enhanced route change detection
   useEffect(() => {
-    const handleRouteChange = () => {
-      setNavigating(false);
-    };
-
-    // Listen for route changes (Next.js 13+ app router)
-    window.addEventListener('beforeunload', handleRouteChange);
+    let timeoutId: NodeJS.Timeout | null = null;
     
-    return () => {
-      window.removeEventListener('beforeunload', handleRouteChange);
+    const handleRouteChange = () => {
+      // Clear any existing timeout
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      
+      // Set a shorter timeout for hiding loading state
+      timeoutId = setTimeout(() => {
+        setNavigating(false);
+      }, 500);
     };
-  }, [setNavigating]);
 
-  // Hide loading when page becomes visible (handles navigation completion)
-  useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // Small delay to ensure page is fully loaded
-        setTimeout(() => {
-          setNavigating(false);
-        }, 500);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        setNavigating(false);
       }
     };
 
+    // Listen for route changes and visibility changes
+    window.addEventListener('popstate', handleRouteChange);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
     return () => {
+      window.removeEventListener('popstate', handleRouteChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
-  }, [setNavigating]);
+  }, []);
 
   return (
     <NavigationContext.Provider value={{ isNavigating, setNavigating, navigateWithLoading }}>

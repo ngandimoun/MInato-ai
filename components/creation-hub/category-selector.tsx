@@ -30,6 +30,10 @@ interface CategorySelectorProps {
   onClose?: () => void;
   selectedCategory?: ImageCategory | null;
   className?: string;
+  titleText?: string;
+  subtitleText?: string;
+  searchPlaceholder?: string;
+  translatedCategories?: Record<string, {name: string, description: string}>;
 }
 
 const ICON_MAP = {
@@ -49,7 +53,11 @@ export function CategorySelector({
   onSelectCategory, 
   onClose, 
   selectedCategory,
-  className 
+  className,
+  titleText = "Choose Creation Type",
+  subtitleText = "Select a category to unlock specialized tools and enhanced prompts",
+  searchPlaceholder = "Search categories...",
+  translatedCategories = {}
 }: CategorySelectorProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [hoveredCategory, setHoveredCategory] = useState<ImageCategory | null>(null);
@@ -59,7 +67,9 @@ export function CategorySelector({
   const filteredCategories = categories.filter(category => 
     category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     category.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    category.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+    category.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (translatedCategories[category.id]?.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (translatedCategories[category.id]?.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const handleCategorySelect = (categoryId: ImageCategory) => {
@@ -88,10 +98,10 @@ export function CategorySelector({
             </div>
             <div className="min-w-0 flex-1">
               <h2 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent truncate">
-                Choose Creation Type
+                {titleText}
               </h2>
               <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
-                Select a category to unlock specialized tools and enhanced prompts
+                {subtitleText}
               </p>
               <p className="text-muted-foreground text-xs sm:hidden">
                 Select a category for specialized tools
@@ -114,7 +124,7 @@ export function CategorySelector({
         <div className="relative mt-3 sm:mt-4">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search categories..."
+            placeholder={searchPlaceholder}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 bg-background/50 border-border/50 rounded-xl focus:border-violet-500/50 transition-all duration-200 hover:bg-background/70 focus:shadow-lg focus:shadow-violet-500/10"
@@ -209,10 +219,10 @@ export function CategorySelector({
                         <div className="space-y-2 sm:space-y-3">
                           <div>
                             <h3 className="font-semibold text-base sm:text-lg text-foreground group-hover:text-purple-600 transition-colors leading-tight">
-                              {category.name}
+                              {translatedCategories[category.id]?.name || category.name}
                             </h3>
                             <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 leading-relaxed mt-1">
-                              {category.description}
+                              {translatedCategories[category.id]?.description || category.description}
                             </p>
                           </div>
 

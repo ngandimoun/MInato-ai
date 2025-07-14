@@ -10,6 +10,7 @@ import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { UploadStatusProvider } from "@/context/upload-status-context";
 import { ListeningProvider } from "@/context/listening-context";
 import { NavigationProvider } from "@/context/navigation-context";
+import { MemoryCleanupProvider } from "@/components/memory-cleanup-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,20 +26,22 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <ThemeProvider>
-          <AuthProvider>
-            <NavigationProvider>
-              <UploadStatusProvider>
-                <ListeningProvider>
-                  {children}
-                </ListeningProvider>
-              </UploadStatusProvider>
-            </NavigationProvider>
-          </AuthProvider>
-          <Toaster />
-          <SonnerToaster position="top-right" />
-        </ThemeProvider>
+      <body className={inter.className} suppressHydrationWarning>
+        <MemoryCleanupProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <NavigationProvider>
+                <UploadStatusProvider>
+                  <ListeningProvider>
+                    {children}
+                  </ListeningProvider>
+                </UploadStatusProvider>
+              </NavigationProvider>
+            </AuthProvider>
+            <Toaster />
+            <SonnerToaster position="top-right" />
+          </ThemeProvider>
+        </MemoryCleanupProvider>
       </body>
     </html>
   );

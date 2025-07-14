@@ -2,13 +2,15 @@
 "use client";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { X, Search, Brain, Trash2, AlertCircle, Loader2, ListRestart } from "lucide-react";
+import { X, Search, Brain, Trash2, AlertCircle, Loader2, ListRestart, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MemoryItem } from "./memory-item";
 import { SearchResult, PaginatedResults } from "@/memory-framework/core/types";
 import { logger } from "@/memory-framework/config";
+import { useTranslation } from "@/hooks/useTranslation";
 import {
 MEMORY_SEARCH_ENDPOINT,
 MEMORY_DELETE_ENDPOINT,
@@ -18,7 +20,21 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/context/auth-provider";
 import { DEFAULT_USER_NAME } from "@/lib/constants";
 
-
+// Language options
+const languages = [
+  { code: "en", name: "English", flag: "🇺🇸" },
+  { code: "es", name: "Español", flag: "🇪🇸" },
+  { code: "fr", name: "Français", flag: "🇫🇷" },
+  { code: "de", name: "Deutsch", flag: "🇩🇪" },
+  { code: "it", name: "Italiano", flag: "🇮🇹" },
+  { code: "pt", name: "Português", flag: "🇵🇹" },
+  { code: "ru", name: "Русский", flag: "🇷🇺" },
+  { code: "ja", name: "日本語", flag: "🇯🇵" },
+  { code: "ko", name: "한국어", flag: "🇰🇷" },
+  { code: "zh", name: "中文", flag: "🇨🇳" },
+  { code: "ar", name: "العربية", flag: "🇸🇦" },
+  { code: "hi", name: "हिन्दी", flag: "🇮🇳" }
+];
 
 interface MemoryPanelProps {
 onClose: () => void;
@@ -39,8 +55,145 @@ const [totalEstimated, setTotalEstimated] = useState(0);
 const [isLoadingMore, setIsLoadingMore] = useState(false);
 const limit = 20;
 
+// Language translation state
+const [language, setLanguage] = useState<string>("en");
+const { translateText, isTranslating } = useTranslation();
+const [translatedMemories, setTranslatedMemories] = useState<Record<string, string>>({});
+const [translatedUI, setTranslatedUI] = useState({
+  title: `${userName}'s Memory`,
+  searchPlaceholder: "Search memories...",
+  loadingText: "Loading Minato's Memories...",
+  errorTitle: "Error Loading Memories",
+  tryAgain: "Try Again",
+  searching: "Searching memories...",
+  emptyTitle: "Memory Bank Empty",
+  noMatchTitle: "No Matching Memories",
+  emptyDescription: "As you chat with Minato, important details will be stored here for easy recall.",
+  noMatchDescription: "Try refining your search or exploring different topics.",
+  showRecent: "Show Recent Memories",
+  recentMemories: "Recent Memories",
+  journeyTitle: `Hey ${userName}, Our Incredible Journey Together`,
+  loadMore: "Load More",
+  scrollMore: "Scroll for more memories",
+  endReached: "You've reached the end of your memories"
+});
+
 // Reference for the loader element that will trigger more memories to load
 const loaderRef = useRef<HTMLDivElement>(null);
+
+// Load saved language preference on mount
+useEffect(() => {
+  const savedLanguage = localStorage.getItem('memory-language');
+  if (savedLanguage && languages.find(lang => lang.code === savedLanguage)) {
+    setLanguage(savedLanguage);
+  }
+}, []);
+
+// Save language preference when changed
+const handleLanguageChange = (value: string) => {
+  setLanguage(value);
+  localStorage.setItem('memory-language', value);
+};
+
+// Translate UI text when language changes
+useEffect(() => {
+  const translateUI = async () => {
+    if (language === "en") {
+      // Reset to default English text
+      setTranslatedUI({
+        title: `${userName}'s Memory`,
+        searchPlaceholder: "Search memories...",
+        loadingText: "Loading Minato's Memories...",
+        errorTitle: "Error Loading Memories",
+        tryAgain: "Try Again",
+        searching: "Searching memories...",
+        emptyTitle: "Memory Bank Empty",
+        noMatchTitle: "No Matching Memories",
+        emptyDescription: "As you chat with Minato, important details will be stored here for easy recall.",
+        noMatchDescription: "Try refining your search or exploring different topics.",
+        showRecent: "Show Recent Memories",
+        recentMemories: "Recent Memories",
+        journeyTitle: `Hey ${userName}, Our Incredible Journey Together`,
+        loadMore: "Load More",
+        scrollMore: "Scroll for more memories",
+        endReached: "You've reached the end of your memories"
+      });
+      setTranslatedMemories({});
+      return;
+    }
+    
+    try {
+      // Translate all UI text elements
+      const [
+        title, searchPlaceholder, loadingText, errorTitle, tryAgain, searching,
+        emptyTitle, noMatchTitle, emptyDescription, noMatchDescription,
+        showRecent, recentMemories, journeyTitle, loadMore, scrollMore, endReached
+      ] = await Promise.all([
+        translateText(`${userName}'s Memory`, language, "en"),
+        translateText("Search memories...", language, "en"),
+        translateText("Loading Minato's Memories...", language, "en"),
+        translateText("Error Loading Memories", language, "en"),
+        translateText("Try Again", language, "en"),
+        translateText("Searching memories...", language, "en"),
+        translateText("Memory Bank Empty", language, "en"),
+        translateText("No Matching Memories", language, "en"),
+        translateText("As you chat with Minato, important details will be stored here for easy recall.", language, "en"),
+        translateText("Try refining your search or exploring different topics.", language, "en"),
+        translateText("Show Recent Memories", language, "en"),
+        translateText("Recent Memories", language, "en"),
+        translateText(`Hey ${userName}, Our Incredible Journey Together`, language, "en"),
+        translateText("Load More", language, "en"),
+        translateText("Scroll for more memories", language, "en"),
+        translateText("You've reached the end of your memories", language, "en")
+      ]);
+      
+      // Update translated text state
+      setTranslatedUI({
+        title, searchPlaceholder, loadingText, errorTitle, tryAgain, searching,
+        emptyTitle, noMatchTitle, emptyDescription, noMatchDescription,
+        showRecent, recentMemories, journeyTitle, loadMore, scrollMore, endReached
+      });
+      
+      // Translate current memories
+      await translateMemories();
+    } catch (error) {
+      console.error("Error translating UI:", error);
+    }
+  };
+  
+  translateUI();
+}, [language, translateText, userName]);
+
+// Translate memory content
+const translateMemories = async () => {
+  if (language === "en" || memories.length === 0) {
+    setTranslatedMemories({});
+    return;
+  }
+  
+  try {
+    const translatedContent: Record<string, string> = {};
+    
+    // Translate each memory's content
+    for (const memory of memories) {
+      if (memory.content) {
+        const translated = await translateText(memory.content, language, "en");
+        translatedContent[memory.memory_id] = translated;
+      }
+    }
+    
+    setTranslatedMemories(translatedContent);
+  } catch (error) {
+    console.error("Error translating memories:", error);
+  }
+};
+
+// Translate new memories when they are loaded
+useEffect(() => {
+  if (language !== "en" && memories.length > 0) {
+    translateMemories();
+  }
+}, [memories, language]);
 
 const fetchMemories = useCallback(
 async (query: string, isInitialFetch = false) => {
@@ -227,52 +380,53 @@ setMemories(originalMemories);
 useEffect(() => {
   // Don't set up observer if there are no more memories to load
   if (!hasMore || isLoading || isLoadingMore || !memories.length) {
-    console.log('[MemoryPanel] Not setting up IntersectionObserver', { 
-      hasMore, 
-      isLoading, 
-      isLoadingMore, 
-      memoriesLength: memories.length
-    });
     return;
   }
 
-  console.log('[MemoryPanel] Setting up IntersectionObserver');
+  let timeoutId: NodeJS.Timeout | null = null;
   
   const observer = new IntersectionObserver(
     (entries) => {
-      // If the loader is visible, load more memories with a small delay to prevent rapid triggering
+      // If the loader is visible, load more memories with debouncing
       if (entries[0].isIntersecting && hasMore && !isLoading && !isLoadingMore) {
-        console.log('[MemoryPanel] Loader visible, loading more memories');
-        setTimeout(() => {
+        // Clear any existing timeout
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        
+        // Debounce the load more call to prevent rapid triggering
+        timeoutId = setTimeout(() => {
           if (hasMore && !isLoading && !isLoadingMore) {
             loadMoreMemories();
           }
-        }, 100); // Small delay to prevent rapid triggering
+        }, 300); // Increased delay to prevent rapid triggering
       }
     },
     { 
       root: null, // Use the viewport as the root
-      rootMargin: '0px 0px 200px 0px', // Reduced margin to trigger closer to bottom
+      rootMargin: '0px 0px 100px 0px', // Smaller margin to trigger closer to bottom
       threshold: 0.1 // Trigger when 10% of the loader is visible
     }
   );
 
   const currentLoaderRef = loaderRef.current;
   if (currentLoaderRef) {
-    console.log('[MemoryPanel] Observer observing loaderRef');
     observer.observe(currentLoaderRef);
-  } else {
-    console.log('[MemoryPanel] loaderRef.current is null');
   }
 
   return () => {
-    console.log('[MemoryPanel] Cleaning up IntersectionObserver');
+    // Clean up timeout
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    
+    // Clean up observer
     if (currentLoaderRef) {
       observer.unobserve(currentLoaderRef);
     }
     observer.disconnect();
   };
-}, [hasMore, isLoading, isLoadingMore, loadMoreMemories, memories]);
+}, [hasMore, isLoading, isLoadingMore, loadMoreMemories, memories.length]); // Use memories.length instead of memories array
 
 // Explicitly fetch more memories when offset changes
 useEffect(() => {
@@ -287,7 +441,7 @@ if (isLoading && !hasPerformedInitialFetch) {
 return (
 <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
 <Loader2 className="h-10 w-10 animate-spin text-primary/70 mb-4" />
-<p className="text-sm">Loading Minato's Memories...</p>
+<p className="text-sm">{translatedUI.loadingText}</p>
 </div>
 );
 }
@@ -295,10 +449,10 @@ if (error) {
 return (
 <Alert variant="destructive" className="m-4">
 <AlertCircle className="h-4 w-4" />
-<AlertTitle>Error Loading Memories</AlertTitle>
+<AlertTitle>{translatedUI.errorTitle}</AlertTitle>
 <AlertDescription>{error}</AlertDescription>
 <Button variant="outline" size="sm" onClick={() => fetchMemories(searchQuery, true)} className="mt-2">
-Try Again
+{translatedUI.tryAgain}
 </Button>
 </Alert>
 );
@@ -308,7 +462,7 @@ return (
 <div className="flex items-center justify-center py-12 text-center">
 <Loader2 className="h-8 w-8 animate-spin text-primary/70 mr-2" />
 <p className="text-sm text-muted-foreground">
-Searching memories...
+{translatedUI.searching}
 </p>
 </div>
 );
@@ -318,16 +472,14 @@ if (memories.length === 0 && hasPerformedInitialFetch) {
          <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
             <Brain className="h-12 w-12 text-primary/30 mb-4" />
             <h3 className="text-lg font-medium mb-1">
-              {searchQuery ? "No Matching Memories" : "Memory Bank Empty"}
+              {searchQuery ? translatedUI.noMatchTitle : translatedUI.emptyTitle}
             </h3>
             <p className="text-sm max-w-xs">
-              {searchQuery 
-                ? "Try refining your search or exploring different topics." 
-                : "As you chat with Minato, important details will be stored here for easy recall."}
+              {searchQuery ? translatedUI.noMatchDescription : translatedUI.emptyDescription}
             </p>
             {searchQuery && (
                 <Button variant="ghost" onClick={handleResetSearch} className="mt-3 text-xs">
-                    <ListRestart size={14} className="mr-1.5"/> Show Recent Memories
+                    <ListRestart size={14} className="mr-1.5"/> {translatedUI.showRecent}
                 </Button>
             )}
         </div>
@@ -339,14 +491,17 @@ return (
         {!searchQuery && (
             <div className="text-sm font-medium text-muted-foreground mb-2 px-1">
                 {memories[0]?.memory_id.startsWith('sample-') 
-                    ? `Hey ${userName}, Our Incredible Journey Together` 
-                    : 'Recent Memories'}
+                    ? translatedUI.journeyTitle 
+                    : translatedUI.recentMemories}
             </div>
         )}
         {memories.map((memory) => (
             <MemoryItem
                 key={memory.memory_id}
-                memory={memory}
+                memory={{
+                  ...memory,
+                  content: translatedMemories[memory.memory_id] || memory.content
+                }}
                 onDelete={() => handleDeleteMemory(memory.memory_id)}
             />
         ))}
@@ -364,13 +519,13 @@ return (
                 className="h-20 w-full flex items-center justify-center text-muted-foreground text-xs"
                 style={{ opacity: isLoadingMore ? 0 : 1 }}
             >
-                {!isLoadingMore && "Scroll for more memories"}
+                {!isLoadingMore && translatedUI.scrollMore}
             </div>
         )}
         
         {!hasMore && memories.length > 0 && !memories[0]?.memory_id.startsWith('sample-') && offset > 0 && (
             <div className="text-center text-xs text-muted-foreground py-2">
-                You've reached the end of your memories
+                {translatedUI.endReached}
             </div>
         )}
     </div>
@@ -403,9 +558,38 @@ className="bg-background border border-border rounded-2xl shadow-lg overflow-hid
 >
 <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
 <h2 className="text-lg font-semibold flex items-center gap-2">
-<Brain className="h-5 w-5 text-primary" /> {userName}'s Memory
+<Brain className="h-5 w-5 text-primary" /> {translatedUI.title}
 </h2>
 <div className="flex items-center gap-2">
+  {/* Language Selector */}
+  <Select value={language} onValueChange={handleLanguageChange} disabled={isTranslating}>
+    <SelectTrigger className="w-[120px] h-8 text-xs">
+      <div className="flex items-center gap-1">
+        <Globe className="h-3 w-3" />
+        <SelectValue>
+          {languages.find(lang => lang.code === language) ? (
+            <span>
+              {languages.find(lang => lang.code === language)?.flag}{" "}
+              {languages.find(lang => lang.code === language)?.name}
+            </span>
+          ) : (
+            "Language"
+          )}
+        </SelectValue>
+      </div>
+    </SelectTrigger>
+    <SelectContent>
+      {languages.map((lang) => (
+        <SelectItem key={lang.code} value={lang.code}>
+          <div className="flex items-center gap-2">
+            <span>{lang.flag}</span>
+            <span>{lang.name}</span>
+          </div>
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+  
   {hasMore && !isLoadingMore && !memories[0]?.memory_id.startsWith('sample-') && (
     <Button
       variant="ghost"
@@ -413,7 +597,7 @@ className="bg-background border border-border rounded-2xl shadow-lg overflow-hid
       onClick={debugLoadMore}
       className="text-xs"
     >
-      Load More
+      {translatedUI.loadMore}
     </Button>
   )}
   <Button
@@ -431,7 +615,7 @@ className="bg-background border border-border rounded-2xl shadow-lg overflow-hid
     <form onSubmit={handleSearch} className="relative">
       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
-        placeholder="Search memories..."
+        placeholder={translatedUI.searchPlaceholder}
         className="pl-10 pr-10" 
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}

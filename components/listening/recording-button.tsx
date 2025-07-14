@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, StopCircle, Loader2 } from "lucide-react";
+import { Mic, StopCircle, Loader2, Pause, Play, Square } from "lucide-react";
 import { useReactMediaRecorder } from "react-media-recorder";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +17,7 @@ interface RecordingButtonProps {
 
 export function RecordingButton({ onRecordingComplete, className }: RecordingButtonProps) {
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingTitle, setRecordingTitle] = useState("");
@@ -40,6 +41,7 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
   // Reset state when recording stops
   const resetState = () => {
     setIsRecording(false);
+    setIsPaused(false);
     setIsUploading(false);
     setRecordingTime(0);
     if (timerRef.current) {
@@ -58,7 +60,7 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
   }, []);
 
   // Media recorder setup
-  const { status, startRecording, stopRecording, mediaBlobUrl, clearBlobUrl } = 
+  const { status, startRecording, stopRecording, pauseRecording, resumeRecording, mediaBlobUrl, clearBlobUrl } = 
     useReactMediaRecorder({
       audio: true,
       video: false,
@@ -154,6 +156,7 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
     }
     
     setIsRecording(true);
+    setIsPaused(false);
     setRecordingTime(0);
     
     // Start the timer
@@ -162,6 +165,28 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
     }, 1000);
     
     startRecording();
+  };
+
+  // Handle pause recording
+  const handlePauseRecording = () => {
+    if (isPaused) {
+      resumeRecording();
+      setIsPaused(false);
+      
+      // Resume the timer
+      timerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } else {
+      pauseRecording();
+      setIsPaused(true);
+      
+      // Pause the timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
   };
 
   // Handle stop recording
@@ -185,54 +210,76 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
   return (
     <div className={cn("flex flex-col items-center", className)}>
       <div className="relative">
-        <Button
-          variant={isRecording ? "destructive" : "default"}
-          size="lg"
-          className={cn(
-            "h-16 w-16 rounded-full shadow-lg transition-all duration-300",
-            isRecording ? "bg-destructive hover:bg-destructive/90" : "bg-primary hover:bg-primary/90",
-            isUploading && "opacity-50 cursor-not-allowed"
-          )}
-          onClick={isRecording ? handleStopRecording : handleStartRecording}
-          disabled={status === "recording" && !isRecording || isUploading}
-        >
-          <AnimatePresence mode="wait">
-            {isUploading ? (
-              <motion.div
-                key="uploading"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.2 }}
-              >
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </motion.div>
-            ) : isRecording ? (
-              <motion.div
-                key="recording"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.2 }}
-              >
-                <StopCircle className="h-6 w-6" />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="ready"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.2 }}
-              >
-                <Mic className="h-6 w-6" />
-              </motion.div>
+        {!isRecording ? (
+          // Main record button when not recording
+          <Button
+            variant="default"
+            size="lg"
+            className={cn(
+              "h-16 w-16 rounded-full shadow-lg transition-all duration-300",
+              "bg-primary hover:bg-primary/90",
+              isUploading && "opacity-50 cursor-not-allowed"
             )}
-          </AnimatePresence>
-        </Button>
+            onClick={handleStartRecording}
+            disabled={status === "recording" && !isRecording || isUploading}
+          >
+            <AnimatePresence mode="wait">
+              {isUploading ? (
+                <motion.div
+                  key="uploading"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="ready"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Mic className="h-6 w-6" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Button>
+        ) : (
+          // Recording controls when recording is active
+          <div className="flex items-center gap-3">
+            {/* Pause/Resume button */}
+            <Button
+              variant={isPaused ? "outline" : "secondary"}
+              size="sm"
+              className="h-12 w-12 rounded-full shadow-md"
+              onClick={handlePauseRecording}
+              disabled={isUploading}
+            >
+              {isPaused ? (
+                <Play className="h-5 w-5" />
+              ) : (
+                <Pause className="h-5 w-5" />
+              )}
+            </Button>
+            
+            {/* Stop button */}
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-12 w-12 rounded-full shadow-md"
+              onClick={handleStopRecording}
+              disabled={isUploading}
+            >
+              <Square className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
         
         {/* Recording indicator */}
-        {isRecording && (
+        {isRecording && !isPaused && (
           <motion.div
             className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full"
             variants={pulseVariants}
@@ -248,8 +295,15 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center"
           >
-            <div className="text-destructive font-medium">{formatTime(recordingTime)}</div>
-            <div className="text-xs text-muted-foreground mt-1">Recording...</div>
+            <div className={cn(
+              "font-medium",
+              isPaused ? "text-muted-foreground" : "text-destructive"
+            )}>
+              {formatTime(recordingTime)}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {isPaused ? "Paused" : "Recording..."}
+            </div>
           </motion.div>
         ) : isUploading ? (
           <div className="text-xs text-muted-foreground">Saving recording...</div>

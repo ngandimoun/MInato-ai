@@ -48,6 +48,11 @@ interface CategoryFormProps {
   initialValues?: CategoryFormValues;
   isGenerating?: boolean;
   className?: string;
+  translatedFields?: Record<string, {
+    label?: string;
+    description?: string;
+    placeholder?: string;
+  }>;
 }
 
 export function CategoryForm({ 
@@ -56,7 +61,8 @@ export function CategoryForm({
   onBack, 
   initialValues = {},
   isGenerating = false,
-  className 
+  className,
+  translatedFields = {}
 }: CategoryFormProps) {
   const [values, setValues] = useState<CategoryFormValues>(initialValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -66,6 +72,11 @@ export function CategoryForm({
 
   const categoryInfo = CATEGORY_INFO[categoryId];
   const form = CATEGORY_FORMS[categoryId];
+  
+  // Log the translated fields for debugging
+  useEffect(() => {
+    console.log("CategoryForm received translatedFields:", translatedFields);
+  }, [translatedFields]);
 
   useEffect(() => {
     // Set default values
@@ -176,6 +187,12 @@ export function CategoryForm({
     const value = values[field.id];
     const error = errors[field.id];
     const hasError = !!error;
+    
+    // Get translated field content if available
+    const translatedField = translatedFields[field.id] || {};
+    const fieldLabel = translatedField.label || field.label;
+    const fieldDescription = translatedField.description || field.description;
+    const fieldPlaceholder = translatedField.placeholder || field.placeholder;
 
     const fieldProps = {
       id: field.id,
@@ -191,7 +208,7 @@ export function CategoryForm({
           <Input
             {...fieldProps}
             type="text"
-            placeholder={field.placeholder}
+            placeholder={fieldPlaceholder}
             value={value || ''}
             onChange={(e) => handleValueChange(field.id, e.target.value)}
             className={cn(hasError && "border-destructive focus:border-destructive")}
@@ -203,7 +220,7 @@ export function CategoryForm({
         fieldComponent = (
           <Textarea
             {...fieldProps}
-            placeholder={field.placeholder}
+            placeholder={fieldPlaceholder}
             value={value || ''}
             onChange={(e) => handleValueChange(field.id, e.target.value)}
             className={cn("min-h-[100px] resize-none", hasError && "border-destructive focus:border-destructive")}
@@ -215,7 +232,7 @@ export function CategoryForm({
         fieldComponent = (
           <Select value={value || ''} onValueChange={(val) => handleValueChange(field.id, val)}>
             <SelectTrigger className={cn(hasError && "border-destructive")}>
-              <SelectValue placeholder={`Select ${field.label.toLowerCase()}`} />
+              <SelectValue placeholder={`Select ${fieldLabel.toLowerCase()}`} />
             </SelectTrigger>
             <SelectContent>
               {field.options?.map((option) => (
@@ -505,7 +522,7 @@ export function CategoryForm({
                 }}
               >
                 <SelectTrigger className={cn(hasError && "border-destructive")}>
-                  <SelectValue placeholder={selectedValues.length > 0 ? "Add another..." : `Select ${field.label.toLowerCase()}`} />
+                  <SelectValue placeholder={selectedValues.length > 0 ? "Add another..." : `Select ${fieldLabel.toLowerCase()}`} />
                 </SelectTrigger>
                 <SelectContent>
                   {remainingOptions.map((option) => (
@@ -566,7 +583,7 @@ export function CategoryForm({
               disabled={isGenerating}
             />
             <Label htmlFor={field.id} className="text-sm font-normal cursor-pointer">
-              {field.label.replace(' *', '')}
+              {fieldLabel.replace(' *', '')}
             </Label>
             {/* Help button with image tooltip for Include Human Model */}
             {field.id === 'includeHuman' && (
@@ -664,16 +681,27 @@ export function CategoryForm({
         transition={{ duration: 0.2 }}
         className="space-y-2"
       >
-        <div className="flex items-center gap-2">
-          <Label htmlFor={field.id} className="text-sm font-medium">
-            {field.label}
+        <div className="flex items-center justify-between">
+          <Label htmlFor={field.id} className={cn("text-sm font-medium", hasError && "text-destructive")}>
+            {fieldLabel}
             {field.required && <span className="text-destructive ml-1">*</span>}
           </Label>
+          
+          {fieldDescription && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-xs text-xs">{fieldDescription}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
-        
-        {field.description && (
-          <p className="text-xs text-muted-foreground">{field.description}</p>
-        )}
         
         {fieldComponent}
         
@@ -690,7 +718,7 @@ export function CategoryForm({
         )}
       </motion.div>
     );
-  }, [values, errors, referenceImages, previewUrls, isGenerating, shouldShowField, handleValueChange, handleFileUpload]);
+  }, [values, errors, referenceImages, previewUrls, isGenerating, shouldShowField, handleValueChange, handleFileUpload, translatedFields]);
 
   return (
     <TooltipProvider>

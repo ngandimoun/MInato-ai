@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import GameLibrary from "@/components/games/game-library";
 import ActiveGames from "@/components/games/active-games";
 import { GameInvites } from "@/components/games/game-invites";
@@ -25,6 +25,71 @@ import { Suspense } from "react";
 
 type TabValue = "library" | "active" | "invites" | "stats" | "leaderboards" | "quests" | "tournaments" | "ai-coach" | "settings";
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub";
+
+// Floating particles component for enhanced visual effects
+const FloatingParticles = () => {
+  const particles = Array.from({ length: 12 }, (_, i) => ({
+    id: i,
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    size: Math.random() * 4 + 2,
+    delay: Math.random() * 2,
+    duration: Math.random() * 3 + 2,
+  }));
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {particles.map((particle) => (
+        <motion.div
+          key={particle.id}
+          className="absolute rounded-full bg-gradient-to-r from-primary/30 to-accent/30 blur-sm"
+          style={{
+            left: `${particle.x}%`,
+            top: `${particle.y}%`,
+            width: `${particle.size}px`,
+            height: `${particle.size}px`,
+          }}
+          animate={{
+            y: [0, -20, 0],
+            x: [0, 10, -10, 0],
+            scale: [1, 1.2, 1],
+            opacity: [0.3, 0.8, 0.3],
+          }}
+          transition={{
+            duration: particle.duration,
+            repeat: Infinity,
+            delay: particle.delay,
+            ease: "easeInOut",
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
+// Enhanced gradient background component
+const AnimatedBackground = () => {
+  return (
+    <div className="absolute inset-0 overflow-hidden">
+      <motion.div
+        className="absolute inset-0 bg-gradient-to-br from-primary/5 via-primary/10 to-accent/5"
+        animate={{
+          background: [
+            "linear-gradient(135deg, rgb(59 130 246 / 0.05) 0%, rgb(147 51 234 / 0.1) 50%, rgb(236 72 153 / 0.05) 100%)",
+            "linear-gradient(135deg, rgb(147 51 234 / 0.05) 0%, rgb(236 72 153 / 0.1) 50%, rgb(59 130 246 / 0.05) 100%)",
+            "linear-gradient(135deg, rgb(236 72 153 / 0.05) 0%, rgb(59 130 246 / 0.1) 50%, rgb(147 51 234 / 0.05) 100%)",
+          ],
+        }}
+        transition={{
+          duration: 8,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
+      <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:60px_60px]" />
+    </div>
+  );
+};
 
 export default function GamesPageWrapper() {
   return (
@@ -70,17 +135,27 @@ function GamesPage() {
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center p-4">
-        <Card className="glass-card max-w-md">
-          <CardHeader className="text-center">
-            <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
-              <Gamepad2 className="w-8 h-8 text-primary" />
-            </div>
-            <CardTitle className="text-2xl">Sign In Required</CardTitle>
-            <CardDescription>
-              Please sign in to access Minato AI Games and compete with friends!
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Card className="glass-card max-w-md">
+            <CardHeader className="text-center">
+              <motion.div
+                className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+              >
+                <Gamepad2 className="w-8 h-8 text-primary" />
+              </motion.div>
+              <CardTitle className="text-2xl">Sign In Required</CardTitle>
+              <CardDescription>
+                Please sign in to access Minato AI Games and compete with friends!
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </motion.div>
       </div>
     );
   }
@@ -91,143 +166,226 @@ function GamesPage() {
 
       <Header currentView="games" onViewChange={handleViewChange} />
 
-      <div className="flex-1 pt-16 md:pt-20">
-        <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-          {/* Header Section */}
-          <div className="relative overflow-hidden bg-gradient-to-r from-primary/5 via-primary/10 to-accent/5">
-            <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:60px_60px]" />
-            <div className="relative container max-w-6xl mx-auto px-4 py-12">
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+        {/* Enhanced Header Section */}
+        <div className="relative overflow-hidden">
+          <AnimatedBackground />
+          <FloatingParticles />
+          
+          <div className="relative container max-w-6xl mx-auto px-4 py-12">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="text-center"
+            >
               <motion.div
+                className="inline-flex items-center gap-2 mb-4"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+              >
+                <motion.div
+                  className="p-3 bg-primary/10 rounded-full backdrop-blur-sm"
+                  animate={{ 
+                    rotate: [0, 360],
+                    scale: [1, 1.05, 1],
+                  }}
+                  transition={{ 
+                    rotate: { duration: 20, repeat: Infinity, ease: "linear" },
+                    scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+                  }}
+                >
+                  <Gamepad2 className="w-8 h-8 text-primary" />
+                </motion.div>
+                <motion.div
+                  animate={{ 
+                    rotate: [0, 10, -10, 0],
+                    scale: [1, 1.2, 1],
+                  }}
+                  transition={{ 
+                    duration: 3, 
+                    repeat: Infinity, 
+                    ease: "easeInOut",
+                    delay: 0.5
+                  }}
+                >
+                  <Sparkles className="w-6 h-6 text-primary" />
+                </motion.div>
+              </motion.div>
+              
+              <motion.h1
+                className="text-4xl md:text-5xl font-bold mb-4"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                className="text-center"
+                transition={{ duration: 0.8, delay: 0.3 }}
               >
-                <div className="inline-flex items-center gap-2 mb-4">
-                  <div className="p-3 bg-primary/10 rounded-full">
-                    <Gamepad2 className="w-8 h-8 text-primary" />
-                  </div>
-                  <Sparkles className="w-6 h-6 text-primary animate-pulse" />
-                </div>
-                <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-emerald-400 to-pink-500 bg-clip-text text-transparent mb-4">
+                <motion.span
+                  className="bg-gradient-to-r from-primary via-emerald-400 to-pink-500 bg-clip-text text-transparent"
+                  animate={{
+                    backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
+                  }}
+                  transition={{
+                    duration: 5,
+                    repeat: Infinity,
+                    ease: "linear",
+                  }}
+                  style={{
+                    backgroundSize: "200% 200%",
+                  }}
+                >
                   Minato AI Games
-                </h1>
-                <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-6">
-                  Challenge your mind with AI-powered trivia, compete with friends, and climb the leaderboards 
-                  in our collection of intelligent games.
-                </p>
-                <div className="flex flex-wrap justify-center gap-4">
-                  <Badge variant="secondary" className="text-sm px-3 py-1">
-                    <Zap className="w-4 h-4 mr-1" />
-                    AI-Powered Questions
-                  </Badge>
-                  <Badge variant="secondary" className="text-sm px-3 py-1">
-                    <Users className="w-4 h-4 mr-1" />
-                    Multiplayer Battles
-                  </Badge>
-                  <Badge variant="secondary" className="text-sm px-3 py-1">
-                    <Trophy className="w-4 h-4 mr-1" />
-                    Leaderboards & XP
-                  </Badge>
-                </div>
+                </motion.span>
+              </motion.h1>
+              
+              <motion.p
+                className="text-lg text-muted-foreground max-w-2xl mx-auto mb-6"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.4 }}
+              >
+                Challenge your mind with AI-powered trivia, compete with friends, and climb the leaderboards 
+                in our collection of intelligent games.
+              </motion.p>
+              
+              <motion.div
+                className="flex flex-wrap justify-center gap-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.5 }}
+              >
+                {[
+                  { icon: Zap, text: "AI-Powered Questions", delay: 0.1 },
+                  { icon: Users, text: "Multiplayer Battles", delay: 0.2 },
+                  { icon: Trophy, text: "Leaderboards & XP", delay: 0.3 },
+                ].map((badge, index) => (
+                  <motion.div
+                    key={badge.text}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, delay: 0.6 + badge.delay }}
+                    whileHover={{ 
+                      scale: 1.05,
+                      y: -2,
+                      transition: { duration: 0.2 }
+                    }}
+                  >
+                    <Badge variant="secondary" className="text-sm px-3 py-1 backdrop-blur-sm">
+                      <badge.icon className="w-4 h-4 mr-1" />
+                      {badge.text}
+                    </Badge>
+                  </motion.div>
+                ))}
               </motion.div>
-            </div>
-          </div>
-
-          {/* Main Content */}
-          <div className="container max-w-6xl mx-auto px-4 py-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)} className="space-y-6">
-                <TabsList className="grid w-full grid-cols-9 lg:grid-cols-9 max-w-6xl mx-auto bg-muted/50 border border-border/50">
-                  <TabsTrigger value="library" className="relative">
-                    <Gamepad2 className="w-3 h-3 mr-1" />
-                    <span className="hidden sm:inline">Library</span>
-                    <span className="hidden">Play</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="active" className="relative">
-                    <Zap className="w-3 h-3 mr-1" />
-                    <span className="hidden sm:inline">Active</span>
-                    <span className="hidden">Live</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="tournaments" className="relative">
-                    <Trophy className="w-3 h-3 mr-1" />
-                    <span className="hidden sm:inline">Tournaments</span>
-                    <span className="hidden">Tour</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="ai-coach" className="relative">
-                    <Brain className="w-3 h-3 mr-1" />
-                    <span className="hidden sm:inline">AI Coach</span>
-                    <span className="hidden">Coach</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="settings" className="relative">
-                    <Settings className="w-3 h-3 mr-1" />
-                    <span className="hidden sm:inline">Settings</span>
-                    <span className="hidden">Prefs</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="invites" className="relative">
-                    <Users className="w-3 h-3 mr-1" />
-                    <span className="hidden sm:inline">Invites</span>
-                    <span className="hidden">Join</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="quests" className="relative">
-                    <Target className="w-3 h-3 mr-1" />
-                    <span className="hidden sm:inline">Quests</span>
-                    <span className="hidden">Daily</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="leaderboards" className="relative">
-                    <Crown className="w-3 h-3 mr-1" />
-                    <span className="hidden sm:inline">Ranks</span>
-                    <span className="hidden">Top</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="stats" className="relative">
-                    <Trophy className="w-3 h-3 mr-1" />
-                    <span className="hidden sm:inline">Stats</span>
-                    <span className="hidden">Me</span>
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="library" className="space-y-6">
-                  <GameLibrary />
-                </TabsContent>
-
-                <TabsContent value="active" className="space-y-6">
-                  <ActiveGames />
-                </TabsContent>
-
-                <TabsContent value="tournaments" className="space-y-6">
-                  <Tournaments />
-                </TabsContent>
-
-                <TabsContent value="ai-coach" className="space-y-6">
-                  <AICoach />
-                </TabsContent>
-
-                <TabsContent value="settings" className="space-y-6">
-                  <GameSettings />
-                </TabsContent>
-
-                <TabsContent value="invites" className="space-y-6">
-                  <GameInvites />
-                </TabsContent>
-
-                <TabsContent value="quests" className="space-y-6">
-                  <DailyQuests />
-                </TabsContent>
-
-                <TabsContent value="leaderboards" className="space-y-6">
-                  <Leaderboards />
-                </TabsContent>
-
-                <TabsContent value="stats" className="space-y-6">
-                  <GameStats />
-                </TabsContent>
-              </Tabs>
             </motion.div>
           </div>
+        </div>
+
+        {/* Enhanced Main Content */}
+        <div className="container max-w-6xl mx-auto px-4 py-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          >
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)} className="space-y-6">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+              >
+                <TabsList className="grid w-full grid-cols-9 lg:grid-cols-9 max-w-6xl mx-auto bg-muted/50 border border-border/50 backdrop-blur-sm">
+                  {[
+                    { value: "library", icon: Gamepad2, label: "Library", shortLabel: "Play" },
+                    { value: "active", icon: Zap, label: "Active", shortLabel: "Live" },
+                    { value: "tournaments", icon: Trophy, label: "Tournaments", shortLabel: "Tour" },
+                    { value: "ai-coach", icon: Brain, label: "AI Coach", shortLabel: "Coach" },
+                    { value: "settings", icon: Settings, label: "Settings", shortLabel: "Prefs" },
+                    { value: "invites", icon: Users, label: "Invites", shortLabel: "Join" },
+                    { value: "quests", icon: Target, label: "Quests", shortLabel: "Daily" },
+                    { value: "leaderboards", icon: Crown, label: "Ranks", shortLabel: "Top" },
+                    { value: "stats", icon: Trophy, label: "Stats", shortLabel: "Me" },
+                  ].map((tab, index) => (
+                    <motion.div
+                      key={tab.value}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: 0.4 + index * 0.05 }}
+                      whileHover={{ y: -1 }}
+                    >
+                      <TabsTrigger 
+                        value={tab.value} 
+                        className="relative transition-all duration-200 hover:bg-primary/10"
+                      >
+                        <motion.div
+                          className="flex items-center gap-1"
+                          whileHover={{ scale: 1.05 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <tab.icon className="w-3 h-3" />
+                          <span className="hidden sm:inline">{tab.label}</span>
+                          <span className="sm:hidden">{tab.shortLabel}</span>
+                        </motion.div>
+                        {activeTab === tab.value && (
+                          <motion.div
+                            className="absolute inset-0 bg-primary/10 rounded-md -z-10"
+                            layoutId="activeTab"
+                            transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                          />
+                        )}
+                      </TabsTrigger>
+                    </motion.div>
+                  ))}
+                </TabsList>
+              </motion.div>
+
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <TabsContent value="library" className="space-y-6">
+                    <GameLibrary />
+                  </TabsContent>
+
+                  <TabsContent value="active" className="space-y-6">
+                    <ActiveGames />
+                  </TabsContent>
+
+                  <TabsContent value="tournaments" className="space-y-6">
+                    <Tournaments />
+                  </TabsContent>
+
+                  <TabsContent value="ai-coach" className="space-y-6">
+                    <AICoach />
+                  </TabsContent>
+
+                  <TabsContent value="settings" className="space-y-6">
+                    <GameSettings />
+                  </TabsContent>
+
+                  <TabsContent value="invites" className="space-y-6">
+                    <GameInvites />
+                  </TabsContent>
+
+                  <TabsContent value="quests" className="space-y-6">
+                    <DailyQuests />
+                  </TabsContent>
+
+                  <TabsContent value="leaderboards" className="space-y-6">
+                    <Leaderboards />
+                  </TabsContent>
+
+                  <TabsContent value="stats" className="space-y-6">
+                    <GameStats />
+                  </TabsContent>
+                </motion.div>
+              </AnimatePresence>
+            </Tabs>
+          </motion.div>
         </div>
       </div>
     </main>

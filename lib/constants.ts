@@ -11,10 +11,14 @@ declare global {
 
 
 // --- Buckets de Stockage (Supabase) ---
-export const MEDIA_UPLOAD_BUCKET = process.env.MEDIA_UPLOAD_BUCKET || "images";
-export const MEDIA_VIDEO_BUCKET = process.env.MEDIA_VIDEO_BUCKET || "videos";
-export const TTS_AUDIO_BUCKET = "ttsaudio"; 
-export const SIGNED_URL_EXPIRY_SECONDS = 60 * 5; 
+export const MEDIA_UPLOAD_BUCKET = process.env.MEDIA_UPLOAD_BUCKET || "audio-recordings";
+export const AUDIO_BUCKET = "audio-recordings";
+export const IMAGE_BUCKET = "images";
+export const VIDEO_BUCKET = "videos";
+export const DOCUMENT_BUCKET = "documents";
+
+// --- URL Expiry Times ---
+export const SIGNED_URL_EXPIRY_SECONDS = 60 * 60; // 1 hour for signed URLs
 
 // --- Limites d'Upload de Fichiers ---
 export const ALLOWED_AUDIO_TYPES = [

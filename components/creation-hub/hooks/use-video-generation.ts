@@ -33,6 +33,8 @@ export interface VideoGenerationRequest {
   imageFile?: File;
   prompt: string;
   duration?: number;
+  platform?: string;
+  format?: string;
 }
 
 export function useVideoGeneration(options: VideoGenerationOptions = {}) {
@@ -101,7 +103,7 @@ export function useVideoGeneration(options: VideoGenerationOptions = {}) {
       }
 
       // Check if generation is complete
-      if (result.status === 'SUCCEEDED') {
+      if (result.status === 'SUCCEEDED' || result.status === 'completed') {
         const completedVideo: GeneratedVideo = {
           ...currentVideo!,
           status: 'completed',
@@ -116,7 +118,7 @@ export function useVideoGeneration(options: VideoGenerationOptions = {}) {
         
         onSuccess?.(completedVideo);
         
-      } else if (result.status === 'FAILED') {
+      } else if (result.status === 'FAILED' || result.status === 'failed') {
         const error = new Error(result.errorMessage || 'Video generation failed');
         setError(error);
         setIsGenerating(false);
@@ -125,7 +127,7 @@ export function useVideoGeneration(options: VideoGenerationOptions = {}) {
         
         onError?.(error);
         
-      } else if (result.status === 'PROCESSING' || result.status === 'PENDING') {
+      } else if (result.status === 'PROCESSING' || result.status === 'PENDING' || result.status === 'generating') {
         // Continue polling
         setCurrentVideo(prev => prev ? { ...prev, status: 'generating', progress: result.progress || prev.progress } : null);
       }
@@ -183,7 +185,9 @@ export function useVideoGeneration(options: VideoGenerationOptions = {}) {
       // Prepare request payload
       const payload: any = {
         prompt: request.prompt,
-        duration: request.duration || 5
+        duration: request.duration || 5,
+        platform: request.platform,
+        format: request.format
       };
 
       if (request.imageUrl) {
@@ -213,7 +217,7 @@ export function useVideoGeneration(options: VideoGenerationOptions = {}) {
       
       // Create initial video object
       const initialVideo: GeneratedVideo = {
-        id: result.videoId,
+        id: result.videoId || `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         taskId: result.taskId,
         status: 'generating',
         originalImageUrl: request.imageUrl,

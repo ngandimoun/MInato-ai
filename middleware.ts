@@ -20,12 +20,13 @@ export const config = {
      * - /auth/callback (Supabase callback handled differently)
      * - /api/auth/ (Internal auth routes)
      * - /api/public/ (Example public API route if needed)
+     * - /api/test-runway-status (Test endpoint)
      * - /sw.js (Service worker file)
      * - /manifest.json (PWA manifest)
      * - /icon-*.png (App icons)
      * - / (Landing page handled by updateSession redirect logic)
      */
-    '/((?!_next/static|_next/image|favicon.ico|auth/callback|api/auth/|api/public/|sw.js|manifest.json|icon-.*\\.png$|$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|auth/callback|api/auth/|api/public/|api/test-runway-status|sw.js|manifest.json|icon-.*\\.png$|$).*)',
     // Protect /chat explicitly if not covered by the negative lookahead
     '/chat/:path*',
     // Include API routes that require authentication

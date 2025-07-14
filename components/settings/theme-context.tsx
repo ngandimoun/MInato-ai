@@ -54,11 +54,31 @@ export function ThemeProvider({
   storageKeyTheme = "minato-theme",
   storageKeyPalette = "minato-palette",
 }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>(() => (typeof window !== 'undefined' ? localStorage.getItem(storageKeyTheme) as Theme : defaultTheme) || defaultTheme)
-  const [colorPalette, setColorPaletteState] = useState<ColorPalette>(() => (typeof window !== 'undefined' ? localStorage.getItem(storageKeyPalette) as ColorPalette : defaultColorPalette) || defaultColorPalette)
+  // Initialize with default values to prevent hydration mismatch
+  const [theme, setThemeState] = useState<Theme>(defaultTheme)
+  const [colorPalette, setColorPaletteState] = useState<ColorPalette>(defaultColorPalette)
+  const [isHydrated, setIsHydrated] = useState(false)
+
+  // Load saved values from localStorage after hydration
+  useEffect(() => {
+    const savedTheme = localStorage.getItem(storageKeyTheme) as Theme
+    const savedPalette = localStorage.getItem(storageKeyPalette) as ColorPalette
+    
+    if (savedTheme && (savedTheme === "light" || savedTheme === "dark" || savedTheme === "system")) {
+      setThemeState(savedTheme)
+    }
+    
+    if (savedPalette && PALETTE_CLASSES.includes(`palette-${savedPalette}`)) {
+      setColorPaletteState(savedPalette)
+    }
+    
+    setIsHydrated(true)
+  }, [storageKeyTheme, storageKeyPalette])
 
   // Use useLayoutEffect to apply theme/palette before browser paints to avoid FOUC
   useLayoutEffect(() => {
+    if (!isHydrated) return // Don't apply until hydrated to prevent mismatch
+    
     const root = window.document.documentElement
 
     // --- Palette Handling ---
@@ -80,37 +100,39 @@ export function ThemeProvider({
     root.classList.add(effectiveTheme);
     console.log(`Applied theme: ${effectiveTheme}, classes:`, root.classList.toString());
 
-  }, [theme, colorPalette]); // Apply immediately on change
+  }, [theme, colorPalette, isHydrated]); // Apply immediately on change
 
   // Listen for system theme changes
   useEffect(() => {
-    if (theme !== "system") return;
+    if (theme !== "system" || !isHydrated) return;
 
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = () => {
+      // Re-apply theme when system preference changes
       const root = window.document.documentElement;
       root.classList.remove("light", "dark");
       const systemTheme = mediaQuery.matches ? "dark" : "light";
       root.classList.add(systemTheme);
+      console.log(`System theme changed to: ${systemTheme}`);
     };
 
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [theme]);
+  }, [theme, isHydrated]);
 
   // Update state and localStorage
   const setTheme = (newTheme: Theme) => {
-    if (typeof window !== 'undefined') {
+    setThemeState(newTheme);
+    if (isHydrated) {
       localStorage.setItem(storageKeyTheme, newTheme);
     }
-    setThemeState(newTheme);
   };
 
   const setColorPalette = (newPalette: ColorPalette) => {
-    if (typeof window !== 'undefined') {
+    setColorPaletteState(newPalette);
+    if (isHydrated) {
       localStorage.setItem(storageKeyPalette, newPalette);
     }
-    setColorPaletteState(newPalette);
   };
 
   const value = {

@@ -27,10 +27,18 @@ const nextConfig = {
       }
     ],
   },
+  // Optimize for production
+  swcMinify: true,
+  reactStrictMode: true,
+  poweredByHeader: false,
+  
+  // Optimize page loading
   experimental: {
+    optimizeCss: true,
+    scrollRestoration: true,
     webpackBuildWorker: true,
-    parallelServerBuildTraces: true,
     parallelServerCompiles: true,
+    parallelServerBuildTraces: true
   },
   webpack: (config, { isServer }) => {
     if (isServer) {
@@ -40,6 +48,36 @@ const nextConfig = {
         process: false,
       };
     }
+    
+    // Optimize memory usage - only for client-side chunks
+    if (!isServer) {
+      config.optimization = {
+        ...config.optimization,
+        splitChunks: {
+          chunks: 'all',
+          cacheGroups: {
+            vendor: {
+              test: /[\\/]node_modules[\\/]/,
+              name: 'vendors',
+              chunks: 'all',
+            },
+          },
+        },
+      };
+    }
+    
+    // Reduce memory pressure during builds
+    config.infrastructureLogging = {
+      level: 'error',
+    };
+    
+    // Fix CommonJS/ES module compatibility
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      '.js': ['.js', '.ts'],
+      '.jsx': ['.jsx', '.tsx'],
+    };
+    
     return config;
   },
 }
