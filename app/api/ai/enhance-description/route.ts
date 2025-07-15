@@ -47,6 +47,11 @@ export async function POST(req: NextRequest) {
 CRITICAL: The output text MUST be concise enough to fit within ${maxCharacters} characters while maintaining impact and engagement. Prioritize punchy, memorable phrases over lengthy descriptions.`;
     }
 
+    // Add language instruction
+    if (language && language !== 'en') {
+      prompt += `\n\nVERY IMPORTANT: Write the entire response in ${getLanguageName(language)}. Do not use English or any other language.`;
+    }
+
     // Prepare vision messages
     const visionMessages: ChatMessage[] = [{
       role: 'user',
@@ -102,4 +107,24 @@ CRITICAL: The output text MUST be concise enough to fit within ${maxCharacters} 
       error: 'Failed to enhance description'
     }, { status: 500 });
   }
+} 
+
+// Helper function to get language name from code
+function getLanguageName(code: string): string {
+  const languages: {[key: string]: string} = {
+    'en': 'English',
+    'es': 'Spanish',
+    'fr': 'French',
+    'de': 'German',
+    'it': 'Italian',
+    'pt': 'Portuguese',
+    'ru': 'Russian',
+    'ja': 'Japanese',
+    'ko': 'Korean',
+    'zh': 'Chinese',
+    'ar': 'Arabic',
+    'hi': 'Hindi'
+  };
+  
+  return languages[code] || 'the specified language';
 } 

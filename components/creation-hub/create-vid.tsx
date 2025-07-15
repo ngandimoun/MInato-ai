@@ -22,7 +22,10 @@ import {
   Zap,
   Star,
   Heart,
-  Share2
+  Share2,
+  Bot,
+  Clipboard,
+  ArrowDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -319,7 +322,13 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
     voiceCharacter: "Voice Character",
     audioDuration: "Audio Duration",
     creatingVideo: "Creating Video",
-    processingMedia: "Processing Media"
+    processingMedia: "Processing Media",
+    aiAssist: "AI Assistant",
+    aiAssistTooltip: "Refine text to be more compelling",
+    copyText: "Copy text",
+    applyText: "Apply to input",
+    textCopied: "Text copied to clipboard!",
+    textApplied: "Enhanced text applied!"
   });
 
   // Initialize translations
@@ -365,7 +374,13 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
         translateText("Voice Character", language, "en"),
         translateText("Audio Duration", language, "en"),
         translateText("Creating Video", language, "en"),
-        translateText("Processing Media", language, "en")
+        translateText("Processing Media", language, "en"),
+        translateText("AI Assistant", language, "en"),
+        translateText("Refine and improve your text", language, "en"),
+        translateText("Copy text", language, "en"),
+        translateText("Apply to input", language, "en"),
+        translateText("Text copied to clipboard!", language, "en"),
+        translateText("Enhanced text applied!", language, "en")
       ]);
 
       setTranslatedText({
@@ -404,7 +419,13 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
         voiceCharacter: translations[32],
         audioDuration: translations[33],
         creatingVideo: translations[34],
-        processingMedia: translations[35]
+        processingMedia: translations[35],
+        aiAssist: translations[36],
+        aiAssistTooltip: translations[37],
+        copyText: translations[38],
+        applyText: translations[39],
+        textCopied: translations[40],
+        textApplied: translations[41]
       });
     } catch (error) {
       console.error('Translation error:', error);
@@ -567,7 +588,7 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
           description: text.trim() || '', // Backward compatibility
           platform: selectedPlatform,
           format: selectedFormat,
-          language: selectedLanguage,
+          language: selectedLanguage, // This is the selected language code
           maxCharacters: formatData?.maxCharacters || 125,
           platformData: platformData,
           formatData: formatData,
@@ -770,6 +791,31 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
       setIsGenerating(false);
     }
   }, [user, selectedMedia, text, selectedVoice, selectedLanguage, audioDuration, selectedPlatform, selectedFormat, onVideoCreated, translatedText]);
+
+  // Add function to copy text to clipboard
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: translatedText.textCopied,
+      duration: 2000,
+    });
+  };
+
+  // Add function to apply enhanced text
+  const applyEnhancedText = () => {
+    setText(enhancedText);
+    setEnhancedText(''); // Clear enhanced text since it's now the main text
+    toast({
+      title: translatedText.textApplied,
+      duration: 2000,
+    });
+  };
+
+  // Helper function to get language name from code
+  const getLanguageDisplay = (code: string) => {
+    const language = SUPPORTED_LANGUAGES.find(lang => lang.code === code);
+    return language ? `${language.flag} ${language.name}` : 'English';
+  };
 
   // Video player view (when video is generated)
   const renderVideoPlayer = () => {
@@ -1383,6 +1429,24 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
                     className="min-h-[120px] bg-white/10 border-white/20 text-white placeholder:text-white/50 resize-none pr-20 backdrop-blur-sm transition-all duration-300 focus:bg-white/20"
                   />
                   
+                  {/* AI Button */}
+                  <div className="absolute top-3 right-3">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={handleEnhanceText}
+                      disabled={isEnhancing}
+                      className="h-8 w-8 rounded-full bg-gradient-to-r from-purple-600/70 to-blue-600/70 hover:from-purple-600/90 hover:to-blue-600/90 border-0 backdrop-blur-sm"
+                      title="Refine and improve text"
+                    >
+                      {isEnhancing ? (
+                        <Loader2 className="h-4 w-4 text-white animate-spin" />
+                      ) : (
+                        <Bot className="h-4 w-4 text-white" />
+                      )}
+                    </Button>
+                  </div>
+                  
                   {/* Character Counter */}
                   {getSelectedFormatData() && (
                     <div className="absolute bottom-3 right-3 text-xs">
@@ -1399,10 +1463,32 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
                     animate={{ opacity: 1, y: 0 }}
                     className="mb-6 p-4 bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 border border-green-500/20 rounded-lg backdrop-blur-sm"
                   >
-                    <p className="text-sm text-green-300 mb-2 flex items-center gap-2">
-                      <Sparkles className="h-4 w-4" />
-                      ✨ AI Enhanced version:
-                    </p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm text-green-300 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4" />
+                        ✨ AI Enhanced ({getLanguageDisplay(selectedLanguage)}):
+                      </p>
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-7 px-2 bg-white/10 hover:bg-white/20 text-green-300"
+                          onClick={() => copyToClipboard(enhancedText)}
+                        >
+                          <Clipboard className="h-3.5 w-3.5 mr-1" />
+                          {translatedText.copyText}
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-7 px-2 bg-white/10 hover:bg-white/20 text-green-300"
+                          onClick={applyEnhancedText}
+                        >
+                          <ArrowDown className="h-3.5 w-3.5 mr-1" />
+                          {translatedText.applyText}
+                        </Button>
+                      </div>
+                    </div>
                     <p className="text-sm text-white/90">{enhancedText}</p>
                   </motion.div>
                 )}
