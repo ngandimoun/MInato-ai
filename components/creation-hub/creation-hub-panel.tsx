@@ -693,6 +693,49 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
     }
   }, []);
 
+  const handleVideoDownload = useCallback(async (video: any) => {
+    if (!video.video_url) return;
+
+    try {
+      const response = await fetch(video.video_url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch video: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      
+      // Generate filename based on video data
+      const timestamp = new Date(video.created_at).toISOString().split('T')[0];
+      const sanitizedText = video.original_text 
+        ? video.original_text.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase().substring(0, 30)
+        : 'video';
+      const filename = `video-${timestamp}-${sanitizedText}-${video.id.slice(-6)}.mp4`;
+      
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(link);
+
+      toast({
+        title: "Download Started",
+        description: `Downloading ${filename}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: error instanceof Error ? error.message : "Failed to download video",
+        variant: "destructive",
+      });
+    }
+  }, []);
+
   const handleImageClick = useCallback((image: GeneratedImage) => {
     setSelectedImage(image);
     setIsImageEditorOpen(true);
@@ -1774,7 +1817,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                                         <Button
                                           size="sm"
                                           variant="outline"
-                                          onClick={() => window.open(video.video_url, '_blank')}
+                                          onClick={() => handleVideoDownload(video)}
                                           className="h-7 px-2 hover:bg-primary/10 hover:border-primary/50 transition-colors"
                                         >
                                           <motion.div
