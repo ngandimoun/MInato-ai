@@ -424,16 +424,48 @@ export function VideoGenerator({ className, language = "en", onVideoGenerated }:
     await generateVideo(request);
   };
 
-  const handleDownloadVideo = (video: GeneratedVideo) => {
-    if (video.videoUrl) {
+  const handleDownloadVideo = useCallback(async (video: GeneratedVideo) => {
+    if (!video.videoUrl) return;
+
+    try {
+      const response = await fetch(video.videoUrl);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch video: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      
+      // Generate filename based on video data
+      const timestamp = new Date().toISOString().split('T')[0];
+      const sanitizedPrompt = video.prompt 
+        ? video.prompt.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase().substring(0, 30)
+        : 'video';
+      const filename = `video-${timestamp}-${sanitizedPrompt}-${video.id.slice(-6)}.mp4`;
+      
       const link = document.createElement('a');
-      link.href = video.videoUrl;
-      link.download = `video-${video.id}.mp4`;
+      link.href = downloadUrl;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(link);
+
+      toast({
+        title: "Download Started",
+        description: `Downloading ${filename}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: error instanceof Error ? error.message : "Failed to download video",
+        variant: "destructive",
+      });
     }
-  };
+  }, []);
 
   // Clean up object URLs when component unmounts
   useEffect(() => {
