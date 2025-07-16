@@ -491,6 +491,11 @@ export function useUserInvitations() {
             live_game_rooms (
               room_code,
               game_types (name, display_name, icon_name, color_theme)
+            ),
+            host_profile:user_profiles!host_user_id (
+              full_name,
+              first_name,
+              avatar_url
             )
           `)
           .eq('invited_user_id', user.id)
@@ -499,18 +504,23 @@ export function useUserInvitations() {
 
         if (error) throw error;
 
-        const invitationsData: GameInviteItem[] = (data || []).map((invite: InvitationRow) => ({
-          id: invite.id,
-          game_id: invite.room_id,
-          host_user_id: invite.host_user_id,
-          host_username: invite.host_username || 'Unknown Host',
-          host_avatar: '',
-          game_type: invite.live_game_rooms?.game_types?.name || 'unknown',
-          display_name: invite.live_game_rooms?.game_types?.display_name || 'Unknown Game',
-          status: 'pending' as const,
-          created_at: Date.parse(invite.created_at),
-          expires_at: Date.parse(invite.expires_at),
-        }));
+        const invitationsData: GameInviteItem[] = (data || []).map((invite: any) => {
+          const hostProfile = invite.host_profile;
+          const hostUsername = hostProfile?.full_name || hostProfile?.first_name || 'Unknown Host';
+          
+          return {
+            id: invite.id,
+            game_id: invite.room_id,
+            host_user_id: invite.host_user_id,
+            host_username: hostUsername,
+            host_avatar: hostProfile?.avatar_url || '',
+            game_type: invite.live_game_rooms?.game_types?.name || 'unknown',
+            display_name: invite.live_game_rooms?.game_types?.display_name || 'Unknown Game',
+            status: 'pending' as const,
+            created_at: Date.parse(invite.created_at),
+            expires_at: Date.parse(invite.expires_at),
+          };
+        });
 
         setInvitations(invitationsData);
       } catch (error) {
@@ -528,21 +538,17 @@ export function useUserInvitations() {
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'game_invitations', filter: `invited_user_id=eq.${user.id}` },
         () => {
-          fetchInvitations(); // Refetch when invitations change
+          fetchInvitations();
         }
-      );
-
-    channel.subscribe();
+      )
+      .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [user?.id, supabase]);
 
-  return {
-    invitations,
-    isLoading,
-  };
+  return { invitations, isLoading };
 }
 
 export function useSupabaseGameMutations() {
