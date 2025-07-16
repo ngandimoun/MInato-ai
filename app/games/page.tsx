@@ -324,7 +324,7 @@ function GamesPage() {
                         >
                           <tab.icon className="w-3 h-3" />
                           <span className="hidden sm:inline">{tab.label}</span>
-                          <span className="sm:hidden">{tab.shortLabel}</span>
+                          <span className="hidden">{tab.shortLabel}</span>
                         </motion.div>
                         {activeTab === tab.value && (
                           <motion.div
