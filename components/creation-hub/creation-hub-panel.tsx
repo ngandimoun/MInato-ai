@@ -545,7 +545,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
 
   // Use custom hooks for generation and conversations
   const { generate, isGenerating, progress, error: generationError, cancel } = useImageGeneration({
-    streaming: true,
+    streaming: false,
     onSuccess: (image) => {
       // Add to both conversation and user images
       addImage(image);

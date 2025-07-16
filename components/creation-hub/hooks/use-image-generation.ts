@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { logger } from '@/memory-framework/config';
 import type {
   GeneratedImage,
@@ -115,9 +115,8 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}): Use
       onSuccess?.(generatedImage);
 
       // Show success toast
-      toast({
-        title: "Image Generated!",
-        description: "Your image has been created successfully.",
+      toast.success("Image Generated!", {
+        description: "Your image has been created successfully. Go to your gallery to view it.",
       });
 
       return generatedImage;
@@ -135,10 +134,8 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}): Use
       onError?.(hubError);
 
       // Show error toast
-      toast({
-        title: "Generation Failed",
+      toast.error("Generation Failed", {
         description: hubError.message,
-        variant: "destructive",
       });
 
       throw hubError;
@@ -157,8 +154,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}): Use
       
       logger.info('[useImageGeneration] Generation cancelled');
       
-      toast({
-        title: "Generation Cancelled",
+      toast.info("Generation Cancelled", {
         description: "Image generation has been stopped.",
       });
     }
