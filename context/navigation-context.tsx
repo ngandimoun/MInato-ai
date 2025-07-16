@@ -1,3 +1,5 @@
+// FILE: context/navigation-context.tsx
+
 "use client";
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
