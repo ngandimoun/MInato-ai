@@ -80,7 +80,7 @@ export function VideoUpload({ onUploadComplete, onUploadStart }: VideoUploadProp
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    
+
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       handleFileSelect(files[0]);
@@ -121,7 +121,7 @@ export function VideoUpload({ onUploadComplete, onUploadStart }: VideoUploadProp
       }
 
       const result = await response.json();
-      
+
       setUploadProgress({
         progress: 50,
         status: 'processing',
@@ -154,7 +154,7 @@ export function VideoUpload({ onUploadComplete, onUploadStart }: VideoUploadProp
         });
 
         onUploadComplete?.(result.stream_id);
-        
+
         // Reset form
         setTimeout(() => {
           setSelectedFile(null);
@@ -200,7 +200,7 @@ export function VideoUpload({ onUploadComplete, onUploadStart }: VideoUploadProp
 
   const getStatusIcon = () => {
     if (!uploadProgress) return null;
-    
+
     switch (uploadProgress.status) {
       case 'uploading':
       case 'processing':
@@ -225,25 +225,24 @@ export function VideoUpload({ onUploadComplete, onUploadStart }: VideoUploadProp
       <CardContent className="space-y-6">
         {/* File Upload Area */}
         <div
-          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-            isDragOver
+          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isDragOver
               ? 'border-primary bg-primary/10'
               : selectedFile
-              ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-              : 'border-gray-300 hover:border-gray-400'
-          }`}
+                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                : 'border-gray-300 hover:border-gray-400'
+            }`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          <input
+          {/* <input
             ref={fileInputRef}
             type="file"
             accept="video/*"
             onChange={handleFileInputChange}
             className="hidden"
-          />
-          
+          /> */}
+
           {selectedFile ? (
             <div className="space-y-4">
               <div className="flex items-center justify-center gap-2">
@@ -265,7 +264,7 @@ export function VideoUpload({ onUploadComplete, onUploadStart }: VideoUploadProp
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-              
+
               {uploadProgress && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
@@ -288,7 +287,12 @@ export function VideoUpload({ onUploadComplete, onUploadStart }: VideoUploadProp
                   <Button
                     variant="link"
                     className="p-0 h-auto"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      toast({
+                        title: "Coming Soon",
+                        description: "This feature will be available shortly.",
+                      });
+                    }}
                   >
                     browse files
                   </Button>

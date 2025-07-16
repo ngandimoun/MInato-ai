@@ -1026,7 +1026,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
             {[
               { value: "generate", icon: Wand2, label: "Generate", shortLabel: translatedText.genIm },
               { value: "video", icon: Film, label: translatedText.genVid, shortLabel: translatedText.genVid },
-              { value: "createvid", icon: Wand2, label: translatedText.create, shortLabel: translatedText.create },
+              // { value: "createvid", icon: Wand2, label: translatedText.create, shortLabel: translatedText.create },
               { value: "gallery", icon: ImageIcon, label: translatedText.gallery, shortLabel: translatedText.gallery },
               { value: "ai-leads", icon: MessageSquare, label: translatedText.leads, shortLabel: translatedText.leads },
             ].map((tab, index) => (
