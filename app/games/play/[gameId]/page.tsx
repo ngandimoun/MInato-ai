@@ -705,13 +705,13 @@ export default function GamePlayPage() {
                     <CardTitle className="text-xl">
                       {gameData.game_type_id?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Game'}
                     </CardTitle>
-                    <p className="text-sm text-muted-foreground">
+                    <div className="text-sm text-muted-foreground">
                       {gameData.difficulty && (
                         <Badge variant="secondary" className="mt-1">
                           {gameData.difficulty.charAt(0).toUpperCase() + gameData.difficulty.slice(1)} Level
                         </Badge>
                       )}
-                    </p>
+                    </div>
                   </div>
                 </div>
                 

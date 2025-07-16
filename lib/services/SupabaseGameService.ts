@@ -735,8 +735,7 @@ export class SupabaseGameService {
         const { data: players, error: playersError } = await this.supabase
           .from('live_game_players')
           .select('user_id, current_answer_index, answer_submitted_at')
-          .eq('room_id', roomId)
-          .eq('is_active', true);
+          .eq('room_id', roomId);
 
         if (playersError) {
           console.error('❌ [NEXT QUESTION] Failed to check player answers:', playersError);
