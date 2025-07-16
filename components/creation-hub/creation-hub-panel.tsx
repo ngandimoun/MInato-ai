@@ -99,7 +99,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
   // Add translated UI text state
   const [translatedText, setTranslatedText] = useState({
     title: "Creation Hub",
-    subtitle: "Generate and create stunning images with AI",
+    subtitle: "Unlock your Creativity with AI.",
     categoryTitle: "Choose Creation Type",
     categorySubtitle: "Select a category to unlock specialized tools and enhanced prompts",
     searchPlaceholder: "Search categories...",
@@ -262,7 +262,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
         // Reset to default English text
         setTranslatedText({
           title: "Creation Hub",
-          subtitle: "Generate and create stunning images with AI",
+          subtitle: "Unlock your Creativity with AI.",
           categoryTitle: "Choose Creation Type",
           categorySubtitle: "Select a category to unlock specialized tools and enhanced prompts",
           searchPlaceholder: "Search categories...",
@@ -293,7 +293,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
         // Step 1: Translate basic UI elements first for fast feedback
         const basicTranslations = await Promise.all([
           translateText("Creation Hub", language, "en"),
-          translateText("Generate and create stunning images with AI", language, "en"),
+          translateText("Unlock your Creativity with AI.", language, "en"),
           translateText("Gen Im", language, "en"),
           translateText("Gen Vid", language, "en"),
           translateText("Create", language, "en"),

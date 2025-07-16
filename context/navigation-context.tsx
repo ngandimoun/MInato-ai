@@ -37,7 +37,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         "/chat?view=settings", 
         "/creation-hub", 
         "/listening", 
-        "/games"
+        "/games",
+        "/dashboard"
       ];
       
       const shouldShowLoading = !skipLoadingPaths.some(skipPath => 
