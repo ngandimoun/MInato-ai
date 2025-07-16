@@ -287,6 +287,25 @@ export class SupabaseGameService {
         throw joinError;
       }
 
+      // Broadcast player join event to all players in the room
+      console.log(`📡 [JOIN GAME] Broadcasting PLAYER_JOINED event for ${request.username}`);
+      await this.supabase
+        .channel(`game_room:${room.topic}`)
+        .send({
+          type: 'broadcast',
+          event: 'PLAYER_JOINED',
+          payload: {
+            type: 'PLAYER_JOINED',
+            room_id: room.id,
+            player: {
+              user_id: request.user_id,
+              username: request.username,
+              avatar_url: request.avatar_url,
+            },
+            timestamp: Date.now()
+          }
+        });
+
       // Subscribe to room channel for realtime updates
       await this.subscribeToRoom(room.topic, request.user_id);
 
@@ -665,43 +684,119 @@ export class SupabaseGameService {
 
   async nextQuestion(roomId: string, userId: string): Promise<GameResponse> {
     try {
-      console.log(`🔄 NextQuestion called for room ${roomId} by user ${userId}`);
+      console.log(`🔄 [NEXT QUESTION] Called for room ${roomId} by user ${userId}`);
       
-      // Get current room state
-      const { data: room } = await this.supabase
+      // Get current room state with atomic check
+      const { data: room, error: fetchError } = await this.supabase
         .from('live_game_rooms')
         .select('*')
         .eq('id', roomId)
         .single();
 
-      if (!room) {
-        console.error('❌ Room not found for nextQuestion');
+      if (fetchError || !room) {
+        console.error('❌ [NEXT QUESTION] Room not found for nextQuestion', fetchError);
         return { success: false, error: 'Room not found' };
       }
 
       const currentIndex = room.current_question_index || 0;
       const nextQuestionIndex = currentIndex + 1;
       
-      console.log(`📊 Question progression: ${currentIndex} → ${nextQuestionIndex} (total: ${room.questions?.length})`);
+      console.log(`📊 [NEXT QUESTION] Question progression: ${currentIndex} → ${nextQuestionIndex} (total: ${room.questions?.length})`);
+      console.log(`📊 [NEXT QUESTION] Room status: ${room.status}, Questions available: ${room.questions?.length || 0}`);
+      
+      // Validate questions array
+      if (!room.questions || !Array.isArray(room.questions) || room.questions.length === 0) {
+        console.error('❌ [NEXT QUESTION] No questions found in room');
+        return { success: false, error: 'No questions found in room' };
+      }
 
       // Check if game is finished
       if (nextQuestionIndex >= room.questions.length) {
-        console.log('🏁 Game finished, calling finishGame');
+        console.log('🏁 [NEXT QUESTION] Game finished, calling finishGame');
         return await this.finishGame(roomId);
       }
 
-      // Set next question
-      console.log(`⏭️ Setting question ${nextQuestionIndex}`);
+      // Validate the next question exists
+      if (!room.questions[nextQuestionIndex]) {
+        console.error(`❌ [NEXT QUESTION] Question at index ${nextQuestionIndex} does not exist`);
+        return { success: false, error: `Question ${nextQuestionIndex} not found` };
+      }
+
+      console.log(`📝 [NEXT QUESTION] Next question preview:`, {
+        index: nextQuestionIndex,
+        question: room.questions[nextQuestionIndex]?.question?.substring(0, 60) + '...',
+        options: room.questions[nextQuestionIndex]?.options?.length || 0,
+        correctAnswer: room.questions[nextQuestionIndex]?.correct_answer
+      });
+
+      // SERVER-SIDE COORDINATION: Check if all players have submitted answers
+      // This prevents premature advancement in multiplayer games
+      if (room.mode === 'multiplayer') {
+        const { data: players, error: playersError } = await this.supabase
+          .from('live_game_players')
+          .select('user_id, current_answer_index, answer_submitted_at')
+          .eq('room_id', roomId)
+          .eq('is_active', true);
+
+        if (playersError) {
+          console.error('❌ [NEXT QUESTION] Failed to check player answers:', playersError);
+          return { success: false, error: 'Failed to check player status' };
+        }
+
+        const activePlayers = players || [];
+        const playersWithAnswers = activePlayers.filter((p: any) => p.answer_submitted_at !== null);
+        
+        console.log(`👥 [NEXT QUESTION] Player answer status: ${playersWithAnswers.length}/${activePlayers.length} players have answered`);
+        
+        // Only advance if all players have submitted answers OR if this is a forced advance
+        const allPlayersAnswered = playersWithAnswers.length === activePlayers.length;
+        
+        if (!allPlayersAnswered && activePlayers.length > 1) {
+          console.log(`⏳ [NEXT QUESTION] Waiting for more players to answer (${playersWithAnswers.length}/${activePlayers.length})`);
+          
+          // For multiplayer, we'll use a different strategy - set a flag and let the timer handle advancement
+          // This prevents race conditions but still allows progression
+          const waitTime = 3000; // 3 seconds grace period
+          
+          setTimeout(async () => {
+            console.log(`⏰ [NEXT QUESTION] Grace period expired, forcing advancement for room ${roomId}`);
+            // Re-call nextQuestion after grace period
+            await this.setCurrentQuestion(roomId, nextQuestionIndex);
+          }, waitTime);
+          
+          return { 
+            success: true, 
+            message: `Waiting for other players to answer (${playersWithAnswers.length}/${activePlayers.length})` 
+          };
+        }
+      }
+
+      // Set next question with atomic operation
+      console.log(`⏭️ [NEXT QUESTION] Setting question ${nextQuestionIndex}`);
       await this.setCurrentQuestion(roomId, nextQuestionIndex);
 
-      console.log('✅ NextQuestion completed successfully');
+      // Verify the question was set correctly
+      const { data: updatedRoom } = await this.supabase
+        .from('live_game_rooms')
+        .select('current_question_index, current_question')
+        .eq('id', roomId)
+        .single();
+
+      if (updatedRoom) {
+        console.log(`✅ [NEXT QUESTION] Question index updated to: ${updatedRoom.current_question_index}`);
+        console.log(`✅ [NEXT QUESTION] Current question set:`, {
+          question: updatedRoom.current_question?.question?.substring(0, 60) + '...',
+          options: updatedRoom.current_question?.options?.length || 0,
+          timeLimit: updatedRoom.current_question?.time_limit
+        });
+      }
+
       return {
         success: true,
-        message: 'Advanced to next question',
-        data: { new_question_index: nextQuestionIndex }
+        message: `Advanced to question ${nextQuestionIndex + 1}`,
       };
     } catch (error) {
-      console.error('❌ Error advancing to next question:', error);
+      console.error('❌ [NEXT QUESTION] Error in nextQuestion:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to advance question',
@@ -1096,83 +1191,87 @@ export class SupabaseGameService {
   private async setCurrentQuestion(roomId: string, questionIndex: number): Promise<void> {
     console.log(`🎯 [SET CURRENT QUESTION] Setting question ${questionIndex} for room ${roomId}`);
     
-    const { data: room } = await this.supabase
+    // Use atomic update with conditional check to prevent race conditions
+    const { data: currentRoom, error: fetchError } = await this.supabase
       .from('live_game_rooms')
-      .select('questions, settings')
+      .select('questions, settings, current_question_index, status')
       .eq('id', roomId)
       .single();
 
-    if (!room) {
-      console.error(`❌ [SET CURRENT QUESTION] Room not found: ${roomId}`);
+    if (fetchError || !currentRoom) {
+      console.error(`❌ [SET CURRENT QUESTION] Room not found: ${roomId}`, fetchError);
       return;
     }
 
-    if (!room.questions || !Array.isArray(room.questions) || room.questions.length === 0) {
+    if (!currentRoom.questions || !Array.isArray(currentRoom.questions) || currentRoom.questions.length === 0) {
       console.error(`❌ [SET CURRENT QUESTION] No questions found in room ${roomId}`);
       return;
     }
 
-    if (!room.questions[questionIndex]) {
-      console.error(`❌ [SET CURRENT QUESTION] Question at index ${questionIndex} not found. Available questions: ${room.questions.length}`);
+    if (!currentRoom.questions[questionIndex]) {
+      console.error(`❌ [SET CURRENT QUESTION] Question at index ${questionIndex} not found. Available questions: ${currentRoom.questions.length}`);
+      return;
+    }
+
+    // Validate that we're progressing correctly (prevent skipping)
+    const currentIndex = currentRoom.current_question_index;
+    if (currentIndex !== null && questionIndex !== currentIndex + 1 && questionIndex !== 0) {
+      console.warn(`⚠️ [SET CURRENT QUESTION] Potential question skip detected: ${currentIndex} → ${questionIndex}. Rejecting update.`);
       return;
     }
 
     console.log(`✅ [SET CURRENT QUESTION] Found question ${questionIndex}:`, {
-      question: room.questions[questionIndex].question?.substring(0, 50) + '...',
-      optionsCount: room.questions[questionIndex].options?.length || 0,
-      correctAnswer: room.questions[questionIndex].correct_answer
+      question: currentRoom.questions[questionIndex].question?.substring(0, 50) + '...',
+      optionsCount: currentRoom.questions[questionIndex].options?.length || 0,
+      correctAnswer: currentRoom.questions[questionIndex].correct_answer,
+      currentIndex: currentRoom.current_question_index
     });
 
-    const question = room.questions[questionIndex];
+    const question = currentRoom.questions[questionIndex];
     
-    // Ensure the question has valid options
-    let validOptions = [...(question.options || [])];
-    
-    // Ensure options array exists and has content
-    if (!validOptions || !Array.isArray(validOptions) || validOptions.length < 4) {
-      // Create new options array if needed
-      validOptions = validOptions || [];
-      
-      // Fill missing options with defaults
-      while (validOptions.length < 4) {
-        validOptions.push(`Option ${String.fromCharCode(65 + validOptions.length)}`);
-      }
-    }
-    
-    // Ensure each option has content and trim whitespace
-    validOptions = validOptions.map((opt: string, index: number) => {
-      const trimmed = typeof opt === 'string' ? opt.trim() : '';
-      return trimmed ? trimmed : `Option ${String.fromCharCode(65 + index)}`;
-    });
-    
-    // Ensure exactly 4 options (not more, not less)
-    if (validOptions.length > 4) {
-      validOptions = validOptions.slice(0, 4);
-    }
-    
-    // Ensure correct_answer index is valid
-    if (typeof question.correct_answer !== 'number' || 
-        question.correct_answer < 0 || 
-        question.correct_answer >= validOptions.length) {
-      question.correct_answer = 0;
-    }
-    
-    const currentQuestion: CurrentQuestion = {
-      question: question.question || `Question ${questionIndex + 1}`,
-      options: validOptions,
-      time_limit: room.settings.time_per_question,
+    // Create current question object with timing
+    const currentQuestion = {
+      question: question.question,
+      options: question.options,
+      time_limit: currentRoom.settings?.time_per_question || 30,
       started_at: Date.now(),
     };
 
-    await this.supabase
+    // ATOMIC UPDATE: Only update if current_question_index hasn't changed since we fetched it
+    // This prevents race conditions where multiple players try to advance simultaneously
+    const updateConditions = currentIndex !== null 
+      ? { current_question_index: currentIndex } // Only update if still at the expected index
+      : {}; // First question, no condition needed
+
+    const { data: updatedRoom, error: updateError } = await this.supabase
       .from('live_game_rooms')
       .update({
         current_question_index: questionIndex,
         current_question: currentQuestion,
       })
-      .eq('id', roomId);
+      .eq('id', roomId)
+      .match(updateConditions) // Atomic condition
+      .select('current_question_index')
+      .single();
 
-    // Reset all players' answers for new question
+    if (updateError) {
+      console.error(`❌ [SET CURRENT QUESTION] Failed to update question atomically:`, updateError);
+      // Check if this was due to a race condition
+      if (updateError.message?.includes('No rows') || updateError.code === 'PGRST116') {
+        console.log(`🔄 [SET CURRENT QUESTION] Race condition detected - another player already advanced the question`);
+        return;
+      }
+      throw updateError;
+    }
+
+    if (!updatedRoom) {
+      console.log(`🔄 [SET CURRENT QUESTION] No update performed - likely due to race condition (another player advanced first)`);
+      return;
+    }
+
+    console.log(`✅ [SET CURRENT QUESTION] Question ${questionIndex} set successfully with atomic update`);
+
+    // Reset all players' answers for the new question
     await this.supabase
       .from('live_game_players')
       .update({
@@ -1182,16 +1281,15 @@ export class SupabaseGameService {
       })
       .eq('room_id', roomId);
 
-    console.log(`📡 [SET CURRENT QUESTION] Broadcasting NEW_QUESTION event for question ${questionIndex}`);
-    
-    // Broadcast new question
+    console.log(`🔄 [SET CURRENT QUESTION] Players' answers reset for new question`);
+
+    // Broadcast the new question event
+    console.log(`📢 [SET CURRENT QUESTION] Broadcasting NEW_QUESTION event...`);
     await this.broadcastGameEvent(roomId, 'NEW_QUESTION', {
       question_index: questionIndex,
       question: currentQuestion,
       timestamp: Date.now(),
     });
-    
-    console.log(`✅ [SET CURRENT QUESTION] NEW_QUESTION event broadcasted for question ${questionIndex}`);
   }
 
   private async finishGame(roomId: string): Promise<GameResponse> {
@@ -1241,7 +1339,7 @@ export class SupabaseGameService {
 
   private async broadcastGameEvent(roomId: string, eventType: string, eventData: any): Promise<void> {
     try {
-      console.log(`📡 Broadcasting event: ${eventType} for room ${roomId}`);
+      console.log(`📡 [BROADCAST] Broadcasting event: ${eventType} for room ${roomId}`);
       
       // Get room topic for direct channel broadcast
       const { data: room } = await this.supabase
@@ -1251,57 +1349,56 @@ export class SupabaseGameService {
         .single();
 
       if (!room?.topic) {
-        console.error('❌ Room not found for broadcasting');
+        console.error('❌ [BROADCAST] Room not found for broadcasting');
         return;
       }
 
-      // Try to get existing channel, or create one if none exists
-      let channel = this.channels.get(room.topic);
-      
-      if (!channel) {
-        console.log(`📡 No active channel found for topic: ${room.topic}, creating one...`);
-        
-        try {
-          // Create a temporary channel for broadcasting
-          const newChannel = this.supabase
-            .channel(`game_room:${room.topic}`)
-            .on('broadcast', { event: '*' }, (payload: any) => {
-              console.log('📻 Broadcast event received:', payload);
-            });
-          
-          // Subscribe to the channel
-          await newChannel.subscribe((status: string) => {
-            console.log(`📡 Broadcast channel status: ${status}`);
-          });
-          
-          // Store the channel for future use
-          this.channels.set(room.topic, newChannel);
-          channel = newChannel;
-        } catch (channelError) {
-          console.error(`❌ Failed to create channel: ${channelError}`);
-        }
-      }
+      console.log(`📡 [BROADCAST] Broadcasting to channel: game_room:${room.topic}`);
 
-      // Direct channel broadcast
-      if (channel) {
-        try {
-          await channel.send({
-            type: 'broadcast',
-            event: eventType,
-            payload: {
-              room_id: roomId,
-              event_type: eventType,
-              event_data: eventData,
-              timestamp: Date.now(),
-            }
-          });
-          console.log(`✅ Event ${eventType} broadcasted successfully`);
-        } catch (sendError) {
-          console.error(`❌ Failed to send broadcast event: ${sendError}`);
+      // Use a simpler, more reliable approach: create a fresh channel for each broadcast
+      // This ensures the channel is properly established before sending
+      const broadcastChannel = this.supabase.channel(`game_room:${room.topic}`);
+      
+      // Wait for channel to be ready
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Channel subscription timeout'));
+        }, 5000); // 5 second timeout
+        
+        broadcastChannel.subscribe((status: string) => {
+          console.log(`📡 [BROADCAST] Channel status: ${status}`);
+          if (status === 'SUBSCRIBED') {
+            clearTimeout(timeout);
+            resolve();
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            clearTimeout(timeout);
+            reject(new Error(`Channel error: ${status}`));
+          }
+        });
+      });
+
+      // Now send the broadcast
+      const broadcastPayload = {
+        type: 'broadcast',
+        event: eventType,
+        payload: {
+          room_id: roomId,
+          event_type: eventType,
+          event_data: eventData,
+          timestamp: Date.now(),
         }
-      } else {
-        console.warn(`⚠️ Failed to create channel for topic: ${room.topic}`);
-      }
+      };
+
+      console.log(`📡 [BROADCAST] Sending payload:`, broadcastPayload);
+      
+      await broadcastChannel.send(broadcastPayload);
+      
+      console.log(`✅ [BROADCAST] Event ${eventType} broadcasted successfully to game_room:${room.topic}`);
+      
+      // Clean up the channel after a short delay
+      setTimeout(() => {
+        broadcastChannel.unsubscribe();
+      }, 1000);
 
       // Also insert to game_events table as backup
       try {
@@ -1312,12 +1409,47 @@ export class SupabaseGameService {
             event_type: eventType,
             event_data: eventData,
           });
+        console.log(`✅ [BROADCAST] Event ${eventType} also saved to database`);
       } catch (dbError) {
-        console.warn('⚠️ Failed to insert to game_events table:', dbError);
+        console.warn('⚠️ [BROADCAST] Failed to insert to game_events table:', dbError);
         // Don't fail the broadcast if database insert fails
       }
     } catch (error) {
-      console.error('❌ Failed to broadcast event:', error);
+      console.error('❌ [BROADCAST] Failed to broadcast event:', error);
+      
+      // Fallback: try a direct broadcast without subscription
+      try {
+        const { data: room } = await this.supabase
+          .from('live_game_rooms')
+          .select('topic')
+          .eq('id', roomId)
+          .single();
+
+        if (room?.topic) {
+          console.log(`🔄 [BROADCAST] Attempting fallback broadcast for ${eventType}`);
+          
+          const fallbackChannel = this.supabase.channel(`game_room:${room.topic}`);
+          await fallbackChannel.send({
+            type: 'broadcast',
+            event: eventType,
+            payload: {
+              room_id: roomId,
+              event_type: eventType,
+              event_data: eventData,
+              timestamp: Date.now(),
+            }
+          });
+          
+          console.log(`✅ [BROADCAST] Fallback broadcast successful for ${eventType}`);
+          
+          // Clean up fallback channel
+          setTimeout(() => {
+            fallbackChannel.unsubscribe();
+          }, 500);
+        }
+      } catch (fallbackError) {
+        console.error('❌ [BROADCAST] Fallback broadcast also failed:', fallbackError);
+      }
     }
   }
 

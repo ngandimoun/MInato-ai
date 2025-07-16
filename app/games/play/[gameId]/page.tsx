@@ -129,7 +129,11 @@ export default function GamePlayPage() {
     const safetyTimeout = setTimeout(() => {
       console.log('⚠️ Safety timeout: resetting auto-advance state');
       setIsAutoAdvancing(false);
-    }, 5000);
+    }, 8000); // Increased timeout for multiplayer coordination
+    
+    // Add a small delay to prevent multiple simultaneous calls
+    // In multiplayer, this gives time for server-side coordination
+    const delay = gameData?.mode === 'multiplayer' ? 1000 : 500;
     
     setTimeout(async () => {
       if (!roomId || !user) {
@@ -147,19 +151,25 @@ export default function GamePlayPage() {
         clearTimeout(safetyTimeout);
         setIsAutoAdvancing(false);
         
-        // Force refresh game data after successful advancement
-        // This ensures UI updates even if real-time events fail
-        setTimeout(() => {
-          console.log('🔄 Force refreshing game data after auto-advance');
-          window.location.reload();
-        }, 500);
+        // For multiplayer games, don't force reload - let real-time updates handle it
+        // For solo games, we can be more aggressive with updates
+        if (gameData?.mode === 'solo') {
+          // Force refresh for solo games only
+          setTimeout(() => {
+            console.log('🔄 Force refreshing game data after solo auto-advance');
+            window.location.reload();
+          }, 500);
+        } else {
+          // For multiplayer, just log and let real-time handle the updates
+          console.log('🔄 Multiplayer auto-advance complete, waiting for real-time updates...');
+        }
       } catch (error) {
         console.error('❌ Auto-advance failed:', error);
         clearTimeout(safetyTimeout);
         setIsAutoAdvancing(false);
       }
-    }, 2000);
-  }, [roomId, user, nextQuestionMutation, isAutoAdvancing]);
+    }, delay);
+  }, [roomId, user, nextQuestionMutation, isAutoAdvancing, gameData?.mode]);
 
   const handleAnswerSelect = async (answerIndex: number) => {
     if (hasAnswered || !user || !roomId) return;

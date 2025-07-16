@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
 
       console.log('📡 [START GAME API] Broadcasting GAME_STARTED event...');
 
-      // Broadcast GAME_STARTED event to all players
+      // Broadcast GAME_STARTED event to all players using the correct channel name
       const gameStartedPayload = {
         type: 'GAME_STARTED',
         room_id: roomId,
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
       };
 
       await supabase
-        .channel(`game_${roomId}`)
+        .channel(`game_room:${room.topic}`)
         .send({
           type: 'broadcast',
           event: 'GAME_STARTED',
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
       };
 
       await supabase
-        .channel(`game_${roomId}`)
+        .channel(`game_room:${room.topic}`)
         .send({
           type: 'broadcast',
           event: 'NEW_QUESTION',

@@ -295,6 +295,22 @@ export function useSupabaseGame(roomId: string | null) {
           console.log(`📡 Subscription status: ${status}`);
           if (status === 'SUBSCRIBED') {
             console.log('✅ Successfully subscribed to realtime updates');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Channel error, attempting to reconnect...');
+            // Retry subscription after a delay
+            setTimeout(() => {
+              if (mounted) {
+                setupRealtimeSubscription();
+              }
+            }, 2000);
+          } else if (status === 'TIMED_OUT') {
+            console.error('⏰ Subscription timed out, retrying...');
+            // Retry subscription after a delay
+            setTimeout(() => {
+              if (mounted) {
+                setupRealtimeSubscription();
+              }
+            }, 1000);
           }
         });
 
@@ -303,6 +319,13 @@ export function useSupabaseGame(roomId: string | null) {
 
       } catch (error) {
         console.error('❌ Failed to setup realtime subscription:', error);
+        // Retry after a delay
+        setTimeout(() => {
+          if (mounted) {
+            console.log('🔄 Retrying realtime subscription setup...');
+            setupRealtimeSubscription();
+          }
+        }, 3000);
       }
     };
 
@@ -315,7 +338,58 @@ export function useSupabaseGame(roomId: string | null) {
       switch (eventType) {
         case 'GAME_STARTED':
           console.log('🚀 Game started, refetching data...');
+          
+          // Optimistic update - immediately update game status
+          if (mounted) {
+            setGame(prevGame => {
+              if (!prevGame) return null;
+              
+              return {
+                ...prevGame,
+                status: 'in_progress',
+                started_at: payload.payload?.started_at || new Date().toISOString(),
+              };
+            });
+          }
+          
+          // Also fetch from database for consistency
           fetchGameData();
+          break;
+          
+        case 'PLAYER_JOINED':
+          console.log('👤 Player joined lobby, updating players list...');
+          
+          // Optimistic update - add player immediately to UI
+          const playerData = payload.payload?.player;
+          if (playerData && mounted) {
+            setPlayers(prevPlayers => {
+              // Check if player already exists
+              const existingPlayer = prevPlayers?.find(p => p.user_id === playerData.user_id);
+              if (existingPlayer) {
+                return prevPlayers; // Player already exists, no update needed
+              }
+              
+              // Add new player
+              const newPlayer = {
+                id: `temp-${playerData.user_id}`,
+                room_id: payload.payload?.room_id || '',
+                user_id: playerData.user_id,
+                username: playerData.username,
+                avatar_url: playerData.avatar_url,
+                score: 0,
+                correct_answers: 0,
+                is_ready: false,
+                is_online: true,
+                joined_at: new Date().toISOString(),
+                last_seen: new Date().toISOString(),
+              };
+              
+              return [...(prevPlayers || []), newPlayer];
+            });
+          }
+          
+          // Also fetch from database for consistency
+          fetchPlayers();
           break;
           
         case 'NEW_QUESTION':

@@ -131,6 +131,30 @@ export async function POST(request: NextRequest) {
           );
         }
 
+        // Broadcast player join event to all players in the room
+        console.log(`📡 [INVITATION ACCEPT] Broadcasting PLAYER_JOINED event for ${username}`);
+        try {
+          await supabase
+            .channel(`game_room:${room.topic}`)
+            .send({
+              type: 'broadcast',
+              event: 'PLAYER_JOINED',
+              payload: {
+                type: 'PLAYER_JOINED',
+                room_id: room.id,
+                player: {
+                  user_id: user.id,
+                  username: username,
+                  avatar_url: profile?.avatar_url,
+                },
+                timestamp: Date.now()
+              }
+            });
+        } catch (broadcastError) {
+          console.error('Error broadcasting player join:', broadcastError);
+          // Don't fail the join if broadcast fails
+        }
+
         return NextResponse.json({
           success: true,
           message: 'Invitation accepted and joined game room',
