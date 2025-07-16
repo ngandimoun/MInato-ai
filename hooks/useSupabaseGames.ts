@@ -484,7 +484,8 @@ export function useUserInvitations() {
 
     const fetchInvitations = async () => {
       try {
-        const { data, error } = await supabase
+        // First, try to fetch with user_profiles join
+        let { data, error } = await supabase
           .from('game_invitations')
           .select(`
             *,
@@ -499,14 +500,44 @@ export function useUserInvitations() {
             )
           `)
           .eq('invited_user_id', user.id)
-          .eq('status', 'pending')
-          .order('created_at', { ascending: false });
+          .in('status', ['pending', 'accepted', 'declined']) // Show recent invitations even if responded to
+          .order('created_at', { ascending: false })
+          .limit(10); // Limit to recent invitations
 
-        if (error) throw error;
+        // If the user_profiles table doesn't exist, try without the join
+        if (error && error.message.includes('user_profiles')) {
+          console.warn('user_profiles table not found, fetching without host info');
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('game_invitations')
+            .select(`
+              *,
+              live_game_rooms (
+                room_code,
+                game_types (name, display_name, icon_name, color_theme)
+              )
+            `)
+            .eq('invited_user_id', user.id)
+            .in('status', ['pending', 'accepted', 'declined'])
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+          if (fallbackError) throw fallbackError;
+          data = fallbackData;
+        } else if (error) {
+          throw error;
+        }
 
         const invitationsData: GameInviteItem[] = (data || []).map((invite: any) => {
           const hostProfile = invite.host_profile;
-          const hostUsername = hostProfile?.full_name || hostProfile?.first_name || 'Unknown Host';
+          let hostUsername = 'Unknown Host';
+          
+          // Try to get host username from profile
+          if (hostProfile?.full_name) {
+            hostUsername = hostProfile.full_name;
+          } else if (hostProfile?.first_name) {
+            hostUsername = hostProfile.first_name;
+          }
+          // If no profile info available, we'll keep "Unknown Host" as fallback
           
           return {
             id: invite.id,
@@ -516,13 +547,18 @@ export function useUserInvitations() {
             host_avatar: hostProfile?.avatar_url || '',
             game_type: invite.live_game_rooms?.game_types?.name || 'unknown',
             display_name: invite.live_game_rooms?.game_types?.display_name || 'Unknown Game',
-            status: 'pending' as const,
+            status: invite.status === 'pending' ? 'pending' : 'pending', // Always show as pending in UI for now
             created_at: Date.parse(invite.created_at),
             expires_at: Date.parse(invite.expires_at),
           };
         });
 
-        setInvitations(invitationsData);
+        // Filter to only show pending invitations for now
+        const pendingInvitations = invitationsData.filter(inv => 
+          data?.find((d: any) => d.id === inv.id)?.status === 'pending'
+        );
+
+        setInvitations(pendingInvitations);
       } catch (error) {
         console.error('Error fetching invitations:', error);
       } finally {
