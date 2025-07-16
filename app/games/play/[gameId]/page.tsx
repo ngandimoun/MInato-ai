@@ -132,8 +132,7 @@ export default function GamePlayPage() {
     }, 8000); // Increased timeout for multiplayer coordination
     
     // Add a small delay to prevent multiple simultaneous calls
-    // In multiplayer, this gives time for server-side coordination
-    const delay = gameData?.mode === 'multiplayer' ? 1000 : 500;
+    const delay = 500; // Same delay for both solo and multiplayer
     
     setTimeout(async () => {
       if (!roomId || !user) {
@@ -151,18 +150,14 @@ export default function GamePlayPage() {
         clearTimeout(safetyTimeout);
         setIsAutoAdvancing(false);
         
-        // For multiplayer games, don't force reload - let real-time updates handle it
-        // For solo games, we can be more aggressive with updates
-        if (gameData?.mode === 'solo') {
-          // Force refresh for solo games only
-          setTimeout(() => {
-            console.log('🔄 Force refreshing game data after solo auto-advance');
-            window.location.reload();
-          }, 500);
-        } else {
-          // For multiplayer, just log and let real-time handle the updates
-          console.log('🔄 Multiplayer auto-advance complete, waiting for real-time updates...');
-        }
+        // Let real-time updates handle the UI changes for both solo and multiplayer
+        console.log('🔄 Auto-advance complete, waiting for real-time updates...');
+        
+        // Add immediate fallback in case real-time fails
+        setTimeout(() => {
+          console.log('🔄 [FALLBACK] Force refreshing after auto-advance');
+          window.location.reload();
+        }, 3000); // 3 second fallback
       } catch (error) {
         console.error('❌ Auto-advance failed:', error);
         clearTimeout(safetyTimeout);

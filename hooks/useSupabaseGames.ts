@@ -128,6 +128,7 @@ export function useSupabaseGame(roomId: string | null) {
   const [players, setPlayers] = useState<GamePlayer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastQuestionIndex, setLastQuestionIndex] = useState<number | null>(null);
 
   const supabase = getBrowserSupabaseClient();
 
@@ -218,7 +219,14 @@ export function useSupabaseGame(roomId: string | null) {
             difficulty: gameRoom.difficulty,
           });
 
-          setGame(gameRoom);
+          setGame(prevGame => {
+            // Track question index changes for fallback detection
+            if (gameRoom.current_question_index !== prevGame?.current_question_index) {
+              setLastQuestionIndex(gameRoom.current_question_index ?? null);
+              console.log(`📊 [GAME STATE] Question index updated: ${prevGame?.current_question_index} → ${gameRoom.current_question_index}`);
+            }
+            return gameRoom;
+          });
           setError(null);
         }
       } catch (err) {
@@ -441,8 +449,25 @@ export function useSupabaseGame(roomId: string | null) {
     fetchPlayers();
     setupRealtimeSubscription();
 
+    // Aggressive fallback polling for question changes
+    const fallbackPolling = setInterval(() => {
+      if (mounted && game && game.status === 'in_progress') {
+        const currentQuestionIndex = game.current_question_index;
+        
+        // Check if question index has changed without real-time event
+        if (lastQuestionIndex !== null && currentQuestionIndex !== lastQuestionIndex) {
+          console.log(`🔄 [FALLBACK] Question index changed detected: ${lastQuestionIndex} → ${currentQuestionIndex}`);
+          fetchGameData();
+        }
+        
+        // Always fetch game data to catch missed updates
+        fetchGameData();
+      }
+    }, 1000); // Check every 1 second - more aggressive
+
     return () => {
       mounted = false;
+      clearInterval(fallbackPolling);
       if (channel) {
         console.log('🔌 Unsubscribing from realtime channel');
         channel.unsubscribe();

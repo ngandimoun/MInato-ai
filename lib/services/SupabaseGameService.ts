@@ -729,46 +729,8 @@ export class SupabaseGameService {
         correctAnswer: room.questions[nextQuestionIndex]?.correct_answer
       });
 
-      // SERVER-SIDE COORDINATION: Check if all players have submitted answers
-      // This prevents premature advancement in multiplayer games
-      if (room.mode === 'multiplayer') {
-        const { data: players, error: playersError } = await this.supabase
-          .from('live_game_players')
-          .select('user_id, current_answer_index, answer_submitted_at')
-          .eq('room_id', roomId);
-
-        if (playersError) {
-          console.error('❌ [NEXT QUESTION] Failed to check player answers:', playersError);
-          return { success: false, error: 'Failed to check player status' };
-        }
-
-        const activePlayers = players || [];
-        const playersWithAnswers = activePlayers.filter((p: any) => p.answer_submitted_at !== null);
-        
-        console.log(`👥 [NEXT QUESTION] Player answer status: ${playersWithAnswers.length}/${activePlayers.length} players have answered`);
-        
-        // Only advance if all players have submitted answers OR if this is a forced advance
-        const allPlayersAnswered = playersWithAnswers.length === activePlayers.length;
-        
-        if (!allPlayersAnswered && activePlayers.length > 1) {
-          console.log(`⏳ [NEXT QUESTION] Waiting for more players to answer (${playersWithAnswers.length}/${activePlayers.length})`);
-          
-          // For multiplayer, we'll use a different strategy - set a flag and let the timer handle advancement
-          // This prevents race conditions but still allows progression
-          const waitTime = 3000; // 3 seconds grace period
-          
-          setTimeout(async () => {
-            console.log(`⏰ [NEXT QUESTION] Grace period expired, forcing advancement for room ${roomId}`);
-            // Re-call nextQuestion after grace period
-            await this.setCurrentQuestion(roomId, nextQuestionIndex);
-          }, waitTime);
-          
-          return { 
-            success: true, 
-            message: `Waiting for other players to answer (${playersWithAnswers.length}/${activePlayers.length})` 
-          };
-        }
-      }
+      // Each player advances independently - no waiting for others
+      // This is the correct behavior for multiplayer games
 
       // Set next question with atomic operation
       console.log(`⏭️ [NEXT QUESTION] Setting question ${nextQuestionIndex}`);
@@ -1354,92 +1316,52 @@ export class SupabaseGameService {
 
       console.log(`📡 [BROADCAST] Broadcasting to channel: game_room:${room.topic}`);
 
-      // Check if we already have a channel for this room
-      const channelName = `game_room:${room.topic}`;
-      let broadcastChannel = this.channels.get(room.topic);
+      // Create a fresh channel for each broadcast - simpler and more reliable
+      const broadcastChannel = this.supabase.channel(`game_room:${room.topic}`);
       
-      if (!broadcastChannel) {
-        // Create a persistent channel if it doesn't exist
-        broadcastChannel = this.supabase.channel(channelName);
+      // Subscribe and wait for ready state
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Channel subscription timeout'));
+        }, 5000);
         
-        // Wait for channel to be ready
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error('Channel subscription timeout'));
-          }, 5000); // 5 second timeout
-          
-          broadcastChannel!.subscribe((status: string) => {
-            console.log(`📡 [BROADCAST] Channel status: ${status}`);
-            if (status === 'SUBSCRIBED') {
-              clearTimeout(timeout);
-              resolve();
-            } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-              clearTimeout(timeout);
-              reject(new Error(`Channel error: ${status}`));
-            }
-          });
+        broadcastChannel.subscribe((status: string) => {
+          console.log(`📡 [BROADCAST] Channel status: ${status}`);
+          if (status === 'SUBSCRIBED') {
+            clearTimeout(timeout);
+            resolve();
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            clearTimeout(timeout);
+            reject(new Error(`Channel error: ${status}`));
+          }
         });
-        
-        // Store the channel for reuse
-        this.channels.set(room.topic, broadcastChannel);
-      }
+      });
 
-      // Now send the broadcast
-      const broadcastPayload = {
-        type: 'broadcast',
-        event: eventType,
-        payload: {
-          room_id: roomId,
-          event_type: eventType,
-          event_data: eventData,
-          timestamp: Date.now(),
-        }
+      // Send the broadcast
+      const payload = {
+        room_id: roomId,
+        event_type: eventType,
+        event_data: eventData,
+        timestamp: Date.now(),
       };
 
-      console.log(`📡 [BROADCAST] Sending payload:`, broadcastPayload);
+      console.log(`📡 [BROADCAST] Sending payload:`, payload);
       
-      await broadcastChannel.send(broadcastPayload);
+      await broadcastChannel.send({
+        type: 'broadcast' as const,
+        event: eventType,
+        payload: payload,
+      });
       
-      console.log(`✅ [BROADCAST] Event ${eventType} broadcasted successfully to ${channelName}`);
+      console.log(`✅ [BROADCAST] Event ${eventType} broadcasted successfully`);
+      
+      // Clean up the channel after a longer delay to ensure message delivery
+      setTimeout(() => {
+        broadcastChannel.unsubscribe();
+      }, 5000); // Increased delay to ensure message delivery
 
-      // Note: game_events table is for different purpose (session events, not room events)
-      // Real-time broadcast is the primary mechanism for game events
     } catch (error) {
       console.error('❌ [BROADCAST] Failed to broadcast event:', error);
-      
-      // Fallback: try a direct broadcast without subscription
-      try {
-        const { data: room } = await this.supabase
-          .from('live_game_rooms')
-          .select('topic')
-          .eq('id', roomId)
-          .single();
-
-        if (room?.topic) {
-          console.log(`🔄 [BROADCAST] Attempting fallback broadcast for ${eventType}`);
-          
-          const fallbackChannel = this.supabase.channel(`game_room:${room.topic}`);
-          await fallbackChannel.send({
-            type: 'broadcast',
-            event: eventType,
-            payload: {
-              room_id: roomId,
-              event_type: eventType,
-              event_data: eventData,
-              timestamp: Date.now(),
-            }
-          });
-          
-          console.log(`✅ [BROADCAST] Fallback broadcast successful for ${eventType}`);
-          
-          // Clean up fallback channel
-          setTimeout(() => {
-            fallbackChannel.unsubscribe();
-          }, 500);
-        }
-      } catch (fallbackError) {
-        console.error('❌ [BROADCAST] Fallback broadcast also failed:', fallbackError);
-      }
     }
   }
 
