@@ -1354,27 +1354,35 @@ export class SupabaseGameService {
 
       console.log(`📡 [BROADCAST] Broadcasting to channel: game_room:${room.topic}`);
 
-      // Use a simpler, more reliable approach: create a fresh channel for each broadcast
-      // This ensures the channel is properly established before sending
-      const broadcastChannel = this.supabase.channel(`game_room:${room.topic}`);
+      // Check if we already have a channel for this room
+      const channelName = `game_room:${room.topic}`;
+      let broadcastChannel = this.channels.get(room.topic);
       
-      // Wait for channel to be ready
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Channel subscription timeout'));
-        }, 5000); // 5 second timeout
+      if (!broadcastChannel) {
+        // Create a persistent channel if it doesn't exist
+        broadcastChannel = this.supabase.channel(channelName);
         
-        broadcastChannel.subscribe((status: string) => {
-          console.log(`📡 [BROADCAST] Channel status: ${status}`);
-          if (status === 'SUBSCRIBED') {
-            clearTimeout(timeout);
-            resolve();
-          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-            clearTimeout(timeout);
-            reject(new Error(`Channel error: ${status}`));
-          }
+        // Wait for channel to be ready
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Channel subscription timeout'));
+          }, 5000); // 5 second timeout
+          
+          broadcastChannel!.subscribe((status: string) => {
+            console.log(`📡 [BROADCAST] Channel status: ${status}`);
+            if (status === 'SUBSCRIBED') {
+              clearTimeout(timeout);
+              resolve();
+            } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+              clearTimeout(timeout);
+              reject(new Error(`Channel error: ${status}`));
+            }
+          });
         });
-      });
+        
+        // Store the channel for reuse
+        this.channels.set(room.topic, broadcastChannel);
+      }
 
       // Now send the broadcast
       const broadcastPayload = {
@@ -1392,27 +1400,10 @@ export class SupabaseGameService {
       
       await broadcastChannel.send(broadcastPayload);
       
-      console.log(`✅ [BROADCAST] Event ${eventType} broadcasted successfully to game_room:${room.topic}`);
-      
-      // Clean up the channel after a short delay
-      setTimeout(() => {
-        broadcastChannel.unsubscribe();
-      }, 1000);
+      console.log(`✅ [BROADCAST] Event ${eventType} broadcasted successfully to ${channelName}`);
 
-      // Also insert to game_events table as backup
-      try {
-        await this.supabase
-          .from('game_events')
-          .insert({
-            room_id: roomId,
-            event_type: eventType,
-            event_data: eventData,
-          });
-        console.log(`✅ [BROADCAST] Event ${eventType} also saved to database`);
-      } catch (dbError) {
-        console.warn('⚠️ [BROADCAST] Failed to insert to game_events table:', dbError);
-        // Don't fail the broadcast if database insert fails
-      }
+      // Note: game_events table is for different purpose (session events, not room events)
+      // Real-time broadcast is the primary mechanism for game events
     } catch (error) {
       console.error('❌ [BROADCAST] Failed to broadcast event:', error);
       
