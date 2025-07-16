@@ -44,19 +44,19 @@ export function GameInvites() {
   // Convert from Supabase format to component format
   const incomingInvites = invitations.map(invite => ({
     id: invite.id,
-    game_session_id: invite.game_id,
-    host_user_id: invite.host_user_id,
-    host_username: invite.host_username,
-    host_avatar_url: invite.host_avatar,
+    game_session_id: invite.roomCode, // Use roomCode instead of game_id
+    host_user_id: invite.hostUserId,
+    host_username: invite.hostUsername,
+    host_avatar_url: invite.hostAvatar,
     invited_user_id: user?.id || '',
     game_type: {
-      display_name: invite.display_name,
-      icon_name: 'GameController2', // Default icon
+      display_name: invite.gameType,
+      icon_name: invite.gameIcon,
       estimated_duration_minutes: 15 // Default duration
     },
     status: invite.status,
-    created_at: new Date(invite.created_at).toISOString(),
-    expires_at: new Date(invite.expires_at).toISOString(),
+    created_at: invite.createdAt, // Already a string, no need to convert
+    expires_at: invite.expiresAt, // Already a string, no need to convert
     type: "incoming" as const
   }));
   

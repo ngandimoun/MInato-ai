@@ -209,15 +209,16 @@ export interface ActiveGameItem {
 
 export interface GameInviteItem {
   id: string;
-  game_id: string;
-  host_user_id: string;
-  host_username: string;
-  host_avatar?: string;
-  game_type: string;
-  display_name: string;
-  status: 'pending';
-  created_at: number;
-  expires_at: number;
+  hostUserId: string;
+  hostUsername: string;
+  hostAvatar?: string;
+  gameType: string;
+  gameIcon: string;
+  gameColor: string;
+  roomCode: string;
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: string;
+  expiresAt: string;
 }
 
 export interface GameStatsItem {

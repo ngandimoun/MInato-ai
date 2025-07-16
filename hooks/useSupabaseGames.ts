@@ -484,84 +484,59 @@ export function useUserInvitations() {
 
     const fetchInvitations = async () => {
       try {
-        // First, try to fetch with user_profiles join
-        let { data, error } = await supabase
+        const { data, error } = await supabase
           .from('game_invitations')
           .select(`
             *,
-            live_game_rooms (
+            live_game_rooms!room_id (
               room_code,
               game_types (name, display_name, icon_name, color_theme)
             ),
-            host_profile:user_profiles!host_user_id (
+            user_profiles!host_user_id (
               full_name,
               first_name,
               avatar_url
             )
           `)
           .eq('invited_user_id', user.id)
-          .in('status', ['pending', 'accepted', 'declined']) // Show recent invitations even if responded to
+          .in('status', ['pending', 'accepted', 'declined'])
           .order('created_at', { ascending: false })
-          .limit(10); // Limit to recent invitations
+          .limit(10);
 
-        // If the user_profiles table doesn't exist, try without the join
-        if (error && error.message.includes('user_profiles')) {
-          console.warn('user_profiles table not found, fetching without host info');
-          const { data: fallbackData, error: fallbackError } = await supabase
-            .from('game_invitations')
-            .select(`
-              *,
-              live_game_rooms (
-                room_code,
-                game_types (name, display_name, icon_name, color_theme)
-              )
-            `)
-            .eq('invited_user_id', user.id)
-            .in('status', ['pending', 'accepted', 'declined'])
-            .order('created_at', { ascending: false })
-            .limit(10);
-
-          if (fallbackError) throw fallbackError;
-          data = fallbackData;
-        } else if (error) {
-          throw error;
+        if (error) {
+          console.error('Error fetching invitations:', error);
+          setInvitations([]);
+          setIsLoading(false);
+          return;
         }
 
-        const invitationsData: GameInviteItem[] = (data || []).map((invite: any) => {
-          const hostProfile = invite.host_profile;
-          let hostUsername = 'Unknown Host';
-          
-          // Try to get host username from profile
-          if (hostProfile?.full_name) {
-            hostUsername = hostProfile.full_name;
-          } else if (hostProfile?.first_name) {
-            hostUsername = hostProfile.first_name;
-          }
-          // If no profile info available, we'll keep "Unknown Host" as fallback
-          
+        const invitationsData = data?.map((invite: any) => {
+          const hostProfile = invite.user_profiles;
+          const hostName = hostProfile?.full_name || hostProfile?.first_name || 'Unknown Host';
+          const hostAvatar = hostProfile?.avatar_url || '';
+          const gameRoom = invite.live_game_rooms;
+          const gameType = gameRoom?.game_types;
+
           return {
             id: invite.id,
-            game_id: invite.room_id,
-            host_user_id: invite.host_user_id,
-            host_username: hostUsername,
-            host_avatar: hostProfile?.avatar_url || '',
-            game_type: invite.live_game_rooms?.game_types?.name || 'unknown',
-            display_name: invite.live_game_rooms?.game_types?.display_name || 'Unknown Game',
-            status: invite.status === 'pending' ? 'pending' : 'pending', // Always show as pending in UI for now
-            created_at: Date.parse(invite.created_at),
-            expires_at: Date.parse(invite.expires_at),
+            hostUserId: invite.host_user_id,
+            hostUsername: hostName,
+            hostAvatar: hostAvatar,
+            gameType: gameType?.display_name || 'Unknown Game',
+            gameIcon: gameType?.icon_name || '🎮',
+            gameColor: gameType?.color_theme || 'blue',
+            roomCode: gameRoom?.room_code || '',
+            status: invite.status,
+            createdAt: invite.created_at,
+            expiresAt: invite.expires_at,
           };
-        });
+        }) || [];
 
-        // Filter to only show pending invitations for now
-        const pendingInvitations = invitationsData.filter(inv => 
-          data?.find((d: any) => d.id === inv.id)?.status === 'pending'
-        );
-
-        setInvitations(pendingInvitations);
+        setInvitations(invitationsData);
+        setIsLoading(false);
       } catch (error) {
-        console.error('Error fetching invitations:', error);
-      } finally {
+        console.error('Error in fetchInvitations:', error);
+        setInvitations([]);
         setIsLoading(false);
       }
     };
@@ -569,10 +544,16 @@ export function useUserInvitations() {
     fetchInvitations();
 
     // Set up real-time subscription for invitations
-    const channel = supabase
-      .channel('user_invitations')
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'game_invitations', filter: `invited_user_id=eq.${user.id}` },
+    const subscription = supabase
+      .channel('game_invitations')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'game_invitations',
+          filter: `invited_user_id=eq.${user.id}`,
+        },
         () => {
           fetchInvitations();
         }
@@ -580,7 +561,7 @@ export function useUserInvitations() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      subscription.unsubscribe();
     };
   }, [user?.id, supabase]);
 
