@@ -183,7 +183,248 @@ export const CATEGORY_INFO: Record<ImageCategory, CategoryInfo> = {
     color: '#FECA57',
     gradient: 'from-yellow-400 to-orange-500',
     examples: ['Website headers', 'Event banners', 'Profile covers', 'Display ads'],
-    tags: ['banner', 'header', 'cover', 'large-format', 'profile', 'advertising']
+    tags: ['banner', 'header', 'cover', 'large-format', 'profile', 'advertising'],
+    formFields: [
+      {
+        id: 'platform',
+        type: 'select',
+        label: 'Platform *',
+        required: true,
+        description: 'Select the platform where your banner will be displayed',
+        options: [
+          { value: 'facebook-cover', label: 'Facebook Cover', description: '820x312px - Personal/Business profile cover' },
+          { value: 'linkedin-banner', label: 'LinkedIn Banner', description: '1584x396px - Professional profile banner' },
+          { value: 'twitter-header', label: 'Twitter Header', description: '1500x500px - Twitter/X profile header' },
+          { value: 'instagram-story', label: 'Instagram Story', description: '1080x1920px - Story banner template' },
+          { value: 'youtube-banner', label: 'YouTube Banner', description: '2560x1440px - Channel art banner' },
+          { value: 'website-header', label: 'Website Header', description: '1920x400px - Website hero banner' },
+          { value: 'blog-header', label: 'Blog Header', description: '1200x630px - Blog post header image' },
+          { value: 'email-header', label: 'Email Header', description: '600x200px - Newsletter header' },
+          { value: 'display-leaderboard', label: 'Leaderboard Ad', description: '728x90px - Display advertising' },
+          { value: 'display-rectangle', label: 'Rectangle Ad', description: '300x250px - Medium rectangle ad' },
+          { value: 'print-banner', label: 'Print Banner', description: '297x210mm - A4 landscape print' }
+        ]
+      },
+      {
+        id: 'contentType',
+        type: 'select',
+        label: 'Content Type *',
+        required: true,
+        description: 'What type of content will your banner feature?',
+        options: [
+          { value: 'brand-announcement', label: 'Brand Announcement', description: 'Company news, product launches' },
+          { value: 'event-promotion', label: 'Event Promotion', description: 'Conferences, webinars, meetups' },
+          { value: 'product-showcase', label: 'Product Showcase', description: 'Product features, benefits' },
+          { value: 'personal-branding', label: 'Personal Branding', description: 'Professional profile, portfolio' },
+          { value: 'seasonal-campaign', label: 'Seasonal Campaign', description: 'Holiday, seasonal promotions' },
+          { value: 'educational-content', label: 'Educational Content', description: 'Tutorials, guides, tips' },
+          { value: 'community-building', label: 'Community Building', description: 'Social engagement, networking' },
+          { value: 'sales-promotion', label: 'Sales Promotion', description: 'Discounts, offers, deals' }
+        ]
+      },
+      {
+        id: 'brandKit',
+        type: 'brand-kit-selector',
+        label: 'Brand Kit',
+        description: 'Select or customize your brand identity',
+        options: [
+          { value: 'professional', label: 'Professional', description: 'Clean, corporate aesthetic' },
+          { value: 'creative', label: 'Creative', description: 'Vibrant, artistic approach' },
+          { value: 'corporate', label: 'Corporate', description: 'Traditional business style' },
+          { value: 'custom', label: 'Custom Brand Kit', description: 'Upload your own brand assets' }
+        ]
+      },
+      {
+        id: 'layoutGrid',
+        type: 'visual-cards',
+        label: 'Layout Structure *',
+        required: true,
+        description: 'Choose the composition framework for your banner',
+        options: [
+          { value: 'rule-of-thirds', label: 'Rule of Thirds', description: 'Classic 3x3 grid composition' },
+          { value: 'golden-ratio', label: 'Golden Ratio', description: 'Mathematically balanced proportions' },
+          { value: 'symmetric', label: 'Symmetric Grid', description: 'Balanced, centered layout' },
+          { value: 'asymmetric', label: 'Asymmetric Grid', description: 'Dynamic, modern composition' },
+          { value: 'modular', label: 'Modular Grid', description: 'Flexible, scalable system' }
+        ]
+      },
+      {
+        id: 'primaryMessage',
+        type: 'textarea',
+        label: 'Primary Message *',
+        required: true,
+        description: 'Main headline or key message for your banner',
+        placeholder: 'Enter your primary headline or message...'
+      },
+      {
+        id: 'secondaryMessage',
+        type: 'textarea',
+        label: 'Secondary Message',
+        description: 'Supporting text, tagline, or additional details',
+        placeholder: 'Enter supporting text or tagline...'
+      },
+      {
+        id: 'callToAction',
+        type: 'text',
+        label: 'Call to Action',
+        description: 'Action text (e.g., "Learn More", "Sign Up", "Contact Us")',
+        placeholder: 'Enter your call to action...'
+      },
+      {
+        id: 'visualStyle',
+        type: 'visual-cards',
+        label: 'Visual Style *',
+        required: true,
+        description: 'Choose the overall aesthetic approach',
+        options: [
+          { value: 'minimalist-clean', label: 'Minimalist Clean', description: 'Simple, uncluttered design' },
+          { value: 'bold-dynamic', label: 'Bold Dynamic', description: 'High-impact, energetic style' },
+          { value: 'elegant-sophisticated', label: 'Elegant Sophisticated', description: 'Refined, premium feel' },
+          { value: 'playful-creative', label: 'Playful Creative', description: 'Fun, engaging approach' },
+          { value: 'professional-corporate', label: 'Professional Corporate', description: 'Business-focused design' },
+          { value: 'modern-tech', label: 'Modern Tech', description: 'Contemporary, digital aesthetic' },
+          { value: 'warm-friendly', label: 'Warm Friendly', description: 'Approachable, welcoming style' },
+          { value: 'luxury-premium', label: 'Luxury Premium', description: 'High-end, exclusive feel' }
+        ]
+      },
+      {
+        id: 'colorScheme',
+        type: 'color-palette-selector',
+        label: 'Color Scheme *',
+        required: true,
+        description: 'Select the color palette for your banner',
+        options: [
+          { value: 'brand-primary', label: 'Brand Primary', description: 'Use your brand colors' },
+          { value: 'professional-blue', label: 'Professional Blue', description: 'Corporate blue tones' },
+          { value: 'energetic-orange', label: 'Energetic Orange', description: 'Vibrant, action-oriented' },
+          { value: 'trustworthy-green', label: 'Trustworthy Green', description: 'Growth and stability' },
+          { value: 'creative-purple', label: 'Creative Purple', description: 'Innovation and creativity' },
+          { value: 'bold-red', label: 'Bold Red', description: 'Attention-grabbing, urgent' },
+          { value: 'elegant-black', label: 'Elegant Black', description: 'Sophisticated, premium' },
+          { value: 'clean-white', label: 'Clean White', description: 'Minimal, spacious feel' },
+          { value: 'warm-earth', label: 'Warm Earth', description: 'Natural, organic tones' },
+          { value: 'cool-gradient', label: 'Cool Gradient', description: 'Modern gradient effects' }
+        ]
+      },
+      {
+        id: 'typography',
+        type: 'typography-selector',
+        label: 'Typography Style *',
+        required: true,
+        description: 'Choose fonts that match your brand personality',
+        options: [
+          { value: 'modern-sans', label: 'Modern Sans-Serif', description: 'Clean, contemporary fonts' },
+          { value: 'classic-serif', label: 'Classic Serif', description: 'Traditional, authoritative' },
+          { value: 'bold-display', label: 'Bold Display', description: 'High-impact headlines' },
+          { value: 'elegant-script', label: 'Elegant Script', description: 'Sophisticated, personal' },
+          { value: 'tech-mono', label: 'Tech Monospace', description: 'Digital, technical feel' },
+          { value: 'friendly-rounded', label: 'Friendly Rounded', description: 'Approachable, casual' },
+          { value: 'luxury-condensed', label: 'Luxury Condensed', description: 'Premium, space-efficient' },
+          { value: 'custom-brand', label: 'Custom Brand Font', description: 'Use your brand typography' }
+        ]
+      },
+      {
+        id: 'imageStyle',
+        type: 'visual-cards',
+        label: 'Image Treatment',
+        description: 'How should images be styled in your banner?',
+        options: [
+          { value: 'photographic', label: 'Photographic', description: 'Real photos, high quality' },
+          { value: 'illustrated', label: 'Illustrated', description: 'Custom illustrations' },
+          { value: 'geometric', label: 'Geometric', description: 'Abstract shapes, patterns' },
+          { value: 'minimal-icons', label: 'Minimal Icons', description: 'Simple, clean iconography' },
+          { value: 'collage-style', label: 'Collage Style', description: 'Multiple image composition' },
+          { value: 'gradient-overlay', label: 'Gradient Overlay', description: 'Color overlays on images' },
+          { value: 'text-only', label: 'Text Only', description: 'Typography-focused design' },
+          { value: 'logo-centric', label: 'Logo Centric', description: 'Brand logo as main element' }
+        ]
+      },
+      {
+        id: 'technicalSpecs',
+        type: 'technical-specs',
+        label: 'Technical Specifications',
+        description: 'Advanced technical requirements',
+        fields: [
+          {
+            id: 'outputFormat',
+            type: 'select',
+            label: 'Output Format',
+            options: [
+              { value: 'auto', label: 'Auto (Platform Optimized)' },
+              { value: 'png', label: 'PNG (Lossless)' },
+              { value: 'jpg', label: 'JPG (Compressed)' },
+              { value: 'webp', label: 'WebP (Modern)' },
+              { value: 'pdf', label: 'PDF (Print Ready)' }
+            ]
+          },
+          {
+            id: 'resolution',
+            type: 'select',
+            label: 'Resolution',
+            options: [
+              { value: 'auto', label: 'Auto (Platform Optimized)' },
+              { value: '72', label: '72 DPI (Web)' },
+              { value: '150', label: '150 DPI (High Quality Web)' },
+              { value: '300', label: '300 DPI (Print Ready)' }
+            ]
+          },
+          {
+            id: 'colorSpace',
+            type: 'select',
+            label: 'Color Space',
+            options: [
+              { value: 'auto', label: 'Auto (Platform Optimized)' },
+              { value: 'rgb', label: 'RGB (Digital)' },
+              { value: 'cmyk', label: 'CMYK (Print)' }
+            ]
+          },
+          {
+            id: 'compression',
+            type: 'slider',
+            label: 'Compression Quality',
+            min: 60,
+            max: 100,
+            default: 85,
+            description: 'Higher values = better quality, larger file size'
+          }
+        ]
+      },
+      {
+        id: 'accessibilityFeatures',
+        type: 'multi-select',
+        label: 'Accessibility Features',
+        description: 'Ensure your banner is accessible to all users',
+        options: [
+          { value: 'high-contrast', label: 'High Contrast', description: 'WCAG AA compliant contrast ratios' },
+          { value: 'large-text', label: 'Large Text', description: 'Minimum 16px font size' },
+          { value: 'alt-text-ready', label: 'Alt Text Ready', description: 'Design optimized for screen readers' },
+          { value: 'colorblind-friendly', label: 'Colorblind Friendly', description: 'Accessible color choices' },
+          { value: 'motion-reduced', label: 'Motion Reduced', description: 'Minimal animation/effects' }
+        ]
+      },
+      {
+        id: 'optimizationGoals',
+        type: 'multi-select',
+        label: 'Optimization Goals',
+        description: 'What should this banner optimize for?',
+        options: [
+          { value: 'click-through-rate', label: 'Click-Through Rate', description: 'Maximize engagement' },
+          { value: 'brand-awareness', label: 'Brand Awareness', description: 'Increase recognition' },
+          { value: 'conversion-rate', label: 'Conversion Rate', description: 'Drive specific actions' },
+          { value: 'social-sharing', label: 'Social Sharing', description: 'Encourage sharing' },
+          { value: 'mobile-performance', label: 'Mobile Performance', description: 'Optimize for mobile' },
+          { value: 'load-speed', label: 'Load Speed', description: 'Minimize file size' },
+          { value: 'print-quality', label: 'Print Quality', description: 'High-resolution output' }
+        ]
+      },
+      {
+        id: 'additionalRequirements',
+        type: 'textarea',
+        label: 'Additional Requirements',
+        description: 'Any specific requirements, constraints, or preferences',
+        placeholder: 'Describe any specific needs, brand guidelines, or creative direction...'
+      }
+    ]
   },
   'data-viz': {
     id: 'data-viz',
@@ -218,12 +459,41 @@ export const CATEGORY_INFO: Record<ImageCategory, CategoryInfo> = {
   'letterhead': {
     id: 'letterhead',
     name: 'Business Documents',
-    description: 'Create professional letterheads and business document templates',
+    description: 'Create professional business documents with enterprise-grade quality, compliance standards, and international business support',
     icon: 'FileText',
     color: '#87CEEB',
     gradient: 'from-sky-400 to-blue-500',
-    examples: ['Letterheads', 'Invoice templates', 'Corporate stationery', 'Document headers'],
-    tags: ['letterhead', 'document', 'corporate', 'professional', 'template', 'business']
+    examples: [
+      'Corporate Annual Reports',
+      'Financial Statements', 
+      'Executive Summaries',
+      'Board Meeting Materials',
+      'Legal Templates',
+      'Compliance Documentation',
+      'Professional Letterheads',
+      'Governance Documents',
+      'Corporate Presentations',
+      'Professional Whitepapers'
+    ],
+    tags: [
+      'letterhead', 
+      'document', 
+      'corporate', 
+      'professional', 
+      'template', 
+      'business',
+      'enterprise',
+      'compliance',
+      'governance',
+      'financial',
+      'legal',
+      'executive',
+      'international',
+      'standards',
+      'quality-assurance',
+      'brand-identity',
+      'regulatory'
+    ]
   },
   'ai-avatars': {
     id: 'ai-avatars',
@@ -285,13 +555,21 @@ export type FormFieldType =
   | 'multiselect'
   | 'tags'
   | 'color'
+  | 'color-palette'
   | 'upload'
   | 'toggle'
   | 'radio'
   | 'checkbox'
   | 'slider'
   | 'visual-cards'
-  | 'language-select';
+  | 'language-select'
+  | 'design-tokens';
+
+export interface DesignTokenField {
+  id: string;
+  label: string;
+  fields: string[];
+}
 
 export interface FormField {
   id: string;
@@ -318,9 +596,14 @@ export interface FormField {
     showWhen: string | string[] | boolean | (string | boolean)[];
   };
   defaultValue?: any;
+  // Design tokens specific properties
+  tokenTypes?: DesignTokenField[];
   multiple?: boolean;
   accept?: string;
   maxFiles?: number;
+  // Color palette specific properties
+  maxColors?: number;
+  defaultColors?: string[];
 }
 
 export interface CategoryForm {
@@ -810,7 +1093,32 @@ export const UI_COMPONENTS_FORM: CategoryForm = {
         { value: 'web-layout', label: 'Web Layout', description: 'Page templates, sections' },
         { value: 'loading-states', label: 'Loading States', description: 'Spinners, progress bars' },
         { value: 'modals', label: 'Modals & Overlays', description: 'Popup windows, dialogs' },
-        { value: 'data-display', label: 'Data Display', description: 'Tables, lists, grids' }
+        { value: 'data-display', label: 'Data Display', description: 'Tables, lists, grids' },
+        { value: 'notification', label: 'Notifications', description: 'Alerts, toasts, banners' },
+        { value: 'tabs', label: 'Tabs & Segmented', description: 'Tab controls, segmented controls' },
+        { value: 'toggles', label: 'Toggles & Switches', description: 'Toggle switches, radio buttons' },
+        { value: 'sliders', label: 'Sliders & Progress', description: 'Range sliders, progress indicators' },
+        { value: 'avatars', label: 'Avatars & Badges', description: 'User avatars, status badges' },
+        { value: 'chips', label: 'Chips & Tags', description: 'Filter chips, category tags' }
+      ]
+    },
+    {
+      id: 'componentVariants',
+      type: 'multiselect',
+      label: 'Component Variants',
+      description: 'Select multiple variants to show different styles',
+      multiple: true,
+      options: [
+        { value: 'primary', label: 'Primary', description: 'Main action variant' },
+        { value: 'secondary', label: 'Secondary', description: 'Secondary action variant' },
+        { value: 'tertiary', label: 'Tertiary', description: 'Subtle action variant' },
+        { value: 'ghost', label: 'Ghost', description: 'Minimal, transparent variant' },
+        { value: 'outline', label: 'Outline', description: 'Bordered, transparent variant' },
+        { value: 'destructive', label: 'Destructive', description: 'Warning/delete variant' },
+        { value: 'success', label: 'Success', description: 'Success/confirmation variant' },
+        { value: 'warning', label: 'Warning', description: 'Warning/caution variant' },
+        { value: 'info', label: 'Info', description: 'Information variant' },
+        { value: 'gradient', label: 'Gradient', description: 'Gradient-filled variant' }
       ]
     },
     {
@@ -826,10 +1134,42 @@ export const UI_COMPONENTS_FORM: CategoryForm = {
         { value: 'ant-design', label: 'Ant Design', description: 'Enterprise UI framework' },
         { value: 'bootstrap', label: 'Bootstrap', description: 'Popular CSS framework' },
         { value: 'tailwind', label: 'Tailwind', description: 'Utility-first CSS framework' },
+        { value: 'chakra-ui', label: 'Chakra UI', description: 'Modular and accessible component library' },
+        { value: 'mantine', label: 'Mantine', description: 'Full-featured React components library' },
         { value: 'custom-modern', label: 'Custom Modern', description: 'Modern, custom styling' },
         { value: 'minimalist', label: 'Minimalist', description: 'Clean, simple design' },
         { value: 'glassmorphism', label: 'Glassmorphism', description: 'Frosted glass effect' },
-        { value: 'neumorphism', label: 'Neumorphism', description: 'Soft UI design trend' }
+        { value: 'neumorphism', label: 'Neumorphism', description: 'Soft UI design trend' },
+        { value: 'brutalist', label: 'Brutalist', description: 'Bold, raw design aesthetic' },
+        { value: 'custom-tokens', label: 'Custom Design Tokens', description: 'Define your own design system' }
+      ]
+    },
+    {
+      id: 'designTokens',
+      type: 'design-tokens',
+      label: 'Custom Design Tokens',
+      description: 'Define your custom design system tokens',
+      conditional: { dependsOn: 'designSystem', showWhen: ['custom-tokens'] },
+      tokenTypes: [
+        { id: 'colors', label: 'Colors', fields: ['primary', 'secondary', 'accent', 'neutral', 'semantic'] },
+        { id: 'typography', label: 'Typography', fields: ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight'] },
+        { id: 'spacing', label: 'Spacing', fields: ['base', 'scale', 'component'] },
+        { id: 'shadows', label: 'Shadows', fields: ['elevation', 'blur', 'spread'] },
+        { id: 'borders', label: 'Borders', fields: ['radius', 'width', 'style'] },
+        { id: 'animations', label: 'Animations', fields: ['duration', 'easing', 'delay'] }
+      ]
+    },
+    {
+      id: 'visualQuality',
+      type: 'select',
+      label: 'Visual Quality *',
+      required: true,
+      description: 'Choose the rendering quality level',
+      options: [
+        { value: 'production', label: 'Production Ready', description: 'Standard professional quality' },
+        { value: 'premium', label: 'Premium Quality', description: 'Enhanced details and polish' },
+        { value: 'ultra-premium', label: 'Ultra Premium', description: 'Maximum quality with ray-traced shadows' },
+        { value: 'pixel-perfect', label: 'Pixel Perfect', description: 'Ultra-crisp edges and perfect alignment' }
       ]
     },
     {
@@ -875,7 +1215,7 @@ export const UI_COMPONENTS_FORM: CategoryForm = {
       validation: { min: 20, max: 300, message: 'Description should be between 20-300 characters' }
     },
     {
-      id: 'interactionState',
+      id: 'interactionStates',
       type: 'multiselect',
       label: 'Interaction States',
       description: 'Which states should be shown? (select multiple)',
@@ -884,11 +1224,86 @@ export const UI_COMPONENTS_FORM: CategoryForm = {
         { value: 'default', label: 'Default', description: 'Normal state' },
         { value: 'hover', label: 'Hover', description: 'Mouse over state' },
         { value: 'active', label: 'Active/Pressed', description: 'Clicked state' },
+        { value: 'focus', label: 'Focus', description: 'Keyboard focus state' },
         { value: 'disabled', label: 'Disabled', description: 'Inactive state' },
         { value: 'loading', label: 'Loading', description: 'Processing state' },
         { value: 'error', label: 'Error', description: 'Error state' },
         { value: 'success', label: 'Success', description: 'Success state' },
-        { value: 'focus', label: 'Focus', description: 'Keyboard focus state' }
+        { value: 'warning', label: 'Warning', description: 'Warning state' },
+        { value: 'selected', label: 'Selected', description: 'Selected/checked state' },
+        { value: 'indeterminate', label: 'Indeterminate', description: 'Partially selected state' }
+      ]
+    },
+    {
+      id: 'microInteractions',
+      type: 'multiselect',
+      label: 'Micro-interactions',
+      description: 'Visual feedback and animation effects',
+      multiple: true,
+      options: [
+        { value: 'ripple', label: 'Ripple Effect', description: 'Material Design ripple animation' },
+        { value: 'scale', label: 'Scale Animation', description: 'Subtle scale on interaction' },
+        { value: 'glow', label: 'Glow Effect', description: 'Soft glow on hover/focus' },
+        { value: 'slide', label: 'Slide Transition', description: 'Smooth sliding animation' },
+        { value: 'fade', label: 'Fade Transition', description: 'Opacity transition' },
+        { value: 'bounce', label: 'Bounce Effect', description: 'Playful bounce animation' },
+        { value: 'pulse', label: 'Pulse Effect', description: 'Rhythmic pulsing animation' },
+        { value: 'shake', label: 'Shake Effect', description: 'Error indication shake' }
+      ]
+    },
+    {
+      id: 'shadowSystem',
+      type: 'select',
+      label: 'Shadow & Elevation',
+      description: 'Choose the shadow rendering quality',
+      options: [
+        { value: 'flat', label: 'Flat Design', description: 'No shadows, flat appearance' },
+        { value: 'subtle', label: 'Subtle Shadows', description: 'Light, minimal shadows' },
+        { value: 'material', label: 'Material Elevation', description: 'Material Design elevation system' },
+        { value: 'dramatic', label: 'Dramatic Shadows', description: 'Strong, pronounced shadows' },
+        { value: 'ray-traced', label: 'Ray-traced Shadows', description: 'Ultra-realistic shadow rendering' },
+        { value: 'custom', label: 'Custom Shadow', description: 'Define custom shadow properties' }
+      ]
+    },
+    {
+      id: 'gradientSystem',
+      type: 'select',
+      label: 'Gradient System',
+      description: 'Advanced gradient rendering options',
+      options: [
+        { value: 'none', label: 'No Gradients', description: 'Solid colors only' },
+        { value: 'linear', label: 'Linear Gradients', description: 'Smooth linear color transitions' },
+        { value: 'radial', label: 'Radial Gradients', description: 'Circular color transitions' },
+        { value: 'conic', label: 'Conic Gradients', description: 'Angular color transitions' },
+        { value: 'mesh', label: 'Mesh Gradients', description: 'Complex multi-point gradients' },
+        { value: 'animated', label: 'Animated Gradients', description: 'Dynamic color transitions' }
+      ]
+    },
+    {
+      id: 'typographySystem',
+      type: 'select',
+      label: 'Typography System',
+      description: 'Advanced typography controls',
+      options: [
+        { value: 'system', label: 'System Fonts', description: 'OS-native font stack' },
+        { value: 'web-safe', label: 'Web Safe', description: 'Cross-browser compatible fonts' },
+        { value: 'google-fonts', label: 'Google Fonts', description: 'Professional web fonts' },
+        { value: 'custom', label: 'Custom Typography', description: 'Brand-specific font system' },
+        { value: 'variable', label: 'Variable Fonts', description: 'Advanced variable font features' }
+      ]
+    },
+    {
+      id: 'layoutGrid',
+      type: 'select',
+      label: 'Layout Grid System',
+      description: 'Component alignment and spacing system',
+      options: [
+        { value: '8px', label: '8px Grid', description: 'Standard 8px baseline grid' },
+        { value: '4px', label: '4px Grid', description: 'Precise 4px baseline grid' },
+        { value: '12-column', label: '12-Column Grid', description: 'Traditional 12-column layout' },
+        { value: 'flexbox', label: 'Flexbox Layout', description: 'Modern flexible layout system' },
+        { value: 'css-grid', label: 'CSS Grid', description: 'Advanced CSS Grid layout' },
+        { value: 'custom', label: 'Custom Grid', description: 'Define custom grid system' }
       ]
     },
     {
@@ -899,6 +1314,52 @@ export const UI_COMPONENTS_FORM: CategoryForm = {
       description: 'Text that should appear on buttons or in the component',
       validation: { max: 50, message: 'Component text should be under 50 characters' },
       conditional: { dependsOn: 'componentType', showWhen: ['button', 'navigation', 'form-elements', 'modals'] }
+    },
+    {
+      id: 'responsiveBehavior',
+      type: 'multiselect',
+      label: 'Responsive Behavior',
+      description: 'How should the component adapt across screen sizes?',
+      multiple: true,
+      options: [
+        { value: 'scale', label: 'Scale Proportionally', description: 'Maintain proportions across sizes' },
+        { value: 'reflow', label: 'Content Reflow', description: 'Reorganize content for smaller screens' },
+        { value: 'collapse', label: 'Collapsible', description: 'Show/hide content based on screen size' },
+        { value: 'stack', label: 'Stack Vertically', description: 'Stack elements on mobile' },
+        { value: 'hide-text', label: 'Hide Text Labels', description: 'Show icons only on small screens' },
+        { value: 'priority', label: 'Priority-based', description: 'Show most important content first' }
+      ]
+    },
+    {
+      id: 'platformOptimizations',
+      type: 'multiselect',
+      label: 'Platform Optimizations',
+      description: 'Platform-specific enhancements',
+      multiple: true,
+      options: [
+        { value: 'touch-targets', label: 'Touch Target Optimization', description: 'Optimize for finger interaction' },
+        { value: 'keyboard-nav', label: 'Keyboard Navigation', description: 'Full keyboard accessibility' },
+        { value: 'screen-reader', label: 'Screen Reader Support', description: 'Enhanced accessibility' },
+        { value: 'high-contrast', label: 'High Contrast Mode', description: 'Accessibility color modes' },
+        { value: 'reduced-motion', label: 'Reduced Motion Support', description: 'Respect motion preferences' },
+        { value: 'dark-mode', label: 'Dark Mode Adaptive', description: 'Automatic dark mode support' },
+        { value: 'rtl-support', label: 'RTL Language Support', description: 'Right-to-left language support' }
+      ]
+    },
+    {
+      id: 'deviceSpecific',
+      type: 'multiselect',
+      label: 'Device-Specific Features',
+      description: 'Optimize for specific device capabilities',
+      multiple: true,
+      options: [
+        { value: 'retina', label: 'Retina/High-DPI', description: 'High-resolution display optimization' },
+        { value: 'mobile-gestures', label: 'Mobile Gestures', description: 'Swipe, pinch, long-press support' },
+        { value: 'haptic-feedback', label: 'Haptic Feedback', description: 'Tactile feedback indication' },
+        { value: 'voice-control', label: 'Voice Control Ready', description: 'Voice command compatibility' },
+        { value: 'foldable', label: 'Foldable Screen', description: 'Foldable device optimization' },
+        { value: 'watch-interface', label: 'Watch Interface', description: 'Smartwatch compatibility' }
+      ]
     },
     {
       id: 'iconStyle',
@@ -1088,6 +1549,59 @@ export const DATA_VIZ_FORM: CategoryForm = {
       validation: { min: 20, max: 400, message: 'Description should be between 20-400 characters' }
     },
     {
+      id: 'timeSeriesType',
+      type: 'select',
+      label: 'Time Series Type',
+      description: 'For time-based data, specify the time period to ensure all data points are included',
+      conditional: {
+        dependsOn: 'chartType',
+        showWhen: ['line-chart', 'bar-chart', 'area-chart', 'timeline']
+      },
+      options: [
+        { value: 'daily', label: 'Daily', description: 'Day-by-day data points' },
+        { value: 'weekly', label: 'Weekly', description: 'Week-by-week data points' },
+        { value: 'monthly', label: 'Monthly', description: 'Month-by-month data points (all 12 months)' },
+        { value: 'quarterly', label: 'Quarterly', description: 'Quarter-by-quarter data points (Q1-Q4)' },
+        { value: 'yearly', label: 'Yearly', description: 'Year-by-year data points' },
+        { value: 'custom', label: 'Custom', description: 'Custom time intervals' }
+      ]
+    },
+    {
+      id: 'dataCompleteness',
+      type: 'select',
+      label: 'Data Completeness',
+      description: 'Specify how to handle missing data points',
+      options: [
+        { value: 'complete', label: 'Complete Dataset', description: 'All data points are available and should be shown' },
+        { value: 'fill-zeros', label: 'Fill Missing with Zeros', description: 'Replace missing data points with zeros' },
+        { value: 'interpolate', label: 'Interpolate Missing Values', description: 'Estimate missing values based on surrounding data' },
+        { value: 'skip-missing', label: 'Skip Missing Values', description: 'Only show available data points' },
+        { value: 'highlight-missing', label: 'Highlight Missing Values', description: 'Show gaps and highlight where data is missing' }
+      ],
+      defaultValue: 'complete'
+    },
+    {
+      id: 'dataRange',
+      type: 'text',
+      label: 'Data Range',
+      description: 'Specify the range of your data (e.g., "Jan 2023 to Dec 2023" or "Q1-Q4 2023")',
+      placeholder: 'Jan 2023 to Dec 2023'
+    },
+    {
+      id: 'analysisGoal',
+      type: 'select',
+      label: 'Analysis Goal',
+      description: 'What insight are you trying to communicate?',
+      options: [
+        { value: 'trend', label: 'Show Trend', description: 'Highlight changes over time' },
+        { value: 'comparison', label: 'Compare Categories', description: 'Compare different categories or groups' },
+        { value: 'composition', label: 'Show Composition', description: 'Show how parts make up a whole' },
+        { value: 'distribution', label: 'Show Distribution', description: 'Display range and frequency of values' },
+        { value: 'correlation', label: 'Show Correlation', description: 'Demonstrate relationship between variables' },
+        { value: 'ranking', label: 'Show Ranking', description: 'Order items by performance or value' }
+      ]
+    },
+    {
       id: 'chartStyle',
       type: 'visual-cards',
       label: 'Chart Style *',
@@ -1118,7 +1632,72 @@ export const DATA_VIZ_FORM: CategoryForm = {
         { value: 'warm-sunset', label: 'Warm Sunset', description: 'Reds, oranges, yellows' },
         { value: 'monochrome', label: 'Monochrome', description: 'Single color variations' },
         { value: 'brand-colors', label: 'Brand Colors', description: 'Company color scheme' },
-        { value: 'accessible', label: 'Accessible', description: 'Colorblind-friendly palette' }
+        { value: 'accessible', label: 'Accessible', description: 'Colorblind-friendly palette' },
+        { value: 'trend', label: 'Trend Analysis', description: 'Optimized for trend visualization' },
+        { value: 'comparison', label: 'Comparison', description: 'Optimized for comparisons' },
+        { value: 'correlation', label: 'Correlation', description: 'Optimized for correlation analysis' },
+        { value: 'distribution', label: 'Distribution', description: 'Optimized for distribution analysis' },
+        { value: 'seasonal', label: 'Seasonal', description: 'Colors representing seasons/cycles' },
+        { value: 'performance', label: 'Performance', description: 'Performance-based color gradients' },
+        { value: 'financial', label: 'Financial', description: 'Green/red for gains/losses' },
+        { value: 'categorical', label: 'Categorical', description: 'Distinct colors for categories' },
+        { value: 'heatmap', label: 'Heatmap', description: 'Gradient colors for intensity' }
+      ]
+    },
+    {
+      id: 'visualStyle',
+      type: 'select',
+      label: 'Visual Style',
+      description: 'Choose the overall visual aesthetic',
+      options: [
+        { value: 'modern', label: 'Modern', description: 'Clean, minimalist design' },
+        { value: 'classic', label: 'Classic', description: 'Traditional chart styling' },
+        { value: 'elegant', label: 'Elegant', description: 'Sophisticated, refined appearance' },
+        { value: 'bold', label: 'Bold', description: 'High-contrast, impactful design' },
+        { value: 'soft', label: 'Soft', description: 'Gentle, muted styling' },
+        { value: 'technical', label: 'Technical', description: 'Precise, analytical appearance' },
+        { value: 'creative', label: 'Creative', description: 'Artistic, expressive design' },
+        { value: 'minimal', label: 'Minimal', description: 'Ultra-clean, simplified styling' }
+      ]
+    },
+    {
+      id: 'aspectRatio',
+      type: 'select',
+      label: 'Aspect Ratio',
+      description: 'Choose the optimal aspect ratio for your chart type',
+      options: [
+        { value: 'auto', label: 'Auto', description: 'Automatically optimized for chart type' },
+        { value: '16:9', label: '16:9 (Widescreen)', description: 'Wide format, good for presentations' },
+        { value: '4:3', label: '4:3 (Standard)', description: 'Traditional format, balanced' },
+        { value: '1:1', label: '1:1 (Square)', description: 'Square format, good for social media' },
+        { value: '3:2', label: '3:2 (Photo)', description: 'Photo-like proportions' },
+        { value: '21:9', label: '21:9 (Ultra-wide)', description: 'Ultra-wide format for dashboards' },
+        { value: '9:16', label: '9:16 (Vertical)', description: 'Vertical format for mobile' }
+      ]
+    },
+    {
+      id: 'dataQualityIndicators',
+      type: 'select',
+      label: 'Data Quality Indicators',
+      description: 'Show visual indicators for data quality and confidence',
+      options: [
+        { value: 'none', label: 'None', description: 'No quality indicators' },
+        { value: 'basic', label: 'Basic', description: 'Simple confidence indicators' },
+        { value: 'detailed', label: 'Detailed', description: 'Comprehensive quality metrics' },
+        { value: 'advanced', label: 'Advanced', description: 'Full statistical confidence analysis' }
+      ]
+    },
+    {
+      id: 'animationStyle',
+      type: 'select',
+      label: 'Animation Style',
+      description: 'Choose how data appears and transitions',
+      options: [
+        { value: 'none', label: 'None', description: 'Static chart, no animations' },
+        { value: 'subtle', label: 'Subtle', description: 'Gentle fade-in effects' },
+        { value: 'smooth', label: 'Smooth', description: 'Smooth transitions and reveals' },
+        { value: 'dynamic', label: 'Dynamic', description: 'Engaging, interactive animations' },
+        { value: 'sequential', label: 'Sequential', description: 'Data points appear in sequence' }
       ]
     },
     {
@@ -1137,6 +1716,14 @@ export const DATA_VIZ_FORM: CategoryForm = {
       validation: { max: 100, message: 'Title should be under 100 characters' }
     },
     {
+      id: 'keyInsights',
+      type: 'textarea',
+      label: 'Key Insights',
+      description: 'Important findings or insights you want to highlight in the visualization',
+      placeholder: 'Revenue grew 15% in Q4, Technology category outperformed all others by 30%',
+      validation: { max: 200, message: 'Insights should be under 200 characters' }
+    },
+    {
       id: 'textLanguage',
       type: 'language-select',
       label: 'Text Language *',
@@ -1144,30 +1731,6 @@ export const DATA_VIZ_FORM: CategoryForm = {
       description: 'Language for labels and text in the chart',
       defaultValue: 'en'
     },
-    {
-      id: 'outputFormat',
-      type: 'select',
-      label: 'Output Format *',
-      required: true,
-      description: 'How will you use this chart?',
-      options: [
-        { value: 'presentation', label: 'Presentation', description: 'PowerPoint or Keynote slides' },
-        { value: 'report', label: 'Report', description: 'Business reports and documents' },
-        { value: 'social-media', label: 'Social Media', description: 'Instagram, LinkedIn posts' },
-        { value: 'website', label: 'Website', description: 'Web page integration' },
-        { value: 'print', label: 'Print', description: 'Brochures, flyers, posters' },
-        { value: 'dashboard', label: 'Dashboard', description: 'Real-time monitoring display' }
-      ]
-    },
-    // {
-    //   id: 'referenceImages',
-    //   type: 'upload',
-    //   label: 'Reference Images',
-    //   description: 'Upload chart examples or data screenshots',
-    //   accept: 'image/*',
-    //   maxFiles: 3,
-    //   multiple: true
-    // }
   ]
 };
 
@@ -1832,15 +2395,126 @@ export const LETTERHEAD_FORM: CategoryForm = {
       required: true,
       description: 'What type of business document do you need?',
       options: [
-        { value: 'letterhead', label: 'Letterhead', description: 'Company letter template header' },
-        { value: 'invoice-template', label: 'Invoice Template', description: 'Billing and payment documents' },
-        { value: 'proposal-cover', label: 'Proposal Cover', description: 'Business proposal front page' },
-        { value: 'presentation-template', label: 'Presentation Template', description: 'Slide deck template' },
-        { value: 'report-cover', label: 'Report Cover', description: 'Annual report or document cover' },
-        { value: 'memo-template', label: 'Memo Template', description: 'Internal communication template' },
-        { value: 'contract-header', label: 'Contract Header', description: 'Legal document formatting' },
-        { value: 'certificate', label: 'Certificate', description: 'Awards, completion, or recognition certificates' }
+        // Core Business Documents
+        { value: 'letterhead', label: 'Professional Letterhead', description: 'Company letter template header with brand identity' },
+        { value: 'invoice-template', label: 'Invoice Template', description: 'Billing and payment documents with professional formatting' },
+        { value: 'proposal-cover', label: 'Business Proposal Cover', description: 'Professional proposal front page with corporate branding' },
+        { value: 'presentation-template', label: 'Corporate Presentation Template', description: 'Executive slide deck template with brand consistency' },
+        { value: 'memo-template', label: 'Internal Memo Template', description: 'Professional internal communication template' },
+        { value: 'contract-header', label: 'Legal Contract Header', description: 'Legal document formatting with compliance standards' },
+        { value: 'certificate', label: 'Professional Certificate', description: 'Awards, completion, or recognition certificates' },
+        
+        // Executive & Corporate Documents
+        { value: 'annual-report-cover', label: 'Annual Report Cover', description: 'Corporate annual report front page with executive design' },
+        { value: 'executive-summary', label: 'Executive Summary Template', description: 'High-level business summary document template' },
+        { value: 'board-materials', label: 'Board Meeting Materials', description: 'Professional board meeting document templates' },
+        { value: 'corporate-governance', label: 'Governance Document', description: 'Corporate governance and policy document templates' },
+        { value: 'strategic-plan', label: 'Strategic Plan Template', description: 'Corporate strategic planning document template' },
+        
+        // Financial Documents
+        { value: 'financial-statement', label: 'Financial Statement', description: 'Professional financial reporting document template' },
+        { value: 'budget-report', label: 'Budget Report Template', description: 'Financial budget and forecasting document template' },
+        { value: 'audit-report', label: 'Audit Report Template', description: 'Professional audit documentation template' },
+        { value: 'investment-proposal', label: 'Investment Proposal', description: 'Investment opportunity presentation template' },
+        
+        // Compliance & Legal
+        { value: 'compliance-report', label: 'Compliance Report', description: 'Regulatory compliance documentation template' },
+        { value: 'policy-document', label: 'Policy Document', description: 'Corporate policy and procedure documentation' },
+        { value: 'legal-brief', label: 'Legal Brief Template', description: 'Professional legal document template' },
+        { value: 'regulatory-filing', label: 'Regulatory Filing', description: 'Government and regulatory submission template' },
+        
+        // Professional Communication
+        { value: 'whitepaper', label: 'Professional Whitepaper', description: 'Industry expertise and thought leadership document' },
+        { value: 'case-study', label: 'Business Case Study', description: 'Professional case study documentation template' },
+        { value: 'technical-documentation', label: 'Technical Documentation', description: 'Professional technical specification template' },
+        { value: 'project-report', label: 'Project Report Template', description: 'Professional project status and completion reports' },
+        
+        // International Business
+        { value: 'international-agreement', label: 'International Agreement', description: 'Cross-border business agreement template' },
+        { value: 'export-documentation', label: 'Export Documentation', description: 'International trade document template' },
+        { value: 'multi-language-template', label: 'Multi-Language Template', description: 'International business document with language support' }
       ]
+    },
+    {
+      id: 'complianceRequirements',
+      type: 'multiselect',
+      label: 'Compliance Requirements',
+      description: 'Select applicable compliance standards and regulations',
+      options: [
+        { value: 'iso-9001', label: 'ISO 9001 (Quality Management)', description: 'International quality management standards' },
+        { value: 'iso-14001', label: 'ISO 14001 (Environmental)', description: 'Environmental management system standards' },
+        { value: 'iso-27001', label: 'ISO 27001 (Information Security)', description: 'Information security management standards' },
+        { value: 'sox', label: 'SOX (Sarbanes-Oxley)', description: 'US corporate financial reporting compliance' },
+        { value: 'gdpr', label: 'GDPR (Data Protection)', description: 'European data protection regulation compliance' },
+        { value: 'hipaa', label: 'HIPAA (Healthcare)', description: 'Healthcare data privacy and security standards' },
+        { value: 'pci-dss', label: 'PCI DSS (Payment Card)', description: 'Payment card industry data security standards' },
+        { value: 'sec', label: 'SEC (Securities)', description: 'US Securities and Exchange Commission requirements' },
+        { value: 'coso', label: 'COSO (Internal Control)', description: 'Committee of Sponsoring Organizations framework' },
+        { value: 'basel-iii', label: 'Basel III (Banking)', description: 'International banking regulation standards' },
+        { value: 'mifid-ii', label: 'MiFID II (Financial Services)', description: 'European financial services regulation' },
+        { value: 'wcag', label: 'WCAG (Accessibility)', description: 'Web Content Accessibility Guidelines compliance' },
+        { value: 'ada', label: 'ADA (Americans with Disabilities)', description: 'Accessibility compliance for US businesses' },
+        { value: 'custom', label: 'Custom Compliance', description: 'Specify custom regulatory requirements' }
+      ]
+    },
+    {
+      id: 'customCompliance',
+      type: 'textarea',
+      label: 'Custom Compliance Requirements',
+      description: 'Specify any additional compliance standards or regulatory requirements',
+      placeholder: 'e.g., Industry-specific regulations, regional compliance standards, internal governance requirements',
+      conditional: { dependsOn: 'complianceRequirements', showWhen: ['custom'] },
+      validation: { max: 500, message: 'Compliance requirements should be under 500 characters' }
+    },
+    {
+      id: 'securityClassification',
+      type: 'select',
+      label: 'Document Security Classification',
+      description: 'Security level and handling requirements for the document',
+      options: [
+        { value: 'public', label: 'Public', description: 'Publicly available information' },
+        { value: 'internal', label: 'Internal Use Only', description: 'For internal company use only' },
+        { value: 'confidential', label: 'Confidential', description: 'Sensitive business information' },
+        { value: 'restricted', label: 'Restricted', description: 'Highly sensitive, limited access' },
+        { value: 'proprietary', label: 'Proprietary', description: 'Trade secrets and proprietary information' }
+      ]
+    },
+    {
+      id: 'auditRequirements',
+      type: 'toggle',
+      label: 'Audit Trail Required',
+      description: 'Document requires audit trail and version control for compliance',
+      defaultValue: false
+    },
+    {
+      id: 'digitalSignature',
+      type: 'toggle',
+      label: 'Digital Signature Support',
+      description: 'Document will require digital signature capabilities',
+      defaultValue: false
+    },
+    {
+      id: 'retentionPeriod',
+      type: 'select',
+      label: 'Document Retention Period',
+      description: 'Required retention period for compliance and legal purposes',
+      options: [
+        { value: '1-year', label: '1 Year', description: 'Short-term retention' },
+        { value: '3-years', label: '3 Years', description: 'Standard business retention' },
+        { value: '5-years', label: '5 Years', description: 'Extended business retention' },
+        { value: '7-years', label: '7 Years', description: 'Tax and financial record retention' },
+        { value: '10-years', label: '10 Years', description: 'Long-term regulatory retention' },
+        { value: 'permanent', label: 'Permanent', description: 'Permanent archive retention' },
+        { value: 'custom', label: 'Custom Period', description: 'Specify custom retention period' }
+      ]
+    },
+    {
+      id: 'customRetention',
+      type: 'text',
+      label: 'Custom Retention Period',
+      description: 'Specify the custom retention period and requirements',
+      placeholder: 'e.g., 15 years, Until project completion, Per regulatory requirement',
+      conditional: { dependsOn: 'retentionPeriod', showWhen: ['custom'] }
     },
     {
       id: 'companyName',
@@ -1859,6 +2533,236 @@ export const LETTERHEAD_FORM: CategoryForm = {
       accept: 'image/*',
       maxFiles: 1,
       multiple: false
+    },
+    {
+      id: 'brandStyleGuide',
+      type: 'upload',
+      label: 'Brand Style Guide',
+      description: 'Upload your brand style guide or brand guidelines document (PDF, DOC, or images)',
+      accept: '.pdf,.doc,.docx,image/*',
+      maxFiles: 3,
+      multiple: true
+    },
+    {
+      id: 'brandAssets',
+      type: 'upload',
+      label: 'Additional Brand Assets',
+      description: 'Upload additional brand assets like patterns, textures, or supporting graphics',
+      accept: 'image/*',
+      maxFiles: 5,
+      multiple: true
+    },
+    {
+      id: 'brandIdentityLevel',
+      type: 'select',
+      label: 'Brand Identity Integration Level',
+      description: 'How prominently should brand identity be featured?',
+      options: [
+        { value: 'minimal', label: 'Minimal Brand Presence', description: 'Subtle brand integration, focus on content' },
+        { value: 'balanced', label: 'Balanced Integration', description: 'Equal emphasis on brand and content' },
+        { value: 'prominent', label: 'Prominent Brand Display', description: 'Strong brand presence throughout document' },
+        { value: 'dominant', label: 'Brand-Dominant Design', description: 'Brand identity drives the entire design' }
+      ]
+    },
+    {
+      id: 'multiBrandSupport',
+      type: 'toggle',
+      label: 'Multi-Brand Document',
+      description: 'Document will feature multiple brands (partnerships, subsidiaries, etc.)',
+      defaultValue: false
+    },
+    {
+      id: 'secondaryBrands',
+      type: 'textarea',
+      label: 'Secondary Brand Information',
+      description: 'Provide details about additional brands to be featured',
+      placeholder: 'e.g., Partner company names, subsidiary brands, co-branding requirements',
+      conditional: { dependsOn: 'multiBrandSupport', showWhen: [true, 'true'] },
+      validation: { max: 300, message: 'Secondary brand info should be under 300 characters' }
+    },
+    {
+      id: 'brandColors',
+      type: 'color-palette',
+      label: 'Primary Brand Colors',
+      description: 'Define your primary brand color palette',
+      maxColors: 5,
+      defaultColors: ['#000000', '#ffffff']
+    },
+    {
+      id: 'secondaryColors',
+      type: 'color-palette',
+      label: 'Secondary/Accent Colors',
+      description: 'Additional colors for supporting elements and accents',
+      maxColors: 3
+    },
+    {
+      id: 'brandTypography',
+      type: 'select',
+      label: 'Brand Typography Style',
+      description: 'Typography approach that aligns with your brand',
+      options: [
+        { value: 'modern-sans', label: 'Modern Sans-Serif', description: 'Clean, contemporary, professional' },
+        { value: 'classic-serif', label: 'Classic Serif', description: 'Traditional, trustworthy, established' },
+        { value: 'elegant-script', label: 'Elegant Script', description: 'Sophisticated, premium, luxury' },
+        { value: 'bold-display', label: 'Bold Display', description: 'Strong, impactful, attention-grabbing' },
+        { value: 'technical-mono', label: 'Technical Monospace', description: 'Technology, precision, data-focused' },
+        { value: 'friendly-rounded', label: 'Friendly Rounded', description: 'Approachable, warm, casual' },
+        { value: 'custom', label: 'Custom Typography', description: 'Specify custom font requirements' }
+      ]
+    },
+    {
+      id: 'customTypography',
+      type: 'text',
+      label: 'Custom Typography Requirements',
+      description: 'Specify your custom font requirements or brand typography guidelines',
+      placeholder: 'e.g., Helvetica Neue for headers, Times New Roman for body text',
+      conditional: { dependsOn: 'brandTypography', showWhen: ['custom'] }
+    },
+    {
+      id: 'brandPersonality',
+      type: 'multiselect',
+      label: 'Brand Personality Traits',
+      description: 'Select traits that best describe your brand personality',
+      options: [
+        { value: 'professional', label: 'Professional', description: 'Serious, competent, reliable' },
+        { value: 'innovative', label: 'Innovative', description: 'Cutting-edge, forward-thinking, creative' },
+        { value: 'trustworthy', label: 'Trustworthy', description: 'Dependable, honest, secure' },
+        { value: 'approachable', label: 'Approachable', description: 'Friendly, accessible, welcoming' },
+        { value: 'premium', label: 'Premium', description: 'Luxury, high-quality, exclusive' },
+        { value: 'dynamic', label: 'Dynamic', description: 'Energetic, fast-paced, agile' },
+        { value: 'traditional', label: 'Traditional', description: 'Established, classic, time-tested' },
+        { value: 'global', label: 'Global', description: 'International, diverse, inclusive' }
+      ]
+    },
+    {
+      id: 'brandCompliance',
+      type: 'textarea',
+      label: 'Brand Compliance Requirements',
+      description: 'Specific brand guidelines that must be followed (logo usage, color restrictions, etc.)',
+      placeholder: 'e.g., Logo must have 20px minimum clear space, Primary blue (#003366) required for headers',
+      validation: { max: 400, message: 'Brand compliance should be under 400 characters' }
+    },
+    {
+      id: 'documentStructure',
+      type: 'select',
+      label: 'Document Structure Layout',
+      description: 'Choose the overall document layout and structure',
+      options: [
+        { value: 'traditional-letterhead', label: 'Traditional Letterhead', description: 'Header with logo and contact info' },
+        { value: 'modern-sidebar', label: 'Modern Sidebar', description: 'Vertical sidebar with branding' },
+        { value: 'full-header', label: 'Full Header Design', description: 'Wide header spanning full width' },
+        { value: 'minimal-footer', label: 'Minimal with Footer', description: 'Clean design with footer branding' },
+        { value: 'executive-premium', label: 'Executive Premium', description: 'High-end executive document layout' },
+        { value: 'legal-formal', label: 'Legal Formal', description: 'Formal legal document structure' },
+        { value: 'custom-grid', label: 'Custom Grid Layout', description: 'Specify custom grid system' }
+      ]
+    },
+    {
+      id: 'marginSpecifications',
+      type: 'select',
+      label: 'Margin Specifications',
+      description: 'Document margin settings for professional printing',
+      options: [
+        { value: 'standard-business', label: 'Standard Business (1" all sides)', description: 'Standard 1-inch margins' },
+        { value: 'narrow-efficient', label: 'Narrow Efficient (0.75" all sides)', description: 'More content space' },
+        { value: 'wide-premium', label: 'Wide Premium (1.25" all sides)', description: 'Spacious, premium feel' },
+        { value: 'legal-standard', label: 'Legal Standard (1.5" left, 1" others)', description: 'Legal document margins' },
+        { value: 'binding-ready', label: 'Binding Ready (1.5" left, 1" others)', description: 'Ready for binding' },
+        { value: 'international-a4', label: 'International A4 (2cm all sides)', description: 'A4 standard margins' },
+        { value: 'custom-margins', label: 'Custom Margins', description: 'Specify custom margin values' }
+      ]
+    },
+    {
+      id: 'customMargins',
+      type: 'text',
+      label: 'Custom Margin Values',
+      description: 'Specify custom margins (e.g., "1.25in top, 1in left, 1in right, 1in bottom")',
+      placeholder: 'e.g., 1.25in top, 1in left, 1in right, 1in bottom',
+      conditional: { dependsOn: 'marginSpecifications', showWhen: ['custom-margins'] }
+    },
+    {
+      id: 'typographyHierarchy',
+      type: 'select',
+      label: 'Typography Hierarchy',
+      description: 'Text hierarchy and sizing system',
+      options: [
+        { value: 'corporate-standard', label: 'Corporate Standard', description: 'Professional business typography' },
+        { value: 'modern-scale', label: 'Modern Scale', description: 'Contemporary type scale system' },
+        { value: 'legal-formal', label: 'Legal Formal', description: 'Formal legal document typography' },
+        { value: 'executive-premium', label: 'Executive Premium', description: 'High-end executive typography' },
+        { value: 'accessible-clear', label: 'Accessible Clear', description: 'Optimized for accessibility' },
+        { value: 'international-multi', label: 'International Multi-Language', description: 'Supports multiple languages' },
+        { value: 'custom-hierarchy', label: 'Custom Hierarchy', description: 'Specify custom typography system' }
+      ]
+    },
+    {
+      id: 'customTypographyHierarchy',
+      type: 'textarea',
+      label: 'Custom Typography Hierarchy',
+      description: 'Specify custom typography hierarchy (font sizes, weights, spacing)',
+      placeholder: 'e.g., Header: 24pt Bold, Subheader: 18pt Semi-Bold, Body: 12pt Regular, Footer: 10pt Regular',
+      conditional: { dependsOn: 'typographyHierarchy', showWhen: ['custom-hierarchy'] },
+      validation: { max: 300, message: 'Typography hierarchy should be under 300 characters' }
+    },
+    {
+      id: 'gridSystem',
+      type: 'select',
+      label: 'Grid System',
+      description: 'Layout grid system for consistent alignment',
+      options: [
+        { value: 'single-column', label: 'Single Column', description: 'Simple single-column layout' },
+        { value: 'two-column', label: 'Two Column', description: 'Two-column grid system' },
+        { value: 'three-column', label: 'Three Column', description: 'Three-column grid system' },
+        { value: 'modular-grid', label: 'Modular Grid', description: 'Flexible modular grid system' },
+        { value: 'baseline-grid', label: 'Baseline Grid', description: 'Typography-based baseline grid' },
+        { value: 'golden-ratio', label: 'Golden Ratio', description: 'Grid based on golden ratio proportions' },
+        { value: 'custom-grid', label: 'Custom Grid', description: 'Specify custom grid specifications' }
+      ]
+    },
+    {
+      id: 'customGridSpecs',
+      type: 'text',
+      label: 'Custom Grid Specifications',
+      description: 'Specify custom grid system details',
+      placeholder: 'e.g., 12-column grid, 20px gutters, 60px baseline',
+      conditional: { dependsOn: 'gridSystem', showWhen: ['custom-grid'] }
+    },
+    {
+      id: 'watermarkOptions',
+      type: 'select',
+      label: 'Watermark Options',
+      description: 'Document watermark and background elements',
+      options: [
+        { value: 'none', label: 'No Watermark', description: 'Clean document without watermark' },
+        { value: 'logo-subtle', label: 'Subtle Logo Watermark', description: 'Faint logo in background' },
+        { value: 'brand-pattern', label: 'Brand Pattern', description: 'Subtle brand pattern background' },
+        { value: 'security-draft', label: 'Security/Draft Marking', description: 'Draft or confidential watermark' },
+        { value: 'custom-watermark', label: 'Custom Watermark', description: 'Specify custom watermark text' }
+      ]
+    },
+    {
+      id: 'customWatermark',
+      type: 'text',
+      label: 'Custom Watermark Text',
+      description: 'Specify custom watermark text or message',
+      placeholder: 'e.g., CONFIDENTIAL, DRAFT, PROPRIETARY',
+      conditional: { dependsOn: 'watermarkOptions', showWhen: ['custom-watermark'] }
+    },
+    {
+      id: 'headerFooterOptions',
+      type: 'multiselect',
+      label: 'Header/Footer Elements',
+      description: 'Select elements to include in header and footer',
+      options: [
+        { value: 'page-numbers', label: 'Page Numbers', description: 'Include page numbering' },
+        { value: 'date-time', label: 'Date/Time', description: 'Include document date and time' },
+        { value: 'document-title', label: 'Document Title', description: 'Include document title in header' },
+        { value: 'company-name', label: 'Company Name', description: 'Include company name' },
+        { value: 'confidentiality', label: 'Confidentiality Notice', description: 'Include confidentiality statement' },
+        { value: 'version-control', label: 'Version Control', description: 'Include version information' },
+        { value: 'approval-signatures', label: 'Approval Signatures', description: 'Include signature lines' },
+        { value: 'contact-info', label: 'Contact Information', description: 'Include contact details' }
+      ]
     },
     {
       id: 'industry',
@@ -1981,6 +2885,134 @@ export const LETTERHEAD_FORM: CategoryForm = {
         { value: 'header-accent', label: 'Header Accent', description: 'Top decorative element' },
         { value: 'date-field', label: 'Date Field', description: 'Pre-formatted date area' },
         { value: 'signature-line', label: 'Signature Line', description: 'Space for handwritten signature' }
+      ]
+    },
+    {
+      id: 'qualityAssurance',
+      type: 'multiselect',
+      label: 'Quality Assurance Requirements',
+      description: 'Select quality standards and validation requirements',
+      options: [
+        { value: 'print-resolution', label: 'Print Resolution (300 DPI)', description: 'High resolution for professional printing' },
+        { value: 'color-profile', label: 'Color Profile Compliance', description: 'CMYK/RGB color space validation' },
+        { value: 'typography-consistency', label: 'Typography Consistency', description: 'Consistent font usage and spacing' },
+        { value: 'accessibility-wcag', label: 'WCAG Accessibility', description: 'Web Content Accessibility Guidelines compliance' },
+        { value: 'brand-compliance', label: 'Brand Compliance Check', description: 'Adherence to brand guidelines' },
+        { value: 'layout-validation', label: 'Layout Validation', description: 'Grid system and alignment verification' },
+        { value: 'print-production', label: 'Print Production Ready', description: 'Bleed, trim, and production specifications' },
+        { value: 'multi-format', label: 'Multi-Format Compatibility', description: 'Optimized for various output formats' }
+      ]
+    },
+    {
+      id: 'technicalSpecifications',
+      type: 'select',
+      label: 'Technical Specifications Level',
+      description: 'Level of technical precision and specifications',
+      options: [
+        { value: 'basic-business', label: 'Basic Business', description: 'Standard business document specifications' },
+        { value: 'professional-grade', label: 'Professional Grade', description: 'Enhanced specifications for professional use' },
+        { value: 'enterprise-level', label: 'Enterprise Level', description: 'Enterprise-grade technical specifications' },
+        { value: 'print-production', label: 'Print Production', description: 'Full print production specifications' },
+        { value: 'custom-specs', label: 'Custom Specifications', description: 'Specify custom technical requirements' }
+      ]
+    },
+    {
+      id: 'customTechnicalSpecs',
+      type: 'textarea',
+      label: 'Custom Technical Specifications',
+      description: 'Specify custom technical requirements and specifications',
+      placeholder: 'e.g., 300 DPI minimum, CMYK color space, 0.125" bleed, specific font licensing requirements',
+      conditional: { dependsOn: 'technicalSpecifications', showWhen: ['custom-specs'] },
+      validation: { max: 400, message: 'Technical specifications should be under 400 characters' }
+    },
+    {
+      id: 'resolutionRequirements',
+      type: 'select',
+      label: 'Resolution Requirements',
+      description: 'Output resolution and quality settings',
+      options: [
+        { value: 'web-standard', label: 'Web Standard (72 DPI)', description: 'Optimized for digital viewing' },
+        { value: 'print-quality', label: 'Print Quality (300 DPI)', description: 'High quality for professional printing' },
+        { value: 'premium-print', label: 'Premium Print (600 DPI)', description: 'Ultra-high quality for premium printing' },
+        { value: 'archive-quality', label: 'Archive Quality (1200 DPI)', description: 'Archival-grade resolution' },
+        { value: 'custom-resolution', label: 'Custom Resolution', description: 'Specify custom DPI requirements' }
+      ]
+    },
+    {
+      id: 'customResolution',
+      type: 'text',
+      label: 'Custom Resolution (DPI)',
+      description: 'Specify custom resolution in dots per inch',
+      placeholder: 'e.g., 450 DPI',
+      conditional: { dependsOn: 'resolutionRequirements', showWhen: ['custom-resolution'] }
+    },
+    {
+      id: 'colorSpaceManagement',
+      type: 'select',
+      label: 'Color Space Management',
+      description: 'Color profile and space specifications',
+      options: [
+        { value: 'srgb-web', label: 'sRGB (Web Standard)', description: 'Standard RGB for digital display' },
+        { value: 'adobe-rgb', label: 'Adobe RGB', description: 'Extended RGB color space' },
+        { value: 'cmyk-print', label: 'CMYK (Print)', description: 'CMYK color space for printing' },
+        { value: 'pantone-spot', label: 'Pantone Spot Colors', description: 'Pantone color matching system' },
+        { value: 'custom-profile', label: 'Custom Color Profile', description: 'Specify custom color profile' }
+      ]
+    },
+    {
+      id: 'customColorProfile',
+      type: 'text',
+      label: 'Custom Color Profile',
+      description: 'Specify custom color profile or ICC profile requirements',
+      placeholder: 'e.g., ISO Coated v2 (ECI), GRACoL 2006 Coated1v2',
+      conditional: { dependsOn: 'colorSpaceManagement', showWhen: ['custom-profile'] }
+    },
+    {
+      id: 'fileOptimization',
+      type: 'multiselect',
+      label: 'File Optimization Options',
+      description: 'Output file optimization and format requirements',
+      options: [
+        { value: 'file-size-optimization', label: 'File Size Optimization', description: 'Optimize for smaller file sizes' },
+        { value: 'pdf-a-compliance', label: 'PDF/A Compliance', description: 'Long-term archival PDF format' },
+        { value: 'editable-text', label: 'Editable Text Layers', description: 'Maintain text editability' },
+        { value: 'vector-graphics', label: 'Vector Graphics', description: 'Scalable vector elements' },
+        { value: 'embedded-fonts', label: 'Embedded Fonts', description: 'Embed fonts for consistency' },
+        { value: 'metadata-inclusion', label: 'Metadata Inclusion', description: 'Include document metadata' },
+        { value: 'security-features', label: 'Security Features', description: 'Password protection and permissions' },
+        { value: 'multi-language-support', label: 'Multi-Language Support', description: 'Unicode and international text support' }
+      ]
+    },
+    {
+      id: 'accessibilityCompliance',
+      type: 'multiselect',
+      label: 'Accessibility Compliance',
+      description: 'Accessibility standards and requirements',
+      options: [
+        { value: 'wcag-aa', label: 'WCAG 2.1 AA', description: 'Web Content Accessibility Guidelines Level AA' },
+        { value: 'wcag-aaa', label: 'WCAG 2.1 AAA', description: 'Web Content Accessibility Guidelines Level AAA' },
+        { value: 'ada-compliance', label: 'ADA Compliance', description: 'Americans with Disabilities Act compliance' },
+        { value: 'section-508', label: 'Section 508', description: 'US Federal accessibility standards' },
+        { value: 'en-301-549', label: 'EN 301 549', description: 'European accessibility standard' },
+        { value: 'high-contrast', label: 'High Contrast Support', description: 'High contrast color schemes' },
+        { value: 'screen-reader', label: 'Screen Reader Optimized', description: 'Optimized for screen readers' },
+        { value: 'large-print', label: 'Large Print Ready', description: 'Optimized for large print versions' }
+      ]
+    },
+    {
+      id: 'internationalSupport',
+      type: 'multiselect',
+      label: 'International Business Support',
+      description: 'International standards and multi-regional support',
+      options: [
+        { value: 'multi-language', label: 'Multi-Language Text', description: 'Support for multiple languages' },
+        { value: 'rtl-support', label: 'RTL Text Support', description: 'Right-to-left text direction support' },
+        { value: 'international-paper', label: 'International Paper Sizes', description: 'A4, A3, and other international formats' },
+        { value: 'currency-formats', label: 'Currency Formats', description: 'International currency formatting' },
+        { value: 'date-formats', label: 'Date Formats', description: 'International date formatting' },
+        { value: 'cultural-colors', label: 'Cultural Color Considerations', description: 'Culturally appropriate color choices' },
+        { value: 'legal-compliance', label: 'International Legal Compliance', description: 'Multi-jurisdictional legal requirements' },
+        { value: 'time-zones', label: 'Time Zone Support', description: 'International time zone handling' }
       ]
     },
     {

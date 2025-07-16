@@ -42,6 +42,7 @@ const CATEGORY_PARAMETER_RULES: Record<ImageCategory, {
   needsTransparency: boolean;
   supportsCompression: boolean;
   typicalCompression?: number;
+  qualityMapping?: Record<string, GPTImageQuality>;
 }> = {
   'social-media': {
     preferredSize: 'auto', // Will be determined by platform
@@ -66,7 +67,14 @@ const CATEGORY_PARAMETER_RULES: Record<ImageCategory, {
     preferredFormat: 'png',
     preferredBackground: 'transparent',
     needsTransparency: true,
-    supportsCompression: false
+    supportsCompression: false,
+    // Enhanced quality mapping based on visualQuality parameter
+    qualityMapping: {
+      'ultra-premium': 'high',
+      'pixel-perfect': 'high',
+      'premium': 'high',
+      'production': 'high'
+    }
   },
   'marketing': {
     preferredSize: 'auto',
@@ -110,12 +118,20 @@ const CATEGORY_PARAMETER_RULES: Record<ImageCategory, {
     supportsCompression: false
   },
   'letterhead': {
-    preferredSize: '1024x1536',
+    preferredSize: 'auto', // Will be determined by document format (Letter, A4, etc.)
     preferredQuality: 'high',
-    preferredFormat: 'png',
+    preferredFormat: 'png', // PNG for crisp text and logos
     preferredBackground: 'opaque',
     needsTransparency: false,
-    supportsCompression: false
+    supportsCompression: false,
+    // Enhanced quality mapping for business documents
+    qualityMapping: {
+      'basic-business': 'medium',
+      'professional-grade': 'high',
+      'enterprise-level': 'high',
+      'print-production': 'high',
+      'custom-specs': 'high'
+    }
   },
   'ai-avatars': {
     preferredSize: '1024x1024',
@@ -234,6 +250,15 @@ export class AIParameterOptimizer {
         break;
 
       case 'ui-components':
+        // Enhanced quality optimization based on visualQuality parameter
+        if (formValues.visualQuality) {
+          const rules = CATEGORY_PARAMETER_RULES[category];
+          if (rules.qualityMapping && rules.qualityMapping[formValues.visualQuality]) {
+            params.quality = rules.qualityMapping[formValues.visualQuality];
+            reasoning += ` | Quality enhanced for ${formValues.visualQuality} rendering`;
+          }
+        }
+
         // Component type determines parameters
         if (formValues.componentType === 'icon') {
           params.size = '1024x1024'; // Square for icons
@@ -251,6 +276,32 @@ export class AIParameterOptimizer {
           params.background = 'transparent';
           params.format = 'png';
           reasoning += ` | Square transparent PNG for button`;
+        }
+
+        // Multi-state components need larger canvas
+        if (formValues.interactionStates && Array.isArray(formValues.interactionStates) && formValues.interactionStates.length > 1) {
+          params.size = '1536x1024'; // Wider canvas for multiple states
+          reasoning += ` | Wider canvas for ${formValues.interactionStates.length} interaction states`;
+        }
+
+        // Multi-variant components need even larger canvas
+        if (formValues.componentVariants && Array.isArray(formValues.componentVariants) && formValues.componentVariants.length > 1) {
+          params.size = '1536x1024'; // Wide canvas for multiple variants
+          reasoning += ` | Wide canvas for ${formValues.componentVariants.length} component variants`;
+        }
+
+        // Ultra-premium quality optimizations
+        if (formValues.visualQuality === 'ultra-premium') {
+          params.format = 'png'; // PNG for maximum quality
+          params.compression = undefined;
+          reasoning += ` | PNG format for ultra-premium quality`;
+        }
+
+        // Pixel-perfect quality optimizations
+        if (formValues.visualQuality === 'pixel-perfect') {
+          params.format = 'png'; // PNG for sharp edges
+          params.compression = undefined;
+          reasoning += ` | PNG format for pixel-perfect rendering`;
         }
         break;
 

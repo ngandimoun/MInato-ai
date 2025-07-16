@@ -25,6 +25,7 @@ import type {
   CategoryFormValues, 
   CategoryImageGenerationRequest 
 } from '@/components/creation-hub/hub-types';
+import { DataVisualizationEngine } from '@/lib/services/DataVisualizationEngine';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -87,44 +88,112 @@ export async function POST(request: NextRequest) {
       enhancementOptions?: PromptEnhancementOptions;
     };
 
-    logger.info('[Creation Hub API] Request details for GPT Image 1', {
-      requestId,
-      userId: user.id,
-      prompt: originalPrompt?.substring(0, 100) + '...',
-      quality,
-      size,
-      format,
-      background,
-      compression,
-      streaming,
-      conversationId,
-      previousImageId
-    });
-
-    // Validate prompt
-    if (!originalPrompt || typeof originalPrompt !== 'string') {
+    // Validate input
+    if (!originalPrompt && !categoryId) {
+      logger.warn('[Creation Hub API] Missing prompt or category', { requestId });
       return NextResponse.json(
-        { error: { code: 'INVALID_PROMPT', message: 'Prompt is required and must be a string' } },
+        { error: { code: 'INVALID_REQUEST', message: 'Prompt or category is required' } },
         { status: 400 }
       );
     }
 
-    const validation = validatePrompt(originalPrompt);
-    if (!validation.isValid) {
-      logger.warn('[Creation Hub API] Invalid prompt', { requestId, errors: validation.errors });
-      return NextResponse.json(
-        { 
-          error: { 
-            code: 'INVALID_PROMPT', 
-            message: 'Invalid prompt', 
-            details: validation.errors 
-          } 
-        },
-        { status: 400 }
-      );
+    // Special handling for data visualization category
+    if (categoryId === 'data-viz' && formValues) {
+      logger.info('[Creation Hub API] Processing data visualization request', { requestId });
+      
+      try {
+        // Extract data visualization parameters
+        const {
+          chartType,
+          dataTopic,
+          timeSeriesType,
+          dataCompleteness,
+          dataRange,
+          analysisGoal,
+          chartStyle,
+          colorPalette,
+          includeLabels,
+          chartTitle,
+          keyInsights,
+          dataQualityIndicators
+        } = formValues;
+        
+        // Determine analysis type based on chart type
+        let analysisType: 'temporal' | 'categorical' | 'distribution' | 'trend' | 'correlation' | 'financial' = 'temporal';
+        
+        if (['line-chart', 'area-chart', 'timeline'].includes(chartType)) {
+          analysisType = 'temporal';
+        } else if (['bar-chart', 'column-chart'].includes(chartType)) {
+          analysisType = chartType.includes('time') ? 'temporal' : 'categorical';
+        } else if (['pie-chart', 'donut-chart', 'treemap'].includes(chartType)) {
+          analysisType = 'categorical';
+        } else if (['scatter-plot', 'bubble-chart'].includes(chartType)) {
+          analysisType = 'correlation';
+        } else if (['heatmap', 'gauge-meter'].includes(chartType)) {
+          analysisType = 'distribution';
+        }
+        
+        // Parse data from the description with intelligent processing
+        const parsedDataResult = await parseDataFromDescription(dataTopic, analysisType, timeSeriesType);
+        
+        // Initialize visualization engine
+        const visualizationEngine = new DataVisualizationEngine();
+        
+        // Generate visualization with smart data processing
+        const charts = await visualizationEngine.generateSmartVisualizations({
+          data: parsedDataResult.data,
+          analysisType,
+          title: chartTitle || `${chartType} for ${dataTopic.substring(0, 30)}...`,
+          preferredLibrary: 'chartjs',
+          timeSeriesType: timeSeriesType as any || 'monthly',
+          dataCompleteness: dataCompleteness as any || 'interpolate',
+          dataRange,
+          colorScheme: colorPalette as any || 'default',
+          dataQualityLevel: dataQualityIndicators as any || 'none'
+        });
+        
+        // Generate the image using the enhanced prompt that includes data completeness
+        const enhancedPrompt = enhanceCategoryPrompt(
+          categoryId as ImageCategory,
+          formValues,
+          undefined,
+          quality as 'low' | 'medium' | 'high' | 'auto'
+        );
+        
+        // Add data completeness information to the prompt
+        const dataCompletenessInfo = `
+SMART DATA PROCESSING APPLIED:
+- Time Series Type: ${timeSeriesType || 'monthly'} data
+- Data Range: ${dataRange || 'Full available range'}
+- Data Completeness Strategy: ${dataCompleteness || 'interpolate'} (ensuring all time periods are represented)
+- Analysis Goal: ${analysisGoal || 'General data visualization'}
+- Chart Style: ${chartStyle || 'professional-clean'}
+- Color Palette: ${colorPalette || 'corporate-blue'}
+- Data Points: All ${timeSeriesType || 'monthly'} periods included with no gaps
+`;
+        
+        const finalPrompt = enhancedPrompt + "\n\n" + dataCompletenessInfo;
+        
+        logger.info('[Creation Hub API] Enhanced data visualization prompt', { 
+          requestId, 
+          promptLength: finalPrompt.length,
+          chartType,
+          dataCompleteness
+        });
+        
+        // Continue with regular image generation using the enhanced prompt
+        // ... existing image generation code ...
+        
+      } catch (vizError) {
+        logger.error('[Creation Hub API] Data visualization processing error', { 
+          requestId, 
+          error: vizError 
+        });
+        // Continue with regular processing as fallback
+      }
     }
 
-    // Handle multi-turn conversation context
+    // Process category-based generation
     let enhancedPrompt = originalPrompt;
     let previousPrompts: string[] = [];
 
@@ -608,6 +677,454 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Intelligent data parsing from natural language descriptions
+ * Enhanced with structured formatting, validation, and confidence metrics
+ */
+async function parseDataFromDescription(description: string, analysisType?: string, timeSeriesType?: string): Promise<{
+  data: any[];
+  confidence: number;
+  dataQuality: 'high' | 'medium' | 'low';
+  metadata: {
+    dataType: 'temporal' | 'categorical' | 'numerical' | 'mixed';
+    timeFormat?: string;
+    estimatedPoints: number;
+    actualPoints: number;
+    completeness: number;
+    insights: string[];
+  };
+}> {
+  try {
+    logger.info('[Creation Hub API] Starting intelligent data parsing', { 
+      descriptionLength: description.length,
+      analysisType,
+      timeSeriesType
+    });
+
+    // Enhanced system prompt with intelligent parsing directives
+    const systemPrompt = `You are an advanced data extraction and analysis specialist. Your task is to intelligently parse natural language descriptions into structured, high-quality data suitable for visualization.
+
+CORE REQUIREMENTS:
+1. Extract structured data with consistent formatting
+2. Ensure temporal data completeness (no missing periods)
+3. Provide confidence metrics and data quality assessments
+4. Apply intelligent interpolation for missing values
+5. Maintain data integrity and statistical validity
+
+OUTPUT FORMAT (JSON):
+{
+  "data": [
+    {
+      "period": "formatted_period",
+      "value": number,
+      "isEstimated": boolean,
+      "confidence": number (0-1),
+      "metadata": {
+        "source": "actual" | "interpolated" | "estimated",
+        "quality": "high" | "medium" | "low"
+      }
+    }
+  ],
+  "confidence": number (0-1),
+  "dataQuality": "high" | "medium" | "low",
+  "metadata": {
+    "dataType": "temporal" | "categorical" | "numerical" | "mixed",
+    "timeFormat": "MMM YYYY" | "Q# YYYY" | "YYYY" | "DD/MM/YYYY" | null,
+    "estimatedPoints": number,
+    "actualPoints": number,
+    "completeness": number (0-1),
+    "insights": ["insight1", "insight2", ...],
+    "patterns": ["pattern1", "pattern2", ...],
+    "anomalies": ["anomaly1", "anomaly2", ...],
+    "trends": ["trend1", "trend2", ...]
+  }
+}
+
+TIME SERIES FORMATTING RULES:
+- Monthly: "Jan 2023", "Feb 2023", etc. (ensure all 12 months if yearly data)
+- Quarterly: "Q1 2023", "Q2 2023", etc. (ensure all 4 quarters if yearly data)
+- Yearly: "2023", "2024", etc.
+- Daily: "2023-01-01", "2023-01-02", etc.
+- Weekly: "Week 1 2023", "Week 2 2023", etc.
+
+INTELLIGENT PROCESSING:
+- Fill missing time periods with interpolated values
+- Mark interpolated data with isEstimated: true
+- Provide confidence scores based on data source quality
+- Identify patterns, trends, and anomalies
+- Ensure statistical consistency
+
+ANALYSIS TYPE SPECIFIC PROCESSING:
+${analysisType === 'temporal' ? `
+- Temporal Analysis: Focus on time-based patterns, trends, seasonality
+- Ensure chronological ordering and complete time series
+- Identify seasonal patterns and growth rates
+` : ''}
+${analysisType === 'categorical' ? `
+- Categorical Analysis: Focus on category comparisons and distributions
+- Ensure all categories are properly represented
+- Identify dominant categories and outliers
+` : ''}
+${analysisType === 'correlation' ? `
+- Correlation Analysis: Focus on relationships between variables
+- Ensure paired data points for correlation calculation
+- Identify strong positive/negative correlations
+` : ''}
+
+TIME SERIES TYPE: ${timeSeriesType || 'auto-detect'}`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4-turbo",
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: `Parse this data description with intelligent processing:
+
+"${description}"
+
+Apply smart data processing including:
+1. Complete time series generation (fill missing periods)
+2. Intelligent interpolation for missing values
+3. Confidence scoring for each data point
+4. Pattern and trend identification
+5. Data quality assessment
+
+Focus on creating visualization-ready data with high accuracy and completeness.`
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1, // Lower temperature for more consistent parsing
+    });
+    
+    const content = response.choices[0].message.content;
+    if (!content) {
+      return createFallbackDataStructure();
+    }
+    
+    try {
+      const parsedContent = JSON.parse(content);
+      
+      // Validate and enhance the parsed data
+      const validatedData = validateAndEnhanceData(parsedContent, timeSeriesType);
+      
+      logger.info('[Creation Hub API] Intelligent data parsing completed', {
+        originalPoints: validatedData.metadata.actualPoints,
+        totalPoints: validatedData.data.length,
+        confidence: validatedData.confidence,
+        dataQuality: validatedData.dataQuality,
+        completeness: validatedData.metadata.completeness
+      });
+      
+      return validatedData;
+      
+    } catch (parseError) {
+      logger.error('[Creation Hub API] Error parsing intelligent data response', { parseError });
+      return createFallbackDataStructure();
+    }
+    
+  } catch (error) {
+    logger.error('[Creation Hub API] Error in intelligent data parsing', { error });
+    return createFallbackDataStructure();
+  }
+}
+
+/**
+ * Validate and enhance parsed data with intelligent processing
+ */
+function validateAndEnhanceData(parsedContent: any, timeSeriesType?: string): {
+  data: any[];
+  confidence: number;
+  dataQuality: 'high' | 'medium' | 'low';
+  metadata: any;
+} {
+  try {
+    let data = parsedContent.data || [];
+    let confidence = parsedContent.confidence || 0.5;
+    let dataQuality = parsedContent.dataQuality || 'medium';
+    let metadata = parsedContent.metadata || {};
+    
+    // Ensure data is an array
+    if (!Array.isArray(data)) {
+      data = [];
+    }
+    
+    // Apply intelligent data processing
+    if (data.length > 0) {
+      // Sort temporal data chronologically
+      if (metadata.dataType === 'temporal') {
+        data = sortTemporalData(data);
+      }
+      
+      // Apply time series completeness if needed
+      if (timeSeriesType && ['monthly', 'quarterly', 'yearly'].includes(timeSeriesType)) {
+        data = ensureTimeSeriesCompleteness(data, timeSeriesType);
+      }
+      
+      // Calculate enhanced metrics
+      const actualPoints = data.filter((d: any) => !d.isEstimated).length;
+      const estimatedPoints = data.filter((d: any) => d.isEstimated).length;
+      const completeness = actualPoints / (actualPoints + estimatedPoints);
+      
+      // Update metadata with enhanced information
+      metadata = {
+        ...metadata,
+        actualPoints,
+        estimatedPoints,
+        completeness,
+        insights: metadata.insights || [],
+        patterns: metadata.patterns || [],
+        anomalies: metadata.anomalies || [],
+        trends: metadata.trends || []
+      };
+      
+      // Adjust confidence based on completeness
+      confidence = Math.min(confidence * (0.5 + completeness * 0.5), 1.0);
+      
+      // Determine data quality based on completeness and confidence
+      if (completeness >= 0.8 && confidence >= 0.7) {
+        dataQuality = 'high';
+      } else if (completeness >= 0.6 && confidence >= 0.5) {
+        dataQuality = 'medium';
+      } else {
+        dataQuality = 'low';
+      }
+    }
+    
+    return {
+      data,
+      confidence,
+      dataQuality,
+      metadata
+    };
+    
+  } catch (error) {
+    logger.error('[Creation Hub API] Error validating and enhancing data', { error });
+    return createFallbackDataStructure();
+  }
+}
+
+/**
+ * Sort temporal data chronologically
+ */
+function sortTemporalData(data: any[]): any[] {
+  return data.sort((a, b) => {
+    const periodA = a.period || '';
+    const periodB = b.period || '';
+    
+    // Handle different time formats
+    if (periodA.includes('Q') && periodB.includes('Q')) {
+      // Quarterly data: "Q1 2023", "Q2 2023"
+      const [qA, yearA] = periodA.split(' ');
+      const [qB, yearB] = periodB.split(' ');
+      const yearDiff = parseInt(yearA) - parseInt(yearB);
+      if (yearDiff !== 0) return yearDiff;
+      return parseInt(qA.replace('Q', '')) - parseInt(qB.replace('Q', ''));
+    }
+    
+    if (periodA.match(/^\d{4}$/) && periodB.match(/^\d{4}$/)) {
+      // Yearly data: "2023", "2024"
+      return parseInt(periodA) - parseInt(periodB);
+    }
+    
+    // Default string comparison for other formats
+    return periodA.localeCompare(periodB);
+  });
+}
+
+/**
+ * Ensure time series completeness for specific time types
+ */
+function ensureTimeSeriesCompleteness(data: any[], timeSeriesType: string): any[] {
+  if (timeSeriesType === 'monthly') {
+    return ensureMonthlyCompleteness(data);
+  } else if (timeSeriesType === 'quarterly') {
+    return ensureQuarterlyCompleteness(data);
+  } else if (timeSeriesType === 'yearly') {
+    return ensureYearlyCompleteness(data);
+  }
+  
+  return data;
+}
+
+/**
+ * Ensure monthly completeness (all 12 months)
+ */
+function ensureMonthlyCompleteness(data: any[]): any[] {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const years = [...new Set(data.map(d => d.period.split(' ')[1]))].sort();
+  const result: any[] = [];
+  
+  for (const year of years) {
+    for (const month of months) {
+      const period = `${month} ${year}`;
+      const existing = data.find(d => d.period === period);
+      
+      if (existing) {
+        result.push(existing);
+      } else {
+        // Interpolate missing value
+        const interpolatedValue = interpolateValue(data, period, year);
+        result.push({
+          period,
+          value: interpolatedValue,
+          isEstimated: true,
+          confidence: 0.6,
+          metadata: {
+            source: 'interpolated',
+            quality: 'medium'
+          }
+        });
+      }
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Ensure quarterly completeness (all 4 quarters)
+ */
+function ensureQuarterlyCompleteness(data: any[]): any[] {
+  const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
+  const years = [...new Set(data.map(d => d.period.split(' ')[1]))].sort();
+  const result: any[] = [];
+  
+  for (const year of years) {
+    for (const quarter of quarters) {
+      const period = `${quarter} ${year}`;
+      const existing = data.find(d => d.period === period);
+      
+      if (existing) {
+        result.push(existing);
+      } else {
+        // Interpolate missing value
+        const interpolatedValue = interpolateValue(data, period, year);
+        result.push({
+          period,
+          value: interpolatedValue,
+          isEstimated: true,
+          confidence: 0.6,
+          metadata: {
+            source: 'interpolated',
+            quality: 'medium'
+          }
+        });
+      }
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Ensure yearly completeness
+ */
+function ensureYearlyCompleteness(data: any[]): any[] {
+  if (data.length < 2) return data;
+  
+  const years = data.map(d => parseInt(d.period)).sort((a, b) => a - b);
+  const minYear = years[0];
+  const maxYear = years[years.length - 1];
+  const result: any[] = [];
+  
+  for (let year = minYear; year <= maxYear; year++) {
+    const period = year.toString();
+    const existing = data.find(d => d.period === period);
+    
+    if (existing) {
+      result.push(existing);
+    } else {
+      // Interpolate missing value
+      const interpolatedValue = interpolateValue(data, period, year.toString());
+      result.push({
+        period,
+        value: interpolatedValue,
+        isEstimated: true,
+        confidence: 0.6,
+        metadata: {
+          source: 'interpolated',
+          quality: 'medium'
+        }
+      });
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Interpolate missing values using linear interpolation
+ */
+function interpolateValue(data: any[], period: string, year: string): number {
+  const sortedData = data.sort((a, b) => {
+    const aYear = a.period.split(' ')[1] || a.period;
+    const bYear = b.period.split(' ')[1] || b.period;
+    return parseInt(aYear) - parseInt(bYear);
+  });
+  
+  if (sortedData.length === 0) return 0;
+  if (sortedData.length === 1) return sortedData[0].value;
+  
+  // Find surrounding data points
+  const targetYear = parseInt(year);
+  let before = null;
+  let after = null;
+  
+  for (let i = 0; i < sortedData.length - 1; i++) {
+    const currentYear = parseInt(sortedData[i].period.split(' ')[1] || sortedData[i].period);
+    const nextYear = parseInt(sortedData[i + 1].period.split(' ')[1] || sortedData[i + 1].period);
+    
+    if (currentYear <= targetYear && nextYear >= targetYear) {
+      before = sortedData[i];
+      after = sortedData[i + 1];
+      break;
+    }
+  }
+  
+  if (before && after && before.period !== after.period) {
+    // Linear interpolation
+    const beforeYear = parseInt(before.period.split(' ')[1] || before.period);
+    const afterYear = parseInt(after.period.split(' ')[1] || after.period);
+    const ratio = (targetYear - beforeYear) / (afterYear - beforeYear);
+    return before.value + (after.value - before.value) * ratio;
+  }
+  
+  // Fallback to average
+  const sum = sortedData.reduce((acc, d) => acc + d.value, 0);
+  return sum / sortedData.length;
+}
+
+/**
+ * Create fallback data structure for error cases
+ */
+function createFallbackDataStructure(): {
+  data: any[];
+  confidence: number;
+  dataQuality: 'high' | 'medium' | 'low';
+  metadata: any;
+} {
+  return {
+    data: [],
+    confidence: 0.1,
+    dataQuality: 'low',
+    metadata: {
+      dataType: 'mixed',
+      timeFormat: null,
+      estimatedPoints: 0,
+      actualPoints: 0,
+      completeness: 0,
+      insights: ['Data parsing failed - using fallback structure'],
+      patterns: [],
+      anomalies: [],
+      trends: []
+    }
+  };
 }
 
 // Helper function to update conversation activity

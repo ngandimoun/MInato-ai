@@ -438,17 +438,42 @@ Component Content: "${formValues.componentContent}"
 - Brand Voice Integration: Content tone and presentation aligned with overall brand personality and communication style`
       : 'Content-Ready Design: Component structure accommodating various text lengths and content types';
 
-    // Interaction states integration
-    const interactionSection = formValues.interactionState 
-      ? `Interaction Design Framework:
-Supported States: ${formValues.interactionState}
-- State Clarity: Clear visual differentiation between ${formValues.interactionState} ensuring intuitive user understanding
+    // Enhanced interaction states integration
+    const interactionSection = formValues.interactionStates 
+      ? `Advanced Interaction Design Framework:
+Supported States: ${Array.isArray(formValues.interactionStates) ? formValues.interactionStates.join(', ') : formValues.interactionStates}
+- State Clarity: Clear visual differentiation between all selected states ensuring intuitive user understanding
 - Transition Smoothness: Elegant animations and micro-interactions enhancing state changes and user feedback
 - Accessibility Standards: State changes communicated through multiple sensory channels for universal accessibility
 - Performance Optimization: State implementations maintaining smooth performance across various devices and browsers
 - User Feedback: Immediate visual confirmation of user actions and system responses through state design
-- Error Prevention: State design guiding users toward successful interactions and preventing common mistakes`
+- Error Prevention: State design guiding users toward successful interactions and preventing common mistakes
+- State Hierarchy: Visual priority system showing most important states prominently in the component showcase`
       : 'Standard Interaction Design: Component supporting essential interactive states and user feedback';
+
+    // Component variants integration
+    const variantsSection = formValues.componentVariants 
+      ? `Component Variants System:
+Selected Variants: ${Array.isArray(formValues.componentVariants) ? formValues.componentVariants.join(', ') : formValues.componentVariants}
+- Variant Differentiation: Clear visual distinction between each variant type while maintaining design consistency
+- Hierarchy Communication: Primary variants more prominent than secondary and tertiary variants
+- Semantic Meaning: Color and styling choices that communicate the purpose of each variant (destructive = red, success = green, etc.)
+- Accessibility Compliance: All variants meet contrast and readability standards
+- Brand Integration: Variant styling aligned with brand colors and personality
+- Usage Context: Each variant designed for its specific use case and user intent`
+      : 'Single Component Focus: Component designed with primary styling and standard variant approach';
+
+    // Micro-interactions integration
+    const microInteractionsSection = formValues.microInteractions 
+      ? `Micro-interactions Design System:
+Selected Effects: ${Array.isArray(formValues.microInteractions) ? formValues.microInteractions.join(', ') : formValues.microInteractions}
+- Animation Timing: Smooth 200-300ms transitions that feel natural and responsive
+- Easing Functions: Appropriate easing curves for each interaction type (ease-out for entrances, ease-in for exits)
+- Visual Feedback: Immediate confirmation of user actions through subtle visual changes
+- Performance Optimization: Lightweight animations that don't impact component performance
+- Accessibility Respect: Motion effects that respect user's reduced motion preferences
+- Platform Consistency: Micro-interactions that feel native to the target platform`
+      : 'Standard Interactions: Component with essential hover and click feedback without complex animations';
 
     // User context and environment integration
     const userContextSection = formValues.userContext 
@@ -497,6 +522,167 @@ Constraints: ${formValues.technicalConstraints}
 - Performance Optimization: Implementation approach optimized for ${formValues.technicalConstraints} performance characteristics
 - Future-Proofing: Design structure allowing evolution while maintaining ${formValues.technicalConstraints} compatibility requirements`
       : 'Standard Technical Approach: Component designed for modern web standards with broad compatibility';
+
+    // Visual quality enhancement system
+    const visualQualitySection = formValues.visualQuality 
+      ? `Ultra-Premium Visual Quality Framework:
+Quality Level: ${formValues.visualQuality}
+${formValues.visualQuality === 'ultra-premium' ? `
+- Ray-traced Shadows: Physically accurate shadow rendering with realistic light scattering
+- Ultra-crisp Edges: Pixel-perfect edge rendering with sub-pixel precision
+- Advanced Gradients: Smooth, high-fidelity color transitions with multiple color stops
+- Premium Materials: Realistic surface textures and material properties
+- Professional Polish: Every detail refined to professional design standards` : ''}
+${formValues.visualQuality === 'pixel-perfect' ? `
+- Pixel Precision: Every element aligned to exact pixel boundaries
+- Mathematical Spacing: Precise measurements using consistent grid systems
+- Sharp Typography: Crisp text rendering with optimal letter spacing
+- Clean Geometry: Perfect geometric shapes with no aliasing or distortion
+- Consistent Alignment: All elements precisely positioned using mathematical relationships` : ''}
+${formValues.visualQuality === 'premium' ? `
+- Enhanced Details: Polished visual elements with refined finishing touches
+- Smooth Gradients: High-quality color transitions and surface treatments
+- Professional Shadows: Carefully crafted shadow systems for depth and hierarchy
+- Quality Typography: Well-spaced, readable text with appropriate weights
+- Refined Interactions: Smooth, polished interaction feedback` : ''}
+- Rendering Excellence: Component rendered at the highest quality standards for professional use`
+      : 'Standard Quality: Professional-grade component rendering suitable for production use';
+
+    // Advanced shadow and elevation system
+    const shadowSystemSection = formValues.shadowSystem 
+      ? `Advanced Shadow & Elevation System:
+Shadow Type: ${formValues.shadowSystem}
+${formValues.shadowSystem === 'ray-traced' ? `
+- Realistic Light Physics: Shadows calculated using ray-tracing algorithms for maximum realism
+- Multiple Light Sources: Complex lighting scenarios with ambient, directional, and point lights
+- Soft Shadow Edges: Natural shadow falloff with realistic blur gradients
+- Color-accurate Shadows: Shadows that reflect the color temperature of light sources
+- Environmental Reflections: Subtle reflections and ambient occlusion effects` : ''}
+${formValues.shadowSystem === 'material' ? `
+- Material Design Elevation: Consistent elevation system with appropriate shadow depths
+- Layered Shadows: Multiple shadow layers creating realistic depth perception
+- Ambient Shadows: Soft, diffused shadows for natural lighting effects
+- Key Light Shadows: Directional shadows providing clear depth hierarchy
+- Elevation Consistency: Shadows that maintain consistent light source direction` : ''}
+${formValues.shadowSystem === 'dramatic' ? `
+- High Contrast Shadows: Strong, pronounced shadows for dramatic visual impact
+- Deep Shadow Depths: Significant shadow offsets creating bold depth effects
+- Sharp Shadow Edges: Crisp shadow boundaries for modern, graphic appearance
+- Strategic Shadow Placement: Shadows positioned for maximum visual hierarchy
+- Bold Lighting: Strong directional lighting creating impactful shadow patterns` : ''}
+- Shadow Integration: Shadows seamlessly integrated into overall component design`
+      : 'Subtle Shadows: Light, professional shadows that enhance depth without distraction';
+
+    // Advanced gradient system
+    const gradientSystemSection = formValues.gradientSystem 
+      ? `Advanced Gradient Rendering System:
+Gradient Type: ${formValues.gradientSystem}
+${formValues.gradientSystem === 'mesh' ? `
+- Multi-point Gradients: Complex color transitions with multiple anchor points
+- Organic Color Flow: Natural, flowing color transitions that feel organic
+- Advanced Color Interpolation: Smooth color blending using advanced algorithms
+- Depth Simulation: Gradients that create illusion of three-dimensional depth
+- Color Harmony: Carefully selected color combinations for visual appeal` : ''}
+${formValues.gradientSystem === 'animated' ? `
+- Dynamic Color Transitions: Gradients that suggest motion and energy
+- Temporal Color Flow: Color changes that imply movement over time
+- Kinetic Visual Elements: Gradients that enhance the sense of interactivity
+- Smooth Animation Curves: Color transitions with natural easing functions
+- Performance Optimized: Animated effects that maintain smooth performance` : ''}
+${formValues.gradientSystem === 'radial' ? `
+- Circular Color Transitions: Radial gradients creating focal points and emphasis
+- Center-to-edge Flow: Color transitions that draw attention to key elements
+- Depth Illusion: Radial gradients that create sense of dimensional depth
+- Spotlight Effects: Focused color transitions highlighting important content
+- Balanced Color Distribution: Even color flow from center to periphery` : ''}
+- Gradient Excellence: Professional-grade gradient rendering with smooth color transitions`
+      : 'Standard Gradients: Clean, professional linear gradients where appropriate';
+
+    // Advanced typography system
+    const typographySystemSection = formValues.typographySystem 
+      ? `Advanced Typography System:
+Typography Type: ${formValues.typographySystem}
+${formValues.typographySystem === 'variable' ? `
+- Variable Font Technology: Advanced font features with dynamic weight and width adjustments
+- Optical Size Optimization: Font rendering optimized for different sizes and viewing distances
+- Custom Font Variations: Unique font characteristics tailored to specific use cases
+- Advanced Kerning: Precise letter spacing for optimal readability
+- Responsive Typography: Font characteristics that adapt to different screen sizes` : ''}
+${formValues.typographySystem === 'custom' ? `
+- Brand-specific Typography: Custom font selection aligned with brand personality
+- Hierarchical Font System: Carefully planned font weights and sizes for clear hierarchy
+- Cross-platform Font Rendering: Consistent typography across all devices and platforms
+- Accessibility-first Typography: Font choices optimized for readability and accessibility
+- Professional Font Pairing: Harmonious combination of fonts for different content types` : ''}
+${formValues.typographySystem === 'google-fonts' ? `
+- Professional Web Typography: High-quality Google Fonts optimized for web use
+- Performance-optimized Loading: Efficient font loading for fast page performance
+- Cross-browser Compatibility: Consistent font rendering across all browsers
+- Extensive Character Support: Full character sets for international content
+- Modern Font Features: Advanced typography features like ligatures and kerning` : ''}
+- Typography Excellence: Professional-grade text rendering with optimal readability`
+      : 'System Typography: Clean, readable fonts optimized for the target platform';
+
+    // Layout grid system
+    const layoutGridSection = formValues.layoutGrid 
+      ? `Advanced Layout Grid System:
+Grid Type: ${formValues.layoutGrid}
+${formValues.layoutGrid === 'css-grid' ? `
+- Modern CSS Grid Layout: Advanced grid system with precise control over positioning
+- Responsive Grid Areas: Grid regions that adapt intelligently to different screen sizes
+- Complex Grid Patterns: Sophisticated layouts with overlapping and nested grid areas
+- Grid-based Alignment: Perfect alignment using CSS Grid's advanced positioning
+- Flexible Grid Sizing: Dynamic grid tracks that resize based on content and viewport` : ''}
+${formValues.layoutGrid === '4px' ? `
+- Precise 4px Baseline Grid: Ultra-precise spacing system for pixel-perfect alignment
+- Mathematical Precision: All spacing calculated using 4px increments for consistency
+- Micro-spacing Control: Fine-grained control over element positioning and spacing
+- Consistent Rhythm: Visual rhythm created through consistent 4px spacing intervals
+- Professional Precision: Design precision that meets the highest professional standards` : ''}
+${formValues.layoutGrid === '8px' ? `
+- Standard 8px Baseline Grid: Industry-standard spacing system for consistent layouts
+- Scalable Spacing System: Spacing that scales appropriately across different screen sizes
+- Design System Integration: Grid system that integrates seamlessly with design tokens
+- Consistent Visual Rhythm: Harmonious spacing that creates pleasing visual flow
+- Cross-component Consistency: Uniform spacing approach across all component types` : ''}
+- Grid Excellence: Professional layout system ensuring perfect alignment and spacing`
+      : 'Standard Layout: Clean, well-organized layout with consistent spacing';
+
+    // Responsive behavior integration
+    const responsiveBehaviorSection = formValues.responsiveBehavior 
+      ? `Advanced Responsive Behavior System:
+Responsive Features: ${Array.isArray(formValues.responsiveBehavior) ? formValues.responsiveBehavior.join(', ') : formValues.responsiveBehavior}
+- Intelligent Adaptation: Component behavior that adapts intelligently to different screen sizes
+- Content Prioritization: Most important content remains visible and accessible across all devices
+- Interaction Optimization: Touch and mouse interactions optimized for each device type
+- Performance Scaling: Component complexity adjusted based on device capabilities
+- Accessibility Maintenance: Full accessibility features maintained across all responsive states
+- Visual Hierarchy Preservation: Important visual relationships maintained regardless of screen size`
+      : 'Standard Responsive: Component scales appropriately across common screen sizes';
+
+    // Platform optimizations integration
+    const platformOptimizationsSection = formValues.platformOptimizations 
+      ? `Platform-Specific Optimizations:
+Optimization Features: ${Array.isArray(formValues.platformOptimizations) ? formValues.platformOptimizations.join(', ') : formValues.platformOptimizations}
+- Native Platform Feel: Component behavior that feels native to each target platform
+- Accessibility Excellence: Advanced accessibility features meeting and exceeding platform standards
+- Performance Optimization: Component performance tuned for each platform's capabilities
+- User Experience Consistency: Consistent experience that respects platform conventions
+- Future-proof Design: Component architecture that adapts to evolving platform requirements
+- Cross-platform Compatibility: Seamless experience across all supported platforms`
+      : 'Standard Platform Support: Component designed for broad platform compatibility';
+
+    // Device-specific features integration
+    const deviceSpecificSection = formValues.deviceSpecific 
+      ? `Device-Specific Feature Integration:
+Device Features: ${Array.isArray(formValues.deviceSpecific) ? formValues.deviceSpecific.join(', ') : formValues.deviceSpecific}
+- Hardware Integration: Component design that takes advantage of specific device capabilities
+- Interaction Optimization: Interactions optimized for each device's input methods
+- Display Optimization: Visual design optimized for each device's display characteristics
+- Performance Tuning: Component performance optimized for specific device constraints
+- Future Device Support: Architecture that can adapt to new device types and capabilities
+- Universal Accessibility: Consistent accessibility across all device types and capabilities`
+      : 'Universal Device Support: Component designed for broad device compatibility';
 
     // Enhanced platform-specific design guidelines
     const platformGuidelines = (() => {
@@ -661,6 +847,10 @@ ${contentSection}
 
 ${interactionSection}
 
+${variantsSection}
+
+${microInteractionsSection}
+
 ${userContextSection}
 
 ${performanceSection}
@@ -669,11 +859,27 @@ ${businessGoalSection}
 
 ${technicalConstraintsSection}
 
-COMPONENT SPECIFICATIONS:
+ENHANCED COMPONENT SPECIFICATIONS:
 Component Type: ${formValues.componentType}
 Target Platform: ${formValues.platform}
 Design System: ${formValues.designSystem}
 User Experience Goal: ${formValues.userExperience}
+
+${visualQualitySection}
+
+${shadowSystemSection}
+
+${gradientSystemSection}
+
+${typographySystemSection}
+
+${layoutGridSection}
+
+${responsiveBehaviorSection}
+
+${platformOptimizationsSection}
+
+${deviceSpecificSection}
 
 ${platformGuidelines}
 
@@ -754,6 +960,10 @@ This component will exemplify professional web and app development standards, cr
     'low': 'clean UI design, suitable for quick mockups',
     'medium': 'professional UI design, polished execution',
     'high': 'pixel-perfect UI design, ultra-crisp details, premium interface quality',
+    'ultra-premium': 'ultra-premium UI design, ray-traced shadows, ultra-crisp edges, maximum detail level',
+    'pixel-perfect': 'pixel-perfect UI design, mathematical precision, perfect alignment, ultra-sharp edges',
+    'premium': 'premium UI design, enhanced details, smooth gradients, professional polish',
+    'production': 'production-ready UI design, professional quality, optimized for development handoff',
     'auto': 'automatically optimized quality for UI components'
   },
 
@@ -1293,38 +1503,151 @@ export const BANNERS_TEMPLATE: PromptTemplate = {
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
     const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
     
+    // Platform-specific optimization
+    const platformSection = formValues.platform 
+      ? `PLATFORM OPTIMIZATION FRAMEWORK:
+Platform: ${formValues.platform}
+- Dimensional Precision: Exact specifications for ${formValues.platform} optimal display
+- Safe Zone Compliance: Critical content within platform-specific safe zones
+- Technical Requirements: Format, resolution, and file size optimized for ${formValues.platform}
+- Viewing Context: Design optimized for typical ${formValues.platform} user behavior patterns
+- Algorithm Optimization: Visual elements designed to maximize organic reach on ${formValues.platform}
+- Cross-Device Compatibility: Perfect rendering across desktop, tablet, and mobile for ${formValues.platform}`
+      : '';
+
+    // Brand consistency integration
+    const brandSection = formValues.brandKit 
+      ? `BRAND CONSISTENCY FRAMEWORK:
+Brand Kit: ${formValues.brandKit}
+- Color Palette Adherence: Strategic implementation of brand colors while optimizing for conversion
+- Typography Harmony: Brand font selections maximizing readability at banner dimensions
+- Logo Integration: Brand mark positioned for recognition without competing with primary message
+- Style Continuity: Design approach recognizable as part of cohesive brand experience
+- Brand Personality Reflection: Visual elements communicating intended brand characteristics
+- Recognition Optimization: Design elements supporting brand recall across viewing contexts`
+      : '';
+
+    // Layout and grid system
+    const layoutSection = formValues.layoutGrid 
+      ? `PROFESSIONAL LAYOUT STRUCTURE:
+Grid System: ${formValues.layoutGrid}
+- Mathematical Precision: ${formValues.layoutGrid} composition framework for optimal balance
+- Element Alignment: Strategic positioning following ${formValues.layoutGrid} principles
+- Visual Hierarchy: Clear information prioritization using ${formValues.layoutGrid} structure
+- Whitespace Strategy: Strategic negative space creating focus and preventing visual overwhelm
+- Proportion Optimization: Golden ratio and rule of thirds application for aesthetic appeal
+- Responsive Scaling: Layout integrity maintained across various display sizes`
+      : '';
+
+    // Message architecture
     const messageSection = formValues.primaryMessage 
-      ? `Core Message Architecture:
+      ? `CORE MESSAGE ARCHITECTURE:
 Primary Message: "${formValues.primaryMessage}"
-- Headline Hierarchy: Main message receives 60-70% of total visual weight through size and positioning
+${formValues.secondaryMessage ? `Secondary Message: "${formValues.secondaryMessage}"` : ''}
+${formValues.callToAction ? `Call to Action: "${formValues.callToAction}"` : ''}
+- Headline Hierarchy: Primary message receives 60-70% of total visual weight
 - Message Clarity: Communication clear and understandable within 2-second viewing window
 - Emotional Resonance: Language and visual treatment aligned to evoke intended audience response
 - Value Communication: Immediate benefit or value proposition communicated through primary messaging
 - Action Orientation: Message phrasing encourages specific behavioral response from viewers
-- Brand Voice Integration: Messaging tone consistent with overall brand personality and communication style
 - Urgency Elements: Time-sensitive language creating appropriate pressure for immediate response`
-      : 'Visual-First Communication: Pure image-based storytelling without relying on text-heavy messaging';
-    
-    const placementSection = formValues.bannerType 
-      ? `Platform Integration Strategy:
-Display Context: ${formValues.bannerType}
-- Environment Adaptation: Design approach optimized for specific ${formValues.bannerType} viewing context
-- Competition Consideration: Visual approach cutting through noise typical of ${formValues.bannerType} environment
-- Technical Specifications: Exact dimensional requirements and file specifications for ${formValues.bannerType} platform
-- Loading Optimization: Image compression and format optimization for ${formValues.bannerType} technical constraints
-- Interaction Expectations: Design accounting for typical user interaction patterns on ${formValues.bannerType}
-- Algorithm Optimization: Visual elements designed to maximize organic reach and engagement on ${formValues.bannerType}`
       : '';
-    
-    return `Create a high-performance banner graphic that stops scrolling, captures attention immediately, and drives specific user actions with measurable conversion impact.
+
+    // Visual style implementation
+    const visualStyleSection = formValues.visualStyle 
+      ? `VISUAL STYLE IMPLEMENTATION:
+Style Approach: ${formValues.visualStyle}
+- Aesthetic Consistency: ${formValues.visualStyle} approach maintained throughout all design elements
+- Emotional Impact: Visual treatment optimized for ${formValues.visualStyle} emotional response
+- Target Alignment: Style approach resonating with intended audience preferences
+- Brand Harmony: Visual style supporting overall brand personality and positioning
+- Competitive Differentiation: Distinctive approach providing marketplace differentiation
+- Conversion Optimization: Style elements proven to increase engagement and click-through rates`
+      : '';
+
+    // Color psychology and scheme
+    const colorSection = formValues.colorScheme 
+      ? `COLOR PSYCHOLOGY FRAMEWORK:
+Color Scheme: ${formValues.colorScheme}
+- Psychological Impact: ${formValues.colorScheme} palette optimized for intended emotional response
+- Conversion Optimization: Colors chosen for maximum click-through and engagement rates
+- Brand Integration: Color selections supporting brand recognition and consistency
+- Accessibility Compliance: Color contrast ratios meeting WCAG AA standards
+- Cultural Sensitivity: Color meanings appropriate for target audience cultural context
+- Platform Optimization: Color reproduction optimized for ${formValues.platform || 'digital'} display`
+      : '';
+
+    // Typography and readability
+    const typographySection = formValues.typography 
+      ? `TYPOGRAPHY EXCELLENCE:
+Typography Style: ${formValues.typography}
+- Readability Optimization: Font selections maximizing legibility at banner dimensions
+- Hierarchy Implementation: Clear typographic hierarchy supporting information prioritization
+- Brand Consistency: Typography aligned with brand guidelines and personality
+- Cross-Platform Compatibility: Font rendering optimized across all viewing contexts
+- Accessibility Standards: Text sizing and contrast meeting accessibility requirements
+- Conversion Impact: Typography choices proven to increase engagement and response rates`
+      : '';
+
+    // Technical specifications
+    const technicalSection = formValues.technicalSpecs 
+      ? `TECHNICAL SPECIFICATIONS:
+Output Format: ${formValues.technicalSpecs.outputFormat || 'auto'}
+Resolution: ${formValues.technicalSpecs.resolution || 'auto'} DPI
+Color Space: ${formValues.technicalSpecs.colorSpace || 'auto'}
+Compression: ${formValues.technicalSpecs.compression || 85}% quality
+- Format Optimization: File type chosen for optimal balance of quality, size, and compatibility
+- Resolution Standards: DPI settings optimized for intended display context
+- Color Management: Color space selection ensuring accurate reproduction
+- Compression Balance: Quality preservation while meeting file size requirements
+- Loading Optimization: Image compression optimized for sub-2-second loading
+- Cross-Device Compatibility: Perfect rendering across desktop, tablet, and mobile`
+      : '';
+
+    // Accessibility features
+    const accessibilitySection = formValues.accessibilityFeatures 
+      ? `ACCESSIBILITY COMPLIANCE:
+Features: ${Array.isArray(formValues.accessibilityFeatures) ? formValues.accessibilityFeatures.join(', ') : formValues.accessibilityFeatures}
+- High Contrast: WCAG AA compliant contrast ratios for optimal readability
+- Large Text: Minimum font sizes ensuring readability for all users
+- Colorblind Friendly: Color combinations accessible to users with color vision deficiencies
+- Screen Reader Optimization: Design elements supporting assistive technology
+- Motion Sensitivity: Minimal animation respecting motion sensitivity preferences
+- Universal Design: Inclusive approach ensuring accessibility for all users`
+      : '';
+
+    // Optimization goals
+    const optimizationSection = formValues.optimizationGoals 
+      ? `OPTIMIZATION OBJECTIVES:
+Goals: ${Array.isArray(formValues.optimizationGoals) ? formValues.optimizationGoals.join(', ') : formValues.optimizationGoals}
+- Performance Metrics: Design optimized for specific measurable outcomes
+- Conversion Focus: Visual elements proven to increase desired user actions
+- Engagement Optimization: Design approach maximizing user interaction and interest
+- Brand Awareness: Visual elements supporting brand recognition and recall
+- Technical Performance: Optimization for loading speed and cross-platform compatibility
+- ROI Maximization: Design efficiency maximizing results relative to campaign investment`
+      : '';
+
+    return `Create a professional, high-performance banner that combines strategic design principles with platform-specific optimization to achieve maximum impact and measurable results.
 
 ${standardFieldsSection}
 
-BANNER CAMPAIGN SPECIFICATIONS:
-Banner Purpose: ${formValues.bannerPurpose}
-Banner Type: ${formValues.bannerType}
-Target Audience: ${formValues.targetAudience}
-Campaign Objective: ${formValues.bannerGoal}
+BANNER SPECIFICATIONS:
+Content Type: ${formValues.contentType || 'Professional Banner'}
+${platformSection}
+${brandSection}
+${layoutSection}
+
+STRATEGIC DESIGN FRAMEWORK:
+${messageSection}
+${visualStyleSection}
+${colorSection}
+${typographySection}
+
+PROFESSIONAL EXECUTION STANDARDS:
+${technicalSection}
+${accessibilitySection}
+${optimizationSection}
 
 ATTENTION-CAPTURE ARCHITECTURE:
 Visual Impact Framework:
@@ -1337,13 +1660,11 @@ Visual Impact Framework:
 
 Engagement Psychology Implementation:
 - Curiosity Generation: Visual elements creating information gaps that encourage click-through behavior
-- Emotional Trigger Activation: Design elements tapping into core emotional drivers for ${formValues.targetAudience}
+- Emotional Trigger Activation: Design elements tapping into core emotional drivers for target audience
 - Social Proof Integration: Trust signals and credibility indicators reducing friction to engagement
 - Urgency Communication: Visual elements suggesting time-sensitivity or limited availability
 - Value Proposition Clarity: Immediate benefit communication within first second of banner visibility
 - Pain Point Recognition: Visual storytelling connecting with audience problems and desired solutions
-
-${messageSection}
 
 CONVERSION-OPTIMIZED DESIGN STRUCTURE:
 Layout & Information Hierarchy:
@@ -1356,100 +1677,89 @@ Layout & Information Hierarchy:
 
 Call-to-Action Optimization:
 - CTA Visual Prominence: Action button or text clearly distinguishable as most important interactive element
-- Color Psychology Application: CTA colors chosen for maximum conversion impact (typically orange, red, or green)
-- Size and Positioning: CTA sized for optimal thumb interaction and positioned following natural reading patterns
-- Action Language: Imperative verbs creating immediate behavioral response ("Get," "Start," "Claim," "Download")
+- Color Psychology Application: CTA colors chosen for maximum conversion impact
+- Size and Positioning: CTA sized for optimal interaction and positioned following natural reading patterns
+- Action Language: Imperative verbs creating immediate behavioral response
 - Friction Reduction: CTA design suggesting easy, low-commitment interaction requiring minimal effort
 - Urgency Integration: Visual elements around CTA suggesting time-sensitivity or limited availability
 
-BRAND INTEGRATION & RECOGNITION:
-Visual Brand Implementation:
-- Logo Placement: Brand mark positioned for recognition without competing with primary message or CTA
-- Color Palette Consistency: Brand colors strategically implemented while optimizing for conversion performance
-- Typography Harmony: Font selections consistent with brand guidelines while maximizing readability at banner sizes
-- Style Continuity: Design approach recognizable as part of cohesive brand experience across touchpoints
-- Brand Personality Reflection: Visual elements communicating intended brand characteristics and values
-- Recognition Optimization: Design elements supporting brand recall even when logo is not clearly visible
+QUALITY ASSURANCE FRAMEWORK:
+Professional Standards:
+- Dimensional Accuracy: Precise sizing for platform specifications and printing requirements
+- Resolution Excellence: High-quality output suitable for both digital display and professional printing
+- Color Accuracy: Color management ensuring consistent reproduction across viewing contexts
+- Typography Precision: Font rendering optimized for clarity and readability at all sizes
+- File Optimization: Balanced compression maintaining quality while meeting size requirements
+- Cross-Platform Testing: Design validated across multiple devices and viewing contexts
 
-Trust & Credibility Signals:
-- Professional Polish: Design quality suggesting business competence and reliability
-- Industry Appropriateness: Visual approach appropriate for sector and target audience expectations
-- Security Indicators: Trust badges, guarantees, or credibility signals reducing interaction anxiety
-- Social Validation: Customer counts, testimonials, or popularity indicators where space permits
-- Authority Building: Expert endorsements, certifications, or industry recognition prominently featured
+Brand Compliance Validation:
+- Logo Usage: Brand mark implementation following established guidelines
+- Color Consistency: Brand color implementation maintaining recognition and consistency
+- Typography Alignment: Font selections supporting brand personality and readability
+- Style Continuity: Design approach recognizable as part of cohesive brand experience
+- Message Alignment: Content and tone consistent with brand voice and positioning
+- Recognition Optimization: Design elements supporting brand recall and differentiation
 
-${placementSection}
+PERFORMANCE OPTIMIZATION:
+Campaign Effectiveness:
+- A/B Testing Framework: Key components designed for systematic testing and optimization
+- Performance Baselines: Design targeting specific improvement over existing performance metrics
+- Conversion Tracking: Visual elements supporting clear attribution and measurement
+- Audience Segmentation: Design approach adaptable for different audience segments
+- ROI Maximization: Design efficiency maximizing results relative to campaign investment
+- Cross-Campaign Synergy: Visual approach supporting broader marketing objectives
 
-TECHNICAL PERFORMANCE STANDARDS:
-File Optimization Excellence:
+Technical Performance:
 - Loading Speed: Image compression optimized for sub-2-second loading across connection types
 - Quality Maintenance: Visual clarity preserved across all compression levels and display densities
 - Format Selection: File type chosen for optimal balance of quality, size, and compatibility
 - Scalability Preservation: Design integrity maintained across various display sizes and resolutions
-- Animation Optimization: If animated, movement optimized for attention without distraction or annoyance
+- Animation Optimization: If animated, movement optimized for attention without distraction
 - Cross-Device Compatibility: Perfect rendering across desktop, tablet, and mobile viewing contexts
 
-Platform-Specific Technical Requirements:
-- Dimensional Precision: Exact pixel specifications for intended ${formValues.bannerType} placement
-- Color Space Management: RGB optimization for screen display with consistent color reproduction
-- Resolution Standards: Retina and high-DPI display optimization ensuring crisp appearance across devices
-- Compression Algorithms: Platform-specific optimization accounting for automatic compression systems
-- File Size Constraints: Banner optimized for ${formValues.bannerType} file size limitations and loading requirements
-- Format Compatibility: File type selection ensuring universal support across target viewing environments
+FINAL VALIDATION CHECKLIST:
+✓ Platform specifications met exactly
+✓ Brand guidelines followed consistently
+✓ Accessibility standards implemented
+✓ Technical requirements satisfied
+✓ Optimization goals addressed
+✓ Professional quality standards achieved
+✓ Conversion elements optimized
+✓ Performance metrics trackable
 
-CAMPAIGN PERFORMANCE OPTIMIZATION:
-A/B Testing Framework:
-- Variable Elements: Key components designed for systematic testing (headlines, colors, CTAs, images)
-- Performance Baselines: Design targeting specific improvement over existing banner performance metrics
-- Conversion Tracking: Visual elements supporting clear attribution and click-through measurement
-- Audience Segmentation: Design approach adaptable for different audience segments and testing scenarios
-- Optimization Iteration: Framework enabling continuous improvement based on performance data analysis
-
-ROI Maximization Strategy:
-- Cost-Per-Click Efficiency: Design optimized for maximum click-through rates relative to advertising spend
-- Quality Score Optimization: Visual approach supporting high platform quality scores and reduced costs
-- Conversion Rate Focus: Design elements optimized for post-click conversion rather than clicks alone
-- Brand Awareness Balance: Impression value balanced with direct response optimization for campaign ROI
-- Cross-Campaign Synergy: Visual approach supporting broader marketing campaign objectives and messaging
-
-AUDIENCE-SPECIFIC CUSTOMIZATION:
-${formValues.targetAudience} Optimization:
-- Demographic Alignment: Visual language, color preferences, and imagery aligned with target audience characteristics
-- Psychographic Resonance: Design elements appealing to target audience values, aspirations, and lifestyle preferences
-- Communication Style: Visual tone appropriate for audience sophistication level and brand relationship stage
-- Cultural Sensitivity: Design elements respectful and appealing to target audience cultural context
-- Generation-Specific Elements: Visual references and design trends appropriate for target age demographic preferences
-
-Behavioral Trigger Integration:
-- Purchase Motivation: Visual elements tapping into core motivational drivers for target audience purchasing decisions
-- Seasonal Relevance: Design elements appropriate for current season, holidays, or temporal context
-- Lifestyle Integration: Visual approach suggesting seamless integration with target audience daily life and routine
-- Aspiration Activation: Design elements connecting with audience goals and desired self-image
-- Problem Resolution: Visual storytelling addressing specific pain points relevant to target audience experience
-
-FINAL QUALITY VALIDATION:
-Performance Prediction Framework:
-- Click-Through Rate Optimization: Design elements proven to increase CTR in ${formValues.bannerType} format
-- Engagement Quality: Visual approach attracting high-value prospects rather than casual browsers
-- Brand Impact Measurement: Design supporting both immediate response and long-term brand building
-- Cross-Platform Effectiveness: Banner performance optimized across various placement opportunities
-- Competitive Advantage: Distinctive approach providing marketplace differentiation and attention capture`;
+Create a banner that not only looks professional but delivers measurable business results through strategic design implementation.`;
   },
 
   qualityEnhancements: {
     'low': 'good banner design, suitable for web display',
-    'medium': 'professional banner design, clear messaging',
-    'high': 'premium banner quality, ultra-sharp details, exceptional visual impact',
-    'auto': 'automatically optimized quality for banner usage'
+    'medium': 'professional banner with enhanced visual impact and brand consistency',
+    'high': 'premium banner with advanced optimization, accessibility compliance, and conversion-focused design',
+    'auto': 'platform-optimized banner with intelligent quality and format selection'
   },
 
-  styleModifiers: {},
+  styleModifiers: {
+    'minimalist-clean': 'clean, uncluttered design with strategic whitespace',
+    'bold-dynamic': 'high-impact, energetic style with strong visual contrast',
+    'elegant-sophisticated': 'refined, premium aesthetic with sophisticated typography',
+    'playful-creative': 'fun, engaging approach with creative visual elements',
+    'professional-corporate': 'business-focused design with corporate credibility',
+    'modern-tech': 'contemporary, digital aesthetic with cutting-edge appeal',
+    'warm-friendly': 'approachable, welcoming style with human connection',
+    'luxury-premium': 'high-end, exclusive feel with premium positioning'
+  },
 
   aspectRatioOptimizations: {
-    'facebook-cover': 'Facebook cover format 1200x630, timeline optimized',
-    'linkedin-banner': 'LinkedIn banner format 1584x396, professional networking optimized',
-    'twitter-header': 'Twitter header format 1500x500, profile optimized',
-    'physical-banner': 'Vertical banner format, large-scale printing optimized'
+    'facebook-cover': 'horizontal banner optimized for Facebook cover photo dimensions (2.63:1)',
+    'linkedin-banner': 'professional banner optimized for LinkedIn header dimensions (4:1)',
+    'twitter-header': 'social media banner optimized for Twitter header dimensions (3:1)',
+    'instagram-story': 'vertical banner optimized for Instagram story dimensions (9:16)',
+    'youtube-banner': 'widescreen banner optimized for YouTube channel art (16:9)',
+    'website-header': 'web banner optimized for website header dimensions (4.8:1)',
+    'blog-header': 'blog banner optimized for article header dimensions (1.91:1)',
+    'email-header': 'email banner optimized for newsletter header dimensions (3:1)',
+    'display-leaderboard': 'display ad optimized for leaderboard dimensions (8.09:1)',
+    'display-rectangle': 'display ad optimized for medium rectangle dimensions (1.2:1)',
+    'print-banner': 'print banner optimized for A4 landscape dimensions (1.41:1)'
   }
 };
 
@@ -1460,6 +1770,113 @@ export const DATA_VIZ_TEMPLATE: PromptTemplate = {
   getTemplate: (formValues: CategoryFormValues, visionDescription?: string) => {
     const standardFieldsSection = getStandardFieldsPromptSection(formValues, visionDescription);
     
+    // Handle time series data completeness
+    let timeSeriesSection = '';
+    if (formValues.timeSeriesType && ['line-chart', 'bar-chart', 'area-chart', 'timeline'].includes(formValues.chartType)) {
+      const timeSeriesMap: Record<string, string> = {
+        'daily': 'all days in the specified range',
+        'weekly': 'all weeks in the specified range',
+        'monthly': 'all 12 months (January through December)',
+        'quarterly': 'all 4 quarters (Q1, Q2, Q3, Q4)',
+        'yearly': 'all years in the specified range',
+        'custom': 'all specified time intervals'
+      };
+      
+      const dataCompletenessMap: Record<string, string> = {
+        'complete': 'Show all time periods with complete data',
+        'fill-zeros': 'Fill any missing data points with zeros to maintain time series integrity',
+        'interpolate': 'Use statistical interpolation to estimate missing values based on surrounding data points',
+        'skip-missing': 'Skip missing data points but maintain correct time scale',
+        'highlight-missing': 'Highlight gaps where data is missing to maintain analytical integrity'
+      };
+      
+      timeSeriesSection = `
+TIME SERIES INTEGRITY:
+- Time Period Type: ${formValues.timeSeriesType} (${timeSeriesMap[formValues.timeSeriesType] || 'all time periods'})
+- Data Range: ${formValues.dataRange || 'Full available range'}
+- Data Completeness Strategy: ${dataCompletenessMap[formValues.dataCompleteness] || 'Ensure all time periods are represented'}
+- Missing Data Handling: ${formValues.dataCompleteness === 'interpolate' ? 'Use appropriate statistical methods to estimate missing values' : (formValues.dataCompleteness === 'highlight-missing' ? 'Visually indicate missing data points' : 'Maintain time series continuity')}
+- Time Scale Accuracy: Ensure time intervals are proportionally represented
+- Sequential Integrity: All ${formValues.timeSeriesType} periods must be included in sequence
+- Zero Value Distinction: Clearly differentiate between zero values and missing data
+- Pattern Preservation: Maintain trend visibility even with sparse data points`;
+    }
+    
+    // Handle analysis goal
+    let analysisGoalSection = '';
+    if (formValues.analysisGoal) {
+      const analysisGoalMap: Record<string, string> = {
+        'trend': `
+Trend Analysis Optimization:
+- Direction Clarity: Clear visual indication of upward, downward, or stable trends
+- Rate of Change: Visual emphasis on acceleration or deceleration of trends
+- Seasonality Identification: Patterns of cyclical variation clearly visible
+- Anomaly Highlighting: Unusual data points or outliers appropriately emphasized
+- Trend Line Integration: Statistical trend lines overlaid to reinforce pattern recognition
+- Forecast Extension: Optional projection of trends with appropriate confidence indicators
+- Historical Context: Sufficient historical data to establish meaningful trend context
+- Comparative Trending: Multiple trend lines clearly distinguishable when comparing series`,
+        
+        'comparison': `
+Comparison Optimization:
+- Side-by-Side Clarity: Direct visual comparison between categories or time periods
+- Proportional Accuracy: Visual representations precisely scaled to data values
+- Ranking Clarity: Clear visual hierarchy between compared elements
+- Benchmark Indicators: Reference lines or markers for important comparison thresholds
+- Percentage Differences: Relative differences clearly communicated alongside absolute values
+- Category Distinction: Clear visual differentiation between comparison categories
+- Comparison Grouping: Logical organization of compared elements to facilitate analysis
+- Normalized Scales: Appropriate scaling to enable fair comparison between disparate values`,
+        
+        'composition': `
+Composition Analysis Optimization:
+- Part-to-Whole Clarity: Clear visual relationship between components and total
+- Proportional Accuracy: Area/size precisely corresponding to data values
+- Hierarchy Visualization: Important components visually emphasized
+- Nested Relationships: Multi-level hierarchical relationships clearly structured
+- Percentage Labeling: Clear indication of each component's percentage contribution
+- Logical Ordering: Components arranged to maximize analytical insight
+- Small Value Handling: Appropriate treatment of very small segments to maintain visibility
+- Structural Integrity: Composition elements visually connected to reinforce relationship`,
+        
+        'distribution': `
+Distribution Analysis Optimization:
+- Range Visibility: Full data distribution range clearly represented
+- Central Tendency: Mean, median, and mode appropriately highlighted
+- Outlier Identification: Unusual values clearly visible but not distorting overall view
+- Spread Indicators: Standard deviation or variance visually represented
+- Density Mapping: Concentration of values appropriately visualized
+- Skew Representation: Asymmetry in distribution accurately depicted
+- Multi-Modal Clarity: Multiple peaks or clusters clearly distinguished
+- Statistical Annotations: Key distribution statistics integrated into visualization`,
+        
+        'correlation': `
+Correlation Analysis Optimization:
+- Relationship Clarity: Visual representation of connection strength between variables
+- Direction Indication: Positive or negative correlation clearly communicated
+- Causation Distinction: Visual cues to avoid implying causation from correlation
+- Outlier Impact: Unusual data points identified with their effect on correlation
+- Trend Line Integration: Regression or best-fit lines with appropriate statistical indicators
+- Correlation Coefficient: R-value or similar metrics integrated into visualization
+- Multi-Variable Relationships: Complex relationships between 3+ variables clearly mapped
+- Non-Linear Patterns: Curved relationships accurately represented without distortion`,
+        
+        'ranking': `
+Ranking Optimization:
+- Order Clarity: Clear visual hierarchy from highest to lowest values
+- Magnitude Representation: Value differences accurately reflected in visual elements
+- Category Labeling: Each ranked item clearly identified
+- Value Annotation: Precise values displayed alongside ranked elements
+- Threshold Indicators: Important cutoff points or benchmark levels highlighted
+- Grouping Strategy: Logical clustering of ranked items when appropriate
+- Rank Change: Historical rank changes indicated when time comparison is relevant
+- Top/Bottom Emphasis: Special visual treatment for highest/lowest ranked items`
+      };
+      
+      analysisGoalSection = analysisGoalMap[formValues.analysisGoal] || '';
+    }
+    
+    // Handle key insights
     const insightsSection = formValues.keyInsights 
       ? `Data Story Architecture:
 Key Insights: ${formValues.keyInsights}
@@ -1472,6 +1889,57 @@ Key Insights: ${formValues.keyInsights}
 - Threshold Indicators: Important benchmarks, goals, or limits clearly marked and contextually explained`
       : 'Exploratory Visualization: Open-ended data presentation encouraging user discovery and analysis';
     
+    // Handle enhanced visual styling
+    let visualStylingSection = '';
+    if (formValues.visualStyle || formValues.aspectRatio || formValues.dataQualityIndicators || formValues.animationStyle) {
+      const visualStyleMap: Record<string, string> = {
+        'modern': 'Clean, minimalist design with contemporary aesthetics',
+        'classic': 'Traditional chart styling with timeless appeal',
+        'elegant': 'Sophisticated, refined appearance with premium feel',
+        'bold': 'High-contrast, impactful design for maximum visibility',
+        'soft': 'Gentle, muted styling with subtle visual elements',
+        'technical': 'Precise, analytical appearance for technical audiences',
+        'creative': 'Artistic, expressive design with unique visual flair',
+        'minimal': 'Ultra-clean, simplified styling with essential elements only'
+      };
+      
+      const aspectRatioMap: Record<string, string> = {
+        'auto': 'Automatically optimized for chart type and content',
+        '16:9': 'Widescreen format ideal for presentations and displays',
+        '4:3': 'Traditional balanced format suitable for most uses',
+        '1:1': 'Square format perfect for social media and mobile',
+        '3:2': 'Photo-like proportions for natural visual appeal',
+        '21:9': 'Ultra-wide format excellent for dashboards and analytics',
+        '9:16': 'Vertical format optimized for mobile viewing'
+      };
+      
+      const dataQualityMap: Record<string, string> = {
+        'none': 'No quality indicators - clean, uncluttered appearance',
+        'basic': 'Simple confidence indicators for estimated data points',
+        'detailed': 'Comprehensive quality metrics with visual differentiation',
+        'advanced': 'Full statistical confidence analysis with error bars and uncertainty bands'
+      };
+      
+      const animationStyleMap: Record<string, string> = {
+        'none': 'Static chart with no animations for immediate clarity',
+        'subtle': 'Gentle fade-in effects that don\'t distract from data',
+        'smooth': 'Smooth transitions and reveals that enhance understanding',
+        'dynamic': 'Engaging, interactive animations that guide attention',
+        'sequential': 'Data points appear in sequence to tell a story'
+      };
+      
+      visualStylingSection = `
+ENHANCED VISUAL STYLING:
+- Visual Style: ${formValues.visualStyle || 'modern'} (${visualStyleMap[formValues.visualStyle] || 'Modern clean design'})
+- Aspect Ratio: ${formValues.aspectRatio || 'auto'} (${aspectRatioMap[formValues.aspectRatio] || 'Automatically optimized'})
+- Data Quality Indicators: ${formValues.dataQualityIndicators || 'none'} (${dataQualityMap[formValues.dataQualityIndicators] || 'No quality indicators'})
+- Animation Style: ${formValues.animationStyle || 'none'} (${animationStyleMap[formValues.animationStyle] || 'Static presentation'})
+- Color Palette Enhancement: Apply ${formValues.colorPalette || 'corporate-blue'} with intelligent color selection
+- Accessibility Considerations: Ensure sufficient contrast and colorblind-friendly design
+- Professional Polish: Apply advanced styling techniques for publication-quality output
+- Responsive Design: Optimize for various display sizes and contexts`;
+    }
+
     return `Create an executive-quality data visualization that transforms complex information into immediately actionable business intelligence and strategic insights.
 
 ${standardFieldsSection}
@@ -1479,8 +1947,25 @@ ${standardFieldsSection}
 DATA VISUALIZATION SPECIFICATIONS:
 Chart Type: ${formValues.chartType}
 Data Domain: ${formValues.dataTopic}
-Visualization Title: ${formValues.chartTitle}
-Analysis Purpose: ${formValues.analysisGoal}
+Visualization Title: ${formValues.chartTitle || 'Auto-generated appropriate title'}
+Analysis Purpose: ${formValues.analysisGoal || 'General data visualization'}
+
+SMART DATA PROCESSING DIRECTIVES:
+- Complete Data Coverage: Ensure ALL data points are represented, with no missing elements
+- Time Series Integrity: For time-based data, include ALL time periods (no skipping months/quarters)
+- Value Validation: Verify data ranges are logical and consistent
+- Outlier Handling: Identify and appropriately represent unusual values without distortion
+- Scale Optimization: Select axis ranges that best represent the data without misleading
+- Zero Baseline: Include zero in value axis when appropriate for accurate proportion representation
+- Consistent Units: Maintain uniform measurement units across all data points
+- Data Density: Balance between showing sufficient detail and avoiding visual overload
+- Automatic Correction: If data appears incomplete, intelligently fill gaps with appropriate methods
+
+${timeSeriesSection}
+
+${analysisGoalSection}
+
+${visualStylingSection}
 
 INFORMATION ARCHITECTURE FRAMEWORK:
 Data Hierarchy & Structure:
@@ -1498,6 +1983,8 @@ Analytical Clarity Framework:
 - Context Provision: Sufficient background information for informed decision-making
 - Precision Communication: Exact values accessible while maintaining overall pattern visibility
 - Confidence Indicators: Data quality, sample sizes, and uncertainty appropriately communicated
+
+${analysisGoalSection}
 
 ${insightsSection}
 
@@ -1584,6 +2071,16 @@ Cross-Functional Accessibility:
 - Operational Relevance: Insights directly applicable to day-to-day business operations and planning
 - Strategic Alignment: Visualization supporting long-term organizational goals and strategic initiatives
 
+DATA COMPLETENESS VALIDATION:
+- Missing Value Detection: Intelligent identification of gaps in data series
+- Consistency Verification: Check for logical consistency across all data points
+- Range Validation: Confirm all expected values within specified range are present
+- Time Series Completeness: For time data, verify all expected periods are represented
+- Automatic Correction: Apply appropriate methods to handle missing or inconsistent data
+- Quality Indicators: Visually differentiate between actual and estimated/interpolated values
+- Data Source Transparency: Clear indication of data provenance and collection methodology
+- Confidence Metrics: Visual indication of data reliability and statistical significance
+
 FINAL ANALYTICAL VALIDATION:
 Quality Assurance Framework:
 - Data Integrity: All numerical representations verified for accuracy and appropriate statistical treatment
@@ -1600,9 +2097,33 @@ Quality Assurance Framework:
     'auto': 'automatically optimized quality for data visualization'
   },
 
-  styleModifiers: {},
+  styleModifiers: {
+    'professional-clean': 'clean, professional design with corporate styling, subtle grid lines, and business-appropriate colors',
+    'modern-gradient': 'contemporary design with smooth color gradients, rounded elements, and modern typography',
+    'minimalist': 'minimal design with essential elements only, maximum white space, and restrained color palette',
+    'colorful-vibrant': 'bold, vibrant colors with high contrast and energetic visual elements',
+    'dark-theme': 'sophisticated dark background with light elements, dramatic contrast, and glowing accents',
+    'hand-drawn': 'artistic hand-drawn style with sketch-like elements, organic lines, and textured appearance',
+    'isometric-3d': 'three-dimensional perspective with isometric projection, depth, and dimensional elements',
+    'flat-design': 'flat visual style with no shadows or gradients, solid colors, and geometric shapes'
+  },
 
-  aspectRatioOptimizations: {}
+  aspectRatioOptimizations: {
+    'bar-chart': '4:3 landscape for horizontal bars, 3:4 portrait for vertical bars',
+    'line-chart': '16:9 landscape for optimal trend visibility',
+    'pie-chart': '1:1 square for optimal proportional representation',
+    'donut-chart': '1:1 square with centered key metrics',
+    'area-chart': '16:9 landscape for volume trend visualization',
+    'scatter-plot': '1:1 square for equal axis representation',
+    'heatmap': 'variable based on data dimensions',
+    'treemap': '4:3 landscape for hierarchical representation',
+    'funnel-chart': '3:4 portrait for conversion flow',
+    'gauge-meter': '4:3 landscape with focal center',
+    'dashboard': '16:9 landscape for multiple chart integration',
+    'infographic': 'variable based on content flow and narrative',
+    'comparison': '4:3 landscape for side-by-side comparison',
+    'timeline': '16:9 landscape for chronological flow'
+  }
 };
 
 // ===== Illustrations Template =====
@@ -2101,6 +2622,62 @@ Contact Information: ${formValues.contactDetails}
 - Brand Integration: Contact presentation seamlessly incorporated within overall letterhead design framework`
       : 'Minimal Contact Approach: Essential contact information strategically placed without overwhelming design elegance';
     
+    // Enhanced compliance and technical specifications
+    const complianceSection = formValues.complianceRequirements 
+      ? `REGULATORY COMPLIANCE FRAMEWORK:
+Compliance Standards: ${Array.isArray(formValues.complianceRequirements) ? formValues.complianceRequirements.join(', ') : formValues.complianceRequirements}
+- Regulatory Adherence: Document design meeting all specified compliance requirements and industry standards
+- Legal Documentation: Visual elements supporting legal validity and regulatory acceptance
+- Audit Trail Support: Design elements facilitating document verification and compliance auditing
+- International Standards: Compliance with global business regulations and cross-border requirements
+- Security Classifications: Visual treatment appropriate for specified document security levels
+- Retention Compliance: Design supporting specified document retention and archival requirements`
+      : 'Standard Business Compliance: Professional document design meeting general business communication standards';
+
+    const technicalSpecsSection = formValues.technicalSpecifications 
+      ? `TECHNICAL EXCELLENCE SPECIFICATIONS:
+Technical Level: ${formValues.technicalSpecifications}
+Resolution Requirements: ${formValues.resolutionRequirements || 'Professional Standard'}
+Color Space: ${formValues.colorSpaceManagement || 'Professional RGB/CMYK'}
+- Print Production Ready: ${formValues.technicalSpecifications === 'print-production' ? 'Full bleed, trim marks, and production specifications' : 'Standard business printing specifications'}
+- Quality Assurance: ${formValues.qualityAssurance ? Array.isArray(formValues.qualityAssurance) ? formValues.qualityAssurance.join(', ') : formValues.qualityAssurance : 'Professional quality standards'}
+- File Optimization: ${formValues.fileOptimization ? Array.isArray(formValues.fileOptimization) ? formValues.fileOptimization.join(', ') : formValues.fileOptimization : 'Standard business file formats'}
+- Accessibility Standards: ${formValues.accessibilityCompliance ? Array.isArray(formValues.accessibilityCompliance) ? formValues.accessibilityCompliance.join(', ') : formValues.accessibilityCompliance : 'Professional accessibility guidelines'}`
+      : 'Professional Technical Standards: High-quality business document specifications';
+
+    const brandIntegrationSection = formValues.brandIdentityLevel 
+      ? `ADVANCED BRAND INTEGRATION:
+Brand Integration Level: ${formValues.brandIdentityLevel}
+Brand Typography: ${formValues.brandTypography || 'Professional Standard'}
+Brand Personality: ${formValues.brandPersonality ? Array.isArray(formValues.brandPersonality) ? formValues.brandPersonality.join(', ') : formValues.brandPersonality : 'Professional Corporate'}
+- Style Guide Compliance: ${formValues.brandStyleGuide ? 'Strict adherence to uploaded brand guidelines' : 'Professional brand consistency standards'}
+- Multi-Brand Support: ${formValues.multiBrandSupport ? 'Coordinated multi-brand presentation' : 'Single brand focus'}
+- Brand Asset Integration: ${formValues.brandAssets ? 'Custom brand assets seamlessly integrated' : 'Standard brand element integration'}
+- Brand Compliance: ${formValues.brandCompliance || 'Professional brand guideline adherence'}`
+      : 'Standard Brand Integration: Professional brand identity implementation';
+
+    const documentStructureSection = formValues.documentStructure 
+      ? `DOCUMENT STRUCTURE ARCHITECTURE:
+Layout Structure: ${formValues.documentStructure}
+Typography Hierarchy: ${formValues.typographyHierarchy || 'Corporate Standard'}
+Grid System: ${formValues.gridSystem || 'Professional Grid'}
+Margin Specifications: ${formValues.marginSpecifications || 'Standard Business'}
+- Header/Footer Elements: ${formValues.headerFooterOptions ? Array.isArray(formValues.headerFooterOptions) ? formValues.headerFooterOptions.join(', ') : formValues.headerFooterOptions : 'Professional standard elements'}
+- Watermark Integration: ${formValues.watermarkOptions || 'Clean professional design'}
+- Custom Specifications: ${formValues.customGridSpecs || formValues.customMargins || formValues.customTypographyHierarchy || 'Standard professional specifications'}`
+      : 'Professional Document Structure: Standard business document layout and organization';
+
+    const internationalSupportSection = formValues.internationalSupport 
+      ? `INTERNATIONAL BUSINESS FRAMEWORK:
+International Features: ${Array.isArray(formValues.internationalSupport) ? formValues.internationalSupport.join(', ') : formValues.internationalSupport}
+- Multi-Language Support: Advanced typography and layout supporting international business communication
+- Cultural Sensitivity: Design elements appropriate for global business contexts and cultural considerations
+- Regional Compliance: International legal and regulatory requirements integration
+- Cross-Border Standards: Professional presentation meeting international business expectations
+- Currency and Date Formats: International formatting standards for global business operations
+- Time Zone Considerations: International business communication timing and scheduling support`
+      : 'Global Business Ready: Professional design suitable for international business communication';
+
     return `Design an executive-quality corporate letterhead that elevates business correspondence to reflect organizational excellence and professional authority.
 
 ${standardFieldsSection}
@@ -2108,8 +2685,9 @@ ${standardFieldsSection}
 CORPORATE COMMUNICATION SPECIFICATIONS:
 Company Identity: ${formValues.companyName}
 Business Sector: ${formValues.industry}
-Design Philosophy: ${formValues.letterheadStyle}
-Communication Context: ${formValues.correspondenceType}
+Document Type: ${formValues.documentType}
+Document Purpose: ${formValues.documentPurpose}
+Security Classification: ${formValues.securityClassification || 'Professional Standard'}
 
 ${logoSection}
 
@@ -2118,6 +2696,16 @@ ${contentPurposeSection}
 ${letterContentSection}
 
 ${brandColorsSection}
+
+${complianceSection}
+
+${technicalSpecsSection}
+
+${brandIntegrationSection}
+
+${documentStructureSection}
+
+${internationalSupportSection}
 
 EXECUTIVE PRESENCE FRAMEWORK:
 Professional Authority Architecture:

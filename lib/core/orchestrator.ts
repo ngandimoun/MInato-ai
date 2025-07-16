@@ -2760,10 +2760,18 @@ Respond in STRICT JSON format:
       // Initialize routedTools - will be populated only if appropriate conditions are met
       let routedTools: ToolRouterPlan = { planned_tools: [] };
       
-      // Determine if tool routing should be bypassed
+      // Determine if tool routing should be bypassed and check for short conversational messages
+      const isShortConversationalMessage = (typeof userInput === 'string' && userInput.trim().length < 4 && !userInput.includes("?")) ||
+                                          /^(hey|hi|hello|ok|okay|yes|no|nope|thanks|thank you|good|fine|sure|yep|nah)$/i.test(textQueryForRouter.trim());
+      
+      // Add flag to API context for short messages to guide response generation
+      if (isShortConversationalMessage) {
+        (effectiveApiContext as any).isShortConversationalMessage = true;
+      }
+      
       const bypassToolRouter = isMediaUpload || 
                               (isAudioMessage && textQueryForRouter.trim().split(/\s+/).length < 6) || // Short audio messages
-                              (typeof userInput === 'string' && userInput.trim().length < 4 && !userInput.includes("?"));
+                              isShortConversationalMessage; // Common short responses
       
       if (!bypassToolRouter) {
         // Only invoke tool router if conditions are met
@@ -2909,7 +2917,7 @@ Respond in STRICT JSON format:
       }
       // retrievedMemoryContext est déjà initialisé au début de la fonction
       // Skip memory search for short queries to improve response speed
-      if (textQueryForRouter.length > 10 && !textQueryForRouter.toLowerCase().match(/^(hi|hello|thanks?|yes|no|ok|okay)$/)) {
+      if (textQueryForRouter.length > 10 && !textQueryForRouter.toLowerCase().match(/^(hi|hello|hey|thanks?|yes|no|ok|okay|sure|good|fine|nope|yep|nah)$/)) {
         const entitiesForMemorySearch: string[] = [textQueryForRouter.substring(0, 50)]; // Reduced from 70 to 50
         // Ensure finalStructuredResult is not null and has a title property (with type safety)
         if (finalStructuredResult && !Array.isArray(finalStructuredResult) && typeof (finalStructuredResult as any).title === 'string') {
@@ -2972,7 +2980,8 @@ IMPORTANT ADDITIONAL GUIDANCE:
 1. If any tool provided a summary of its findings (news, search results, etc.), INCLUDE that summary in your response.
 2. Make the summary engaging and conversational, fully integrated with your persona.
 3. NEVER mention tool names, APIs, or implementation details.
-4. If video context was provided, incorporate insights from it naturally.${mediaInstruction}
+4. If video context was provided, incorporate insights from it naturally.
+5. NATURAL CONVERSATION FLOW: ${(apiContext as any)?.isShortConversationalMessage ? 'CRITICAL - This is a short message. ' : ''}For short messages like "hey", "hi", "ok", "yes", "no", respond directly without greetings like "Hey {userName}!" - treat this as an ongoing conversation.${mediaInstruction}
 ${videoContextString ? `\n${videoContextString}` : ''}`;
     logger.info(`[${turnIdentifier}] Synthesizing final response (${CHAT_VISION_MODEL_NAME_ORCH})...`);
     const synthesisResult = await generateStructuredJson<{ responseText: string; intentType: string }>(
