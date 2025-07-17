@@ -24,111 +24,111 @@ const images = [
   "/hero-visual.jpg",
 ]
 
-const mediaItems = [
-  {
-    id: 1,
-    type: "image",
-    title: "Anurag Mishra",
-    desc: "Driven, innovative, visionary",
-    url: "/3.png",
-    span: "md:col-span-1 md:row-span-3 sm:col-span-1 sm:row-span-2",
-  },
-  {
-    id: 2,
-    type: "image",
-    title: "Dog Puppy",
-    desc: "Adorable loyal companion.",
-    url: "/2.png",
-    span: "md:col-span-2 md:row-span-2 col-span-1 sm:col-span-2 sm:row-span-2",
-  },
-  {
-    id: 3,
-    type: "image",
-    title: "Forest Path",
-    desc: "Mystical forest trail",
-    url: "/4.png",
-    span: "md:col-span-1 md:row-span-3 sm:col-span-2 sm:row-span-2 ",
-  },
-  {
-    id: 4,
-    type: "image",
-    title: "Falling Leaves",
-    desc: "Autumn scenery",
-    url: "/5.png",
-    span: "md:col-span-2 md:row-span-2 sm:col-span-1 sm:row-span-2 ",
-  },
-  {
-    id: 5,
-    type: "video",
-    title: "Bird Parrot",
-    desc: "Vibrant feathered charm",
-    url: "/luxe.mp4",
-    span: "md:col-span-1 md:row-span-3 sm:col-span-1 sm:row-span-2 ",
-  },
-  {
-    id: 6,
-    type: "image",
-    title: "Beach Paradise",
-    desc: "Sunny tropical beach",
-    url: "/6.png",
-    span: "md:col-span-2 md:row-span-2 sm:col-span-1 sm:row-span-2 ",
-  },
-  {
-    id: 7,
-    type: "video",
-    title: "Shiva Temple",
-    desc: "Peaceful Shiva sanctuary.",
-    url: "/blanck.mp4",
-    span: "md:col-span-1 md:row-span-3 sm:col-span-1 sm:row-span-2 ",
-  },
+// const mediaItems = [
+//   {
+//     id: 1,
+//     type: "image",
+//     title: "Anurag Mishra",
+//     desc: "Driven, innovative, visionary",
+//     url: "/3.png",
+//     span: "md:col-span-1 md:row-span-3 sm:col-span-1 sm:row-span-2",
+//   },
+//   {
+//     id: 2,
+//     type: "image",
+//     title: "Dog Puppy",
+//     desc: "Adorable loyal companion.",
+//     url: "/2.png",
+//     span: "md:col-span-2 md:row-span-2 col-span-1 sm:col-span-2 sm:row-span-2",
+//   },
+//   {
+//     id: 3,
+//     type: "image",
+//     title: "Forest Path",
+//     desc: "Mystical forest trail",
+//     url: "/4.png",
+//     span: "md:col-span-1 md:row-span-3 sm:col-span-2 sm:row-span-2 ",
+//   },
+//   {
+//     id: 4,
+//     type: "image",
+//     title: "Falling Leaves",
+//     desc: "Autumn scenery",
+//     url: "/5.png",
+//     span: "md:col-span-2 md:row-span-2 sm:col-span-1 sm:row-span-2 ",
+//   },
+//   {
+//     id: 5,
+//     type: "video",
+//     title: "Bird Parrot",
+//     desc: "Vibrant feathered charm",
+//     url: "/luxe.mp4",
+//     span: "md:col-span-1 md:row-span-3 sm:col-span-1 sm:row-span-2 ",
+//   },
+//   {
+//     id: 6,
+//     type: "image",
+//     title: "Beach Paradise",
+//     desc: "Sunny tropical beach",
+//     url: "/6.png",
+//     span: "md:col-span-2 md:row-span-2 sm:col-span-1 sm:row-span-2 ",
+//   },
+//   {
+//     id: 7,
+//     type: "video",
+//     title: "Shiva Temple",
+//     desc: "Peaceful Shiva sanctuary.",
+//     url: "/blanck.mp4",
+//     span: "md:col-span-1 md:row-span-3 sm:col-span-1 sm:row-span-2 ",
+//   },
 
-  {
-    id: 8,
-    type: "image",
-    title: "Dog Puppy",
-    desc: "Adorable loyal companion.",
-    url: "/7.png",
-    span: "md:col-span-1 md:row-span-3 sm:col-span-2 sm:row-span-2",
-  },
-  {
-    id: 9,
-    type: "image",
-    title: "Forest Path",
-    desc: "Mystical forest trail",
-    url: "/8.png",
-    span: "md:col-span-2 md:row-span-2 col-span-1 sm:col-span-2 sm:row-span-2",
-  },
-  {
-    id: 10,
-    type: "image",
-    title: "Falling Leaves",
-    desc: "Autumn scenery",
-    url: "/9.png",
-    span: "md:col-span-2 md:row-span-2 sm:col-span-1 sm:row-span-2",
-  },
-  {
-    id: 11,
-    type: "image",
-    title: "Bird Parrot",
-    desc: "Vibrant feathered charm",
-    url: "/10.png",
-    span: "md:col-span-1 md:row-span-3 sm:col-span-1 sm:row-span-2",
-  },
-  {
-    id: 12,
-    type: "image",
-    title: "Beach Paradise",
-    desc: "Sunny tropical beach",
-    url: "/11.png",
-    span: "md:col-span-1 md:row-span-3 sm:col-span-2 sm:row-span-2",
-  },
+//   {
+//     id: 8,
+//     type: "image",
+//     title: "Dog Puppy",
+//     desc: "Adorable loyal companion.",
+//     url: "/7.png",
+//     span: "md:col-span-1 md:row-span-3 sm:col-span-2 sm:row-span-2",
+//   },
+//   {
+//     id: 9,
+//     type: "image",
+//     title: "Forest Path",
+//     desc: "Mystical forest trail",
+//     url: "/8.png",
+//     span: "md:col-span-2 md:row-span-2 col-span-1 sm:col-span-2 sm:row-span-2",
+//   },
+//   {
+//     id: 10,
+//     type: "image",
+//     title: "Falling Leaves",
+//     desc: "Autumn scenery",
+//     url: "/9.png",
+//     span: "md:col-span-2 md:row-span-2 sm:col-span-1 sm:row-span-2",
+//   },
+//   {
+//     id: 11,
+//     type: "image",
+//     title: "Bird Parrot",
+//     desc: "Vibrant feathered charm",
+//     url: "/10.png",
+//     span: "md:col-span-1 md:row-span-3 sm:col-span-1 sm:row-span-2",
+//   },
+//   {
+//     id: 12,
+//     type: "image",
+//     title: "Beach Paradise",
+//     desc: "Sunny tropical beach",
+//     url: "/11.png",
+//     span: "md:col-span-1 md:row-span-3 sm:col-span-2 sm:row-span-2",
+//   },
   
-]
+// ]
 
 export default function StatsSection() {
 
-  const title = "Generative Galler"
-  const description = "Explore a collection of unique artworks, brought to life by your imagination and guided by our AI.";
+  const title = "Minato Gallery"
+  const description = "Explore a collection of unique artworks, brought to life by your imagination and guided by Minato AI.";
 
   return (
     // <div className="min-h-screen overflow-y-auto">
