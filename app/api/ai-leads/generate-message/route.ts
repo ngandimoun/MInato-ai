@@ -218,7 +218,7 @@ Generate ONLY the message content, no additional text or formatting.
       { type: "string" },
       "PersonalizedMessage",
       [],
-      "gpt-4o-mini"
+      "gpt-4.1-mini-2025-04-14"
     );
 
     if (typeof result === 'string') {

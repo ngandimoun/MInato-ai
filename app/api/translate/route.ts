@@ -56,7 +56,7 @@ Rules:
 Translated text:`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-nano-2025-04-14",
       messages: [
         {
           role: "system", 

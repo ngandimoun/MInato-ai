@@ -255,7 +255,7 @@ Provide insights in this JSON format:
 }`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4.1-mini-2025-04-14",
       messages: [
         {
           role: "system",

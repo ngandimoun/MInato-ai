@@ -567,7 +567,7 @@ Example 2 JSON:
                 },
                 "minato_news_query_extraction_v1",
                 [],
-                (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
+                (appConfig.openai.extractionModel || "gpt-4.1-nano-2025-04-14"),
                 userId
               );
               logger.info(`[NewsAggregatorTool] LLM extraction result: ${JSON.stringify(llmResult)}`);
@@ -843,7 +843,7 @@ CRITICAL: If no specific team can be identified (e.g., tournament-only queries),
                 },
                 "minato_sports_query_extraction_v1",
                 [],
-                (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
+                (appConfig.openai.extractionModel || "gpt-4.1-nano-2025-04-14"),
                 userId
               );
               logger.info(`[SportsInfoTool] LLM extraction result: ${JSON.stringify(llmResult)}`);
@@ -991,7 +991,7 @@ JSON: { "subreddit": "CryptoCurrency", "filter": "hot", "time": null, "limit": 8
                 },
                 "minato_reddit_query_extraction_v1",
                 [],
-                (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
+                (appConfig.openai.extractionModel || "gpt-4.1-nano-2025-04-14"),
                 userId
               );
               logger.info(`[RedditTool] LLM extraction result: ${JSON.stringify(llmResult)}`);
@@ -1138,7 +1138,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
               },
               "minato_pexels_query_extraction_v1",
               [],
-              (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
+              (appConfig.openai.extractionModel || "gpt-4.1-nano-2025-04-14"),
               userId
             );
             logger.info(`[PexelsSearchTool] LLM extraction result: ${JSON.stringify(llmResult)}`);
@@ -1274,7 +1274,7 @@ JSON: { "query": "", "random": true }
               },
               "minato_recipe_query_extraction_v1",
               [],
-              (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
+              (appConfig.openai.extractionModel || "gpt-4.1-nano-2025-04-14"),
               userId
             );
             logger.info(`[RecipeSearchTool] LLM extraction result: ${JSON.stringify(llmResult)}`);
@@ -1613,7 +1613,7 @@ If a specific date is mentioned (e.g., "July 4th events"), "relativeDateDescript
                 eventFinderSchemaObject, // Pass the schema object directly as the third argument
                 "eventfinder_arg_extraction", // Use a valid format name (no spaces)
                 [], // Fifth argument: history
-                (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"), // Sixth argument: modelName
+                (appConfig.openai.extractionModel || "gpt-4.1-nano-2025-04-14"), // Sixth argument: modelName
                 userId // Seventh argument: userId
               );
 
@@ -1893,7 +1893,7 @@ Respond in STRICT JSON format:
                 },
                 "minato_reminder_reader_extraction_v1",
                 [],
-                (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
+                (appConfig.openai.extractionModel || "gpt-4.1-nano-2025-04-14"),
                 userId
               );
               
@@ -1993,7 +1993,7 @@ Respond in STRICT JSON format:
                 },
                 "minato_reminder_setter_extraction_v1",
                 [],
-                (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
+                (appConfig.openai.extractionModel || "gpt-4.1-nano-2025-04-14"),
                 userId
               );
               
@@ -3597,7 +3597,7 @@ Respond in JSON format:
       translationSchema,
       "minato_enhanced_translation_v2",
       [],
-      (appConfig.openai.extractionModel || "gpt-4o-mini-2024-07-18"),
+      (appConfig.openai.extractionModel || "gpt-4.1-nano-2025-04-14"),
       userId
     );
 

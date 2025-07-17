@@ -355,7 +355,7 @@ Provide a detailed analysis focusing on lead generation potential, keeping in mi
         },
         "TikTokLeadAnalysis",
         [],
-        "gpt-4o-mini"
+        "gpt-4.1-mini-2025-04-14"
       );
 
       if (analysis && 'url' in analysis) {

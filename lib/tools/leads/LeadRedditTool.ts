@@ -217,7 +217,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
         },
         "SubredditSelection",
         [],
-        "gpt-4o-mini"
+        "gpt-4.1-mini-2025-04-14"
       );
 
       const subreddits = (result && 'subreddits' in result) ? result.subreddits : [];
@@ -354,7 +354,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
         },
         "LeadAnalysis",
         [],
-        "gpt-4o-mini"
+        "gpt-4.1-mini-2025-04-14"
       );
 
       if (!analysis || 'error' in analysis) {

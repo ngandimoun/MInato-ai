@@ -19,6 +19,7 @@
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@headlessui/react": "^2.2.4",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^3.9.1",
     "@langchain/core": "^0.3.44",

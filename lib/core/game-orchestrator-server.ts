@@ -96,7 +96,7 @@ export class GameOrchestratorServer {
       
       // Call OpenAI API
       const response = await this.openai.chat.completions.create({
-        model: process.env.LLM_GENERAL_MODEL || "gpt-4o-2024-08-06",
+        model: process.env.LLM_GENERAL_MODEL || "gpt-4.1-mini-2025-04-14",
         messages: [
           { 
             role: "system", 

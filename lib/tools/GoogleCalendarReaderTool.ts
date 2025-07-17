@@ -160,7 +160,7 @@ Output as JSON with these fields only:
   "calendarId": string | null
 }`;
 
-    const model = (appConfig as any).openai?.extractionModel || "gpt-4o-mini";
+    const model = (appConfig as any).openai?.extractionModel || "gpt-4.1-nano-2025-04-14";
     this.log("debug", `Extracting Calendar parameters from: "${cleanedInput.substring(0, 50)}..." using ${model}`);
     
     const extractionResult = await generateStructuredJson(
