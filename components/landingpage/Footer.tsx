@@ -76,7 +76,7 @@ export default function Footer() {
   ];
 
   const socialLinks = [
-    { title: "X (Twitter)", href: "https://twitter.com/minato", icon: XIcon },
+    { title: "X (Twitter)", href: "https://x.com/chrisngand14511?s=21", icon: XIcon },
     // { title: "Instagram", href: "https://instagram.com/minato", icon: InstagramIcon },
     //{ title: "TikTok", href: "https://tiktok.com/@minato", icon: TiktokIcon },
     //{ title: "Facebook", href: "https://facebook.com/minato", icon: FacebookIcon },
