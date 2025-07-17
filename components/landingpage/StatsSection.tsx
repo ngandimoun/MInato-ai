@@ -1,178 +1,161 @@
-import InteractiveBentoGallery from "./blocks/interactive-bento-gallery"
+// Ajout de "use client" pour pouvoir utiliser les hooks de React (useState)
+"use client";
+
+// Ajout de useState pour gérer l'état de la modale (lightbox)
+import { useState } from "react";
+import InteractiveBentoGallery from "./blocks/interactive-bento-gallery" // Gardé comme dans votre code
+import { AnimatePresence, motion } from "motion/react"; // motion/react pour la modale
 
 /* eslint-disable @next/next/no-img-element */
 import { BlurFade } from "@/components/magicui/blur-fade";
 
-// Remplacez cette liste par les liens vers vos propres images.
-// Pour de meilleurs résultats avec ce layout, mélangez des images
-// de différentes hauteurs (portraits et paysages).
-const images = [
+// Remplacez cette liste par les liens vers vos propres médias.
+// Assurez-vous d'avoir des fichiers vidéo (ex: .mp4) dans votre dossier /public
+const media = [
   "/1.png",
   "/2.png",
+  "/blanck.mp4", // Exemple de vidéo
   "/3.png",
   "/4.png",
   "/5.png",
   "/6.png",
+  "/luxe.mp4", // Exemple de vidéo
   "/7.png",
   "/8.png",
   "/9.png",
+  "/analytic.mp4",
   "/10.png",
   "/11.png",
   "/12.png",
   "/13.png",
   "/14.png",
+  "/Friends.mp4",
   "/hero-visual.jpg",
-]
+];
 
-// const mediaItems = [
-//   {
-//     id: 1,
-//     type: "image",
-//     title: "Anurag Mishra",
-//     desc: "Driven, innovative, visionary",
-//     url: "/3.png",
-//     span: "md:col-span-1 md:row-span-3 sm:col-span-1 sm:row-span-2",
-//   },
-//   {
-//     id: 2,
-//     type: "image",
-//     title: "Dog Puppy",
-//     desc: "Adorable loyal companion.",
-//     url: "/2.png",
-//     span: "md:col-span-2 md:row-span-2 col-span-1 sm:col-span-2 sm:row-span-2",
-//   },
-//   {
-//     id: 3,
-//     type: "image",
-//     title: "Forest Path",
-//     desc: "Mystical forest trail",
-//     url: "/4.png",
-//     span: "md:col-span-1 md:row-span-3 sm:col-span-2 sm:row-span-2 ",
-//   },
-//   {
-//     id: 4,
-//     type: "image",
-//     title: "Falling Leaves",
-//     desc: "Autumn scenery",
-//     url: "/5.png",
-//     span: "md:col-span-2 md:row-span-2 sm:col-span-1 sm:row-span-2 ",
-//   },
-//   {
-//     id: 5,
-//     type: "video",
-//     title: "Bird Parrot",
-//     desc: "Vibrant feathered charm",
-//     url: "/luxe.mp4",
-//     span: "md:col-span-1 md:row-span-3 sm:col-span-1 sm:row-span-2 ",
-//   },
-//   {
-//     id: 6,
-//     type: "image",
-//     title: "Beach Paradise",
-//     desc: "Sunny tropical beach",
-//     url: "/6.png",
-//     span: "md:col-span-2 md:row-span-2 sm:col-span-1 sm:row-span-2 ",
-//   },
-//   {
-//     id: 7,
-//     type: "video",
-//     title: "Shiva Temple",
-//     desc: "Peaceful Shiva sanctuary.",
-//     url: "/blanck.mp4",
-//     span: "md:col-span-1 md:row-span-3 sm:col-span-1 sm:row-span-2 ",
-//   },
+// === NOUVELLE FONCTION UTILITAIRE ===
+// Détermine si une URL correspond à une vidéo en se basant sur son extension.
+const getMediaType = (url: string) => {
+  const videoExtensions = ['.mp4', '.webm', '.ogg'];
+  const extension = url.substring(url.lastIndexOf('.')).toLowerCase();
+  return videoExtensions.includes(extension) ? 'video' : 'image';
+};
 
-//   {
-//     id: 8,
-//     type: "image",
-//     title: "Dog Puppy",
-//     desc: "Adorable loyal companion.",
-//     url: "/7.png",
-//     span: "md:col-span-1 md:row-span-3 sm:col-span-2 sm:row-span-2",
-//   },
-//   {
-//     id: 9,
-//     type: "image",
-//     title: "Forest Path",
-//     desc: "Mystical forest trail",
-//     url: "/8.png",
-//     span: "md:col-span-2 md:row-span-2 col-span-1 sm:col-span-2 sm:row-span-2",
-//   },
-//   {
-//     id: 10,
-//     type: "image",
-//     title: "Falling Leaves",
-//     desc: "Autumn scenery",
-//     url: "/9.png",
-//     span: "md:col-span-2 md:row-span-2 sm:col-span-1 sm:row-span-2",
-//   },
-//   {
-//     id: 11,
-//     type: "image",
-//     title: "Bird Parrot",
-//     desc: "Vibrant feathered charm",
-//     url: "/10.png",
-//     span: "md:col-span-1 md:row-span-3 sm:col-span-1 sm:row-span-2",
-//   },
-//   {
-//     id: 12,
-//     type: "image",
-//     title: "Beach Paradise",
-//     desc: "Sunny tropical beach",
-//     url: "/11.png",
-//     span: "md:col-span-1 md:row-span-3 sm:col-span-2 sm:row-span-2",
-//   },
-  
-// ]
 
 export default function StatsSection() {
-
   const title = "Minato Gallery"
   const description = "Explore a collection of unique artworks, brought to life by your imagination and guided by Minato AI.";
 
+  // === NOUVEL ÉTAT POUR LA MODALE ===
+  // `selectedMedia` stockera l'URL du média à afficher en plein écran.
+  // `null` signifie qu'aucune modale n'est affichée.
+  const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
+
   return (
-    // <div className="min-h-screen overflow-y-auto">
-      
-    //   <InteractiveBentoGallery
-    //     mediaItems={mediaItems}
-    //     title="Gallery Shots Collection"
-    //     description="Drag and explore our curated collection of shots"
-    //   />
-    // </div>
+    <> {/* Fragment (INCHANGÉ) */}
+      <section id="photos" className="w-full py-12 md:py-20">
+        <div className="container mx-auto max-w-5xl px-4">
 
-     <section id="photos" className="w-full py-12 md:py-20">
-      {/* Conteneur principal pour centrer le contenu et limiter sa largeur */}
-      <div className="container mx-auto max-w-5xl px-4">
-        
-        {/* === BLOC DE TEXTE AJOUTÉ ICI === */}
-        <div className="mb-12 text-center">
-          <BlurFade delay={0.25} inView>
-            <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
-              {title}
-            </h2>
-          </BlurFade>
-          <BlurFade delay={0.35} inView>
-            <p className="mx-auto mt-4 max-w-[700px] text-gray-500  text-sm/relaxed dark:text-gray-400">
-              {description}
-            </p>
-          </BlurFade>
-        </div>
-
-        {/* La grille d'images est maintenant à l'intérieur du conteneur centré */}
-        <div className="columns-2 gap-4 sm:columns-3">
-          {images.map((imageUrl, idx) => (
-            <BlurFade key={imageUrl} delay={0.25 + idx * 0.05} inView>
-              <img
-                className="mb-4 size-full rounded-lg object-cover" // Note: object-cover est souvent plus esthétique ici
-                src={imageUrl}
-                alt={`Gallery image ${idx + 1}`}
-              />
+          {/* Texte de présentation (INCHANGÉ) */}
+          <div className="mb-12 text-center">
+            <BlurFade delay={0.25} inView>
+              <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
+                {title}
+              </h2>
             </BlurFade>
-          ))}
+            <BlurFade delay={0.35} inView>
+              <p className="mx-auto mt-4 max-w-[700px] text-gray-500  text-sm/relaxed dark:text-gray-400">
+                {description}
+              </p>
+            </BlurFade>
+          </div>
+
+          {/* Grille de médias (INCHANGÉE) */}
+          <div className="columns-2 gap-4 sm:columns-3">
+            {media.map((mediaUrl, idx) => {
+              const mediaType = getMediaType(mediaUrl);
+              return (
+                <BlurFade key={mediaUrl} delay={0.25 + idx * 0.05} inView>
+                  <div
+                    className="mb-4 break-inside-avoid cursor-pointer"
+                    onClick={() => setSelectedMedia(mediaUrl)}
+                  >
+                    {mediaType === 'image' ? (
+                      <img
+                        className="w-full h-auto rounded-lg object-cover"
+                        src={mediaUrl}
+                        alt={`Gallery image ${idx + 1}`}
+                      />
+                    ) : (
+                      <video
+                        className="w-full h-auto rounded-lg object-cover"
+                        src={mediaUrl}
+                        alt={`Gallery video ${idx + 1}`}
+                        muted loop autoPlay playsInline
+                      />
+                    )}
+                  </div>
+                </BlurFade>
+              );
+            })}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-
+      {/* === MODIFICATION ICI : LA MODALE PLEIN ÉCRAN CORRIGÉE === */}
+      <AnimatePresence>
+        {selectedMedia && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedMedia(null)}
+            // On ajoute un peu de padding pour que le média ne touche jamais les bords de l'écran
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            {/* 
+              Ce conteneur "relative" est juste là pour positionner le bouton "fermer"
+              et pour empêcher la fermeture de la modale si on clique sur l'image/vidéo.
+              Il n'a plus de taille fixe, il s'adapte à son contenu.
+            */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="relative"
+            >
+              {/* Le média lui-même. C'est ici que la magie opère. */}
+              {getMediaType(selectedMedia) === 'image' ? (
+                <img
+                  src={selectedMedia}
+                  alt="Fullscreen view"
+                  // === CHANGEMENT CLÉ ===
+                  // max-w-[90vw] -> largeur maximale = 90% de la largeur de la fenêtre
+                  // max-h-[90vh] -> hauteur maximale = 90% de la hauteur de la fenêtre
+                  // Le navigateur appliquera la contrainte la plus forte tout en conservant les proportions.
+                  // C'est exactement le comportement souhaité pour une lightbox.
+                  className="block rounded-lg max-w-[90vw] max-h-[90vh]"
+                />
+              ) : (
+                <video
+                  src={selectedMedia}
+                  alt="Fullscreen view"
+                  // On applique les mêmes contraintes à la vidéo
+                  className="block rounded-lg max-w-[90vw] max-h-[90vh]"
+                  controls
+                  autoPlay
+                  loop
+                />
+              )}
+              <button
+                onClick={() => setSelectedMedia(null)}
+                // Positionnement du bouton légèrement ajusté pour être plus esthétique
+                className="absolute -top-2 -right-2 bg-white text-black rounded-full h-8 w-8 flex items-center justify-center text-lg font-bold shadow-lg"
+              >
+                ×
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   )
 }
