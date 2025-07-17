@@ -90,7 +90,6 @@ export default function StatsSection() {
                       <video
                         className="w-full h-auto rounded-lg object-cover"
                         src={mediaUrl}
-                        alt={`Gallery video ${idx + 1}`}
                         muted loop autoPlay playsInline
                       />
                     )}
@@ -135,15 +134,14 @@ export default function StatsSection() {
                   className="block rounded-lg max-w-[90vw] max-h-[90vh]"
                 />
               ) : (
-                <video
-                  src={selectedMedia}
-                  alt="Fullscreen view"
-                  // On applique les mêmes contraintes à la vidéo
-                  className="block rounded-lg max-w-[90vw] max-h-[90vh]"
-                  controls
-                  autoPlay
-                  loop
-                />
+                                  <video
+                    src={selectedMedia}
+                    // On applique les mêmes contraintes à la vidéo
+                    className="block rounded-lg max-w-[90vw] max-h-[90vh]"
+                    controls
+                    autoPlay
+                    loop
+                  />
               )}
               <button
                 onClick={() => setSelectedMedia(null)}
