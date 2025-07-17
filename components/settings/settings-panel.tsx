@@ -27,6 +27,7 @@ import {
 import { PersonaEditorDialog } from "./persona-editor-dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ProPlanModal } from "@/components/ui/pro-plan-modal";
 import {
   Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter,
 } from "@/components/ui/card";
@@ -2090,140 +2091,11 @@ export function SettingsPanel({
         } : undefined}
         onSave={handleSavePersonaDialog as any}
       />
-      <UpgradeDialog
-        open={isUpgradeDialogOpen}
-        onOpenChange={setIsUpgradeDialogOpen}
+      <ProPlanModal
+        isOpen={isUpgradeDialogOpen}
+        onClose={() => setIsUpgradeDialogOpen(false)}
       />
     </>
 
-  );
-}
-interface UpgradeDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-function UpgradeDialog({ open, onOpenChange }: UpgradeDialogProps) {
-  const handleGetStarted = () => { console.log("Get Started clicked!"); onOpenChange(false); toast({ title: "Upgrade Action", description: "Redirecting to upgrade page (simulation)...", }); };
-  
-  const featureCategories = [
-    {
-      title: "Core Features",
-      features: [
-        "Unlimited AI Chat Conversations",
-        "Persistent Memory & Conversation History"
-      ]
-    },
-    {
-      title: "Creation Hub",
-      features: [
-        "AI-Powered Lead Generation Tools",
-        "30 AI-Generated Images per Month",
-        "20 AI-Generated Videos per Month"
-      ]
-    },
-    {
-      title: "Premium Features",
-      features: [
-        "Multiplayer Games & Social Features",
-        "20 Voice Recording Sessions",
-        "Priority Support & Faster Response Times"
-      ]
-    }
-  ];
-
-  const cardVariants = { 
-    hidden: { opacity: 0, y: 20 }, 
-    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }, 
-    hover: { y: -5, transition: { duration: 0.3, ease: "easeInOut" } } 
-  };
-  
-  const listItemVariants = { 
-    hidden: { opacity: 0, x: -10 }, 
-    visible: (i: number) => ({ opacity: 1, x: 0, transition: { delay: i * 0.1, duration: 0.3 } }) 
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }} 
-          animate={{ opacity: 1, scale: 1 }} 
-          transition={{ duration: 0.2 }}
-        >
-          <DialogHeader>
-            <DialogTitle className="text-center text-2xl font-bold bg-gradient-to-r from-primary to-emerald-400 bg-clip-text text-transparent">
-              Unlock Pro Features
-            </DialogTitle>
-            <DialogDescription className="text-center mt-2 text-muted-foreground/80">
-              Supercharge Minato with the Pro plan.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <motion.div 
-            className="py-6" 
-            variants={cardVariants} 
-            initial="hidden" 
-            animate="visible" 
-            whileHover="hover"
-          >
-            <Card className="border-primary/20 shadow-xl relative bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-emerald-400/5 rounded-lg" />
-              
-              <CardHeader className="flex flex-row items-center justify-between pb-4 px-6">
-                <CardTitle className="text-xl font-bold bg-gradient-to-r from-primary to-emerald-400 bg-clip-text text-transparent">
-                  Pro Plan
-                </CardTitle>
-                <div className="flex items-baseline space-x-1">
-                  <span className="text-3xl font-bold">$25</span>
-                  <span className="text-sm font-medium text-muted-foreground/80">/month</span>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="space-y-3 px-6">
-                <p className="text-sm text-center text-muted-foreground/80 mb-4">
-                  Unlock the full Minato experience with:
-                </p>
-                
-                <div className="space-y-4">
-                  {featureCategories.map((category, categoryIndex) => (
-                    <div key={categoryIndex}>
-                      <h4 className="text-sm font-semibold text-primary mb-2">
-                        {category.title}
-                      </h4>
-                      <motion.ul className="space-y-2 text-sm">
-                        {category.features.map((feature, featureIndex) => (
-                          <motion.li 
-                            key={feature} 
-                            className="flex items-start" 
-                            variants={listItemVariants} 
-                            custom={categoryIndex * 10 + featureIndex}
-                          >
-                            <motion.span className="mr-2 mt-0.5" whileHover={{ scale: 1.1 }}>
-                              <Check className="h-4 w-4 text-emerald-400" />
-                            </motion.span>
-                            <span className="text-muted-foreground/90 text-xs leading-relaxed">
-                              {feature}
-                            </span>
-                          </motion.li>
-                        ))}
-                      </motion.ul>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-              
-              <CardFooter className="px-6">
-                <Button 
-                  className="w-full z-30 bg-gradient-to-r from-primary to-emerald-400 hover:from-primary/90 hover:to-emerald-400/90 text-white font-semibold shadow-lg transition-all duration-300" 
-                  onClick={handleGetStarted}
-                >
-                  Get Started with Pro
-                </Button>
-              </CardFooter>
-            </Card>
-          </motion.div>
-        </motion.div>
-      </DialogContent>
-    </Dialog>
   );
 }

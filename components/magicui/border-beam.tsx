@@ -44,6 +44,8 @@ interface BorderBeamProps {
    * The initial offset position (0-100).
    */
   initialOffset?: number;
+
+  borderWidth?: number;
 }
 
 export const BorderBeam = ({
