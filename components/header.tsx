@@ -3,7 +3,7 @@
 
 import React, { createContext } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { MessageSquare, Settings, Brain, Bell, ShoppingBag, Gamepad2, Mic, BarChart3, Menu, X, Palette } from "lucide-react"
+import { MessageSquare, Settings, Brain, Bell, ShoppingBag, Gamepad2, Mic, BarChart3, Menu, X, Palette, Zap } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -11,6 +11,7 @@ import { NotificationsPanel } from "@/components/ui/notifications-panel"
 import { useAuth } from "@/context/auth-provider"
 import { ModeToggle } from "@/components/mode-toggle"
 import { useNavigation } from "@/context/navigation-context"
+import { ProPlanModal } from "@/components/ui/pro-plan-modal"
 
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub"; // Added listening, insights, and creation-hub views
 
@@ -37,6 +38,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
   const [notifOpen, setNotifOpen] = React.useState(false)
   const [notifCount, setNotifCount] = React.useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
+  const [proPlanModalOpen, setProPlanModalOpen] = React.useState(false)
 
   // Memoize the navigation handler
   const handleNavigation = React.useCallback((view: View) => {
@@ -198,6 +200,17 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
             <div className="flex items-center space-x-2">
               <ModeToggle />
 
+              {/* Plan Button */}
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setProPlanModalOpen(true)}
+                className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium px-3 py-1.5 rounded-full text-sm"
+              >
+                <Zap className="h-4 w-4 mr-1" />
+                Plan
+              </Button>
+
               {/* Notifications */}
               <Popover open={notifOpen} onOpenChange={setNotifOpen}>
                 <PopoverTrigger asChild>
@@ -278,6 +291,26 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
                         </Button>
                       </motion.li>
                     ))}
+                    
+                    {/* Plan Button in Mobile Menu */}
+                    <motion.li
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2, delay: navItems.length * 0.05 }}
+                    >
+                      <Button
+                        variant="default"
+                        onClick={() => {
+                          setProPlanModalOpen(true)
+                          setMobileMenuOpen(false)
+                        }}
+                        className="w-full justify-start rounded-lg px-4 py-3 text-left bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium"
+                      >
+                        <Zap className="h-4 w-4 mr-3" />
+                        <span className="font-medium">Plan</span>
+                      </Button>
+                    </motion.li>
                   </ul>
                 </motion.nav>
               </div>
@@ -285,6 +318,12 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
           )}
         </AnimatePresence>
       </header>
+
+      {/* Pro Plan Modal */}
+      <ProPlanModal 
+        isOpen={proPlanModalOpen} 
+        onClose={() => setProPlanModalOpen(false)} 
+      />
     </NotificationContext.Provider>
   )
 }
