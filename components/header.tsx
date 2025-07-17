@@ -205,9 +205,9 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
                 variant="default"
                 size="sm"
                 onClick={() => setProPlanModalOpen(true)}
-                className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium px-3 py-1.5 rounded-full text-sm"
+                className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium px-3 py-1 rounded-sm text-xs"
               >
-                <Zap className="h-4 w-4 mr-1" />
+                <Zap className="h-3 w-3 mr-1" />
                 Plan
               </Button>
 
@@ -293,7 +293,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
                     ))}
                     
                     {/* Plan Button in Mobile Menu */}
-                    <motion.li
+                    {/* <motion.li
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20 }}
@@ -310,7 +310,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
                         <Zap className="h-4 w-4 mr-3" />
                         <span className="font-medium">Plan</span>
                       </Button>
-                    </motion.li>
+                    </motion.li> */}
                   </ul>
                 </motion.nav>
               </div>
