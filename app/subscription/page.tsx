@@ -5,10 +5,11 @@ import { Metadata } from 'next';
 import { SubscriptionManager } from '@/components/subscription/SubscriptionManager';
 import { UpgradeModal } from '@/components/subscription/UpgradeModal';
 import { useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
-export default function SubscriptionPage() {
+// Composant séparé pour gérer les paramètres de recherche
+function SubscriptionPageContent() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
@@ -178,5 +179,38 @@ export default function SubscriptionPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Composant de fallback pour le Suspense
+function SubscriptionPageFallback() {
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            Gestion des Abonnements
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Chargement...
+          </p>
+        </div>
+        <div className="animate-pulse">
+          <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded-lg mb-8"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="h-48 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+            <div className="h-48 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function SubscriptionPage() {
+  return (
+    <Suspense fallback={<SubscriptionPageFallback />}>
+      <SubscriptionPageContent />
+    </Suspense>
   );
 } 
