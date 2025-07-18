@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import { appConfig } from '@/lib/config';
 import { logger } from '@/memory-framework/config';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { STRIPE_CONFIG } from '@/lib/constants';
 
 // Initialize Stripe with the secret key
 const stripeSecretKey = appConfig.toolApiKeys?.stripe;
@@ -18,6 +19,7 @@ const stripe = stripeSecretKey ? new Stripe(stripeSecretKey, {
 
 // Minato Pro subscription configuration
 const MINATO_PRO_PRICE_ID = process.env.STRIPE_MINATO_PRO_PRICE_ID;
+const MINATO_PRO_PRICE_AMOUNT = STRIPE_CONFIG.MINATO_PRO_PRICE_CENTS; // $25.00 in cents
 const MINATO_PRO_PRODUCT_ID = process.env.STRIPE_MINATO_PRO_PRODUCT_ID;
 
 interface CreateSubscriptionRequest {

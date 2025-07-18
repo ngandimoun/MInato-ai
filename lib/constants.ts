@@ -110,3 +110,11 @@ export const MEMORY_SEARCH_LIMIT_DEFAULT = 7;
 // --- Valeurs par Défaut Cache Sémantique ---
 export const EXTERNAL_CACHE_SIMILARITY_THRESHOLD = 0.88;
 export const EXTERNAL_CACHE_DEFAULT_LIMIT = 1;
+
+// Stripe Configuration
+export const STRIPE_CONFIG = {
+  MINATO_PRO_PRICE_CENTS: 100, // $25.00 in cents
+  MINATO_PRO_PRICE_DISPLAY: '$1',
+  MINATO_PRO_PRICE_CURRENCY: 'usd',
+  MINATO_PRO_PRICE_INTERVAL: 'month'
+} as const;

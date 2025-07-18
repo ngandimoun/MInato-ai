@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { logger } from '@/memory-framework/config';
 import Stripe from 'stripe';
 import { appConfig } from '@/lib/config';
+import { STRIPE_CONFIG } from '@/lib/constants';
 
 /**
  * POST /api/payments/create-checkout-session
@@ -103,13 +104,13 @@ export async function POST(req: NextRequest) {
       line_items: [
         {
           price_data: {
-            currency: 'usd',
+            currency: STRIPE_CONFIG.MINATO_PRO_PRICE_CURRENCY,
             product_data: {
               name: 'Minato AI Pro Subscription',
               description: 'Unlimited access to all Minato AI features for 29 days',
               images: ['https://minato.ai/logo.png'], // Replace with actual logo URL
             },
-            unit_amount: 2500, // $25.00 in cents
+            unit_amount: STRIPE_CONFIG.MINATO_PRO_PRICE_CENTS,
           },
           quantity: 1,
         },

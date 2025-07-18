@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { BorderBeam } from "../magicui/border-beam"
 import { useToast } from "@/hooks/use-toast"
+import { STRIPE_CONFIG } from "@/lib/constants"
 
 interface ProPlanModalProps {
     isOpen: boolean
@@ -120,8 +121,8 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
                                         <span className="text-teal-400 font-semibold text-sm">Plan</span>
                                     </div>
                                     <div className="text-right">
-                                        <div className="text-xl font-bold text-white">$25</div>
-                                        <div className="text-xs text-gray-300">/month</div>
+                                        <div className="text-xl font-bold text-white">{STRIPE_CONFIG.MINATO_PRO_PRICE_DISPLAY}</div>
+                                        <div className="text-xs text-gray-300">/{STRIPE_CONFIG.MINATO_PRO_PRICE_INTERVAL}</div>
                                     </div>
                                 </div>
 

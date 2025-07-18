@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { logger } from '@/memory-framework/config';
 import Stripe from 'stripe';
 import { appConfig } from '@/lib/config';
+import { STRIPE_CONFIG } from '@/lib/constants';
 
 /**
  * POST /api/subscription/upgrade
@@ -102,18 +103,18 @@ export async function POST(req: NextRequest) {
     // Note: In production, these should be created once and reused
     const product = await stripe.products.create({
       name: 'Minato Pro',
-      description: 'Unlock the full Minato experience with: Core Features - Unlimited AI Chat Conversations, Persistent Memory & Conversation History. Creation Hub - AI-Powered Lead Generation Tools, 30 AI-Generated Images per Month, 20 AI-Generated Videos per Month. Premium Features - Multiplayer Games & Social Features, 20 Recording Sessions, Priority Support & Faster Response Times.',
+      description: 'Unlock the full Minato experience with: Core Features - Unlimited AI Chat Conversations, Persistent Memory & Conversation History. Creation Hub - AI-Powered Lead Generation Tools, 30 AI-Generated Images per Month, 20 AI-Generated Videos per Month. Premium Features - Multiplayer Games & Social Features, 20 Recording Sessions, Priority Support & Faster Response Times',
       metadata: {
         minato_product_type: 'pro_subscription'
       }
     });
-    
+
     const price = await stripe.prices.create({
       product: product.id,
-      unit_amount: 100, // $25.00 in cents
-      currency: 'usd',
+      unit_amount: STRIPE_CONFIG.MINATO_PRO_PRICE_CENTS,
+      currency: STRIPE_CONFIG.MINATO_PRO_PRICE_CURRENCY,
       recurring: {
-        interval: 'month'
+        interval: STRIPE_CONFIG.MINATO_PRO_PRICE_INTERVAL as 'month'
       },
       metadata: {
         minato_product_type: 'pro_subscription'
@@ -148,6 +149,8 @@ export async function POST(req: NextRequest) {
     });
     
     logger.info(`[subscription-upgrade] Created checkout session ${checkoutSession.id} for user ${userId} with return URL: ${returnUrl}`);
+    logger.info(`[subscription-upgrade] Session metadata: ${JSON.stringify(checkoutSession.metadata)}`);
+    logger.info(`[subscription-upgrade] Client reference ID: ${checkoutSession.client_reference_id}`);
     
     return NextResponse.json({
       success: true,
