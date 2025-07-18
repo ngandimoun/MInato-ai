@@ -15,6 +15,8 @@ export const MEDIA_UPLOAD_BUCKET = process.env.MEDIA_UPLOAD_BUCKET || "audio-rec
 export const AUDIO_BUCKET = "audio-recordings";
 export const IMAGE_BUCKET = "images";
 export const VIDEO_BUCKET = "videos";
+export const MEDIA_VIDEO_BUCKET = "videos";
+export const TTS_AUDIO_BUCKET = "tts-audio";
 export const DOCUMENT_BUCKET = "documents";
 
 // --- URL Expiry Times ---
