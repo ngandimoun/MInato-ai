@@ -1,11 +1,12 @@
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Zap, Check } from "lucide-react"
+import { X, Zap, Check, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { BorderBeam } from "../magicui/border-beam"
+import { useToast } from "@/hooks/use-toast"
 
 interface ProPlanModalProps {
     isOpen: boolean
@@ -13,6 +14,9 @@ interface ProPlanModalProps {
 }
 
 export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
+    const [isLoading, setIsLoading] = useState(false)
+    const { toast } = useToast()
+
     const featureCategories = [
         {
             title: "Core Features",
@@ -33,20 +37,51 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
             title: "Premium Features",
             features: [
                 "Multiplayer Games & Social Features",
-                "20 Voice Recording Sessions",
+                "20 Recording Sessions",
                 "Priority Support & Faster Response Times"
             ]
         }
     ]
 
+    const handleUpgradeToPro = async () => {
+        setIsLoading(true)
+        
+        try {
+            // Capturer l'URL actuelle pour la redirection après paiement
+            const currentUrl = window.location.href;
+            
+            const response = await fetch('/api/subscription/upgrade', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    returnUrl: currentUrl
+                })
+            })
+
+            const data = await response.json()
+
+            if (data.success && data.checkoutUrl) {
+                // Rediriger vers Stripe Checkout
+                window.location.href = data.checkoutUrl
+            } else {
+                throw new Error(data.error || 'Failed to create checkout session')
+            }
+        } catch (error: any) {
+            console.error('Error upgrading to Pro:', error)
+            toast({
+                title: "Upgrade Failed",
+                description: error.message || "Failed to start upgrade process. Please try again.",
+                variant: "destructive",
+            })
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            {/* 
-        MODIFICATION ICI : 
-        - J'ai ajouté `sm:max-w-lg` pour fixer la largeur maximale sur les écrans de taille "small" et plus.
-        - J'ai ajouté `lg:max-w-2xl` pour augmenter cette largeur maximale sur les écrans "large" et plus.
-        - `w-full` est conservé pour que sur les très petits écrans (mobiles), la modale prenne toute la largeur disponible.
-      */}
             <DialogContent className="w-full sm:max-w-lg lg:max-w-2xl p-0 border-none bg-transparent max-h-[90vh] overflow-hidden">
                 <AnimatePresence>
                     {isOpen && (
@@ -60,7 +95,8 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
                             {/* Close button */}
                             <button
                                 onClick={onClose}
-                                className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+                                className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
+                                disabled={isLoading}
                             >
                                 <X className="h-5 w-5" />
                             </button>
@@ -127,14 +163,27 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
 
                             {/* CTA Button */}
                             <Button
-                                onClick={() => {
-                                    // TODO: Implement subscription logic
-                                    console.log("Get Started with Pro clicked")
-                                }}
-                                className="w-full bg-gradient-to-r from-pink-600 to-teal-500 hover:from-pink-700 hover:to-teal-600 text-white font-semibold py-2.5 rounded-lg transition-all duration-200 transform hover:scale-105 flex-shrink-0"
+                                onClick={handleUpgradeToPro}
+                                disabled={isLoading}
+                                className="w-full bg-gradient-to-r from-pink-600 to-teal-500 hover:from-pink-700 hover:to-teal-600 text-white font-semibold py-2.5 rounded-lg transition-all duration-200 transform hover:scale-105 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                             >
-                                Get Started with Pro
+                                {isLoading ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        Processing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Zap className="h-4 w-4 mr-2" />
+                                        Get Started with Pro
+                                    </>
+                                )}
                             </Button>
+
+                            {/* Additional info */}
+                            <p className="text-xs text-gray-400 text-center mt-2 flex-shrink-0">
+                                Secure payment powered by Stripe. Cancel anytime.
+                            </p>
                         </motion.div>
                     )}
                 </AnimatePresence>

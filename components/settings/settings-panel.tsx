@@ -832,7 +832,7 @@ export function SettingsPanel({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
         transition={{ duration: 0.3 }}
-        className="bg-background border rounded-2xl border-primary/20 shadow-lg overflow-hidden flex flex-col h-[calc(100vh-6.5rem)]"
+        className="bg-background border rounded-2xl border-primary/20 shadow-lg overflow-hidden flex flex-col h-full max-h-[calc(100vh-6.5rem)]"
       >
         <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
           <h2 className="text-lg font-semibold">Settings</h2>
@@ -885,7 +885,7 @@ export function SettingsPanel({
               </TabsList>
             </ScrollArea>
           </div>
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden min-h-0">
             <ScrollArea className="h-full">
               <div className="p-4 md:p-6">
                 <TabsContent value="general" className="mt-0 space-y-6">

@@ -1,5 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { logger } from '@/memory-framework/config';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
+import { usePermissionCheck } from '@/hooks/usePermissionCheck';
 
 export interface GeneratedVideo {
   id: string;
@@ -53,6 +56,9 @@ export function useVideoGeneration(options: VideoGenerationOptions = {}) {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const { handleSubscriptionError } = useSubscriptionGuard();
+  const { callTrialProtectedApi } = useTrialProtectedApiCall();
+  const { checkPermission } = usePermissionCheck();
 
   // Helper function to convert File to base64
   const fileToBase64 = useCallback((file: File): Promise<string> => {
@@ -182,6 +188,24 @@ export function useVideoGeneration(options: VideoGenerationOptions = {}) {
         duration: request.duration
       });
 
+      // Vérification préventive des permissions
+      const permissionCheck = await checkPermission('videos');
+      if (!permissionCheck.allowed) {
+        logger.info('[Video Generation Hook] Permission denied, showing upgrade modal');
+        setIsGenerating(false);
+        cleanup();
+        
+        // Déclencher le modal d'upgrade
+        handleSubscriptionError({
+          code: permissionCheck.reason,
+          feature: 'videos',
+          currentUsage: permissionCheck.currentUsage,
+          maxQuota: permissionCheck.maxQuota
+        });
+        
+        return;
+      }
+
       // Prepare request payload
       const payload: any = {
         prompt: request.prompt,
@@ -198,22 +222,69 @@ export function useVideoGeneration(options: VideoGenerationOptions = {}) {
         payload.imageFile = base64Image;
       }
 
-      // Make API request
-      const response = await fetch('/api/video/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      // Make API request with trial protection
+      const result = await callTrialProtectedApi(
+        async () => {
+          const response = await fetch('/api/video/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+            signal: abortControllerRef.current?.signal
+          });
+
+          if (!response.ok) {
+            // Vérifier si la réponse a du contenu avant de tenter de la parser
+            const contentType = response.headers.get('content-type');
+            let errorData;
+            
+            try {
+              if (contentType && contentType.includes('application/json')) {
+                const responseText = await response.text();
+                if (responseText.trim()) {
+                  errorData = JSON.parse(responseText);
+                } else {
+                  errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+                }
+              } else {
+                errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+              }
+            } catch (parseError) {
+              logger.error('[Video Generation Hook] Failed to parse error response', { parseError, status: response.status });
+              errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+            }
+            
+            // Handle subscription errors
+            if (handleSubscriptionError(errorData)) {
+              throw new Error('Subscription required');
+            }
+            
+            throw new Error(errorData.error || `Generation failed: ${response.status}`);
+          }
+
+          return await response.json();
         },
-        body: JSON.stringify(payload),
-        signal: abortControllerRef.current.signal
-      });
+        (data) => {
+          // Success callback - will be handled below
+        },
+        (error) => {
+          // Si c'est une erreur de subscription, on ne la relance pas
+          if (error.message === 'Subscription required') {
+            logger.info('[Video Generation Hook] Subscription error handled, not re-throwing');
+            return;
+          }
+          throw error; // Re-throw to be caught by outer catch
+        }
+      );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Generation failed: ${response.status}`);
+      if (!result) {
+        // Si result est null, c'est probablement dû à une erreur de subscription
+        logger.info('[Video Generation Hook] Generation cancelled due to subscription error');
+        setIsGenerating(false);
+        cleanup();
+        return;
       }
-
-      const result = await response.json();
       
       // Create initial video object
       const initialVideo: GeneratedVideo = {
@@ -245,6 +316,14 @@ export function useVideoGeneration(options: VideoGenerationOptions = {}) {
       if (err instanceof Error && err.name === 'AbortError') {
         logger.info('[Video Generation Hook] Generation aborted');
         return;
+      }
+
+      // Check if this is a subscription error that was already handled
+      if (err instanceof Error && err.message === 'Subscription required') {
+        // Don't show error toast or set error state for subscription errors
+        // The modal is already shown by handleSubscriptionError
+        logger.info('[Video Generation Hook] Subscription error handled by modal');
+        throw err; // Re-throw to be handled by the caller
       }
 
       logger.error('[Video Generation Hook] Generation error', { err });

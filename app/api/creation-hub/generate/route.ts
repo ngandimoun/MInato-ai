@@ -26,6 +26,7 @@ import type {
   CategoryImageGenerationRequest 
 } from '@/components/creation-hub/hub-types';
 import { DataVisualizationEngine } from '@/lib/services/DataVisualizationEngine';
+import { checkQuota, incrementMonthlyUsage } from '@/lib/middleware/subscription-guards';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -54,6 +55,17 @@ export async function POST(request: NextRequest) {
         { error: { code: 'AUTH_ERROR', message: 'Unauthorized' } }, 
         { status: 401 }
       );
+    }
+
+    // Check subscription quota for image generation
+    const quotaCheck = await checkQuota(request, 'images');
+    if (!quotaCheck.success) {
+      logger.warn('[Creation Hub API] Image generation quota exceeded', { 
+        requestId, 
+        userId: user.id.substring(0, 8),
+        error: quotaCheck.response?.json()
+      });
+      return quotaCheck.response!;
     }
 
     // Parse request body - updated for GPT Image 1 parameters
@@ -581,6 +593,9 @@ SMART DATA PROCESSING APPLIED:
       logger.error('[Creation Hub API] Database operation failed', { requestId, dbError });
       // Continue without database operations
     }
+
+    // Increment monthly usage for image generation
+    await incrementMonthlyUsage(user.id, 'images');
 
     const duration = Date.now() - startTime;
     logger.info('[Creation Hub API] Image generation completed', { 

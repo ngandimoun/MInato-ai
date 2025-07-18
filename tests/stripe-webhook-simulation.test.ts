@@ -103,7 +103,7 @@ class StripeWebhookTestSuite {
       const mockCheckoutSession = {
         id: 'cs_test_123456',
         object: 'checkout.session',
-        amount_total: 2999, // $29.99
+        amount_total: 2500, // $25.00
         currency: 'usd',
         customer_details: {
           email: WEBHOOK_TEST_CONFIG.testCustomerEmail
@@ -239,7 +239,7 @@ class StripeWebhookTestSuite {
       const mockDispute = {
         id: 'dp_test_123456',
         object: 'dispute',
-        amount: 2999,
+        amount: 2500,
         currency: 'usd',
         charge: 'ch_test_123456',
         reason: 'general',
@@ -277,7 +277,7 @@ class StripeWebhookTestSuite {
       const mockApplicationFee = {
         id: 'fee_test_123456',
         object: 'application_fee',
-        amount: 30, // 1% of $29.99 ≈ $0.30
+        amount: 25, // 1% of $25.00 ≈ $0.25
         currency: 'usd',
         charge: 'ch_test_123456',
         created: Math.floor(Date.now() / 1000)

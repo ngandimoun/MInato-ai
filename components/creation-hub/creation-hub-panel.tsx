@@ -17,7 +17,8 @@ import {
   Upload,
   StopCircle,
   AlertCircle,
-  Globe
+  Globe,
+  Crown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,8 +47,14 @@ import { ImageEditorModal } from "./image-editor-modal";
 import { VideoGenerator } from "./video-generator";
 import CreateVid from "./create-vid";
 import { AILeadsInterface } from "./ai-leads-interface";
+import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
 import { useTranslation } from "@/hooks/useTranslation";
 import { CATEGORY_INFO, CATEGORY_FORMS } from './category-types';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { UpgradeModal } from '@/components/subscription/UpgradeModal';
+import { useUserPlan } from '@/hooks/useUserPlan';
+import { UpgradeToast } from '@/components/ui/upgrade-toast';
+import { ProPlanModal } from '@/components/ui/pro-plan-modal';
 
 // Helper function to convert File to base64
 async function fileToBase64(file: File): Promise<string> {
@@ -95,6 +102,12 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
   // Add language state
   const [language, setLanguage] = useState<string>("en");
   const { translateText, isTranslating, clearCache } = useTranslation();
+  const { callTrialProtectedApi } = useTrialProtectedApiCall();
+  const { handleSubscriptionError, isUpgradeModalOpen, subscriptionError, handleUpgrade, closeUpgradeModal } = useSubscriptionGuard();
+  const { userPlan, loading: planLoading } = useUserPlan();
+  const [showUpgradeToast, setShowUpgradeToast] = useState(false);
+  const [upgradeToastMessage, setUpgradeToastMessage] = useState("");
+  const [isProPlanModalOpen, setIsProPlanModalOpen] = useState(false);
   
   // Add translated UI text state
   const [translatedText, setTranslatedText] = useState({
@@ -549,7 +562,6 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
     onSuccess: (image) => {
       // Add to both conversation and user images
       addImage(image);
-      addUserImage(image);
       toast({
         title: "Image Generated!",
         description: "Your image has been created successfully.",
@@ -561,6 +573,11 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
         description: HubUtils.Error.createFriendlyMessage(error),
         variant: "destructive",
       });
+    },
+    onUpgradeRequired: (error) => {
+      // Afficher le toast personnalisé UpgradeToast
+      setUpgradeToastMessage("Image generation is a Pro feature! Upgrade now to unlock 30 AI-generated images per month with stunning visuals.");
+      setShowUpgradeToast(true);
     }
   });
 
@@ -697,36 +714,50 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
     if (!video.video_url) return;
 
     try {
-      const response = await fetch(video.video_url);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch video: ${response.statusText}`);
-      }
+      await callTrialProtectedApi(
+        async () => {
+          const response = await fetch(video.video_url);
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch video: ${response.statusText}`);
+          }
 
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      
-      // Generate filename based on video data
-      const timestamp = new Date(video.created_at).toISOString().split('T')[0];
-      const sanitizedText = video.original_text 
-        ? video.original_text.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase().substring(0, 30)
-        : 'video';
-      const filename = `video-${timestamp}-${sanitizedText}-${video.id.slice(-6)}.mp4`;
-      
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      
-      // Cleanup
-      window.URL.revokeObjectURL(downloadUrl);
-      document.body.removeChild(link);
+          const blob = await response.blob();
+          const downloadUrl = window.URL.createObjectURL(blob);
+          
+          // Generate filename based on video data
+          const timestamp = new Date(video.created_at).toISOString().split('T')[0];
+          const sanitizedText = video.original_text 
+            ? video.original_text.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase().substring(0, 30)
+            : 'video';
+          const filename = `video-${timestamp}-${sanitizedText}-${video.id.slice(-6)}.mp4`;
+          
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          
+          // Cleanup
+          window.URL.revokeObjectURL(downloadUrl);
+          document.body.removeChild(link);
 
-      toast({
-        title: "Download Started",
-        description: `Downloading ${filename}`,
-      });
+          return { filename };
+        },
+        (result) => {
+          toast({
+            title: "Download Started",
+            description: `Downloading ${result.filename}`,
+          });
+        },
+        (error) => {
+          toast({
+            title: "Download Failed",
+            description: error instanceof Error ? error.message : "Failed to download video",
+            variant: "destructive",
+          });
+        }
+      );
     } catch (error) {
       toast({
         title: "Download Failed",
@@ -734,7 +765,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
         variant: "destructive",
       });
     }
-  }, []);
+  }, [callTrialProtectedApi]);
 
   const handleImageClick = useCallback((image: GeneratedImage) => {
     setSelectedImage(image);
@@ -824,13 +855,30 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
     }
   };
 
+  // Fonctions pour gérer l'upgrade
+  const handleUpgradeClick = () => {
+    setShowUpgradeToast(false);
+    setIsProPlanModalOpen(true);
+  };
+
+  const handleUpgradeToast = (message: string) => {
+    setUpgradeToastMessage(message);
+    setShowUpgradeToast(true);
+    // Auto-fermer après 5 secondes
+    setTimeout(() => setShowUpgradeToast(false), 5000);
+  };
+
+  const closeUpgradeToast = () => {
+    setShowUpgradeToast(false);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
       transition={{ duration: 0.3 }}
-      className="bg-background border rounded-2xl border-primary/20 shadow-lg overflow-hidden flex flex-col h-[calc(100vh-6.5rem)] relative"
+      className="bg-background border rounded-2xl border-primary/20 shadow-lg overflow-hidden flex flex-col h-full"
     >
       {/* Animated background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -906,6 +954,11 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
               transition={{ duration: 0.5, delay: 0.4 }}
             >
               {translatedText.subtitle}
+              {userPlan && (
+                <span className="ml-2 text-xs bg-muted px-2 py-1 rounded">
+                  Plan: {userPlan.planType} {userPlan.isFreeTrial ? '(Trial)' : ''} {userPlan.isPro ? '(Pro)' : ''}
+                </span>
+              )}
             </motion.p>
           </div>
         </motion.div>
@@ -1186,6 +1239,12 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                           <CardTitle className="flex items-center gap-2">
                             <Sparkles className="h-5 w-5 text-primary" />
                             Describe Your Vision
+                            {userPlan?.isFreeTrial && (
+                              <Badge variant="outline" className="ml-2 text-xs px-2 py-1 bg-yellow-500/10 border-yellow-500/30 text-yellow-600">
+                                <Crown className="h-3 w-3 mr-1" />
+                                Pro Feature
+                              </Badge>
+                            )}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -1224,13 +1283,37 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                             </div>
                           )}
                           
+                          {/* FREE_TRIAL Info Message */}
+                          {userPlan?.isFreeTrial && (
+                            <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20 rounded-lg">
+                              <Crown className="h-4 w-4 text-yellow-600" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-yellow-700">Upgrade to Pro</p>
+                                <p className="text-xs text-yellow-600">Unlock unlimited AI image generation with 30 images per month</p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* PRO Quota Indicator */}
+                          {userPlan?.isPro && (
+                            <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-lg">
+                              <Sparkles className="h-4 w-4 text-green-600" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-green-700">Pro Plan Active</p>
+                                <p className="text-xs text-green-600">30 AI-generated images per month available</p>
+                              </div>
+                            </div>
+                          )}
+                          
                           <div className="flex gap-2 sm:gap-3">
                             <Button 
-                              onClick={handleGenerate} 
+                              onClick={userPlan?.isFreeTrial ? () => handleUpgradeToast("🎨 Image generation is a Pro feature! Upgrade now to unlock 30 AI-generated images per month with unlimited creativity.") : handleGenerate} 
                               disabled={isGenerating || !prompt.trim()}
                               className={cn(
                                 "flex-1 h-11 sm:h-10",
-                                "bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700",
+                                userPlan?.isFreeTrial 
+                                  ? "bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 cursor-pointer opacity-80" 
+                                  : "bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700",
                                 "shadow-lg hover:shadow-xl transition-all duration-200",
                                 "active:scale-[0.98] touch-manipulation"
                               )}
@@ -1239,6 +1322,11 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                                 <>
                                   <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" />
                                   Generating...
+                                </>
+                              ) : userPlan?.isFreeTrial ? (
+                                <>
+                                  <Crown className="mr-2 h-4 w-4 text-white" />
+                                  Upgrade to Generate
                                 </>
                               ) : (
                                 <>
@@ -1927,6 +2015,33 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
         }}
         onSave={handleImageEditorSave}
         onRegenerate={handleImageEditorRegenerate}
+      />
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={closeUpgradeModal}
+        onUpgrade={handleUpgrade}
+        feature={subscriptionError?.feature || 'premium feature'}
+        reason={subscriptionError?.code === 'quota_exceeded' ? 'quota_exceeded' : 
+                subscriptionError?.code === 'feature_blocked' ? 'feature_blocked' : 
+                'manual'}
+      />
+
+
+
+      {/* Upgrade Toast */}
+      <UpgradeToast
+        isVisible={showUpgradeToast}
+        onUpgrade={handleUpgradeClick}
+        onClose={closeUpgradeToast}
+        message={upgradeToastMessage}
+      />
+
+      {/* Pro Plan Modal */}
+      <ProPlanModal
+        isOpen={isProPlanModalOpen}
+        onClose={() => setIsProPlanModalOpen(false)}
       />
     </motion.div>
   );

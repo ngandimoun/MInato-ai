@@ -39,6 +39,7 @@ import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 import { logger } from "@/memory-framework/config";
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
 
 interface LeadSearch {
   id: string;
@@ -124,6 +125,7 @@ export function AILeadsInterface() {
   const [searchProgress, setSearchProgress] = useState(0);
   const [lastSearchResults, setLastSearchResults] = useState<boolean>(false);
   const [currentSearchResults, setCurrentSearchResults] = useState<LeadResult[]>([]);
+  const { handleSubscriptionError } = useSubscriptionGuard();
   
   // Data states
   const [leadSearches, setLeadSearches] = useState<LeadSearch[]>([]);
@@ -313,6 +315,13 @@ export function AILeadsInterface() {
       });
 
       if (!response.ok) {
+        const errorData = await response.json();
+        
+        // Handle subscription errors
+        if (handleSubscriptionError(errorData)) {
+          throw new Error('Subscription required');
+        }
+        
         throw new Error('Search failed');
       }
 
@@ -360,6 +369,13 @@ export function AILeadsInterface() {
       });
 
       if (!response.ok) {
+        const errorData = await response.json();
+        
+        // Handle subscription errors
+        if (handleSubscriptionError(errorData)) {
+          throw new Error('Subscription required');
+        }
+        
         throw new Error('Message generation failed');
       }
 

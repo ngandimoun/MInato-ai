@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Recording } from "@/context/listening-context";
 import { useToast } from "@/hooks/use-toast";
+import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
 
 interface RecordingListProps {
   recordings: Recording[];
@@ -56,6 +57,7 @@ export function RecordingList({
   className,
 }: RecordingListProps) {
   const { toast } = useToast();
+  const { callTrialProtectedApi } = useTrialProtectedApiCall();
   const [editingRecordingId, setEditingRecordingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>("");
 
@@ -143,11 +145,13 @@ export function RecordingList({
     event.stopPropagation();
     
     try {
-      const response = await fetch(`/api/recordings/${recordingId}/process`, {
-        method: "POST",
-      });
+      const response = await callTrialProtectedApi(
+        async () => fetch(`/api/recordings/${recordingId}/process`, {
+          method: "POST",
+        })
+      );
 
-      if (!response.ok) {
+      if (!response?.ok) {
         throw new Error("Failed to trigger processing");
       }
 
@@ -198,13 +202,13 @@ export function RecordingList({
   };
 
   return (
-    <Card className={cn("w-full max-w-md h-[400px]", className)}>
+    <Card className={cn("w-full max-w-md h-[500px]", className)}>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-semibold">Your Recordings</CardTitle>
         <CardDescription>Select a recording to view its analysis</CardDescription>
       </CardHeader>
       <CardContent className="p-0">
-        <ScrollArea className="h-[320px] px-4 pb-4">
+        <ScrollArea className="h-[420px] px-4 pb-4">
           {isLoading ? (
             // Loading skeletons
             Array(3)

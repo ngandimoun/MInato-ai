@@ -6,6 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/components/ui/use-toast';
+import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
 import { 
   Trophy, 
   Crown, 
@@ -14,7 +17,8 @@ import {
   TrendingUp, 
   Target,
   RefreshCw,
-  Zap
+  Zap,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/auth-provider';
@@ -218,6 +222,7 @@ export function Leaderboards() {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { callTrialProtectedApi } = useTrialProtectedApiCall();
 
   const fetchLeaderboard = async (type: string, category?: string) => {
     setIsLoading(true);
@@ -227,10 +232,12 @@ export function Leaderboards() {
       const params = new URLSearchParams({ type, limit: '50' });
       if (category) params.append('category', category);
       
-      const response = await fetch(`/api/leaderboards?${params}`);
+      const response = await callTrialProtectedApi(
+        async () => fetch(`/api/leaderboards?${params}`)
+      );
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response?.ok) {
+        throw new Error(`HTTP error! status: ${response?.status}`);
       }
       
       const data = await response.json();

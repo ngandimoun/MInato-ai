@@ -56,6 +56,7 @@
     "@react-three/fiber": "^8.18.0",
     "@stripe/connect-js": "^3.3.24",
     "@stripe/react-connect-js": "^3.3.24",
+    "@stripe/stripe-js": "^7.5.0",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",

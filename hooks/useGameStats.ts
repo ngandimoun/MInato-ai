@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/auth-provider'
+import { useTrialProtectedApiCall } from './useTrialExpirationHandler'
 
 interface UserStats {
   total_games_played: number
@@ -62,6 +63,7 @@ interface GameHistoryResponse {
 
 export function useGameStats() {
   const { user } = useAuth()
+  const { callTrialProtectedApi } = useTrialProtectedApiCall()
   const [stats, setStats] = useState<UserStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -72,27 +74,35 @@ export function useGameStats() {
       return
     }
 
-    try {
-      setError(null)
-      const response = await fetch('/api/games/user-stats')
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch user stats')
+    setIsLoading(true)
+    setError(null)
+
+    await callTrialProtectedApi(
+      async () => {
+        const response = await fetch('/api/games/user-stats')
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch user stats')
+        }
+        
+        const data = await response.json()
+        
+        if (data.success) {
+          return data.stats
+        } else {
+          throw new Error(data.error || 'Failed to fetch user stats')
+        }
+      },
+      (data) => {
+        setStats(data)
+        setIsLoading(false)
+      },
+      (err) => {
+        console.error('Error fetching user stats:', err)
+        setError(err instanceof Error ? err.message : 'Failed to fetch user stats')
+        setIsLoading(false)
       }
-      
-      const data = await response.json()
-      
-      if (data.success) {
-        setStats(data.stats)
-      } else {
-        throw new Error(data.error || 'Failed to fetch user stats')
-      }
-    } catch (err) {
-      console.error('Error fetching user stats:', err)
-      setError(err instanceof Error ? err.message : 'Failed to fetch user stats')
-    } finally {
-      setIsLoading(false)
-    }
+    )
   }
 
   useEffect(() => {

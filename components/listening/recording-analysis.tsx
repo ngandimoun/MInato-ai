@@ -34,6 +34,8 @@ import { ChatInterface } from "./chat-interface";
 import { RecordingSkeleton } from "./recording-skeleton";
 import { LanguageSelector } from "./language-selector";
 import { useTranslation } from "@/hooks/useTranslation";
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { UpgradeModal } from '@/components/subscription/UpgradeModal';
 
 interface RecordingAnalysisProps {
   recording: Recording | null;
@@ -62,6 +64,7 @@ export function RecordingAnalysis({
   
   // Translation hook
   const { translateText, translateArray, isTranslating } = useTranslation();
+  const { handleSubscriptionError, isUpgradeModalOpen, subscriptionError, handleUpgrade, closeUpgradeModal } = useSubscriptionGuard();
   
   // Translated content state
   const [translatedSummary, setTranslatedSummary] = useState<string | null>(null);
@@ -300,9 +303,18 @@ export function RecordingAnalysis({
                     method: "POST",
                   });
                   
-                  if (response.ok) {
-                    // Status will be updated via real-time subscription
+                  if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    
+                    // Handle subscription errors
+                    if (handleSubscriptionError(errorData)) {
+                      return; // Error handled by modal
+                    }
+                    
+                    throw new Error(errorData.error || 'Processing failed');
                   }
+                  
+                  // Status will be updated via real-time subscription
                 } catch (error) {
                   console.error("Failed to trigger processing:", error);
                 }
@@ -351,9 +363,18 @@ export function RecordingAnalysis({
                   method: "POST",
                 });
                 
-                if (response.ok) {
-                  // Status will be updated via real-time subscription
+                if (!response.ok) {
+                  const errorData = await response.json().catch(() => ({}));
+                  
+                  // Handle subscription errors
+                  if (handleSubscriptionError(errorData)) {
+                    return; // Error handled by modal
+                  }
+                  
+                  throw new Error(errorData.error || 'Processing failed');
                 }
+                
+                // Status will be updated via real-time subscription
               } catch (error) {
                 console.error("Failed to retry processing:", error);
               }
@@ -384,7 +405,7 @@ export function RecordingAnalysis({
   }
 
   return (
-    <Card className={cn("w-full h-[600px]", className)}>
+    <Card className={cn("w-full h-[700px]", className)}>
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center justify-between">
           <div className="truncate">{recording.title}</div>
@@ -815,6 +836,17 @@ export function RecordingAnalysis({
           </Tabs>
         )}
       </CardContent>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={closeUpgradeModal}
+        onUpgrade={handleUpgrade}
+        feature={subscriptionError?.feature || 'audio analysis'}
+        reason={subscriptionError?.code === 'quota_exceeded' ? 'quota_exceeded' : 
+                subscriptionError?.code === 'feature_blocked' ? 'feature_blocked' : 
+                'manual'}
+      />
     </Card>
   );
 } 

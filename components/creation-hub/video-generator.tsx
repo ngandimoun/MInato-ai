@@ -20,7 +20,8 @@ import {
   Heart,
   Zap,
   Camera,
-  Settings
+  Settings,
+  Crown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +36,12 @@ import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { useVideoGeneration, type GeneratedVideo, type VideoGenerationRequest } from "./hooks/use-video-generation";
 import { useUserImages } from "./hooks/use-user-images";
+import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { UpgradeModal } from '@/components/subscription/UpgradeModal';
+import { useUserPlan } from '@/hooks/useUserPlan';
+import { UpgradeToast } from '@/components/ui/upgrade-toast';
+import { ProPlanModal } from '@/components/ui/pro-plan-modal';
 import type { GeneratedImage } from "./hub-types";
 import { useTranslation } from "@/hooks/useTranslation";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -161,6 +168,12 @@ export function VideoGenerator({ className, language = "en", onVideoGenerated }:
   const [selectedPlatform, setSelectedPlatform] = useState<string>('instagram');
   const [selectedFormat, setSelectedFormat] = useState<string>('instagram-post');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { callTrialProtectedApi } = useTrialProtectedApiCall();
+  const { handleSubscriptionError, isUpgradeModalOpen, subscriptionError, handleUpgrade, closeUpgradeModal } = useSubscriptionGuard();
+  const { userPlan, loading: planLoading } = useUserPlan();
+  const [showUpgradeToast, setShowUpgradeToast] = useState(false);
+  const [upgradeToastMessage, setUpgradeToastMessage] = useState("");
+  const [isProPlanModalOpen, setIsProPlanModalOpen] = useState(false);
   
   // Constants for prompt validation
   const MAX_PROMPT_LENGTH = 150;
@@ -317,6 +330,17 @@ export function VideoGenerator({ className, language = "en", onVideoGenerated }:
         description: translatedText.videoGeneratedDesc,
       });
       onVideoGenerated?.(video);
+    },
+    onError: (error) => {
+      // Ne pas afficher de toast d'erreur si c'est une erreur de subscription
+      // car elle est déjà gérée par le modal d'upgrade
+      if (error.message !== 'Subscription required') {
+        toast({
+          title: "Video Generation Failed",
+          description: error.message || "An error occurred while generating the video",
+          variant: "destructive",
+        });
+      }
     }
   });
 
@@ -388,6 +412,23 @@ export function VideoGenerator({ className, language = "en", onVideoGenerated }:
       return URL.createObjectURL(selectedImage);
     }
     return selectedImage.url;
+  };
+
+  // Fonctions pour gérer l'upgrade
+  const handleUpgradeClick = () => {
+    setShowUpgradeToast(false);
+    setIsProPlanModalOpen(true);
+  };
+
+  const handleUpgradeToast = (message: string) => {
+    setUpgradeToastMessage(message);
+    setShowUpgradeToast(true);
+    // Auto-fermer après 5 secondes
+    setTimeout(() => setShowUpgradeToast(false), 5000);
+  };
+
+  const closeUpgradeToast = () => {
+    setShowUpgradeToast(false);
   };
 
   const handleGenerate = async () => {
@@ -796,7 +837,15 @@ export function VideoGenerator({ className, language = "en", onVideoGenerated }:
 
             <div className="space-y-4">
               <div className="space-y-3">
-                <Label htmlFor="video-prompt" className="text-white/80">{translatedText.describeAnimation}</Label>
+                <Label htmlFor="video-prompt" className="text-white/80 flex items-center gap-2">
+                  {translatedText.describeAnimation}
+                  {userPlan?.isFreeTrial && (
+                    <Badge variant="outline" className="ml-2 text-xs px-2 py-1 bg-yellow-500/20 border-yellow-500/40 text-yellow-300">
+                      <Crown className="h-3 w-3 mr-1" />
+                      Pro Feature
+                    </Badge>
+                  )}
+                </Label>
                 <Textarea
                   id="video-prompt"
                   placeholder={translatedText.promptPlaceholder}
@@ -902,6 +951,36 @@ export function VideoGenerator({ className, language = "en", onVideoGenerated }:
                 </motion.div>
               )}
 
+              {/* FREE_TRIAL Info Message */}
+              {userPlan?.isFreeTrial && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-3 p-4 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 rounded-lg backdrop-blur-sm"
+                >
+                  <Crown className="h-5 w-5 text-yellow-300" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-yellow-200">Upgrade to Pro</p>
+                    <p className="text-xs text-yellow-300/80">Unlock unlimited AI video generation with 20 videos per month</p>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* PRO Quota Indicator */}
+              {userPlan?.isPro && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-3 p-4 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-lg backdrop-blur-sm"
+                >
+                  <Sparkles className="h-5 w-5 text-green-300" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-green-200">Pro Plan Active</p>
+                    <p className="text-xs text-green-300/80">20 AI-generated videos per month available</p>
+                  </div>
+                </motion.div>
+              )}
+
               {/* Generate Button */}
               <motion.div
                 whileHover={{ scale: 1.02 }}
@@ -910,17 +989,24 @@ export function VideoGenerator({ className, language = "en", onVideoGenerated }:
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-purple-600/30 via-blue-600/30 to-cyan-600/30 rounded-xl blur-lg" />
                 <Button 
-                  onClick={handleGenerate}
+                  onClick={userPlan?.isFreeTrial ? () => handleUpgradeToast("🎬 Video generation is a Pro feature! Upgrade now to unlock 20 AI-generated videos per month with stunning animations.") : handleGenerate}
                   disabled={!selectedImage || !prompt.trim() || isGenerating || prompt.trim().length > MAX_PROMPT_LENGTH}
-                  className="w-full bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 hover:from-purple-700 hover:via-blue-700 hover:to-cyan-700 h-12 text-lg font-bold shadow-2xl border-0 relative overflow-hidden group"
+                  className={cn(
+                    "w-full h-12 text-lg font-bold shadow-2xl border-0 relative overflow-hidden group",
+                    userPlan?.isFreeTrial 
+                      ? "bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 cursor-pointer opacity-80" 
+                      : "bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 hover:from-purple-700 hover:via-blue-700 hover:to-cyan-700"
+                  )}
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   {isGenerating ? (
                     <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  ) : userPlan?.isFreeTrial ? (
+                    <Crown className="h-5 w-5 mr-2 text-white" />
                   ) : (
                     <Sparkles className="h-5 w-5 mr-2" />
                   )}
-                  {translatedText.generate}
+                  {userPlan?.isFreeTrial ? "Upgrade to Generate" : translatedText.generate}
                 </Button>
               </motion.div>
             </div>
@@ -961,6 +1047,33 @@ export function VideoGenerator({ className, language = "en", onVideoGenerated }:
             </div>
           </motion.div>
         )}
+
+        {/* Upgrade Modal */}
+        <UpgradeModal
+          isOpen={isUpgradeModalOpen}
+          onClose={closeUpgradeModal}
+          onUpgrade={handleUpgrade}
+          feature={subscriptionError?.feature || 'video generation'}
+          reason={subscriptionError?.code === 'quota_exceeded' ? 'quota_exceeded' : 
+                  subscriptionError?.code === 'feature_blocked' ? 'feature_blocked' : 
+                  'manual'}
+        />
+
+
+
+        {/* Upgrade Toast */}
+        <UpgradeToast
+          isVisible={showUpgradeToast}
+          onUpgrade={handleUpgradeClick}
+          onClose={closeUpgradeToast}
+          message={upgradeToastMessage}
+        />
+
+        {/* Pro Plan Modal */}
+        <ProPlanModal
+          isOpen={isProPlanModalOpen}
+          onClose={() => setIsProPlanModalOpen(false)}
+        />
       </div>
     </div>
   );

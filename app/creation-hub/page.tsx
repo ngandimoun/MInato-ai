@@ -11,6 +11,7 @@ import { logger } from '@/memory-framework/config';
 import { useNavigation } from "@/context/navigation-context";
 import { Suspense } from "react";
 import { Palette, Sparkles, Wand2 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Define view type to match Header component
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub";
@@ -28,7 +29,7 @@ const FloatingParticles = () => {
   }));
 
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+    <div className="absolute inset-0 h-full overflow-hidden pointer-events-none">
       {particles.map((particle) => (
         <motion.div
           key={particle.id}
@@ -201,16 +202,14 @@ function CreationHubPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
-      <AnimatedBackground />
-      <FloatingParticles />
+    <main className="flex h-screen flex-col bg-background overflow-hidden">
+      <div className="fixed inset-0 bg-gradient-to-br from-purple-50/50 via-pink-50/30 to-blue-50/50 dark:from-purple-900/20 dark:via-pink-900/10 dark:to-blue-900/20 z-[-1]" />
       
       <Header currentView="creation-hub" onViewChange={handleViewChange} />
       
-      <main className="pt-14 relative z-10">
-        <div className="container max-w-5xl mx-auto px-4 py-6">
+      <ScrollArea className="flex-1">
+        <div className="container max-w-5xl mx-auto px-4 py-6 pt-20">
           <motion.div
-            className="relative"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
@@ -218,7 +217,7 @@ function CreationHubPage() {
             <CreationHubPanel onClose={handlePanelClose} />
           </motion.div>
         </div>
-      </main>
-    </div>
+      </ScrollArea>
+    </main>
   );
 } 

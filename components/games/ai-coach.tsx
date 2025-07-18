@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { Brain, TrendingUp, Target, Star, Lightbulb, Award, BarChart3, Zap, Trophy, BookOpen } from "lucide-react";
+import { Brain, TrendingUp, Target, Star, Lightbulb, Award, BarChart3, Zap, Trophy, BookOpen, Loader2, Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
 
 interface CoachingInsights {
   insights: string[];
@@ -96,6 +97,7 @@ export default function AICoach() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("insights");
+  const { callTrialProtectedApi } = useTrialProtectedApiCall();
 
   const fetchCoachingInsights = async (gameSessionId?: string) => {
     if (!user) return;
@@ -104,18 +106,20 @@ export default function AICoach() {
     setError(null);
 
     try {
-      const response = await fetch('/api/ai-coach/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: user.id,
-          game_session_id: gameSessionId,
-        }),
-      });
+      const response = await callTrialProtectedApi(
+        async () => fetch('/api/ai-coach/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_id: user.id,
+            game_session_id: gameSessionId,
+          }),
+        })
+      );
 
-      if (!response.ok) {
+      if (!response?.ok) {
         throw new Error('Failed to fetch coaching insights');
       }
 

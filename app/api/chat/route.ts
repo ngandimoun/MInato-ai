@@ -19,6 +19,7 @@ import { appConfig } from "@/lib/config";
 import { randomUUID } from "crypto";
 import { getGlobalMemoryFramework } from "@/lib/memory-framework-global";
 import OpenAI from "openai";
+import { checkAndHandleProExpiration } from '@/lib/middleware/subscription-guards';
 interface ToolCallInput {
 toolName: string;
 toolArgs: Record<string, any>;
@@ -194,6 +195,19 @@ return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
 userId = user.id;
 logger.info(`${logPrefix} Request from user: ${userId.substring(0,8)}...`);
+
+// ✅ VÉRIFICATION AUTOMATIQUE: Contrôler l'expiration Pro avant de traiter la requête
+const { expired, updated } = await checkAndHandleProExpiration(userId);
+
+if (expired) {
+  logger.warn(`${logPrefix} User ${userId.substring(0,8)} attempted to access chat with expired Pro subscription`);
+  return NextResponse.json({ 
+    error: 'Subscription expired',
+    code: 'subscription_expired',
+    message: 'Your Pro subscription has expired. Please renew to continue accessing premium features.'
+  }, { status: 403 });
+}
+
 } catch (authError: any) {
 logger.error(`${logPrefix} Auth Exception:`, authError.message, authError.stack);
 return NextResponse.json({ error: "Authentication process error" }, { status: 500 });

@@ -7,9 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
 import { AIMessage } from "./ai-message";
 import { UserMessage } from "./user-message";
 import { useAuth } from "@/context/auth-provider";
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { UpgradeModal } from '@/components/subscription/UpgradeModal';
 import { LanguageSelector } from "./language-selector";
 
 interface Message {
@@ -36,6 +39,8 @@ export function ChatInterface({ recordingId, onHighlightSegment, language = "en"
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { callTrialProtectedApi } = useTrialProtectedApiCall();
+  const { handleSubscriptionError, isUpgradeModalOpen, subscriptionError, handleUpgrade, closeUpgradeModal } = useSubscriptionGuard();
   
   // Scroll to bottom of messages
   useEffect(() => {
@@ -59,19 +64,28 @@ export function ChatInterface({ recordingId, onHighlightSegment, language = "en"
     setIsLoading(true);
     
     try {
-      // Call the API
-      const response = await fetch(`/api/recordings/${recordingId}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userQuestion: input,
-          conversationHistory: messages,
-          language: language !== "en" ? language : undefined,
-        }),
-      });
+      // Call the API with trial protection
+      const response = await callTrialProtectedApi(
+        async () => fetch(`/api/recordings/${recordingId}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userQuestion: input,
+            conversationHistory: messages,
+            language: language !== "en" ? language : undefined,
+          }),
+        })
+      );
       
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+      if (!response?.ok) {
+        const errorData = await response?.json().catch(() => ({}));
+        
+        // Handle subscription errors
+        if (handleSubscriptionError(errorData)) {
+          return; // Error handled by modal
+        }
+        
+        throw new Error(errorData.error || `Error: ${response?.status}`);
       }
       
       const data = await response.json();
@@ -86,6 +100,14 @@ export function ChatInterface({ recordingId, onHighlightSegment, language = "en"
         },
       ]);
     } catch (error) {
+      // Check if this is a subscription error that was already handled
+      if (error instanceof Error && error.message === 'Subscription required') {
+        // Don't show error toast for subscription errors
+        // The modal is already shown by handleSubscriptionError
+        console.log('Chat subscription error handled by modal');
+        return;
+      }
+
       console.error("Error chatting with recording:", error);
       toast({
         title: "Error",
@@ -203,6 +225,17 @@ export function ChatInterface({ recordingId, onHighlightSegment, language = "en"
           )}
         </Button>
       </form>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={closeUpgradeModal}
+        onUpgrade={handleUpgrade}
+        feature={subscriptionError?.feature || 'chat with recordings'}
+        reason={subscriptionError?.code === 'quota_exceeded' ? 'quota_exceeded' : 
+                subscriptionError?.code === 'feature_blocked' ? 'feature_blocked' : 
+                'manual'}
+      />
     </div>
   );
 } 

@@ -98,6 +98,148 @@ async function handleStripeEvent(event: Stripe.Event) {
       
       // Check payment status
       if (checkoutSession.payment_status === 'paid') {
+        
+        // ✅ NOUVEAU: Gestion des abonnements Pro et achats de crédits
+        const subscriptionType = checkoutSession.metadata?.subscription_type;
+        const minatoUserId = checkoutSession.client_reference_id || checkoutSession.metadata?.minato_user_id;
+        
+        if (subscriptionType === 'pro_upgrade' && minatoUserId) {
+          logger.info(`[stripe-webhooks] Processing Pro subscription upgrade for user ${minatoUserId}`);
+          
+          // Check for existing subscription to prevent duplicates
+          const { data: existingSubscription } = await supabase
+            .from('user_profiles')
+            .select('plan_type, subscription_end_date')
+            .eq('id', minatoUserId)
+            .single();
+          
+          if (existingSubscription?.plan_type === 'PRO') {
+            logger.info(`[stripe-webhooks] User ${minatoUserId} already has Pro subscription, skipping`);
+            return;
+          }
+          
+          // Update user to Pro subscription
+          const subscriptionEndDate = new Date();
+          subscriptionEndDate.setDate(subscriptionEndDate.getDate() + 29); // 29 days from now
+          
+          const { error: updateError } = await supabase
+            .from('user_profiles')
+            .update({
+              plan_type: 'PRO',
+              stripe_customer_id: checkoutSession.customer as string,
+              subscription_end_date: subscriptionEndDate.toISOString(),
+              monthly_usage: {
+                leads: 0,
+                recordings: 0,
+                images: 0,
+                videos: 0
+              },
+              one_time_credits: {
+                leads: 0,
+                recordings: 0,
+                images: 0,
+                videos: 0
+              }
+            })
+            .eq('id', minatoUserId);
+          
+          if (updateError) {
+            logger.error(`[stripe-webhooks] Failed to update user to Pro: ${updateError.message}`);
+            return;
+          }
+          
+          logger.info(`[stripe-webhooks] Successfully upgraded user ${minatoUserId} to Pro subscription`);
+          return;
+        }
+        
+        // ✅ NOUVEAU: Gestion des achats de crédits à usage unique
+        if (subscriptionType === 'credits_purchase' && minatoUserId) {
+          logger.info(`[stripe-webhooks] Processing credits purchase for user ${minatoUserId}`);
+          
+          const creditType = checkoutSession.metadata?.credit_type;
+          const credits = parseInt(checkoutSession.metadata?.credits || '0');
+          const packId = checkoutSession.metadata?.pack_id;
+          
+          if (!creditType || !credits || !packId) {
+            logger.error(`[stripe-webhooks] Missing credit purchase metadata for user ${minatoUserId}`);
+            return;
+          }
+          
+          // Check for existing purchase to prevent duplicates
+          const { data: existingPurchase } = await supabase
+            .from('credit_purchases')
+            .select('id')
+            .eq('stripe_checkout_session_id', checkoutSession.id)
+            .single();
+          
+          if (existingPurchase) {
+            logger.info(`[stripe-webhooks] Credits purchase already processed for session ${checkoutSession.id}, skipping`);
+            return;
+          }
+          
+          // Get user's current credits
+          const { data: userData, error: userError } = await supabase
+            .from('user_profiles')
+            .select('one_time_credits, subscription_end_date')
+            .eq('id', minatoUserId)
+            .single();
+          
+          if (userError || !userData) {
+            logger.error(`[stripe-webhooks] Error fetching user data for credits purchase: ${userError?.message}`);
+            return;
+          }
+          
+          // Add credits to user's account
+          const currentCredits = userData.one_time_credits || {
+            leads: 0,
+            recordings: 0,
+            images: 0,
+            videos: 0
+          };
+          
+          const updatedCredits = {
+            ...currentCredits,
+            [creditType]: (currentCredits[creditType] || 0) + credits
+          };
+          
+          // Update user's credits
+          const { error: updateError } = await supabase
+            .from('user_profiles')
+            .update({
+              one_time_credits: updatedCredits
+            })
+            .eq('id', minatoUserId);
+          
+          if (updateError) {
+            logger.error(`[stripe-webhooks] Failed to update user credits: ${updateError.message}`);
+            return;
+          }
+          
+          // Record the purchase
+          const { error: purchaseError } = await supabase
+            .from('credit_purchases')
+            .insert({
+              user_id: minatoUserId,
+              stripe_checkout_session_id: checkoutSession.id,
+              credit_type: creditType,
+              pack_id: packId,
+              credits_purchased: credits,
+              amount_paid: parseInt(checkoutSession.metadata?.amount || '0'),
+              purchase_date: new Date().toISOString(),
+              valid_until: userData.subscription_end_date,
+              status: 'completed'
+            });
+          
+          if (purchaseError) {
+            logger.error(`[stripe-webhooks] Failed to record credit purchase: ${purchaseError.message}`);
+            return;
+          }
+          
+          logger.info(`[stripe-webhooks] Successfully processed credits purchase: ${credits} ${creditType} credits for user ${minatoUserId}`);
+          return;
+        }
+        
+        // ✅ EXISTANT: Gestion des ventes de vendeurs (code existant)
         // Check for session-specific idempotency to prevent duplicate sales
         const { data: existingSale } = await supabase
           .from('minato_sales')
@@ -110,8 +252,7 @@ async function handleStripeEvent(event: Stripe.Event) {
           return;
         }
         
-        // Extract metadata
-        const minatoUserId = checkoutSession.metadata?.minato_user_id;
+        // Extract metadata for seller sales
         const minatoProductId = checkoutSession.metadata?.minato_product_id;
         const minatoPaymentLinkId = checkoutSession.metadata?.minato_internal_link_id;
         
@@ -242,6 +383,34 @@ async function handleStripeEvent(event: Stripe.Event) {
         logger.info(`[stripe-webhooks] Successfully processed sale for session ${checkoutSession.id}`);
       } else {
         logger.info(`[stripe-webhooks] Session ${checkoutSession.id} payment status: ${checkoutSession.payment_status}`);
+      }
+      break;
+      
+    case 'customer.subscription.created':
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted':
+      const subscription = event.data.object as Stripe.Subscription;
+      const subscriptionUserId = subscription.metadata?.minato_user_id;
+      
+      if (subscriptionUserId) {
+        logger.info(`[stripe-webhooks] Processing subscription ${event.type} for user ${subscriptionUserId}`);
+        
+        if (event.type === 'customer.subscription.deleted') {
+          // Downgrade user to EXPIRED
+          const { error: updateError } = await supabase
+            .from('user_profiles')
+            .update({
+              plan_type: 'EXPIRED',
+              subscription_end_date: new Date().toISOString()
+            })
+            .eq('id', subscriptionUserId);
+          
+          if (updateError) {
+            logger.error(`[stripe-webhooks] Failed to update user subscription status: ${updateError.message}`);
+          } else {
+            logger.info(`[stripe-webhooks] Successfully updated user ${subscriptionUserId} to EXPIRED`);
+          }
+        }
       }
       break;
       

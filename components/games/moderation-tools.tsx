@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
 
 interface ReportModalProps {
   isOpen: boolean;
@@ -44,6 +45,7 @@ export function ReportModal({
   const [additionalDetails, setAdditionalDetails] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { callTrialProtectedApi } = useTrialProtectedApiCall();
 
   const reportCategories = [
     { value: 'inappropriate_content', label: 'Inappropriate Content', icon: '🚫' },
@@ -73,22 +75,24 @@ export function ReportModal({
 
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/games/report', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          game_id: gameId,
-          reported_user_id: reportedUserId,
-          content,
-          reason,
-          category,
-          additional_details: additionalDetails,
-        }),
-      });
+      const response = await callTrialProtectedApi(
+        async () => fetch('/api/games/report', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            game_id: gameId,
+            reported_user_id: reportedUserId,
+            content,
+            reason,
+            category,
+            additional_details: additionalDetails,
+          }),
+        })
+      );
 
-      if (!response.ok) {
+      if (!response?.ok) {
         throw new Error('Failed to submit report');
       }
 

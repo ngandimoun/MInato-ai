@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-provider";
 import { cn } from "@/lib/utils";
+import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { UpgradeModal } from '@/components/subscription/UpgradeModal';
+import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
 
 interface RecordingButtonProps {
   onRecordingComplete: (recordingId: string) => void;
@@ -24,6 +27,8 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { handleSubscriptionError, isUpgradeModalOpen, subscriptionError, handleUpgrade, closeUpgradeModal } = useSubscriptionGuard();
+  const { callTrialProtectedApi } = useTrialProtectedApiCall();
   
   // Format time as MM:SS
   const formatTime = (seconds: number): string => {
@@ -88,34 +93,45 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
           const formData = new FormData();
           formData.append("file", audioFile);
           
-          // Upload the file to Supabase storage
-          const uploadResponse = await fetch("/api/recordings/upload", {
-            method: "POST",
-            body: formData,
-          });
+          // Upload the file to Supabase storage with trial protection
+          const uploadResponse = await callTrialProtectedApi(
+            async () => fetch("/api/recordings/upload", {
+              method: "POST",
+              body: formData,
+            })
+          );
           
-          if (!uploadResponse.ok) {
-            const errorData = await uploadResponse.json().catch(() => ({}));
-            throw new Error(`Upload failed: ${errorData.error || uploadResponse.statusText}`);
+          if (!uploadResponse?.ok) {
+            const errorData = await uploadResponse?.json().catch(() => ({}));
+            
+            // Handle subscription errors
+            if (handleSubscriptionError(errorData)) {
+              throw new Error('Subscription required');
+            }
+            
+            throw new Error(`Upload failed: ${errorData.error || uploadResponse?.statusText}`);
           }
           
           const { filePath } = await uploadResponse.json();
           
-          // Create a recording entry in the database
-          const createResponse = await fetch("/api/recordings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title,
-              file_path: filePath,
-              duration_seconds: recordingTime,
-              size_bytes: blob.size,
-            }),
-          });
+          // Create a recording entry in the database with trial protection
+          const createResponse = await callTrialProtectedApi(
+            async () => fetch("/api/recordings", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                title,
+                file_path: filePath,
+                duration: Math.round(blob.size / 16000), // Rough estimate
+              }),
+            })
+          );
           
-          if (!createResponse.ok) {
-            const errorData = await createResponse.json().catch(() => ({}));
-            throw new Error(`Create recording failed: ${errorData.error || createResponse.statusText}`);
+          if (!createResponse?.ok) {
+            const errorData = await createResponse?.json().catch(() => ({}));
+            throw new Error(`Create recording failed: ${errorData.error || createResponse?.statusText}`);
           }
           
           const { data } = await createResponse.json();
@@ -132,6 +148,14 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
           clearBlobUrl();
           setRecordingTitle("");
         } catch (error) {
+          // Check if this is a subscription error that was already handled
+          if (error instanceof Error && error.message === 'Subscription required') {
+            // Don't show error toast for subscription errors
+            // The modal is already shown by handleSubscriptionError
+            console.log('Recording subscription error handled by modal');
+            return;
+          }
+
           console.error("Error saving recording:", error);
           toast({
             title: "Error saving recording",
@@ -311,6 +335,17 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
           <div className="text-xs text-muted-foreground">Press to start recording</div>
         )}
       </div>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={closeUpgradeModal}
+        onUpgrade={handleUpgrade}
+        feature={subscriptionError?.feature || 'audio recording'}
+        reason={subscriptionError?.code === 'quota_exceeded' ? 'quota_exceeded' : 
+                subscriptionError?.code === 'feature_blocked' ? 'feature_blocked' : 
+                'manual'}
+      />
     </div>
   );
 } 

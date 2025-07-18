@@ -3,6 +3,7 @@ import { createSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { gameService, CreateGameRequest as SupabaseCreateGameRequest } from "@/lib/services/SupabaseGameService";
 import { v4 as uuidv4 } from 'uuid';
+import { getUserSubscription } from "@/lib/middleware/subscription-guards";
 
 interface CreateGameRequest {
   game_type: string;
@@ -47,6 +48,21 @@ export async function POST(request: NextRequest) {
         { error: "Missing required fields" },
         { status: 400 }
       );
+    }
+
+    // Check multiplayer access for authenticated users
+    if (body.mode === 'multiplayer' && !isGuest) {
+      const subscription = await getUserSubscription(userId);
+      if (!subscription || subscription.planType !== 'PRO') {
+        return NextResponse.json(
+          { 
+            error: "Multiplayer mode requires Minato Pro subscription",
+            code: "feature_blocked",
+            feature: "Multiplayer Mode"
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // Fetch user preferences from Supabase if authenticated

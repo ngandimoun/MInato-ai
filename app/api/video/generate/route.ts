@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { logger } from '@/memory-framework/config';
+import { checkQuota, incrementMonthlyUsage } from '@/lib/middleware/subscription-guards';
 
 interface VideoGenerationRequest {
   imageUrl?: string;
@@ -40,6 +41,16 @@ export async function POST(request: NextRequest) {
         { error: 'Authentication required' },
         { status: 401 }
       );
+    }
+
+    // Check subscription quota for video generation
+    const quotaCheck = await checkQuota(request, 'videos');
+    if (!quotaCheck.success) {
+      logger.warn('[Video Generation API] Video generation quota exceeded', { 
+        userId: user.id.substring(0, 8),
+        error: quotaCheck.response?.json()
+      });
+      return quotaCheck.response!;
     }
 
     // Build professional video generation prompt
@@ -121,6 +132,9 @@ export async function POST(request: NextRequest) {
     } else {
       videoRecord = videoRecordData;
     }
+
+    // Increment monthly usage for video generation
+    await incrementMonthlyUsage(user.id, 'videos');
 
     return NextResponse.json({
       success: true,

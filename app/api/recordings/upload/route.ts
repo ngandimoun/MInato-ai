@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { v4 as uuidv4 } from "uuid";
+import { checkQuota, incrementMonthlyUsage } from '@/lib/middleware/subscription-guards';
 
 // Maximum file size (10MB)
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -16,6 +17,12 @@ export async function POST(req: NextRequest) {
         { error: "Unauthorized" },
         { status: 401 }
       );
+    }
+
+    // Check subscription quota for recordings
+    const quotaCheck = await checkQuota(req, 'recordings');
+    if (!quotaCheck.success) {
+      return quotaCheck.response!;
     }
 
     // Parse form data
@@ -73,6 +80,9 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Increment monthly usage for recordings
+    await incrementMonthlyUsage(session.user.id, 'recordings');
 
     return NextResponse.json({ 
       filePath: fileName, // Return just the filename, not the full path

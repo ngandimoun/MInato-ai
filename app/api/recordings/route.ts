@@ -131,6 +131,15 @@ export async function POST(req: NextRequest) {
 
     console.log("User authenticated:", session.user.id.substring(0, 8));
 
+    // Vérifier les quotas d'enregistrement
+    const { checkQuota, incrementMonthlyUsage } = await import('@/lib/middleware/subscription-guards');
+    const quotaCheck = await checkQuota(req, 'recordings');
+    
+    if (!quotaCheck.success) {
+      console.warn(`Quota exceeded for recordings: ${quotaCheck.response?.status}`);
+      return quotaCheck.response!;
+    }
+
     // Parse request body
     const body = await req.json();
     
@@ -171,39 +180,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!data) {
-      return NextResponse.json(
-        { error: "Recording created but no data returned" },
-        { status: 500 }
-      );
-    }
+    // Incrémenter l'utilisation mensuelle après création réussie
+    await incrementMonthlyUsage(session.user.id, 'recordings');
 
-    console.log("Recording created successfully:", data.id);
+    console.log("Recording created successfully:", data);
+    return NextResponse.json(data);
 
-    // Automatically trigger processing
-    try {
-      const processResponse = await fetch(`${req.nextUrl.origin}/api/recordings/${data.id}/process`, {
-        method: "POST",
-        headers: {
-          "Cookie": req.headers.get("cookie") || "", // Forward cookies for authentication
-        },
-      });
-      
-      if (processResponse.ok) {
-        console.log("Processing started for recording:", data.id);
-      } else {
-        console.error("Failed to start processing for recording:", data.id);
-      }
-    } catch (processError) {
-      console.error("Error triggering processing:", processError);
-      // Don't fail the creation if processing fails - it can be retried later
-    }
-
-    return NextResponse.json({ data }, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error creating recording:", error);
     return NextResponse.json(
-      { error: `Internal server error: ${error.message || "Unknown error"}` },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

@@ -191,7 +191,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <main className="flex min-h-screen flex-col bg-background">
+    <main className="flex h-screen flex-col bg-background overflow-hidden">
       <div className="fixed inset-0 bg-gradient-to-br from-background via-muted/10 to-background z-[-1]" />
       <Header currentView={currentView} onViewChange={setCurrentView} />
 

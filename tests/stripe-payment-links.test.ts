@@ -75,7 +75,7 @@ class StripePaymentLinksTestSuite {
 
       const testInput = {
         product_name: 'Test Product',
-        price: 2999,
+        price: 2500,
         currency: 'usd',
         description: 'A test product for automated testing',
         enable_tax_collection: true,

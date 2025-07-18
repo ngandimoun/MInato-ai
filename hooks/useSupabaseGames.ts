@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useAuth } from "@/context/auth-provider";
 import { getBrowserSupabaseClient } from '@/lib/supabase/client';
+import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { 
   gameService, 
@@ -669,6 +670,7 @@ export function useUserInvitations() {
 
 export function useSupabaseGameMutations() {
   const { user } = useAuth();
+  const { callTrialProtectedApi } = useTrialProtectedApiCall();
 
   const createGameWithQuestions = useCallback(async (request: SupabaseCreateGameRequest): Promise<GameResponse> => {
     if (!user?.id) {
@@ -693,14 +695,8 @@ export function useSupabaseGameMutations() {
     }
 
     try {
-      const joinRequest: SupabaseJoinGameRequest = {
-        ...request,
-        user_id: user.id,
-        username: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Player',
-        avatar_url: user.user_metadata?.avatar_url,
-      };
-
-      return await gameService.joinGameRoom(joinRequest);
+      const username = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Player';
+      return await gameService.joinGameRoom(request, user.id, username);
     } catch (error) {
       console.error("Error joining game:", error);
       return { 
@@ -763,19 +759,22 @@ export function useSupabaseGameMutations() {
       console.log(`🚀 [START GAME HOOK] Starting game ${roomId} via API...`);
       
       // Use the server-side API endpoint for better reliability
-      const response = await fetch('/api/games/start', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ roomId }),
-      });
+      const response = await callTrialProtectedApi(
+        async () => fetch('/api/games/start', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ roomId }),
+        })
+      );
+
+      if (!response?.ok) {
+        const data = await response?.json();
+        throw new Error(data?.error || 'Failed to start game');
+      }
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to start game');
-      }
 
       console.log(`✅ [START GAME HOOK] Game started successfully:`, data);
 
@@ -791,7 +790,7 @@ export function useSupabaseGameMutations() {
         error: error instanceof Error ? error.message : "Failed to start game" 
       };
     }
-  }, [user]);
+  }, [user, callTrialProtectedApi]);
 
   const submitAnswer = useCallback(async (roomId: string, answerIndex: number, timeTaken: number): Promise<GameResponse> => {
     if (!user?.id) {

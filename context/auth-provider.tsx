@@ -9,7 +9,8 @@ useCallback,
 useMemo,
 ReactNode,
 } from "react";
-import { Session, User, SupabaseClient } from "@supabase/supabase-js";
+import { Session, User as SupabaseUser, SupabaseClient } from "@supabase/supabase-js";
+import { User } from "@/lib/types";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 import {
 UserProfile,
@@ -26,7 +27,7 @@ import { DEFAULT_USER_NAME, DEFAULT_PERSONA_ID } from "@/lib/constants";
 interface AuthContextType {
 supabaseClient: SupabaseClient<any, "public", any>;
 session: Session | null;
-user: User | null;
+user: SupabaseUser | null;
 profile: UserProfile | null;
 state: UserState | null;
 isLoading: boolean; // Indique le chargement initial de la session/profil
@@ -42,7 +43,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
 const supabaseClient = getBrowserSupabaseClient();
 const [session, setSession] = useState<Session | null>(null);
-const [user, setUser] = useState<User | null>(null);
+const [user, setUser] = useState<SupabaseUser | null>(null);
 const [profile, setProfile] = useState<UserProfile | null>(null);
 const [state, setState] = useState<UserState | null>(null);
 const [isLoading, setIsLoading] = useState(true); // Gère le chargement initial de la session Supabase

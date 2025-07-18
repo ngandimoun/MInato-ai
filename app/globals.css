@@ -3,6 +3,12 @@
 @tailwind utilities;
 
 @layer base {
+  /* Prevent global scroll */
+  html, body {
+    overflow: hidden;
+    height: 100vh;
+  }
+
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;

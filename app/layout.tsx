@@ -11,6 +11,10 @@ import { UploadStatusProvider } from "@/context/upload-status-context";
 import { ListeningProvider } from "@/context/listening-context";
 import { NavigationProvider } from "@/context/navigation-context";
 import { MemoryCleanupProvider } from "@/components/memory-cleanup-provider";
+import { TrialAlertsProvider } from "@/components/subscription/TrialAlertsProvider";
+import { WelcomeTrialToast } from "@/components/subscription/WelcomeTrialToast";
+import { SubscriptionExpirationToast } from "@/components/subscription/SubscriptionExpirationToast";
+import { ProModalManager } from "@/components/ui/pro-modal-manager";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -33,7 +37,13 @@ export default function RootLayout({
               <NavigationProvider>
                 <UploadStatusProvider>
                   <ListeningProvider>
-                    {children}
+                    <TrialAlertsProvider>
+                      {/* ✅ TOASTS GLOBAUX: Disponibles sur toutes les pages */}
+                      <WelcomeTrialToast />
+                      <SubscriptionExpirationToast />
+                      <ProModalManager />
+                      {children}
+                    </TrialAlertsProvider>
                   </ListeningProvider>
                 </UploadStatusProvider>
               </NavigationProvider>
