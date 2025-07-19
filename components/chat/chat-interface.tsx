@@ -619,7 +619,7 @@ export function ChatInterface({ }: ChatInterfaceProps) {
         }
     };
     return (
-        <div className="flex flex-col h-full overflow-hidden md:max-h-[calc(100vh-10rem)] max-h-[calc(100vh-6.5rem)]">
+        <div className="flex flex-col h-[calc(100vh-6.5rem)]">
             {isLoadingHistory && messages.length === 0 && (
                 <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
                     <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
