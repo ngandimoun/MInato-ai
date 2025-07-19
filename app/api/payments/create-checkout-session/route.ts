@@ -78,9 +78,27 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (existingCustomer?.stripe_customer_id) {
-      customerId = existingCustomer.stripe_customer_id;
-    } else {
+      // ✅ NOUVEAU: Vérifier si le customer existe dans Stripe
+      try {
+        // Try to retrieve the customer from Stripe
+        await stripe.customers.retrieve(existingCustomer.stripe_customer_id);
+        customerId = existingCustomer.stripe_customer_id;
+        logger.info(`[create-checkout-session] Existing Stripe customer ${customerId} is valid`);
+      } catch (error: any) {
+        // Customer doesn't exist in Stripe, clear it and create a new one
+        logger.warn(`[create-checkout-session] Stripe customer ${existingCustomer.stripe_customer_id} not found, creating new customer`);
+        
+        // Clear the invalid customer ID from database
+        await supabase
+          .from('user_profiles')
+          .update({ stripe_customer_id: null })
+          .eq('id', userId);
+      }
+    }
+    
+    if (!customerId) {
       // Create new Stripe customer
+      logger.info(`[create-checkout-session] Creating new Stripe customer for user ${userId}`);
       const customer = await stripe.customers.create({
         email: userData.email,
         metadata: {
@@ -94,6 +112,8 @@ export async function POST(req: NextRequest) {
         .from('user_profiles')
         .update({ stripe_customer_id: customerId })
         .eq('id', userId);
+      
+      logger.info(`[create-checkout-session] Created new Stripe customer ${customerId} for user ${userId}`);
     }
 
     // Create checkout session

@@ -81,8 +81,28 @@ export async function POST(req: NextRequest) {
     
     let stripeCustomerId = userData?.stripe_customer_id;
     
+    // ✅ NOUVEAU: Vérifier si le customer existe dans Stripe
+    if (stripeCustomerId) {
+      try {
+        // Try to retrieve the customer from Stripe
+        await stripe.customers.retrieve(stripeCustomerId);
+        logger.info(`[subscription-upgrade] Existing Stripe customer ${stripeCustomerId} is valid`);
+      } catch (error: any) {
+        // Customer doesn't exist in Stripe, clear it and create a new one
+        logger.warn(`[subscription-upgrade] Stripe customer ${stripeCustomerId} not found, creating new customer`);
+        stripeCustomerId = null;
+        
+        // Clear the invalid customer ID from database
+        await supabase
+          .from('user_profiles')
+          .update({ stripe_customer_id: null })
+          .eq('id', userId);
+      }
+    }
+    
     // Create Stripe customer if doesn't exist
     if (!stripeCustomerId) {
+      logger.info(`[subscription-upgrade] Creating new Stripe customer for user ${userId}`);
       const customer = await stripe.customers.create({
         email: userEmail,
         metadata: {
@@ -92,11 +112,13 @@ export async function POST(req: NextRequest) {
       
       stripeCustomerId = customer.id;
       
-      // Update user with Stripe customer ID
+      // Update user with new Stripe customer ID
       await supabase
         .from('user_profiles')
         .update({ stripe_customer_id: stripeCustomerId })
         .eq('id', userId);
+      
+      logger.info(`[subscription-upgrade] Created new Stripe customer ${stripeCustomerId} for user ${userId}`);
     }
     
     // Create or get the Pro subscription product/price
