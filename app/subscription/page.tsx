@@ -21,14 +21,14 @@ function SubscriptionPageContent() {
 
     if (success === 'true' && sessionId) {
       toast({
-        title: "🎉 Bienvenue chez Minato Pro !",
-        description: "Votre abonnement a été activé avec succès. Vous avez maintenant accès à toutes les fonctionnalités premium.",
+        title: "🎉 Welcome to Minato Pro!",
+        description: "Your subscription has been successfully activated. You now have access to all premium features.",
         variant: "default",
       });
     } else if (canceled === 'true') {
       toast({
-        title: "Paiement annulé",
-        description: "Vous pouvez réessayer à tout moment pour accéder aux fonctionnalités Pro.",
+        title: "Payment canceled",
+        description: "You can try again at any time to access Pro features.",
         variant: "destructive",
       });
     }
@@ -40,10 +40,10 @@ function SubscriptionPageContent() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Gestion des Abonnements
+            Subscription Management
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Gérez votre abonnement Minato Pro, consultez vos quotas d'utilisation et vos crédits à usage unique.
+            Manage your Minato Pro subscription, view your usage quotas and one-time credits.
           </p>
         </div>
 
@@ -55,46 +55,46 @@ function SubscriptionPageContent() {
           {/* Plan Comparison */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Comparaison des Plans
+              Plan Comparison
             </h3>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Leads par mois</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Leads per month</span>
                 <div className="flex space-x-4">
                   <span className="text-sm font-medium">5</span>
                   <span className="text-sm font-medium text-green-600">50</span>
                 </div>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Enregistrements par mois</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Recordings per month</span>
                 <div className="flex space-x-4">
                   <span className="text-sm font-medium">3</span>
                   <span className="text-sm font-medium text-green-600">20</span>
                 </div>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Images par mois</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Images per month</span>
                 <div className="flex space-x-4">
                   <span className="text-sm font-medium">2</span>
                   <span className="text-sm font-medium text-green-600">30</span>
                 </div>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Vidéos par mois</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Videos per month</span>
                 <div className="flex space-x-4">
                   <span className="text-sm font-medium">1</span>
                   <span className="text-sm font-medium text-green-600">20</span>
                 </div>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Mode multijoueur</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Multiplayer mode</span>
                 <div className="flex space-x-4">
                   <span className="text-sm text-red-500">✗</span>
                   <span className="text-sm text-green-600">✓</span>
                 </div>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Support prioritaire</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Priority support</span>
                 <div className="flex space-x-4">
                   <span className="text-sm text-red-500">✗</span>
                   <span className="text-sm text-green-600">✓</span>
@@ -103,9 +103,9 @@ function SubscriptionPageContent() {
             </div>
             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">Prix mensuel</span>
+                <span className="text-sm font-medium">Monthly price</span>
                 <div className="flex space-x-4">
-                  <span className="text-sm font-medium text-green-600">Gratuit</span>
+                  <span className="text-sm font-medium text-green-600">Free</span>
                   <span className="text-sm font-medium">$25.00</span>
                 </div>
               </div>
@@ -115,39 +115,39 @@ function SubscriptionPageContent() {
           {/* FAQ */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Questions Fréquentes
+              Frequently Asked Questions
             </h3>
             <div className="space-y-4">
               <div>
                 <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-1">
-                  Comment fonctionne l'essai gratuit ?
+                  How does the free trial work?
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Vous bénéficiez d'un essai gratuit de 7 jours avec accès à toutes les fonctionnalités Pro. Aucune carte de crédit requise.
+                  You get a 7-day free trial with access to all Pro features. No credit card required.
                 </p>
               </div>
               <div>
                 <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-1">
-                  Puis-je annuler à tout moment ?
+                  Can I cancel at any time?
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Oui, vous pouvez annuler votre abonnement à tout moment. Vous conserverez l'accès Pro jusqu'à la fin de la période de facturation.
+                  Yes, you can cancel your subscription at any time. You will retain Pro access until the end of the billing period.
                 </p>
               </div>
               <div>
                 <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-1">
-                  Que sont les crédits à usage unique ?
+                  What are one-time credits?
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Les crédits à usage unique vous permettent d'utiliser des fonctionnalités premium même après avoir dépassé vos quotas mensuels.
+                  One-time credits allow you to use premium features even after exceeding your monthly quotas.
                 </p>
               </div>
               <div>
                 <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-1">
-                  Comment sont réinitialisés les quotas ?
+                  How are quotas reset?
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Les quotas mensuels sont automatiquement réinitialisés le premier jour de chaque mois.
+                  Monthly quotas are automatically reset on the first day of each month.
                 </p>
               </div>
             </div>
@@ -157,17 +157,17 @@ function SubscriptionPageContent() {
         {/* Support Section */}
         <div className="mt-8 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">
-            Besoin d'aide ?
+            Need help?
           </h3>
           <p className="text-blue-700 dark:text-blue-300 mb-4">
-            Si vous avez des questions sur votre abonnement ou rencontrez des problèmes, notre équipe est là pour vous aider.
+            If you have questions about your subscription or encounter issues, our team is here to help.
           </p>
           <div className="flex space-x-4">
             <a
               href="/support"
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
             >
-              Contacter le Support
+              Contact Support
             </a>
             <a
               href="/docs/subscription"
@@ -189,10 +189,10 @@ function SubscriptionPageFallback() {
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Gestion des Abonnements
+            Subscription Management
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Chargement...
+            Loading...
           </p>
         </div>
         <div className="animate-pulse">

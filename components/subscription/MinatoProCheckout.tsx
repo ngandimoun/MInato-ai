@@ -237,7 +237,6 @@ function CheckoutForm({ onSuccess, onCancel, returnUrl }: MinatoProCheckoutProps
             <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
               <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
                 <p>• Cancel anytime from your account</p>
-                <p>• 7-day free trial included</p>
                 <p>• Secure payment processing</p>
               </div>
             </div>

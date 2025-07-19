@@ -47,6 +47,8 @@ import { logger } from "@/memory-framework/config";
 import { UserPersona as PersonaTypeFromLib, OpenAITtsVoice, UserWorkflowPreferences } from "@/lib/types";
 import { appConfig } from "@/lib/config";
 import { DEFAULT_USER_NAME, DEFAULT_PERSONA_ID } from "@/lib/constants";
+import { useUserPlan } from "@/hooks/useUserPlan"
+
 export interface DocumentFile {
   id: string;
   name: string;
@@ -105,14 +107,15 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const { theme, colorPalette, setTheme, setColorPalette } = useTheme();
   const { user, profile, state, fetchUserProfileAndState, updateProfileState, isLoading: isAuthLoading, isFetchingProfile: isAuthFetchingProfile } = useAuth();
+  const { userPlan } = useUserPlan()
   const [activeTab, setActiveTab] = useState("general");
-  const [username, setUsername] = useState("");
-  const [language, setLanguage] = useState("en-US");
-  const [selectedPersonaId, setSelectedPersonaId] = useState(DEFAULT_PERSONA_ID);
+  const [username, setUsername] = useState(profile?.full_name || "");
+  const [language, setLanguage] = useState(state?.preferred_locale || "en-US");
+  const [selectedPersonaId, setSelectedPersonaId] = useState(state?.active_persona_id || "default");
   const [personaEditorOpen, setPersonaEditorOpen] = useState(false);
-  const [editingPersona, setEditingPersona] = useState<UIPersona | undefined>(undefined);
+  const [editingPersona, setEditingPersona] = useState<UIPersona | null>(null);
   const defaultMinatoVoice = (appConfig.openai.ttsDefaultVoice as OpenAITtsVoice) || "nova";
-  const [selectedMinatoVoice, setSelectedMinatoVoice] = useState<OpenAITtsVoice>(defaultMinatoVoice);
+  const [selectedMinatoVoice, setSelectedMinatoVoice] = useState<OpenAITtsVoice>(state?.chainedvoice || "default_voice_id");
   const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
   const [googleGmailConnected, setGoogleGmailConnected] = useState(false);
   const [isUpgradeDialogOpen, setIsUpgradeDialogOpen] = useState(false);
@@ -837,13 +840,16 @@ export function SettingsPanel({
         <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
           <h2 className="text-lg font-semibold">Settings</h2>
           <div className="flex items-center gap-2">
-            <Button
-              onClick={() => setIsUpgradeDialogOpen(true)}
-              className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white text-xs px-3 h-8"
-              size="sm"
-            >
-              <Zap className="mr-1.5 h-3.5 w-3.5" /> Upgrade to Pro
-            </Button>
+            {/* Upgrade to Pro Button - Only show if user is not on PRO plan */}
+            {!userPlan?.isPro && (
+              <Button
+                onClick={() => setIsUpgradeDialogOpen(true)}
+                className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white text-xs px-3 h-8"
+                size="sm"
+              >
+                <Zap className="mr-1.5 h-3.5 w-3.5" /> Upgrade to Pro
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"

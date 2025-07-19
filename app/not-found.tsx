@@ -31,15 +31,15 @@ export default function NotFound() {
             <Search className="h-8 w-8 text-red-600 dark:text-red-400" />
           </div>
           <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
-            Page non trouvée
+            Page not found
           </CardTitle>
           <CardDescription className="text-gray-600 dark:text-gray-400">
-            Désolé, la page que vous recherchez n'existe pas ou a été déplacée.
+            Sorry, the page you are looking for does not exist or has been moved.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            Erreur 404 - {isClient ? currentPath || 'Page inconnue' : 'Page inconnue'}
+            Error 404 - {isClient ? currentPath || 'Unknown page' : 'Unknown page'}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
             <Button
@@ -48,14 +48,14 @@ export default function NotFound() {
               className="flex items-center gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
-              Retour
+              Back
             </Button>
             <Button
               onClick={() => router.push('/')}
               className="flex items-center gap-2"
             >
               <Home className="h-4 w-4" />
-              Accueil
+              Home
             </Button>
           </div>
         </CardContent>

@@ -26,16 +26,16 @@ export default function Error({ error, reset }: ErrorProps) {
             <AlertTriangle className="h-8 w-8 text-orange-600 dark:text-orange-400" />
           </div>
           <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
-            Une erreur s'est produite
+            An error occurred
           </CardTitle>
           <CardDescription className="text-gray-600 dark:text-gray-400">
-            Désolé, quelque chose s'est mal passé. Veuillez réessayer.
+            Sorry, something went wrong. Please try again.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {error.digest && (
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              ID d'erreur: {error.digest}
+              Error ID: {error.digest}
             </div>
           )}
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
@@ -45,7 +45,7 @@ export default function Error({ error, reset }: ErrorProps) {
               className="flex items-center gap-2"
             >
               <RefreshCw className="h-4 w-4" />
-              Réessayer
+              Try Again
             </Button>
             <Button
               onClick={() => {
@@ -56,7 +56,7 @@ export default function Error({ error, reset }: ErrorProps) {
               className="flex items-center gap-2"
             >
               <Home className="h-4 w-4" />
-              Accueil
+              Home
             </Button>
           </div>
         </CardContent>
