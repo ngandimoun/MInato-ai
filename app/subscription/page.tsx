@@ -7,11 +7,15 @@ import { UpgradeModal } from '@/components/subscription/UpgradeModal';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, Suspense } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { STRIPE_CONFIG } from '@/lib/constants';
 
 // Composant séparé pour gérer les paramètres de recherche
 function SubscriptionPageContent() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  
+  // Calculate price from constants
+  const priceDisplay = STRIPE_CONFIG.MINATO_PRO_PRICE_DISPLAY;
 
   useEffect(() => {
     // Gérer les retours de Stripe
@@ -106,7 +110,7 @@ function SubscriptionPageContent() {
                 <span className="text-sm font-medium">Monthly price</span>
                 <div className="flex space-x-4">
                   <span className="text-sm font-medium text-green-600">Free</span>
-                  <span className="text-sm font-medium">$25.00</span>
+                  <span className="text-sm font-medium">{priceDisplay}</span>
                 </div>
               </div>
             </div>

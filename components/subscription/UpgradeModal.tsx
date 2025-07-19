@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Check, Crown, Zap, Users, Video, Image, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/memory-framework/config';
+import { STRIPE_CONFIG } from '@/lib/constants';
 
 interface UpgradeModalProps {
   isOpen: boolean;
@@ -54,6 +55,10 @@ export function UpgradeModal({ isOpen, onClose, onUpgrade, feature, reason }: Up
     }
     return "Unlock unlimited access to all Minato features.";
   };
+
+  // Calculate price from constants
+ // const monthlyPrice = STRIPE_CONFIG.MINATO_PRO_PRICE_CENTS / 100;
+  const priceDisplay = STRIPE_CONFIG.MINATO_PRO_PRICE_DISPLAY;
 
   const features = [
     {
@@ -140,7 +145,7 @@ export function UpgradeModal({ isOpen, onClose, onUpgrade, feature, reason }: Up
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">Minato Pro</CardTitle>
-                <Badge className="bg-yellow-500 text-white">$25/month</Badge>
+                <Badge className="bg-yellow-500 text-white">{priceDisplay}/month</Badge>
               </div>
               <CardDescription>Unlimited access</CardDescription>
             </CardHeader>
@@ -200,7 +205,7 @@ export function UpgradeModal({ isOpen, onClose, onUpgrade, feature, reason }: Up
             ) : (
               <div className="flex items-center">
                 <Crown className="w-4 h-4 mr-2" />
-                Upgrade to Pro - $25/month
+                Upgrade to Pro - {priceDisplay}/month
               </div>
             )}
           </Button>
