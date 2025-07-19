@@ -1,8 +1,13 @@
 {
-    "crons": [
-      {
-        "path": "/api/cron/reminders",
-        "schedule": "0 9 * * *"
-      }
-    ]
+  "buildCommand": "npm run build:clean",
+  "installCommand": "npm install --ignore-engines",
+  "framework": "nextjs",
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "NODE_OPTIONS": "--max-old-space-size=2048"
   }
+}

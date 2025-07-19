@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ProSubscriptionCheckout } from '@/components/subscription/ProSubscriptionCheckout';
 import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/memory-framework/config';
 
-export default function SubscriptionCheckoutPage() {
+function SubscriptionCheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -59,5 +59,17 @@ export default function SubscriptionCheckoutPage() {
       onCancel={handleCancel}
       returnUrl={`${window.location.origin}/dashboard?upgraded=true`}
     />
+  );
+}
+
+export default function SubscriptionCheckoutPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    }>
+      <SubscriptionCheckoutContent />
+    </Suspense>
   );
 } 
