@@ -277,7 +277,6 @@ function CheckoutForm({ onSuccess, onCancel, returnUrl }: MinatoProCheckoutProps
                             fields: {
                               billingDetails: {
                                 name: 'auto',
-                                email: 'never',
                                 phone: 'never',
                                 address: 'never'
                               }
