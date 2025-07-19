@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { v4 as uuidv4 } from "uuid";
-import { checkQuota, incrementMonthlyUsage } from '@/lib/middleware/subscription-guards';
+import { checkQuota, incrementMonthlyUsage, checkAndHandleProExpiration } from '@/lib/middleware/subscription-guards';
 
 // Maximum file size (10MB)
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -17,6 +17,18 @@ export async function POST(req: NextRequest) {
         { error: "Unauthorized" },
         { status: 401 }
       );
+    }
+
+    // ✅ VÉRIFICATION AUTOMATIQUE: Contrôler l'expiration Pro avant de traiter la requête
+    const { expired, updated } = await checkAndHandleProExpiration(session.user.id);
+    
+    if (expired) {
+      console.warn(`User attempted to access recordings upload with expired Pro subscription: ${session.user.id.substring(0, 8)}`);
+      return NextResponse.json({ 
+        error: 'Subscription expired',
+        code: 'subscription_expired',
+        message: 'Your Pro subscription has expired. Please renew to continue accessing premium features.'
+      }, { status: 403 });
     }
 
     // Check subscription quota for recordings

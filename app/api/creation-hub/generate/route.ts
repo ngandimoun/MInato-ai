@@ -26,7 +26,7 @@ import type {
   CategoryImageGenerationRequest 
 } from '@/components/creation-hub/hub-types';
 import { DataVisualizationEngine } from '@/lib/services/DataVisualizationEngine';
-import { checkQuota, incrementMonthlyUsage } from '@/lib/middleware/subscription-guards';
+import { checkQuota, incrementMonthlyUsage, checkAndHandleProExpiration } from '@/lib/middleware/subscription-guards';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -55,6 +55,21 @@ export async function POST(request: NextRequest) {
         { error: { code: 'AUTH_ERROR', message: 'Unauthorized' } }, 
         { status: 401 }
       );
+    }
+
+    // ✅ VÉRIFICATION AUTOMATIQUE: Contrôler l'expiration Pro avant de traiter la requête
+    const { expired, updated } = await checkAndHandleProExpiration(user.id);
+    
+    if (expired) {
+      logger.warn('[Creation Hub API] User attempted to access image generation with expired Pro subscription', { 
+        requestId, 
+        userId: user.id.substring(0, 8)
+      });
+      return NextResponse.json({ 
+        error: 'Subscription expired',
+        code: 'subscription_expired',
+        message: 'Your Pro subscription has expired. Please renew to continue accessing premium features.'
+      }, { status: 403 });
     }
 
     // Check subscription quota for image generation

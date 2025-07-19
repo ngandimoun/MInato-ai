@@ -131,8 +131,20 @@ export async function POST(req: NextRequest) {
 
     console.log("User authenticated:", session.user.id.substring(0, 8));
 
+    // ✅ VÉRIFICATION AUTOMATIQUE: Contrôler l'expiration Pro avant de traiter la requête
+    const { checkQuota, incrementMonthlyUsage, checkAndHandleProExpiration } = await import('@/lib/middleware/subscription-guards');
+    const { expired, updated } = await checkAndHandleProExpiration(session.user.id);
+    
+    if (expired) {
+      console.warn(`User attempted to access recordings with expired Pro subscription: ${session.user.id.substring(0, 8)}`);
+      return NextResponse.json({ 
+        error: 'Subscription expired',
+        code: 'subscription_expired',
+        message: 'Your Pro subscription has expired. Please renew to continue accessing premium features.'
+      }, { status: 403 });
+    }
+
     // Vérifier les quotas d'enregistrement
-    const { checkQuota, incrementMonthlyUsage } = await import('@/lib/middleware/subscription-guards');
     const quotaCheck = await checkQuota(req, 'recordings');
     
     if (!quotaCheck.success) {

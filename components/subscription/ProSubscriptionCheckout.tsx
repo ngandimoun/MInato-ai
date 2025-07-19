@@ -102,6 +102,17 @@ function CheckoutForm({ onSuccess, onCancel, returnUrl }: ProSubscriptionCheckou
           payment_method_data: {
             billing_details: {
               email,
+              // ✅ CORRECTION: Fournir les champs désactivés dans PaymentElement
+              phone: '',
+              name: '',
+              address: {
+                line1: '',
+                line2: '',
+                city: '',
+                state: '',
+                postal_code: '',
+                country: ''
+              }
             },
           },
         },

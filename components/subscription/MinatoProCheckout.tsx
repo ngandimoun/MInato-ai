@@ -97,6 +97,17 @@ function CheckoutForm({ onSuccess, onCancel, returnUrl }: MinatoProCheckoutProps
           payment_method_data: {
             billing_details: {
               email: email.trim(),
+              // ✅ CORRECTION: Fournir les champs désactivés dans PaymentElement
+              phone: '',
+              name: '',
+              address: {
+                line1: '',
+                line2: '',
+                city: '',
+                state: '',
+                postal_code: '',
+                country: ''
+              }
             },
           },
         },
