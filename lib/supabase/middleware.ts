@@ -1,7 +1,14 @@
 // FILE: lib/supabase/middleware.ts
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { logger } from '@/memory-framework/config'; // Assurez-vous que ce chemin est correct
+
+// Simple console logger for Edge Runtime compatibility
+const logger = {
+  debug: (message: string) => console.log(`[DEBUG] ${message}`),
+  info: (message: string) => console.log(`[INFO] ${message}`),
+  warn: (message: string) => console.warn(`[WARN] ${message}`),
+  error: (message: string) => console.error(`[ERROR] ${message}`),
+};
 
 export async function updateSession(request: NextRequest) {
   const requestPath = request.nextUrl.pathname;

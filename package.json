@@ -11,6 +11,7 @@
     "build:clean": "npm run clean && cross-env NODE_OPTIONS=\"--max-old-space-size=2048\" next build",
     "clean": "rm -rf .next node_modules/.cache && npm install",
     "fix-deps": "node scripts/fix-dependencies.js",
+    "test-build": "node scripts/test-build.js",
     "start": "next start",
     "lint": "next lint",
     "memory-monitor": "node scripts/memory-monitor.js",
