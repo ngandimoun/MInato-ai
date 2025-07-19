@@ -202,13 +202,13 @@ export function RecordingList({
   };
 
   return (
-    <Card className={cn("w-[310px] md:w-full max-w-md h-[500px]", className)}>
+    <Card className={cn("w-full max-w-md h-[400px]", className)}>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-semibold">Your Recordings</CardTitle>
         <CardDescription>Select a recording to view its analysis</CardDescription>
       </CardHeader>
       <CardContent className="p-0">
-        <ScrollArea className="h-[400px] px-4 pb-4">
+      <ScrollArea className="h-[310px] px-4 pb-4">
           {isLoading ? (
             // Loading skeletons
             Array(3)

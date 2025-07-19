@@ -12,7 +12,7 @@ interface RecordingSkeletonProps {
 
 export function RecordingSkeleton({ className }: RecordingSkeletonProps) {
   return (
-    <Card className={cn("w-full h-[600px]", className)}>
+    <Card className={cn("w-full h-full", className)}>
       <CardHeader className="pb-4 space-y-2">
         <Skeleton className="h-7 w-3/4" />
         <Skeleton className="h-4 w-1/2" />

@@ -103,13 +103,13 @@ export default function ListeningPage() {
   const currentRecording = recordings.find(r => r.id === currentRecordingId) || null;
 
   return (
-    <main className="flex h-screen flex-col bg-background overflow-hidden">
+    <main className="flex min-h-screen flex-col bg-background">
       <div className="fixed inset-0 bg-gradient-to-br from-background via-muted/10 to-background z-[-1]" />
       
       <Header currentView={currentView} onViewChange={handleViewChange} />
 
       {/* Main container to center the panel */}
-      <div className="flex-1 flex items-center justify-center p-4">
+      <div className="container max-w-7xl mx-auto px-4 py-8 pt-20">
         {/* The fixed-height panel */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -130,7 +130,7 @@ export default function ListeningPage() {
           </div>
 
           {/* Panel Content (scrollable) */}
-          <ScrollArea className="flex-1">
+          <ScrollArea className=" h-[850px]">
             <div className="p-6">
               {/* Mobile Tabs */}
               <div className="lg:hidden mb-6">

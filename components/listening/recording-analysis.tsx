@@ -507,7 +507,7 @@ export function RecordingAnalysis({
                   onValueChange={setSummaryLanguage}
                 />
               </div>
-              <ScrollArea className="h-[calc(100%-60px)] p-4">
+              <ScrollArea className="h-[450px] p-4">
                 {analysis.content_type && (
                   <div className="mb-4">
                     <Badge variant="outline" className="mb-2">
@@ -634,7 +634,7 @@ export function RecordingAnalysis({
                   onValueChange={setTranscriptLanguage}
                 />
               </div>
-              <ScrollArea className="h-[calc(100%-60px)] p-4">
+              <ScrollArea className="h-[450px] p-4">
                 <div className="space-y-3">
                   {(transcriptLanguage === "en" ? analysis.transcript_json : (translatedTranscript || analysis.transcript_json))?.map((segment) => {
                     // Get sentiment for this segment
@@ -721,7 +721,7 @@ export function RecordingAnalysis({
             
             {/* Action Items Tab */}
             <TabsContent value="action-items" className="h-[440px]">
-              <ScrollArea className="h-full p-4">
+              <ScrollArea className="h-[450px] p-4">
                 {(!analysis.action_items_json || analysis.action_items_json.length === 0) ? (
                   <div className="flex flex-col items-center justify-center h-full text-center p-4">
                     <ListChecks className="h-8 w-8 text-muted-foreground mb-2 opacity-50" />
@@ -763,7 +763,7 @@ export function RecordingAnalysis({
             
             {/* Insights Tab */}
             <TabsContent value="insights" className="h-[440px]">
-              <ScrollArea className="h-full p-4">
+              <ScrollArea className="h-[450px] p-4">
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-lg font-semibold mb-3">Sentiment Analysis</h3>
