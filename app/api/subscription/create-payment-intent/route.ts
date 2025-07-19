@@ -4,6 +4,7 @@ import { logger } from '@/memory-framework/config';
 import Stripe from 'stripe';
 import { appConfig } from '@/lib/config';
 import { STRIPE_CONFIG } from '@/lib/constants';
+import { StripePriceService } from '@/lib/services/StripePriceService';
 
 /**
  * POST /api/subscription/create-payment-intent
@@ -119,31 +120,16 @@ export async function POST(req: NextRequest) {
       logger.info(`[create-payment-intent] Created new Stripe customer ${stripeCustomerId} for user ${userId}`);
     }
     
-    // Calculate amount based on billing cycle
-    const baseAmount = STRIPE_CONFIG.MINATO_PRO_PRICE_CENTS;
-    const amount = annualBilling ? baseAmount * 12 * 0.8 : baseAmount; // 20% discount for annual
+    // ✅ Utiliser le service de prix automatique basé sur lib/constants.ts
+    const priceService = new StripePriceService(stripe);
+    const billingCycle = annualBilling ? 'annual' : 'monthly';
     
-    // Create or get the Pro subscription product/price
-    const product = await stripe.products.create({
-      name: 'Minato Pro',
-      description: 'Unlock the full Minato experience with: Core Features - Unlimited AI Chat Conversations, Persistent Memory & Conversation History. Creation Hub - AI-Powered Lead Generation Tools, 30 AI-Generated Images per Month, 20 AI-Generated Videos per Month. Premium Features - Multiplayer Games & Social Features, 20 Recording Sessions, Priority Support & Faster Response Times',
-      metadata: {
-        minato_product_type: 'pro_subscription'
-      }
-    });
-
-    const price = await stripe.prices.create({
-      product: product.id,
-      unit_amount: annualBilling ? Math.round(amount / 12) : amount,
-      currency: STRIPE_CONFIG.MINATO_PRO_PRICE_CURRENCY,
-      recurring: {
-        interval: STRIPE_CONFIG.MINATO_PRO_PRICE_INTERVAL as 'month'
-      },
-      metadata: {
-        minato_product_type: 'pro_subscription',
-        billing_cycle: annualBilling ? 'annual' : 'monthly'
-      }
-    });
+    // Récupérer ou créer automatiquement le prix basé sur lib/constants.ts
+    const price = await priceService.getPrice(billingCycle);
+    const amount = priceService.calculateAmount(billingCycle);
+    
+    logger.info(`[create-payment-intent] Using price ${price.id} for ${billingCycle} billing`);
+    logger.info(`[create-payment-intent] Amount calculated from lib/constants.ts: ${amount} cents`);
     
     // Create Payment Intent
     const paymentIntent = await stripe.paymentIntents.create({
