@@ -115,8 +115,8 @@ export const EXTERNAL_CACHE_DEFAULT_LIMIT = 1;
 
 // Stripe Configuration
 export const STRIPE_CONFIG = {
-  MINATO_PRO_PRICE_CENTS: 100, // $25.00 in cents
-  MINATO_PRO_PRICE_DISPLAY: '$1.00',
+  MINATO_PRO_PRICE_CENTS: 2500, // $25.00 in cents
+  MINATO_PRO_PRICE_DISPLAY: '$25.00',
   MINATO_PRO_PRICE_CURRENCY: 'usd',
   MINATO_PRO_PRICE_INTERVAL: 'month'
 } as const;

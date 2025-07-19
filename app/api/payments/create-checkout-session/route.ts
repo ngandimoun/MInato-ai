@@ -127,15 +127,18 @@ export async function POST(req: NextRequest) {
             currency: STRIPE_CONFIG.MINATO_PRO_PRICE_CURRENCY,
             product_data: {
               name: 'Minato AI Pro Subscription',
-              description: 'Unlimited access to all Minato AI features for 29 days',
+              description: 'Unlimited access to all Minato AI features',
               images: ['https://minato.ai/logo.png'], // Replace with actual logo URL
             },
             unit_amount: STRIPE_CONFIG.MINATO_PRO_PRICE_CENTS,
+            recurring: {
+              interval: STRIPE_CONFIG.MINATO_PRO_PRICE_INTERVAL
+            }
           },
           quantity: 1,
         },
       ],
-      mode: 'payment',
+      mode: 'subscription',
       success_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://minato.ai'}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://minato.ai'}/subscription?cancelled=true`,
       metadata: {

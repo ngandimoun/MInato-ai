@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { appConfig } from '@/lib/config';
 import { logger } from '@/memory-framework/config';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { STRIPE_CONFIG } from '@/lib/constants';
 
 // Initialize Stripe with the secret key
 const stripeSecretKey = appConfig.toolApiKeys?.stripe;
@@ -108,47 +109,120 @@ async function handleStripeEvent(event: Stripe.Event) {
           
           // Check for existing subscription to prevent duplicates
           const { data: existingSubscription } = await supabase
+            .from('stripe_subscriptions')
+            .select('id')
+            .eq('user_id', minatoUserId)
+            .eq('status', 'active')
+            .single();
+          
+          if (existingSubscription) {
+            logger.info(`[stripe-webhooks] User ${minatoUserId} already has an active subscription, skipping`);
+            return;
+          }
+
+          // Get user's email for creating Stripe customer
+          const { data: userData, error: userError } = await supabase
             .from('user_profiles')
-            .select('plan_type, subscription_end_date')
+            .select('email')
             .eq('id', minatoUserId)
             .single();
           
-          if (existingSubscription?.plan_type === 'PRO') {
-            logger.info(`[stripe-webhooks] User ${minatoUserId} already has Pro subscription, skipping`);
+          if (userError || !userData) {
+            logger.error(`[stripe-webhooks] Error fetching user data: ${userError?.message}`);
             return;
           }
+
+          // Create or get Stripe customer
+          let stripeCustomerId = null;
           
-          // Update user to Pro subscription
-          const subscriptionEndDate = new Date();
-          subscriptionEndDate.setDate(subscriptionEndDate.getDate() + 29); // 29 days from now
+          // Check if user already has a Stripe customer ID
+          const { data: existingCustomer } = await supabase
+            .from('user_profiles')
+            .select('stripe_customer_id')
+            .eq('id', minatoUserId)
+            .single();
           
-          const { error: updateError } = await supabase
+          if (existingCustomer?.stripe_customer_id) {
+            stripeCustomerId = existingCustomer.stripe_customer_id;
+            logger.info(`[stripe-webhooks] Using existing Stripe customer: ${stripeCustomerId}`);
+          } else {
+            // Create new Stripe customer
+            const customer = await stripe!.customers.create({
+              email: userData.email,
+              metadata: {
+                minato_user_id: minatoUserId
+              }
+            });
+            
+            stripeCustomerId = customer.id;
+            
+            // Update user profile with Stripe customer ID
+            await supabase
+              .from('user_profiles')
+              .update({ stripe_customer_id: stripeCustomerId })
+              .eq('id', minatoUserId);
+            
+            logger.info(`[stripe-webhooks] Created new Stripe customer: ${stripeCustomerId}`);
+          }
+
+          // Create a subscription for this customer
+          const product = await stripe!.products.create({
+            name: 'Minato Pro Subscription',
+            description: 'Unlock the full Minato experience with unlimited AI chat, creation tools, and premium features',
+            metadata: {
+              name: 'minato_pro_subscription',
+              created_via: 'minato_webhook'
+            }
+          });
+
+          const price = await stripe!.prices.create({
+            product: product.id,
+            unit_amount: STRIPE_CONFIG.MINATO_PRO_PRICE_CENTS,
+            currency: STRIPE_CONFIG.MINATO_PRO_PRICE_CURRENCY,
+            recurring: {
+              interval: STRIPE_CONFIG.MINATO_PRO_PRICE_INTERVAL as 'month'
+            },
+            metadata: {
+              minato_product_type: 'pro_subscription'
+            }
+          });
+
+          // Create the subscription
+          const subscription = await stripe!.subscriptions.create({
+            customer: stripeCustomerId,
+            items: [{ price: price.id }],
+            metadata: {
+              minato_user_id: minatoUserId
+            }
+          });
+
+          logger.info(`[stripe-webhooks] Created subscription ${subscription.id} for user ${minatoUserId}`);
+
+          // Store subscription in database
+          await supabase
+            .from('stripe_subscriptions')
+            .insert({
+              user_id: minatoUserId,
+              stripe_subscription_id: subscription.id,
+              stripe_customer_id: stripeCustomerId,
+              status: 'active',
+              created_at: new Date().toISOString(),
+              current_period_end: new Date(subscription.current_period_end * 1000).toISOString()
+            });
+
+          // Update user profile to PRO
+          const subscriptionEndDate = new Date(subscription.current_period_end * 1000).toISOString();
+          
+          await supabase
             .from('user_profiles')
             .update({
               plan_type: 'PRO',
-              stripe_customer_id: checkoutSession.customer as string,
-              subscription_end_date: subscriptionEndDate.toISOString(),
-              monthly_usage: {
-                leads: 0,
-                recordings: 0,
-                images: 0,
-                videos: 0
-              },
-              one_time_credits: {
-                leads: 0,
-                recordings: 0,
-                images: 0,
-                videos: 0
-              }
+              subscription_end_date: subscriptionEndDate,
+              updated_at: new Date().toISOString()
             })
             .eq('id', minatoUserId);
           
-          if (updateError) {
-            logger.error(`[stripe-webhooks] Failed to update user to Pro: ${updateError.message}`);
-            return;
-          }
-          
-          logger.info(`[stripe-webhooks] Successfully upgraded user ${minatoUserId} to Pro subscription`);
+          logger.info(`[stripe-webhooks] Successfully upgraded user ${minatoUserId} to PRO until ${subscriptionEndDate}`);
           return;
         }
         
