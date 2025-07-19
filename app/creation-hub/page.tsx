@@ -202,21 +202,24 @@ function CreationHubPage() {
   }
 
   return (
-    <main className="flex h-screen flex-col bg-background overflow-hidden">
-      <div className="fixed inset-0 bg-gradient-to-br from-purple-50/50 via-pink-50/30 to-blue-50/50 dark:from-purple-900/20 dark:via-pink-900/10 dark:to-blue-900/20 z-[-1]" />
-
-      <Header currentView="creation-hub" onViewChange={handleViewChange} />
-
-      <div className="flex-1 container max-w-5xl mx-auto px-4 flex items-center justify-center">
+    <div className="min-h-screen bg-background relative overflow-hidden">
+    <AnimatedBackground />
+    <FloatingParticles />
+    
+    <Header currentView="creation-hub" onViewChange={handleViewChange} />
+    
+    <main className="pt-14 relative z-10">
+      <div className="container max-w-5xl mx-auto px-4 py-6">
         <motion.div
+          className="relative"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="w-full" // h-full a été retiré, w-full assure que le conteneur est large
         >
           <CreationHubPanel onClose={handlePanelClose} />
         </motion.div>
       </div>
     </main>
+  </div>
   );
 } 

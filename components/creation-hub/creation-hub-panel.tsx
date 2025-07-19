@@ -880,7 +880,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
       transition={{ duration: 0.3 }}
-      className="bg-background border rounded-sm border-primary/20 shadow-lg overflow-hidden flex flex-col h-full max-h-[calc(100vh-6rem)]"
+      className="bg-background border rounded-sm border-primary/20 shadow-lg overflow-hidden flex flex-col h-[calc(100vh-6.5rem)] relative"
     >
       {/* Animated background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -1064,7 +1064,6 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
       </motion.div>
 
       {/* Content */}
-      <ScrollArea className="h-[700px]">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col overflow-hidden relative z-10">
         <motion.div
           className="border-b border-border flex-shrink-0"
@@ -1116,7 +1115,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                     >
                       <tab.icon className="h-3 w-3 sm:h-4 sm:w-4" />
                     </motion.div>
-                    <span className="hidden xs:inline">{tab.label}</span>
+                    {/* <span className="hidden">{tab.label}</span> */}
                     <span className="text-[10px] md:inline xs:hidden">{tab.shortLabel}</span>
                   </motion.div>
                   {activeTab === tab.value && (
@@ -2008,7 +2007,6 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
           </TabsContent>
         </div>
       </Tabs>
-      </ScrollArea>
       
       {/* Image Editor Modal */}
       <ImageEditorModal
