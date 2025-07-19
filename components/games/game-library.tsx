@@ -1452,8 +1452,8 @@ function GameLibraryContent() {
   }
 
   return (
-    <ScrollArea className="h-[600px]">
-      <div className="space-y-6">
+    // <ScrollArea className="h-[600px]">
+      <div className="space-y-6 h-full">
       {/* Header and Filters */}
       <div className="flex flex-col gap-4">
         <motion.div
@@ -2042,7 +2042,7 @@ function GameLibraryContent() {
         )}
       </AnimatePresence>
       </div>
-    </ScrollArea>
+  //  </ScrollArea>
   );
 }
 

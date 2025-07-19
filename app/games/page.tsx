@@ -236,7 +236,7 @@ function GamesPage() {
           </div>
 
           {/* Panel Content (Scrollable) */}
-          <ScrollArea className="flex-1">
+          <ScrollArea className="h-[700px]">
             <div className="p-6">
               <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)} className="space-y-6">
                 <motion.div
