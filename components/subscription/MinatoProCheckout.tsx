@@ -273,14 +273,7 @@ function CheckoutForm({ onSuccess, onCancel, returnUrl }: MinatoProCheckoutProps
                       <div className="border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 p-3">
                         <PaymentElement
                           options={{
-                            layout: 'tabs',
-                            fields: {
-                              billingDetails: {
-                                name: 'auto',
-                                phone: 'never',
-                                address: 'never'
-                              }
-                            }
+                            layout: 'tabs'
                           }}
                         />
                       </div>
