@@ -41,6 +41,15 @@
 - Remplacé `production=true` par `omit=dev`
 - Remplacé `optional=false` par `include=optional`
 
+### 6. ✅ Erreur critique : Module `critters` manquant lors de la génération statique
+**Erreur :** `Cannot find module 'critters'` lors de la génération des pages statiques
+
+**Solution appliquée :**
+- Déplacé `critters` et autres dépendances critiques des `devDependencies` vers les `dependencies`
+- Créé des pages d'erreur personnalisées (`not-found.tsx`, `error.tsx`)
+- Mis à jour la configuration `.npmrc` pour ne pas exclure les dépendances nécessaires
+- Ajouté une vérification des dépendances critiques dans le script de test
+
 ## Fichiers modifiés
 
 ### 1. `app/subscription/checkout/page.tsx`
@@ -76,8 +85,9 @@ swcMinify: true,
 ```
 engine-strict=false
 registry=https://registry.npmjs.org/
-omit=dev
-include=optional
+# Don't omit dev dependencies during build as some are needed for static generation
+# omit=dev
+# include=optional
 ```
 
 ### 4. `lib/supabase/middleware.ts` (simplifié)
@@ -95,7 +105,34 @@ const logger = {
 };
 ```
 
-### 5. `vercel.json` (optimisé)
+### 5. `package.json` (dépendances réorganisées)
+```json
+{
+  "dependencies": {
+    // Dépendances critiques déplacées depuis devDependencies
+    "critters": "^0.0.23",
+    "cross-env": "^7.0.3",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.17",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3",
+    // ... autres dépendances
+  },
+  "devDependencies": {
+    // Dépendances de développement uniquement
+    "@types/...": "...",
+    // ... autres types
+  }
+}
+```
+
+### 6. `app/not-found.tsx` (nouveau)
+Page 404 personnalisée pour éviter les problèmes de génération statique.
+
+### 7. `app/error.tsx` (nouveau)
+Page d'erreur globale pour gérer les erreurs 500 et autres erreurs.
+
+### 8. `vercel.json` (optimisé)
 ```json
 {
   "buildCommand": "npm run build:clean",
@@ -112,7 +149,7 @@ const logger = {
 }
 ```
 
-### 6. `package.json` (scripts ajoutés)
+### 9. `package.json` (scripts ajoutés)
 ```json
 {
   "scripts": {
@@ -124,11 +161,11 @@ const logger = {
 }
 ```
 
-### 7. `scripts/fix-dependencies.js` (nouveau)
+### 10. `scripts/fix-dependencies.js` (nouveau)
 Script pour identifier et résoudre les dépendances problématiques.
 
-### 8. `scripts/test-build.js` (nouveau)
-Script pour tester le build localement avant déploiement.
+### 11. `scripts/test-build.js` (mis à jour)
+Script pour tester le build localement avec vérification des dépendances critiques.
 
 ## Vérifications effectuées
 
@@ -142,6 +179,14 @@ Script pour tester le build localement avant déploiement.
 - Suppression des imports complexes
 - Logger simple compatible
 - Pas de dépendances problématiques
+
+✅ **Pages d'erreur personnalisées :**
+- `app/not-found.tsx` - ✅ Page 404 personnalisée
+- `app/error.tsx` - ✅ Page d'erreur globale
+
+✅ **Dépendances critiques réorganisées :**
+- `critters`, `postcss`, `tailwindcss`, `typescript`, `cross-env` dans dependencies
+- Vérification automatique des dépendances critiques
 
 ## Commandes pour résoudre le problème
 
@@ -175,6 +220,8 @@ npm run build
 4. **Maintenir le fichier `.npmrc`** pour éviter les conflits d'engines
 5. **Tester le build localement** avant chaque déploiement
 6. **Éviter les imports complexes dans le middleware** (Edge Runtime limitations)
+7. **Garder les dépendances critiques dans `dependencies`** (pas `devDependencies`)
+8. **Créer des pages d'erreur personnalisées** pour éviter les problèmes de génération statique
 
 ## Notes importantes
 
@@ -182,4 +229,6 @@ npm run build
 - Les avertissements de dépendances n'empêchent pas le build mais peuvent causer des problèmes en production
 - La configuration Vercel optimisée améliore les performances de build et de déploiement
 - Le middleware Edge Runtime a des limitations sur les modules qu'il peut importer
-- Les nouvelles options npm (`omit=dev`, `include=optional`) remplacent les anciennes options dépréciées 
+- Les nouvelles options npm (`omit=dev`, `include=optional`) remplacent les anciennes options dépréciées
+- Le module `critters` est nécessaire pour l'optimisation CSS lors de la génération des pages statiques
+- Les pages d'erreur personnalisées améliorent l'expérience utilisateur et évitent les erreurs de build 
