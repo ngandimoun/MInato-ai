@@ -1,7 +1,9 @@
+// app/listening/page.tsx
+
 "use client";
 
 import React, { useState, useCallback } from "react";
-import dynamic from 'next/dynamic';
+import dynamic from 'next/dynamic'; // <-- 1. Importer 'dynamic'
 import { motion, AnimatePresence } from "framer-motion";
 import { RecordingList } from "@/components/listening/recording-list";
 import { RecordingAnalysis } from "@/components/listening/recording-analysis";
@@ -12,13 +14,14 @@ import { useRouter } from "next/navigation";
 import { useNavigation } from "@/context/navigation-context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mic, List, BarChart3, Loader2, Video, Shield } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button"; // Importez Button pour le fallback
 
+// <-- 2. Déclarer le composant comme dynamique SANS rendu côté serveur (SSR)
 const RecordingButton = dynamic(
   () => import('@/components/listening').then(mod => mod.RecordingButton),
   { 
-    ssr: false,
+    ssr: false, // La ligne magique qui empêche le rendu sur le serveur
+    // Un fallback de chargement qui correspond visuellement au bouton
     loading: () => (
       <div className="flex flex-col items-center">
         <Button
@@ -37,6 +40,7 @@ const RecordingButton = dynamic(
   }
 );
 
+// Define view type to match Header component
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub";
 
 export default function ListeningPage() {
@@ -55,6 +59,7 @@ export default function ListeningPage() {
   const { navigateWithLoading } = useNavigation();
   const router = useRouter();
 
+  // Handle view changes
   const handleViewChange = (view: View) => {
     if (view === "listening") {
       return;
@@ -71,6 +76,7 @@ export default function ListeningPage() {
     }
   };
 
+  // Handle recording selection
   const handleSelectRecording = useCallback((recording: Recording) => {
     setCurrentRecordingId(recording.id);
     if (window.innerWidth < 1024) {
@@ -78,6 +84,7 @@ export default function ListeningPage() {
     }
   }, [setCurrentRecordingId]);
 
+  // Handle recording deletion
   const handleDeleteRecording = useCallback(async (recordingId: string) => {
     const success = await deleteRecording(recordingId);
     if (success) {
@@ -87,10 +94,12 @@ export default function ListeningPage() {
     }
   }, [deleteRecording, currentRecordingId, setCurrentRecordingId]);
 
+  // Handle recording update
   const handleUpdateRecording = useCallback((updatedRecording: Recording) => {
     fetchRecordings();
   }, [fetchRecordings]);
 
+  // Handle segment highlighting
   const handleHighlightSegment = useCallback((segmentId: number) => {
     if (currentAnalysis?.transcript_json) {
       const segment = currentAnalysis.transcript_json.find(s => s.id === segmentId);
@@ -108,243 +117,232 @@ export default function ListeningPage() {
       
       <Header currentView={currentView} onViewChange={handleViewChange} />
 
-      {/* Main container to center the panel */}
       <div className="container max-w-7xl mx-auto px-4 py-8 pt-20">
-        {/* The fixed-height panel */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="w-full max-w-7xl h-full max-h-[calc(100vh-7rem)] bg-card border rounded-sm shadow-sm flex flex-col overflow-hidden"
         >
-          {/* Panel Header (fixed) */}
-          <div className="p-6 border-b h-20">
-            <div className="text-center">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-emerald-400 to-pink-500 bg-clip-text text-transparent">
-                Minato AI Intelligence
-              </h1>
-              <p className="text-muted-foreground mt-2 max-w-2xl mx-auto text-xs">
-                Advanced AI-powered audio and video intelligence for enhanced security and insights
-              </p>
-            </div>
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary via-emerald-400 to-pink-500 bg-clip-text text-transparent">
+              Minato AI Intelligence
+            </h1>
+            <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+              Advanced AI-powered audio and video intelligence for enhanced security and insights
+            </p>
           </div>
 
-          {/* Panel Content (scrollable) */}
-          <ScrollArea className=" h-[850px]">
-            <div className="p-6">
-              {/* Mobile Tabs */}
-              <div className="lg:hidden mb-6">
-                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "record" | "analyze" | "video-intelligence")}>
-                  <TabsList className="grid grid-cols-3 w-full">
-                    <TabsTrigger value="record" className="flex items-center gap-2">
-                      <Mic className="h-4 w-4" />
-                      <span>Audio</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="analyze" className="flex items-center gap-2">
-                      <BarChart3 className="h-4 w-4" />
-                      <span>Analyze</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="video-intelligence" className="flex items-center gap-2">
-                      <Shield className="h-4 w-4" />
-                      <span>Video AI</span>
-                    </TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="record" className="mt-4">
-                    <div className="space-y-6">
-                      <div className="flex justify-center mb-4">
-                        <RecordingButton
-                          onRecordingComplete={(recordingId) => {
-                            setCurrentRecordingId(recordingId);
-                            fetchRecordings();
-                          }}
-                        />
-                      </div>
-
-                      <RecordingList
-                        recordings={recordings}
-                        isLoading={isLoading}
-                        selectedRecordingId={currentRecordingId}
-                        onSelectRecording={handleSelectRecording}
-                        onDeleteRecording={handleDeleteRecording}
-                        onUpdateRecording={handleUpdateRecording}
-                      />
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="analyze" className="mt-4">
-                    <RecordingAnalysis
-                      recording={currentRecording}
-                      analysis={currentAnalysis}
-                      isLoading={isLoading}
+          {/* Mobile Tabs */}
+          <div className="lg:hidden mb-6">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "record" | "analyze" | "video-intelligence")}>
+              <TabsList className="grid grid-cols-3 w-full">
+                <TabsTrigger value="record" className="flex items-center gap-2">
+                  <Mic className="h-4 w-4" />
+                  <span>Audio</span>
+                </TabsTrigger>
+                <TabsTrigger value="analyze" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  <span>Analyze</span>
+                </TabsTrigger>
+                <TabsTrigger value="video-intelligence" className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  <span>Video AI</span>
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="record" className="mt-4">
+                <div className="space-y-6">
+                  <div className="flex justify-center mb-4">
+                    <RecordingButton
+                      onRecordingComplete={(recordingId) => {
+                        setCurrentRecordingId(recordingId);
+                        fetchRecordings();
+                      }}
                     />
-                  </TabsContent>
-                  
-                  <TabsContent value="video-intelligence" className="mt-4">
-                    <div className="space-y-6">
-                      <div className="text-center py-8">
-                        <Shield className="h-16 w-16 mx-auto mb-4 text-primary" />
-                        <h2 className="text-2xl font-bold mb-2">Minato AI Video Intelligence</h2>
-                        <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                          Advanced video surveillance with AI-powered threat detection, child safety monitoring, and proactive alerts
-                        </p>
-                        <div className="grid grid-cols-1 gap-4 max-w-md mx-auto">
-                          <div className="bg-card p-4 rounded-lg border">
-                            <h3 className="font-semibold text-sm mb-2">🛡️ Child Safety Monitor</h3>
-                            <p className="text-xs text-muted-foreground">AI detects children in danger zones and provides voice intervention</p>
-                          </div>
-                          <div className="bg-card p-4 rounded-lg border">
-                            <h3 className="font-semibold text-sm mb-2">🚨 Fall Detection</h3>
-                            <p className="text-xs text-muted-foreground">Instant alerts for medical emergencies and accidents</p>
-                          </div>
-                          <div className="bg-card p-4 rounded-lg border">
-                            <h3 className="font-semibold text-sm mb-2">🔒 Intrusion Detection</h3>
-                            <p className="text-xs text-muted-foreground">Real-time stranger detection and security alerts</p>
-                          </div>
-                        </div>
+                  </div>
+
+                  <RecordingList
+                    recordings={recordings}
+                    isLoading={isLoading}
+                    selectedRecordingId={currentRecordingId}
+                    onSelectRecording={handleSelectRecording}
+                    onDeleteRecording={handleDeleteRecording}
+                    onUpdateRecording={handleUpdateRecording}
+                  />
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="analyze" className="mt-4">
+                <RecordingAnalysis
+                  recording={currentRecording}
+                  analysis={currentAnalysis}
+                  isLoading={isLoading}
+                />
+              </TabsContent>
+              
+              <TabsContent value="video-intelligence" className="mt-4">
+                <div className="space-y-6">
+                  <div className="text-center py-8">
+                    <Shield className="h-16 w-16 mx-auto mb-4 text-primary" />
+                    <h2 className="text-2xl font-bold mb-2">Minato AI Video Intelligence</h2>
+                    <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                      Advanced video surveillance with AI-powered threat detection, child safety monitoring, and proactive alerts
+                    </p>
+                    <div className="grid grid-cols-1 gap-4 max-w-md mx-auto">
+                      <div className="bg-card p-4 rounded-lg border">
+                        <h3 className="font-semibold text-sm mb-2">🛡️ Child Safety Monitor</h3>
+                        <p className="text-xs text-muted-foreground">AI detects children in danger zones and provides voice intervention</p>
+                      </div>
+                      <div className="bg-card p-4 rounded-lg border">
+                        <h3 className="font-semibold text-sm mb-2">🚨 Fall Detection</h3>
+                        <p className="text-xs text-muted-foreground">Instant alerts for medical emergencies and accidents</p>
+                      </div>
+                      <div className="bg-card p-4 rounded-lg border">
+                        <h3 className="font-semibold text-sm mb-2">🔒 Intrusion Detection</h3>
+                        <p className="text-xs text-muted-foreground">Real-time stranger detection and security alerts</p>
                       </div>
                     </div>
-                  </TabsContent>
-                </Tabs>
-              </div>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
 
-              {/* Desktop Layout */}
-              <div className="hidden lg:block">
-                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "record" | "analyze" | "video-intelligence")} className="w-full">
-                  <TabsList className="grid grid-cols-3 w-full max-w-md mx-auto mb-8">
-                    <TabsTrigger value="record" className="flex items-center gap-2">
-                      <Mic className="h-4 w-4" />
-                      <span>Audio Recording</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="analyze" className="flex items-center gap-2">
-                      <BarChart3 className="h-4 w-4" />
-                      <span>Analysis</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="video-intelligence" className="flex items-center gap-2">
-                      <Shield className="h-4 w-4" />
-                      <span>Video Intelligence</span>
-                    </TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="record" className="mt-4">
-                    <div className="grid lg:grid-cols-3 gap-8">
-                      <div className="lg:col-span-1 space-y-6">
-                        <AnimatePresence mode="wait">
-                          <motion.div
-                            key="recording-controls"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            transition={{ duration: 0.3 }}
-                          >
-                            <div className="flex justify-center mb-6">
-                              <RecordingButton
-                                onRecordingComplete={(recordingId) => {
-                                  setCurrentRecordingId(recordingId);
-                                  fetchRecordings();
-                                }}
-                                className="transform hover:scale-105 transition-transform"
-                              />
-                            </div>
+          {/* Desktop Layout */}
+          <div className="hidden lg:block">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "record" | "analyze" | "video-intelligence")} className="w-full">
+              <TabsList className="grid grid-cols-3 w-full max-w-md mx-auto mb-8">
+                <TabsTrigger value="record" className="flex items-center gap-2">
+                  <Mic className="h-4 w-4" />
+                  <span>Audio Recording</span>
+                </TabsTrigger>
+                <TabsTrigger value="analyze" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  <span>Analysis</span>
+                </TabsTrigger>
+                <TabsTrigger value="video-intelligence" className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  <span>Video Intelligence</span>
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="record" className="mt-4">
+                <div className="grid lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1 space-y-6">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key="recording-controls"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <div className="flex justify-center mb-6">
+                    <RecordingButton
+                      onRecordingComplete={(recordingId) => {
+                        setCurrentRecordingId(recordingId);
+                        fetchRecordings();
+                      }}
+                      className="transform hover:scale-105 transition-transform"
+                    />
+                  </div>
 
-                            <RecordingList
-                              recordings={recordings}
-                              isLoading={isLoading}
-                              selectedRecordingId={currentRecordingId}
-                              onSelectRecording={handleSelectRecording}
-                              onDeleteRecording={handleDeleteRecording}
-                              onUpdateRecording={handleUpdateRecording}
-                              className="shadow-lg hover:shadow-xl transition-shadow"
-                            />
-                          </motion.div>
-                        </AnimatePresence>
-                      </div>
-
-                      <div className="lg:col-span-2">
-                        <AnimatePresence mode="wait">
-                          <motion.div
-                            key={currentRecordingId || "empty"}
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            transition={{ duration: 0.3 }}
-                            className="h-full"
-                          >
-                            <RecordingAnalysis
-                              recording={currentRecording}
-                              analysis={currentAnalysis}
-                              isLoading={isLoading}
-                              className="shadow-lg hover:shadow-xl transition-shadow"
-                            />
-                          </motion.div>
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="analyze" className="mt-4">
-                    <div className="grid lg:grid-cols-3 gap-8">
-                      <div className="lg:col-span-1 space-y-6">
-                        <AnimatePresence mode="wait">
-                          <motion.div
-                            key="recording-controls"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            transition={{ duration: 0.3 }}
-                          >
-                            <div className="flex justify-center mb-6">
-                              <RecordingButton
-                                onRecordingComplete={(recordingId) => {
-                                  setCurrentRecordingId(recordingId);
-                                  fetchRecordings();
-                                }}
-                                className="transform hover:scale-105 transition-transform"
-                              />
-                            </div>
-
-                            <RecordingList
-                              recordings={recordings}
-                              isLoading={isLoading}
-                              selectedRecordingId={currentRecordingId}
-                              onSelectRecording={handleSelectRecording}
-                              onDeleteRecording={handleDeleteRecording}
-                              onUpdateRecording={handleUpdateRecording}
-                              className="shadow-lg hover:shadow-xl transition-shadow"
-                            />
-                          </motion.div>
-                        </AnimatePresence>
-                      </div>
-
-                      <div className="lg:col-span-2">
-                        <AnimatePresence mode="wait">
-                          <motion.div
-                            key={currentRecordingId || "empty"}
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            transition={{ duration: 0.3 }}
-                            className="h-full"
-                          >
-                            <RecordingAnalysis
-                              recording={currentRecording}
-                              analysis={currentAnalysis}
-                              isLoading={isLoading}
-                              className="shadow-lg hover:shadow-xl transition-shadow"
-                            />
-                          </motion.div>
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="video-intelligence" className="mt-4">
-                    <VideoIntelligencePanel />
-                  </TabsContent>
-                </Tabs>
-              </div>
+                  <RecordingList
+                    recordings={recordings}
+                    isLoading={isLoading}
+                    selectedRecordingId={currentRecordingId}
+                    onSelectRecording={handleSelectRecording}
+                    onDeleteRecording={handleDeleteRecording}
+                    onUpdateRecording={handleUpdateRecording}
+                    className="shadow-lg hover:shadow-xl transition-shadow"
+                  />
+                </motion.div>
+              </AnimatePresence>
             </div>
-          </ScrollArea>
+
+            <div className="lg:col-span-2">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentRecordingId || "empty"}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="h-full"
+                >
+                  <RecordingAnalysis
+                    recording={currentRecording}
+                    analysis={currentAnalysis}
+                    isLoading={isLoading}
+                    className="shadow-lg hover:shadow-xl transition-shadow"
+                  />
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="analyze" className="mt-4">
+          <div className="grid lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1 space-y-6">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key="recording-controls"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <div className="flex justify-center mb-6">
+                    <RecordingButton
+                      onRecordingComplete={(recordingId) => {
+                        setCurrentRecordingId(recordingId);
+                        fetchRecordings();
+                      }}
+                      className="transform hover:scale-105 transition-transform"
+                    />
+                  </div>
+
+                  <RecordingList
+                    recordings={recordings}
+                    isLoading={isLoading}
+                    selectedRecordingId={currentRecordingId}
+                    onSelectRecording={handleSelectRecording}
+                    onDeleteRecording={handleDeleteRecording}
+                    onUpdateRecording={handleUpdateRecording}
+                    className="shadow-lg hover:shadow-xl transition-shadow"
+                  />
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+            <div className="lg:col-span-2">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentRecordingId || "empty"}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="h-full"
+                >
+                  <RecordingAnalysis
+                    recording={currentRecording}
+                    analysis={currentAnalysis}
+                    isLoading={isLoading}
+                    className="shadow-lg hover:shadow-xl transition-shadow"
+                  />
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="video-intelligence" className="mt-4">
+          <VideoIntelligencePanel />
+        </TabsContent>
+      </Tabs>
+    </div>
         </motion.div>
       </div>
     </main>
