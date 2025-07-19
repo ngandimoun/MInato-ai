@@ -164,7 +164,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex flex-1 justify-center">
-              <ul className="flex space-x-1 sm:space-x-2 bg-muted/50 border border-border/50 p-1 rounded-full">
+              <ul className="flex  bg-muted/50 border border-border/50 p-1 rounded-sm">
                 {navItems.map((item) => (
                   <li key={item.id}>
                     <Button
@@ -180,7 +180,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
                       )}
                     >
                       {item.icon}
-                      <span className="sr-only sm:not-sr-only sm:ml-1.5 hidden lg:inline">{item.label}</span>
+                      <span className="sr-only sm:not-sr-only hidden lg:inline text-xs">{item.label}</span>
                       {currentView === item.id && (
                         <motion.div
                           layoutId="activeTabIndicator"
@@ -207,10 +207,10 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
                 variant="default"
                 size="sm"
                 onClick={() => setProPlanModalOpen(true)}
-                className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium px-3 py-1 rounded-sm text-xs"
+                className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium px-3 py-1 rounded-sm text-xs h-8"
               >
                 <Zap className="h-3 w-3 mr-1" />
-                Plan
+                <span className="hidden sm:inline">Plan</span>
               </Button>
 
               {/* Notifications */}
@@ -225,7 +225,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
                     )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="p-0 w-[350px] max-w-full border-none shadow-none bg-transparent">
+                <PopoverContent align="end" className="p-0 w-[350px] max-w-[90vw] border-none shadow-none bg-transparent">
                   <NotificationsPanel onClose={() => setNotifOpen(false)} onCountChange={fetchNotifCount} />
                 </PopoverContent>
               </Popover>
@@ -295,7 +295,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
                     ))}
                     
                     {/* Plan Button in Mobile Menu */}
-                    {/* <motion.li
+                    <motion.li
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20 }}
@@ -310,9 +310,9 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
                         className="w-full justify-start rounded-lg px-4 py-3 text-left bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium"
                       >
                         <Zap className="h-4 w-4 mr-3" />
-                        <span className="font-medium">Plan</span>
+                        <span className="font-medium">Upgrade Plan</span>
                       </Button>
-                    </motion.li> */}
+                    </motion.li>
                   </ul>
                 </motion.nav>
               </div>

@@ -19,13 +19,13 @@ export function ModeToggle() {
   const getThemeIcon = () => {
     switch (theme) {
       case "light":
-        return <Sun className="h-5 w-5" />;
+        return <Sun className="h-4 w-4" />;
       case "dark":
-        return <Moon className="h-5 w-5" />;
+        return <Moon className="h-4 w-4" />;
       case "system":
-        return <Monitor className="h-5 w-5" />;
+        return <Monitor className="h-4 w-4" />;
       default:
-        return <Sun className="h-5 w-5" />;
+        return <Sun className="h-4 w-4" />;
     }
   };
 
@@ -35,7 +35,7 @@ export function ModeToggle() {
         <Button
           variant="outline"
           size="icon"
-          className="rounded-full backdrop-blur-md bg-background/80 border border-border"
+          className="rounded-full backdrop-blur-md bg-background/80 border border-border w-8 h-8"
           aria-label="Toggle theme"
         >
           <AnimatePresence mode="wait" initial={false}>

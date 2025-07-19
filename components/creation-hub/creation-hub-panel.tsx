@@ -1,3 +1,5 @@
+//components/creation-hub/creation-hub-panel.tsx
+
 "use client";
 
 import React, { useState, useCallback, useEffect } from "react";
@@ -878,7 +880,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
       transition={{ duration: 0.3 }}
-      className="bg-background border rounded-2xl border-primary/20 shadow-lg overflow-hidden flex flex-col h-full"
+      className="bg-background border rounded-sm border-primary/20 shadow-lg overflow-hidden flex flex-col h-full max-h-[calc(100vh-6rem)]"
     >
       {/* Animated background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -913,7 +915,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           <motion.div
-            className="p-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl relative overflow-hidden"
+            className="p-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-sm relative overflow-hidden"
             whileHover={{ 
               scale: 1.05,
               rotate: [0, -5, 5, 0],
@@ -956,7 +958,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
               {translatedText.subtitle}
               {userPlan && (
                 <span className="ml-2 text-xs bg-muted px-2 py-1 rounded">
-                  Plan: {userPlan.planType} {userPlan.isFreeTrial ? '(Trial)' : ''} {userPlan.isPro ? '(Pro)' : ''}
+                  Plan: {userPlan.planType} {userPlan.isFreeTrial ? '' : ''} {userPlan.isPro ? '' : ''}
                 </span>
               )}
             </motion.p>
@@ -969,7 +971,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
           transition={{ duration: 0.5, delay: 0.3 }}
         >
           {/* Language Selector */}
-          <motion.div
+          {/* <motion.div
             whileHover={{ scale: 1.02 }}
             transition={{ duration: 0.2 }}
           >
@@ -1041,7 +1043,8 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                 </AnimatePresence>
               </SelectContent>
             </Select>
-          </motion.div>
+          </motion.div> */}
+
           <motion.div
             whileHover={{ scale: 1.1, rotate: 90 }}
             whileTap={{ scale: 0.9 }}
@@ -1061,6 +1064,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
       </motion.div>
 
       {/* Content */}
+      <ScrollArea className="h-[700px]">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col overflow-hidden relative z-10">
         <motion.div
           className="border-b border-border flex-shrink-0"
@@ -1117,7 +1121,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                   </motion.div>
                   {activeTab === tab.value && (
                     <motion.div
-                      className="absolute inset-0 bg-primary/5 rounded-md -z-10"
+                      className="absolute inset-0 bg-primary/5 rounded-sm -z-10"
                       layoutId="activeTabBackground"
                       transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                     />
@@ -1127,7 +1131,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
             ))}
           </TabsList>
         </motion.div>
-
+        
         <div className="flex-1 overflow-hidden">
           <TabsContent value="generate" className="mt-0 h-full">
             <AnimatePresence mode="wait">
@@ -1277,7 +1281,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
 
                           {/* Error Display */}
                           {generationError && (
-                            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-sm">
                               <AlertCircle className="h-4 w-4 text-destructive" />
                               <span className="text-sm text-destructive">{HubUtils.Error.createFriendlyMessage(generationError)}</span>
                             </div>
@@ -1285,7 +1289,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                           
                           {/* FREE_TRIAL Info Message */}
                           {userPlan?.isFreeTrial && (
-                            <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20 rounded-lg">
+                            <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20 rounded-sm">
                               <Crown className="h-4 w-4 text-yellow-600" />
                               <div className="flex-1">
                                 <p className="text-sm font-medium text-yellow-700">Upgrade to Pro</p>
@@ -1296,7 +1300,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
 
                           {/* PRO Quota Indicator */}
                           {userPlan?.isPro && (
-                            <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-lg">
+                            <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-sm">
                               <Sparkles className="h-4 w-4 text-green-600" />
                               <div className="flex-1">
                                 <p className="text-sm font-medium text-green-700">Pro Plan Active</p>
@@ -1379,14 +1383,14 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                         {images.slice(0, 1).map((image) => (
                           <div key={image.id} className="relative group">
                             {image.status === 'generating' ? (
-                              <div className="aspect-square bg-muted rounded-lg flex items-center justify-center">
+                              <div className="aspect-square bg-muted rounded-sm flex items-center justify-center">
                                 <div className="text-center">
                                   <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-primary" />
                                   <p className="text-sm text-muted-foreground">Generating...</p>
                                 </div>
                               </div>
                             ) : image.status === 'completed' ? (
-                              <div className="relative aspect-square rounded-lg overflow-hidden">
+                              <div className="relative aspect-square rounded-sm overflow-hidden">
                                 <img 
                                   src={image.url} 
                                   alt={image.prompt}
@@ -1403,7 +1407,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                                 </div>
                               </div>
                             ) : (
-                              <div className="aspect-square bg-destructive/10 rounded-lg flex items-center justify-center">
+                              <div className="aspect-square bg-destructive/10 rounded-sm flex items-center justify-center">
                                 <p className="text-sm text-destructive">Generation failed</p>
                               </div>
                             )}
@@ -1435,7 +1439,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                   <div className="flex items-center gap-2">
                     <motion.button
                       className={cn(
-                        "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 relative",
+                        "px-3 py-1.5 rounded-sm text-sm font-medium transition-all duration-200 relative",
                         gallerySubTab === 'images' 
                           ? "bg-primary text-primary-foreground shadow-sm" 
                           : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
@@ -1478,7 +1482,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                       </motion.div>
                       {gallerySubTab === 'images' && (
                         <motion.div
-                          className="absolute inset-0 bg-primary/10 rounded-lg -z-10"
+                          className="absolute inset-0 bg-primary/10 rounded-sm -z-10"
                           layoutId="galleryTabBackground"
                           transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                         />
@@ -1487,7 +1491,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                     
                     <motion.button
                       className={cn(
-                        "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 relative",
+                        "px-3 py-1.5 rounded-sm text-sm font-medium transition-all duration-200 relative",
                         gallerySubTab === 'videos' 
                           ? "bg-primary text-primary-foreground shadow-sm" 
                           : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
@@ -1530,7 +1534,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                       </motion.div>
                       {gallerySubTab === 'videos' && (
                         <motion.div
-                          className="absolute inset-0 bg-primary/10 rounded-lg -z-10"
+                          className="absolute inset-0 bg-primary/10 rounded-sm -z-10"
                           layoutId="galleryTabBackground"
                           transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                         />
@@ -1630,7 +1634,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                               className="relative group cursor-pointer touch-manipulation"
                               onClick={() => handleImageClick(image)}
                             >
-                              <div className="aspect-square rounded-lg overflow-hidden bg-muted">
+                              <div className="aspect-square rounded-sm overflow-hidden bg-muted">
                                 <img 
                                   src={image.url} 
                                   alt={HubUtils.GeneratedImage.getDisplayPrompt(image)}
@@ -1774,7 +1778,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                               <Card className="glass-card overflow-hidden h-full relative">
                                 {/* Hover glow effect */}
                                 <motion.div
-                                  className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 rounded-lg"
+                                  className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 rounded-sm"
                                   initial={{ opacity: 0 }}
                                   whileHover={{ opacity: 1 }}
                                   transition={{ duration: 0.3 }}
@@ -1789,7 +1793,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                                 />
                                 
                                 <motion.div
-                                  className="aspect-video bg-black rounded-t-lg overflow-hidden relative"
+                                  className="aspect-video bg-black rounded-sm overflow-hidden relative"
                                   whileHover={{ scale: 1.05 }}
                                   transition={{ duration: 0.3 }}
                                 >
@@ -2004,6 +2008,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
           </TabsContent>
         </div>
       </Tabs>
+      </ScrollArea>
       
       {/* Image Editor Modal */}
       <ImageEditorModal

@@ -4,9 +4,28 @@
 
 @layer base {
   /* Prevent global scroll */
-  html, body {
+  /* html, body {
     overflow: hidden;
     height: 100vh;
+  } */
+
+  /* Mobile and tablet specific styles */
+  @media (max-width: 768px) {
+    html {
+      font-size: 14px;
+    }
+    
+    body {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+  }
+
+  @media (max-width: 1024px) {
+    .container {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
   }
 
   :root {

@@ -114,19 +114,19 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
                             </div>
 
                             {/* Pro Plan Card */}
-                            <div className="w-full bg-gradient-to-br from-pink-500/20 to-purple-600/20 rounded-lg p-3 mb-4 border border-pink-500/30 flex-shrink-0">
+                            <div className="w-full bg-background-muted rounded-sm p-3 mb-4 border border-pink-500/30 flex-shrink-0">
                                 <div className="flex justify-between items-start mb-2">
                                     <div>
                                         <span className="text-pink-500 font-semibold text-sm">Pro</span>{" "}
                                         <span className="text-teal-400 font-semibold text-sm">Plan</span>
                                     </div>
                                     <div className="text-right">
-                                        <div className="text-xl font-bold text-white">{STRIPE_CONFIG.MINATO_PRO_PRICE_DISPLAY}</div>
-                                        <div className="text-xs text-gray-300">/{STRIPE_CONFIG.MINATO_PRO_PRICE_INTERVAL}</div>
+                                        <div className="text-xl font-bold text-pink-500 ">{STRIPE_CONFIG.MINATO_PRO_PRICE_DISPLAY}</div>
+                                        <div className="text-xs text-teal-400">/{STRIPE_CONFIG.MINATO_PRO_PRICE_INTERVAL}</div>
                                     </div>
                                 </div>
 
-                                <p className="text-gray-300 text-xs mb-3">
+                                <p className="text-gray-100 text-xs mb-3">
                                     Unlock the full Minato experience with:
                                 </p>
 
@@ -134,14 +134,14 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
                                 <div className="space-y-3 flex-1 overflow-y-auto">
                                     {featureCategories.map((category, categoryIndex) => (
                                         <div key={categoryIndex}>
-                                            <h4 className="text-xs font-semibold text-pink-400 mb-1.5">
+                                            <h4 className="text-xs font-semibold text-pink-600 mb-1.5">
                                                 {category.title}
                                             </h4>
                                             <ul className="space-y-1">
                                                 {category.features.map((feature, featureIndex) => (
-                                                    <li key={featureIndex} className="flex items-start text-xs text-gray-200 leading-relaxed">
+                                                    <li key={featureIndex} className="flex items-start text-xs leading-relaxed">
                                                         <Check className="h-3 w-3 text-green-400 mr-2 flex-shrink-0 mt-0.5" />
-                                                        <span>{feature}</span>
+                                                        <span className="text-gray-100">{feature}</span>
                                                     </li>
                                                 ))}
                                             </ul>

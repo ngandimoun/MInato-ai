@@ -88,7 +88,7 @@ const EnhancedLoading = () => {
     <div className="min-h-screen bg-background flex items-center justify-center relative overflow-hidden">
       <AnimatedBackground />
       <FloatingParticles />
-      
+
       <motion.div
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -97,11 +97,11 @@ const EnhancedLoading = () => {
       >
         <motion.div
           className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-purple-500 to-pink-600 rounded-2xl flex items-center justify-center"
-          animate={{ 
+          animate={{
             rotate: [0, 360],
             scale: [1, 1.1, 1],
           }}
-          transition={{ 
+          transition={{
             rotate: { duration: 3, repeat: Infinity, ease: "linear" },
             scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
           }}
@@ -158,7 +158,7 @@ function CreationHubPage() {
   // Handle view changes from header navigation
   const handleViewChange = (view: View) => {
     logger.info('[Creation Hub Page] View change requested', { view });
-    
+
     switch (view) {
       case "chat":
         navigateWithLoading("/chat", "Loading chat...");
@@ -204,20 +204,19 @@ function CreationHubPage() {
   return (
     <main className="flex h-screen flex-col bg-background overflow-hidden">
       <div className="fixed inset-0 bg-gradient-to-br from-purple-50/50 via-pink-50/30 to-blue-50/50 dark:from-purple-900/20 dark:via-pink-900/10 dark:to-blue-900/20 z-[-1]" />
-      
+
       <Header currentView="creation-hub" onViewChange={handleViewChange} />
-      
-      <ScrollArea className="flex-1">
-        <div className="container max-w-5xl mx-auto px-4 py-6 pt-20">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            <CreationHubPanel onClose={handlePanelClose} />
-          </motion.div>
-        </div>
-      </ScrollArea>
+
+      <div className="flex-1 container max-w-5xl mx-auto px-4 flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="w-full" // h-full a été retiré, w-full assure que le conteneur est large
+        >
+          <CreationHubPanel onClose={handlePanelClose} />
+        </motion.div>
+      </div>
     </main>
   );
 } 

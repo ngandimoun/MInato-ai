@@ -83,7 +83,7 @@ export function CategorySelector({
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
       className={cn(
-        "bg-background/95 backdrop-blur-xl border border-border/50 rounded-3xl shadow-2xl overflow-hidden",
+        "bg-background/95 backdrop-blur-xl border border-border/50 rounded-sm shadow-2xl overflow-hidden",
         "max-h-[90vh] flex flex-col",
         className
       )}

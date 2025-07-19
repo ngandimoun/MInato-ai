@@ -518,7 +518,7 @@ export function VideoGenerator({ className, language = "en", onVideoGenerated }:
   }, [selectedImage]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 p-4 md:p-6">
+    <div className="min-h-screen rounded-sm bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 p-4 md:p-6">
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header */}
         <motion.div 

@@ -202,13 +202,13 @@ export function RecordingList({
   };
 
   return (
-    <Card className={cn("w-full max-w-md h-[500px]", className)}>
+    <Card className={cn("w-[310px] md:w-full max-w-md h-[500px]", className)}>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-semibold">Your Recordings</CardTitle>
         <CardDescription>Select a recording to view its analysis</CardDescription>
       </CardHeader>
       <CardContent className="p-0">
-        <ScrollArea className="h-[420px] px-4 pb-4">
+        <ScrollArea className="h-[400px] px-4 pb-4">
           {isLoading ? (
             // Loading skeletons
             Array(3)
@@ -238,7 +238,7 @@ export function RecordingList({
                 key={recording.id}
                 onClick={() => onSelectRecording(recording)}
                 className={cn(
-                  "flex items-start gap-3 w-[310px] md:w-full mb-3 p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
+                  "flex items-start gap-3 w-[280px] md:w-full mb-3 p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
                   selectedRecordingId === recording.id && "bg-primary/5 border-primary/30"
                 )}
               >

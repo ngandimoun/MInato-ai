@@ -832,7 +832,7 @@ export function SettingsPanel({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
         transition={{ duration: 0.3 }}
-        className="bg-background border rounded-2xl border-primary/20 shadow-lg overflow-hidden flex flex-col h-full max-h-[calc(100vh-6.5rem)]"
+        className="bg-background border rounded-sm border-primary/20 shadow-sm overflow-hidden flex flex-col h-full max-h-[calc(100vh-10rem)]"
       >
         <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
           <h2 className="text-lg font-semibold">Settings</h2>
