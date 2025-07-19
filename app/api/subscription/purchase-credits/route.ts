@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { logger } from '@/memory-framework/config';
 import Stripe from 'stripe';
 import { appConfig } from '@/lib/config';
+import { CREDIT_PACKS_CONFIG } from '@/lib/constants';
 
 interface PurchaseCreditsRequest {
   creditType: 'images' | 'videos' | 'recordings' | 'leads';
@@ -19,10 +20,11 @@ interface PurchaseCreditsResponse {
   error?: string;
 }
 
-// Mapping des price IDs vers les vrais IDs Stripe
+// ✅ Mapping des price IDs vers les vrais IDs Stripe (à configurer dynamiquement)
+// Note: Ces IDs doivent être mis à jour avec les vrais IDs Stripe créés par le script setup-minato-pro-products.js
 const STRIPE_PRICE_IDS: Record<string, string> = {
   // Images
-  'price_images_15': 'price_1OqX8X2eZvKYlo2C1234567890', // À remplacer par les vrais IDs
+  'price_images_10': 'price_1OqX8X2eZvKYlo2C1234567890', // À remplacer par les vrais IDs
   'price_images_30': 'price_1OqX8X2eZvKYlo2C1234567891',
   'price_images_50': 'price_1OqX8X2eZvKYlo2C1234567892',
   
@@ -37,9 +39,9 @@ const STRIPE_PRICE_IDS: Record<string, string> = {
   'price_recordings_35': 'price_1OqX8X2eZvKYlo2C1234567898',
   
   // Leads
-  'price_leads_25': 'price_1OqX8X2eZvKYlo2C1234567899',
-  'price_leads_50': 'price_1OqX8X2eZvKYlo2C1234567900',
-  'price_leads_100': 'price_1OqX8X2eZvKYlo2C1234567901',
+  'price_leads_10': 'price_1OqX8X2eZvKYlo2C1234567899',
+  'price_leads_20': 'price_1OqX8X2eZvKYlo2C1234567900',
+  'price_leads_35': 'price_1OqX8X2eZvKYlo2C1234567901',
 };
 
 export async function POST(req: NextRequest): Promise<NextResponse<PurchaseCreditsResponse>> {
@@ -115,7 +117,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<PurchaseCredi
 
     const stripe = new Stripe(stripeSecretKey, {
       typescript: true,
-      apiVersion: '2025-05-28.basil',
+      apiVersion: '2025-06-30.basil',
     });
 
     // Obtenir le vrai price ID Stripe

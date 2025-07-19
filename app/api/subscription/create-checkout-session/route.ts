@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { logger } from '@/memory-framework/config';
 import Stripe from 'stripe';
 import { appConfig } from '@/lib/config';
+import { STRIPE_CONFIG } from '@/lib/constants';
 
 interface CreateCheckoutSessionRequest {
   email: string;
@@ -67,9 +68,11 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateCheckou
       },
     });
 
-    // Calculate pricing from constants
-    const monthlyPriceCents = 2500; // $25.00 from STRIPE_CONFIG
+    // ✅ Calculate pricing from lib/constants.ts
+    const monthlyPriceCents = STRIPE_CONFIG.MINATO_PRO_PRICE_CENTS;
     const annualPriceCents = monthlyPriceCents * 12 * 0.8; // 20% discount for annual
+    
+    logger.info(`[create-checkout-session] Using price from lib/constants.ts: ${monthlyPriceCents} cents (${STRIPE_CONFIG.MINATO_PRO_PRICE_DISPLAY})`);
     
     // Create or get the product
     let product: Stripe.Product;

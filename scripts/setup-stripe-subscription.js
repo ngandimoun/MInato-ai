@@ -12,8 +12,43 @@ require('dotenv').config({ path: '.env.local' });
 
 // Configuration
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-const MINATO_PRO_PRICE = 2500; // $25.00 en centimes
-const MINATO_PRO_CURRENCY = 'usd';
+
+// ✅ Import constants from lib/constants.ts
+const fs = require('fs');
+const path = require('path');
+
+// Read constants from lib/constants.ts
+function getConstantsFromFile() {
+  try {
+    const constantsPath = path.join(__dirname, '..', 'lib', 'constants.ts');
+    const constantsContent = fs.readFileSync(constantsPath, 'utf8');
+    
+    // Extract STRIPE_CONFIG values using regex
+    const priceMatch = constantsContent.match(/MINATO_PRO_PRICE_CENTS:\s*(\d+)/);
+    const displayMatch = constantsContent.match(/MINATO_PRO_PRICE_DISPLAY:\s*['"`]([^'"`]+)['"`]/);
+    const currencyMatch = constantsContent.match(/MINATO_PRO_PRICE_CURRENCY:\s*['"`]([^'"`]+)['"`]/);
+    const intervalMatch = constantsContent.match(/MINATO_PRO_PRICE_INTERVAL:\s*['"`]([^'"`]+)['"`]/);
+    
+    return {
+      MINATO_PRO_PRICE_CENTS: parseInt(priceMatch?.[1] || '2500'),
+      MINATO_PRO_PRICE_DISPLAY: displayMatch?.[1] || '$25.00',
+      MINATO_PRO_PRICE_CURRENCY: currencyMatch?.[1] || 'usd',
+      MINATO_PRO_PRICE_INTERVAL: intervalMatch?.[1] || 'month'
+    };
+  } catch (error) {
+    console.warn('⚠️  Could not read lib/constants.ts, using fallback values');
+    return {
+      MINATO_PRO_PRICE_CENTS: 2500,
+      MINATO_PRO_PRICE_DISPLAY: '$25.00',
+      MINATO_PRO_PRICE_CURRENCY: 'usd',
+      MINATO_PRO_PRICE_INTERVAL: 'month'
+    };
+  }
+}
+
+const STRIPE_CONFIG = getConstantsFromFile();
+const MINATO_PRO_PRICE = STRIPE_CONFIG.MINATO_PRO_PRICE_CENTS;
+const MINATO_PRO_CURRENCY = STRIPE_CONFIG.MINATO_PRO_PRICE_CURRENCY;
 const MINATO_PRO_NAME = 'Minato Pro';
 const MINATO_PRO_DESCRIPTION = 'Accès illimité à toutes les fonctionnalités premium de Minato AI Companion';
 
@@ -57,7 +92,7 @@ async function setupMinatoProSubscription() {
         minato_interval: 'monthly'
       }
     });
-    console.log(`✅ Prix créé: ${price.id} ($${(MINATO_PRO_PRICE / 100).toFixed(2)}/mois)`);
+    console.log(`✅ Prix créé: ${price.id} (${STRIPE_CONFIG.MINATO_PRO_PRICE_DISPLAY}/mois)`);
 
 
 
@@ -86,7 +121,7 @@ async function setupMinatoProSubscription() {
     console.log('\n✅ Configuration terminée avec succès!');
     console.log('\n📊 Résumé:');
     console.log(`- Produit: ${product.name} (${product.id})`);
-    console.log(`- Prix mensuel: $${(MINATO_PRO_PRICE / 100).toFixed(2)} (${price.id})`);
+    console.log(`- Prix mensuel: ${STRIPE_CONFIG.MINATO_PRO_PRICE_DISPLAY} (${price.id})`);
 
     // 7. Instructions de test
     console.log('\n🧪 Pour tester:');

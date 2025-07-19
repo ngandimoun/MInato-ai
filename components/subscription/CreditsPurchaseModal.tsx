@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Check, Crown, Zap, Users, Video, Image, MessageSquare, Clock, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/memory-framework/config';
+import { CREDIT_PACKS_CONFIG } from '@/lib/constants';
 
 interface CreditsPurchaseModalProps {
   isOpen: boolean;
@@ -26,109 +27,110 @@ interface CreditPack {
   savings?: string;
 }
 
+// ✅ Generate credit packs dynamically from lib/constants.ts
 const CREDIT_PACKS: Record<string, CreditPack[]> = {
   images: [
     {
-      id: 'images-15',
+      id: 'images-10',
       name: 'Pack Images',
-      credits: 15,
-      price: 15,
-      priceId: 'price_images_15',
+      credits: CREDIT_PACKS_CONFIG.images.basic.credits,
+      price: CREDIT_PACKS_CONFIG.images.basic.price,
+      priceId: CREDIT_PACKS_CONFIG.images.basic.priceId,
       popular: true
     },
     {
       id: 'images-30',
       name: 'Pack Images Plus',
-      credits: 30,
-      price: 25,
-      priceId: 'price_images_30',
-      savings: '17%'
+      credits: CREDIT_PACKS_CONFIG.images.plus.credits,
+      price: CREDIT_PACKS_CONFIG.images.plus.price,
+      priceId: CREDIT_PACKS_CONFIG.images.plus.priceId,
+      savings: CREDIT_PACKS_CONFIG.images.plus.savings
     },
     {
       id: 'images-50',
       name: 'Pack Images Pro',
-      credits: 50,
-      price: 35,
-      priceId: 'price_images_50',
-      savings: '30%'
+      credits: CREDIT_PACKS_CONFIG.images.pro.credits,
+      price: CREDIT_PACKS_CONFIG.images.pro.price,
+      priceId: CREDIT_PACKS_CONFIG.images.pro.priceId,
+      savings: CREDIT_PACKS_CONFIG.images.pro.savings
     }
   ],
   videos: [
     {
       id: 'videos-10',
       name: 'Pack Vidéos',
-      credits: 10,
-      price: 15,
-      priceId: 'price_videos_10',
+      credits: CREDIT_PACKS_CONFIG.videos.basic.credits,
+      price: CREDIT_PACKS_CONFIG.videos.basic.price,
+      priceId: CREDIT_PACKS_CONFIG.videos.basic.priceId,
       popular: true
     },
     {
       id: 'videos-20',
       name: 'Pack Vidéos Plus',
-      credits: 20,
-      price: 25,
-      priceId: 'price_videos_20',
-      savings: '17%'
+      credits: CREDIT_PACKS_CONFIG.videos.plus.credits,
+      price: CREDIT_PACKS_CONFIG.videos.plus.price,
+      priceId: CREDIT_PACKS_CONFIG.videos.plus.priceId,
+      savings: CREDIT_PACKS_CONFIG.videos.plus.savings
     },
     {
       id: 'videos-35',
       name: 'Pack Vidéos Pro',
-      credits: 35,
-      price: 35,
-      priceId: 'price_videos_35',
-      savings: '30%'
+      credits: CREDIT_PACKS_CONFIG.videos.pro.credits,
+      price: CREDIT_PACKS_CONFIG.videos.pro.price,
+      priceId: CREDIT_PACKS_CONFIG.videos.pro.priceId,
+      savings: CREDIT_PACKS_CONFIG.videos.pro.savings
     }
   ],
   recordings: [
     {
       id: 'recordings-10',
       name: 'Pack Recordings',
-      credits: 10,
-      price: 15,
-      priceId: 'price_recordings_10',
+      credits: CREDIT_PACKS_CONFIG.recordings.basic.credits,
+      price: CREDIT_PACKS_CONFIG.recordings.basic.price,
+      priceId: CREDIT_PACKS_CONFIG.recordings.basic.priceId,
       popular: true
     },
     {
       id: 'recordings-20',
       name: 'Pack Recordings Plus',
-      credits: 20,
-      price: 25,
-      priceId: 'price_recordings_20',
-      savings: '17%'
+      credits: CREDIT_PACKS_CONFIG.recordings.plus.credits,
+      price: CREDIT_PACKS_CONFIG.recordings.plus.price,
+      priceId: CREDIT_PACKS_CONFIG.recordings.plus.priceId,
+      savings: CREDIT_PACKS_CONFIG.recordings.plus.savings
     },
     {
       id: 'recordings-35',
       name: 'Pack Recordings Pro',
-      credits: 35,
-      price: 35,
-      priceId: 'price_recordings_35',
-      savings: '30%'
+      credits: CREDIT_PACKS_CONFIG.recordings.pro.credits,
+      price: CREDIT_PACKS_CONFIG.recordings.pro.price,
+      priceId: CREDIT_PACKS_CONFIG.recordings.pro.priceId,
+      savings: CREDIT_PACKS_CONFIG.recordings.pro.savings
     }
   ],
   leads: [
     {
       id: 'leads-10',
       name: 'Pack Leads',
-      credits: 10,
-      price: 15,
-      priceId: 'price_leads_10',
+      credits: CREDIT_PACKS_CONFIG.leads.basic.credits,
+      price: CREDIT_PACKS_CONFIG.leads.basic.price,
+      priceId: CREDIT_PACKS_CONFIG.leads.basic.priceId,
       popular: true
     },
     {
       id: 'leads-20',
       name: 'Pack Leads Plus',
-      credits: 20,
-      price: 25,
-      priceId: 'price_leads_20',
-      savings: '17%'
+      credits: CREDIT_PACKS_CONFIG.leads.plus.credits,
+      price: CREDIT_PACKS_CONFIG.leads.plus.price,
+      priceId: CREDIT_PACKS_CONFIG.leads.plus.priceId,
+      savings: CREDIT_PACKS_CONFIG.leads.plus.savings
     },
     {
       id: 'leads-35',
       name: 'Pack Leads Pro',
-      credits: 35,
-      price: 35,
-      priceId: 'price_leads_35',
-      savings: '30%'
+      credits: CREDIT_PACKS_CONFIG.leads.pro.credits,
+      price: CREDIT_PACKS_CONFIG.leads.pro.price,
+      priceId: CREDIT_PACKS_CONFIG.leads.pro.priceId,
+      savings: CREDIT_PACKS_CONFIG.leads.pro.savings
     }
   ],
 };

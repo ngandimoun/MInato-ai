@@ -121,6 +121,30 @@ export const STRIPE_CONFIG = {
   MINATO_PRO_PRICE_INTERVAL: 'month'
 } as const;
 
+// Credit Packs Configuration
+export const CREDIT_PACKS_CONFIG = {
+  images: {
+    basic: { credits: 10, price: 15, priceId: 'price_images_10' },
+    plus: { credits: 30, price: 25, priceId: 'price_images_30', savings: '17%' },
+    pro: { credits: 50, price: 35, priceId: 'price_images_50', savings: '30%' }
+  },
+  videos: {
+    basic: { credits: 10, price: 15, priceId: 'price_videos_10' },
+    plus: { credits: 20, price: 25, priceId: 'price_videos_20', savings: '17%' },
+    pro: { credits: 35, price: 35, priceId: 'price_videos_35', savings: '30%' }
+  },
+  recordings: {
+    basic: { credits: 10, price: 15, priceId: 'price_recordings_10' },
+    plus: { credits: 20, price: 25, priceId: 'price_recordings_20', savings: '17%' },
+    pro: { credits: 35, price: 35, priceId: 'price_recordings_35', savings: '30%' }
+  },
+  leads: {
+    basic: { credits: 10, price: 15, priceId: 'price_leads_10' },
+    plus: { credits: 20, price: 25, priceId: 'price_leads_20', savings: '17%' },
+    pro: { credits: 35, price: 35, priceId: 'price_leads_35', savings: '30%' }
+  }
+} as const;
+
 // Minato Pro Features Configuration
 export const MINATO_PRO_FEATURES = {
   core: {
