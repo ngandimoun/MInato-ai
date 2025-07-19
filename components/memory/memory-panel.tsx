@@ -554,7 +554,7 @@ initial={{ opacity: 0, y: 20 }}
 animate={{ opacity: 1, y: 0 }}
 exit={{ opacity: 0, y: 20 }}
 transition={{ duration: 0.3 }}
-className="bg-background border border-border rounded-2xl shadow-lg overflow-hidden flex flex-col h-[calc(100vh-6.5rem)]"
+className="bg-background border border-border rounded-sm shadow-sm overflow-hidden flex flex-col h-[calc(100vh-6.5rem)]"
 >
 <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
 <h2 className="text-lg font-semibold flex items-center gap-2">
