@@ -115,7 +115,7 @@ export default function ListeningPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="w-full max-w-7xl h-full max-h-[calc(100vh-7rem)] bg-card border rounded-sm shadow-lg flex flex-col overflow-hidden"
+          className="w-full max-w-7xl h-full max-h-[calc(100vh-7rem)] bg-card border rounded-sm shadow-sm flex flex-col overflow-hidden"
         >
           {/* Panel Header (fixed) */}
           <div className="p-6 border-b h-20">
