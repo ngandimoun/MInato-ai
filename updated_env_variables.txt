@@ -1,0 +1,13 @@
+# ========================================
+# UPDATED STRIPE WEBHOOK SECRETS
+# ========================================
+
+# Copy these lines to your .env.local file:
+STRIPE_WEBHOOK_SIGNING_SECRET=whsec_uCca5o3vQUD8Dh6iLCpSGxpWYOKFk5nZ
+STRIPE_SUBSCRIPTION_WEBHOOK_SECRET=whsec_XHUAHlcJ49z6KpnnyGRSvbPsj86Bn7iS
+STRIPE_DEBUG_WEBHOOK_SECRET=whsec_S6F7grOHmtNF2vaQQD9a8oJ0Rul25axS
+
+# These new webhook endpoints have been created:
+# 1. Main webhook: https://minato.ai/api/stripe-webhooks
+# 2. Subscription webhook: https://minato.ai/api/stripe-webhooks/subscription
+# 3. Debug webhook: https://minato.ai/api/stripe-webhooks/debug 

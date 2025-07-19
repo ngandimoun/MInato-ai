@@ -30,9 +30,6 @@ export async function POST(req: NextRequest) {
     // Get the raw request body as text
     const payload = await req.text();
     
-    // Log the raw payload for debugging
-    logger.info('[stripe-webhooks-debug] Raw payload received');
-    
     // Get the Stripe signature header
     const signature = req.headers.get('stripe-signature');
 
@@ -41,16 +38,9 @@ export async function POST(req: NextRequest) {
       return new NextResponse('Missing Stripe signature header', { status: 400 });
     }
 
-    // Log all headers for debugging
-    const headers: Record<string, string> = {};
-    req.headers.forEach((value, key) => {
-      headers[key] = value;
-    });
-    logger.info('[stripe-webhooks-debug] Request headers:', headers);
-
     let event: Stripe.Event;
 
-    // Try to verify the webhook signature
+    // Verify the webhook signature
     try {
       if (!stripeWebhookSecret) {
         logger.warn('[stripe-webhooks-debug] STRIPE_WEBHOOK_SIGNING_SECRET is not configured, skipping signature verification');
@@ -59,17 +49,22 @@ export async function POST(req: NextRequest) {
       } else {
         // Verify the webhook signature
         event = stripe.webhooks.constructEvent(payload, signature, stripeWebhookSecret);
-        logger.info('[stripe-webhooks-debug] Signature verification successful');
       }
     } catch (err: any) {
       logger.error(`[stripe-webhooks-debug] Webhook signature verification failed: ${err.message}`);
+      
+      // Log the full error details and headers for debugging
+      logger.error(`[stripe-webhooks-debug] Full error: ${JSON.stringify(err)}`);
+      logger.error(`[stripe-webhooks-debug] Headers: ${JSON.stringify(Object.fromEntries(req.headers))}`);
+      logger.error(`[stripe-webhooks-debug] Payload (first 200 chars): ${payload.substring(0, 200)}...`);
+      
       return new NextResponse(`Webhook signature verification failed: ${err.message}`, { status: 400 });
     }
 
-    // Log event details
+    // Log the full event for debugging
+    logger.info(`[stripe-webhooks-debug] Received event type: ${event.type}`);
     logger.info(`[stripe-webhooks-debug] Event ID: ${event.id}`);
-    logger.info(`[stripe-webhooks-debug] Event Type: ${event.type}`);
-    logger.info(`[stripe-webhooks-debug] Event Created: ${new Date(event.created * 1000).toISOString()}`);
+    logger.info(`[stripe-webhooks-debug] Event created: ${new Date(event.created * 1000).toISOString()}`);
     
     // Log specific event data based on event type
     if (event.type === 'checkout.session.completed') {
@@ -81,6 +76,20 @@ export async function POST(req: NextRequest) {
       logger.info(`[stripe-webhooks-debug] Metadata:`, session.metadata);
       logger.info(`[stripe-webhooks-debug] Amount Total: ${session.amount_total}`);
       logger.info(`[stripe-webhooks-debug] Currency: ${session.currency}`);
+    } else if (event.type.startsWith('customer.subscription')) {
+      const subscription = event.data.object as Stripe.Subscription;
+      logger.info(`[stripe-webhooks-debug] Subscription ID: ${subscription.id}`);
+      logger.info(`[stripe-webhooks-debug] Customer ID: ${subscription.customer}`);
+      logger.info(`[stripe-webhooks-debug] Status: ${subscription.status}`);
+      logger.info(`[stripe-webhooks-debug] Current Period End: ${new Date((subscription as any).current_period_end * 1000).toISOString()}`);
+      logger.info(`[stripe-webhooks-debug] Metadata:`, subscription.metadata);
+    } else if (event.type.startsWith('invoice')) {
+      const invoice = event.data.object as Stripe.Invoice;
+      logger.info(`[stripe-webhooks-debug] Invoice ID: ${invoice.id}`);
+      logger.info(`[stripe-webhooks-debug] Customer ID: ${invoice.customer}`);
+      logger.info(`[stripe-webhooks-debug] Status: ${invoice.status}`);
+      logger.info(`[stripe-webhooks-debug] Amount Due: ${invoice.amount_due}`);
+      logger.info(`[stripe-webhooks-debug] Currency: ${invoice.currency}`);
     }
     
     // Check if the event is already in the database
@@ -117,8 +126,8 @@ export async function POST(req: NextRequest) {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
-  } catch (err: any) {
-    logger.error(`[stripe-webhooks-debug] Webhook processing error: ${err.message}`);
-    return new NextResponse(`Webhook error: ${err.message}`, { status: 500 });
+  } catch (error: any) {
+    logger.error(`[stripe-webhooks-debug] Unexpected error: ${error.message}`, error);
+    return new NextResponse(`Unexpected error: ${error.message}`, { status: 500 });
   }
 } 

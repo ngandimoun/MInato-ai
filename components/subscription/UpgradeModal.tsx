@@ -57,7 +57,6 @@ export function UpgradeModal({ isOpen, onClose, onUpgrade, feature, reason }: Up
   };
 
   // Calculate price from constants
- // const monthlyPrice = STRIPE_CONFIG.MINATO_PRO_PRICE_CENTS / 100;
   const priceDisplay = STRIPE_CONFIG.MINATO_PRO_PRICE_DISPLAY;
 
   const features = [

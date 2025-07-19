@@ -56,6 +56,7 @@ function CheckoutForm({ onSuccess, onCancel, returnUrl }: MinatoProCheckoutProps
   const [isProcessing, setIsProcessing] = useState(false);
   // Calculate pricing - monthly only
   const monthlyPrice = STRIPE_CONFIG.MINATO_PRO_PRICE_CENTS / 100;
+  const priceDisplay = STRIPE_CONFIG.MINATO_PRO_PRICE_DISPLAY;
 
   useEffect(() => {
     // Pre-fill email from user context or localStorage
@@ -180,7 +181,7 @@ function CheckoutForm({ onSuccess, onCancel, returnUrl }: MinatoProCheckoutProps
             {/* Product Details */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">Subscription Minato Pro</h3>
-              <div className="text-4xl font-bold text-slate-900 dark:text-white">${monthlyPrice.toFixed(2)}</div>
+              <div className="text-4xl font-bold text-slate-900 dark:text-white">{priceDisplay}</div>
               <p className="text-sm text-slate-600 dark:text-slate-400">per month</p>
             </div>
 

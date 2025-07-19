@@ -177,13 +177,14 @@ async function handleStripeEvent(event: Stripe.Event) {
 
           const price = await stripe!.prices.create({
             product: product.id,
-            unit_amount: STRIPE_CONFIG.MINATO_PRO_PRICE_CENTS,
+            unit_amount: STRIPE_CONFIG.MINATO_PRO_PRICE_CENTS, // This will use the updated $1.00 price
             currency: STRIPE_CONFIG.MINATO_PRO_PRICE_CURRENCY,
             recurring: {
               interval: STRIPE_CONFIG.MINATO_PRO_PRICE_INTERVAL as 'month'
             },
             metadata: {
-              minato_product_type: 'pro_subscription'
+              minato_product_type: 'pro_subscription',
+              price_display: STRIPE_CONFIG.MINATO_PRO_PRICE_DISPLAY // Store display price in metadata
             }
           });
 
@@ -207,11 +208,11 @@ async function handleStripeEvent(event: Stripe.Event) {
               stripe_customer_id: stripeCustomerId,
               status: 'active',
               created_at: new Date().toISOString(),
-              current_period_end: new Date(subscription.current_period_end * 1000).toISOString()
+              current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString()
             });
 
           // Update user profile to PRO
-          const subscriptionEndDate = new Date(subscription.current_period_end * 1000).toISOString();
+          const subscriptionEndDate = new Date((subscription as any).current_period_end * 1000).toISOString();
           
           await supabase
             .from('user_profiles')
