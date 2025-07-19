@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ProSubscriptionCheckout } from '@/components/subscription/ProSubscriptionCheckout';
+import { MinatoProCheckout } from '@/components/subscription/MinatoProCheckout';
 import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/memory-framework/config';
 
@@ -54,7 +54,7 @@ function SubscriptionCheckoutContent() {
   }
 
   return (
-    <ProSubscriptionCheckout
+    <MinatoProCheckout
       onSuccess={handleSuccess}
       onCancel={handleCancel}
       returnUrl={`${window.location.origin}/dashboard?upgraded=true`}

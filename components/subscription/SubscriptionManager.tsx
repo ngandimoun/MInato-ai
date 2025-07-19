@@ -92,31 +92,12 @@ export function SubscriptionManager() {
     setProcessing(true);
     
     try {
-      // Create upgrade session
-      const response = await fetch('/api/subscription/upgrade', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to create upgrade session');
-      }
-
-      // Redirect to Stripe Checkout
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-      } else {
-        throw new Error('No checkout URL received');
-      }
-
+      // Redirect to new Stripe Elements checkout page
+      window.location.href = '/subscription/checkout';
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to create upgrade session',
+        description: error.message || 'Failed to redirect to checkout',
         variant: 'destructive',
       });
     } finally {

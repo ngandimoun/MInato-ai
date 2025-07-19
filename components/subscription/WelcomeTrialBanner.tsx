@@ -98,28 +98,10 @@ export function WelcomeTrialBanner({ className = "" }: WelcomeTrialBannerProps) 
     setIsLoading(true);
     
     try {
-      const response = await fetch('/api/subscription/upgrade', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create upgrade session');
-      }
-
-      const { checkoutUrl } = await response.json();
-      
-      if (checkoutUrl) {
-        // Rediriger vers Stripe Checkout
-        window.location.href = checkoutUrl;
-      } else {
-        throw new Error('No checkout URL received');
-      }
+      // Redirect to new Stripe Elements checkout page
+      window.location.href = '/subscription/checkout';
     } catch (error) {
-      logger.error('[WelcomeTrialBanner] Error creating upgrade session:', error);
+      logger.error('[WelcomeTrialBanner] Error redirecting to checkout:', error);
     } finally {
       setIsLoading(false);
     }

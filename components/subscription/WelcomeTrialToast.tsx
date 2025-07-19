@@ -74,61 +74,31 @@ export function WelcomeTrialToast() {
     }
 
     toast({
-      title: (
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-green-500" />
-          <span>Bienvenue sur Minato !</span>
-        </div>
-      ) as ReactNode,
-      description: (
-        <div className="space-y-2">
-          <p className="flex items-center gap-2 text-sm">
-            <Clock className="h-3 w-3" />
-            Profitez de votre essai gratuit de 7 jours
-          </p>
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={handleUpgradeClick}
-              className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white text-xs rounded-md transition-colors"
-            >
-              <Crown className="h-3 w-3" />
-              Upgrade to Pro
-            </button>
-          </div>
-        </div>
-      ) as ReactNode,
+      title: "Bienvenue sur Minato !",
+      description: "Profitez de votre essai gratuit de 7 jours. Cliquez sur Upgrade to Pro pour commencer.",
       duration: 8000, // 8 secondes au lieu de 10 pour un toast
       className: "border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-900/50",
+      action: (
+        <button
+          onClick={handleUpgradeClick}
+          className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white text-xs rounded-md transition-colors"
+        >
+          <Crown className="h-3 w-3" />
+          Upgrade to Pro
+        </button>
+      ),
     });
   };
 
   const handleUpgradeClick = async () => {
     try {
-      const response = await fetch('/api/subscription/upgrade', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create upgrade session');
-      }
-
-      const { checkoutUrl } = await response.json();
-      
-      if (checkoutUrl) {
-        // Rediriger vers Stripe Checkout
-        window.location.href = checkoutUrl;
-      } else {
-        throw new Error('No checkout URL received');
-      }
+      // Redirect to new Stripe Elements checkout page
+      window.location.href = '/subscription/checkout';
     } catch (error) {
-      logger.error('[WelcomeTrialToast] Error creating upgrade session:', error);
+      logger.error('[WelcomeTrialToast] Error redirecting to checkout:', error);
       toast({
         title: "Erreur",
-        description: "Impossible de créer la session de paiement. Veuillez réessayer.",
+        description: "Impossible de rediriger vers la page de paiement. Veuillez réessayer.",
         variant: "destructive",
       });
     }

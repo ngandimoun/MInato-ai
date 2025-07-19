@@ -115,8 +115,59 @@ export const EXTERNAL_CACHE_DEFAULT_LIMIT = 1;
 
 // Stripe Configuration
 export const STRIPE_CONFIG = {
-  MINATO_PRO_PRICE_CENTS: 100, // $25.00 in cents
-  MINATO_PRO_PRICE_DISPLAY: '$1',
+  MINATO_PRO_PRICE_CENTS: 2500, // $25.00 in cents
+  MINATO_PRO_PRICE_DISPLAY: '$25.00',
   MINATO_PRO_PRICE_CURRENCY: 'usd',
   MINATO_PRO_PRICE_INTERVAL: 'month'
+} as const;
+
+// Minato Pro Features Configuration
+export const MINATO_PRO_FEATURES = {
+  core: {
+    title: "Core Features",
+    features: [
+      {
+        title: "Unlimited AI Chat Conversations",
+        description: "Chat without limits with advanced AI"
+      },
+      {
+        title: "Persistent Memory & Conversation History",
+        description: "Your conversations are remembered and saved"
+      }
+    ]
+  },
+  creation: {
+    title: "Creation Hub",
+    features: [
+      {
+        title: "AI-Powered Lead Generation Tools",
+        description: "Generate business leads automatically"
+      },
+      {
+        title: "30 AI-Generated Images per Month",
+        description: "Create stunning visuals with AI"
+      },
+      {
+        title: "20 AI-Generated Videos per Month",
+        description: "Produce professional videos instantly"
+      }
+    ]
+  },
+  premium: {
+    title: "Premium Features",
+    features: [
+      {
+        title: "Multiplayer Games & Social Features",
+        description: "Connect and play with other users"
+      },
+      {
+        title: "20 Recording Sessions",
+        description: "Record and analyze your conversations"
+      },
+      {
+        title: "Priority Support & Faster Response Times",
+        description: "Get help when you need it most"
+      }
+    ]
+  }
 } as const;

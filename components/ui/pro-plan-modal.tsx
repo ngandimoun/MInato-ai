@@ -48,32 +48,13 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
         setIsLoading(true)
         
         try {
-            // Capturer l'URL actuelle pour la redirection après paiement
-            const currentUrl = window.location.href;
-            
-            const response = await fetch('/api/subscription/upgrade', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    returnUrl: currentUrl
-                })
-            })
-
-            const data = await response.json()
-
-            if (data.success && data.checkoutUrl) {
-                // Rediriger vers Stripe Checkout
-                window.location.href = data.checkoutUrl
-            } else {
-                throw new Error(data.error || 'Failed to create checkout session')
-            }
+            // Redirect to new Stripe Elements checkout page
+            window.location.href = '/subscription/checkout'
         } catch (error: any) {
-            console.error('Error upgrading to Pro:', error)
+            console.error('Error redirecting to checkout:', error)
             toast({
-                title: "Upgrade Failed",
-                description: error.message || "Failed to start upgrade process. Please try again.",
+                title: "Redirect Failed",
+                description: error.message || "Failed to redirect to checkout. Please try again.",
                 variant: "destructive",
             })
         } finally {
