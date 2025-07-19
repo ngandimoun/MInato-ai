@@ -22,40 +22,8 @@ export function UpgradeModal({ isOpen, onClose, onUpgrade, feature, reason }: Up
   if (!isOpen) return null;
 
   const handleUpgrade = async () => {
-    setIsLoading(true);
-    
-    try {
-      const response = await fetch('/api/subscription/upgrade', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create upgrade session');
-      }
-
-      const data = await response.json();
-      
-      // Redirect to Stripe checkout
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-      } else {
-        throw new Error('No checkout URL received');
-      }
-      
-    } catch (error: any) {
-      logger.error('[UpgradeModal] Error creating upgrade session:', error);
-      toast({
-        title: "Upgrade Failed",
-        description: error.message || "Failed to start upgrade process. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    // Redirect to custom checkout page instead of using API
+    window.location.href = '/subscription/checkout';
   };
 
   const getFeatureIcon = (featureName: string) => {
