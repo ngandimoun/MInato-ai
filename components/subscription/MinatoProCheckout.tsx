@@ -314,10 +314,37 @@ function CheckoutForm({ onSuccess, onCancel, returnUrl }: MinatoProCheckoutProps
 
               {/* Stripe Branding */}
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-6">
-                <span>Powered by stripe</span>
+                <div className="flex items-center space-x-2">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.831 3.47 1.426 3.47 2.338 0 .914-.796 1.431-2.127 1.431-1.72 0-4.516-.924-6.378-2.168l-.9 5.555C6.203 22.99 8.977 24 12.165 24c2.469 0 4.565-.624 6.041-1.708 1.564-1.146 2.348-2.95 2.348-5.158 0-4.162-2.554-5.898-6.578-6.984z" />
+                  </svg>
+                  <span>Powered by Stripe</span>
+                </div>
                 <div className="flex space-x-4">
-                  <a href="#" className="hover:text-slate-700 dark:hover:text-slate-300">Terms</a>
-                  <a href="#" className="hover:text-slate-700 dark:hover:text-slate-300">Privacy</a>
+                  <a 
+                    href="https://stripe.com/legal/end-users" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                  >
+                    Terms
+                  </a>
+                  <a 
+                    href="https://stripe.com/privacy" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                  >
+                    Privacy
+                  </a>
+                  <a 
+                    href="https://support.stripe.com" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                  >
+                    Support
+                  </a>
                 </div>
               </div>
             </div>
@@ -470,6 +497,32 @@ export function MinatoProCheckout(props: MinatoProCheckoutProps) {
                 </svg>
                 <span>Powered by Stripe • Secure Payment Processing</span>
               </div>
+              <div className="flex items-center justify-center space-x-4 mt-2 text-xs">
+                <a 
+                  href="https://stripe.com/legal/end-users" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                >
+                  Terms
+                </a>
+                <a 
+                  href="https://stripe.com/privacy" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                >
+                  Privacy
+                </a>
+                <a 
+                  href="https://stripe.com/docs" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                >
+                  Docs
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -514,7 +567,7 @@ export function MinatoProCheckout(props: MinatoProCheckoutProps) {
                 }}
                 className="w-full px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors font-semibold"
               >
-                Back to Subscription
+                Back to Minato
               </button>
             </div>
           </div>
