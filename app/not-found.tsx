@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,10 +8,19 @@ import { Home, ArrowLeft, Search } from 'lucide-react';
 
 export default function NotFound() {
   const router = useRouter();
+  const [currentPath, setCurrentPath] = useState('');
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    // Log the 404 error for analytics
-    console.warn('[404] Page not found:', window.location.pathname);
+    // Mark as client-side rendered
+    setIsClient(true);
+    
+    // Set current path only on client side
+    if (typeof window !== 'undefined') {
+      setCurrentPath(window.location.pathname);
+      // Log the 404 error for analytics
+      console.warn('[404] Page not found:', window.location.pathname);
+    }
   }, []);
 
   return (
@@ -30,7 +39,7 @@ export default function NotFound() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            Erreur 404 - {window.location.pathname}
+            Erreur 404 - {isClient ? currentPath || 'Page inconnue' : 'Page inconnue'}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
             <Button

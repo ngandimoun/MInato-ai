@@ -12,8 +12,10 @@ interface ErrorProps {
 
 export default function Error({ error, reset }: ErrorProps) {
   useEffect(() => {
-    // Log the error for debugging
-    console.error('[Error] Application error:', error);
+    // Log the error for debugging (only on client side)
+    if (typeof window !== 'undefined') {
+      console.error('[Error] Application error:', error);
+    }
   }, [error]);
 
   return (
@@ -46,7 +48,11 @@ export default function Error({ error, reset }: ErrorProps) {
               Réessayer
             </Button>
             <Button
-              onClick={() => window.location.href = '/'}
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.location.href = '/';
+                }
+              }}
               className="flex items-center gap-2"
             >
               <Home className="h-4 w-4" />

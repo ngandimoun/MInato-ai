@@ -50,6 +50,15 @@
 - Mis à jour la configuration `.npmrc` pour ne pas exclure les dépendances nécessaires
 - Ajouté une vérification des dépendances critiques dans le script de test
 
+### 7. ✅ Erreur critique : `window is not defined` lors de la génération statique
+**Erreur :** `ReferenceError: window is not defined` dans la page `not-found.tsx`
+
+**Solution appliquée :**
+- Ajouté une vérification `typeof window !== 'undefined'` avant d'utiliser `window`
+- Utilisé `useState` et `useEffect` pour gérer le rendu côté client
+- Ajouté un état `isClient` pour différencier le rendu serveur du rendu client
+- Sécurisé tous les accès à l'objet `window` dans les pages d'erreur
+
 ## Fichiers modifiés
 
 ### 1. `app/subscription/checkout/page.tsx`
@@ -132,7 +141,51 @@ Page 404 personnalisée pour éviter les problèmes de génération statique.
 ### 7. `app/error.tsx` (nouveau)
 Page d'erreur globale pour gérer les erreurs 500 et autres erreurs.
 
-### 8. `vercel.json` (optimisé)
+### 8. `app/not-found.tsx` (corrigé)
+```tsx
+// Avant
+<div className="text-sm text-gray-500 dark:text-gray-400">
+  Erreur 404 - {window.location.pathname}
+</div>
+
+// Après
+const [isClient, setIsClient] = useState(false);
+const [currentPath, setCurrentPath] = useState('');
+
+useEffect(() => {
+  setIsClient(true);
+  if (typeof window !== 'undefined') {
+    setCurrentPath(window.location.pathname);
+    console.warn('[404] Page not found:', window.location.pathname);
+  }
+}, []);
+
+<div className="text-sm text-gray-500 dark:text-gray-400">
+  Erreur 404 - {isClient ? currentPath || 'Page inconnue' : 'Page inconnue'}
+</div>
+```
+
+### 9. `app/error.tsx` (corrigé)
+```tsx
+// Avant
+console.error('[Error] Application error:', error);
+onClick={() => window.location.href = '/'}
+
+// Après
+useEffect(() => {
+  if (typeof window !== 'undefined') {
+    console.error('[Error] Application error:', error);
+  }
+}, [error]);
+
+onClick={() => {
+  if (typeof window !== 'undefined') {
+    window.location.href = '/';
+  }
+}}
+```
+
+### 10. `vercel.json` (optimisé)
 ```json
 {
   "buildCommand": "npm run build:clean",
@@ -149,7 +202,7 @@ Page d'erreur globale pour gérer les erreurs 500 et autres erreurs.
 }
 ```
 
-### 9. `package.json` (scripts ajoutés)
+### 11. `package.json` (scripts ajoutés)
 ```json
 {
   "scripts": {
@@ -161,10 +214,10 @@ Page d'erreur globale pour gérer les erreurs 500 et autres erreurs.
 }
 ```
 
-### 10. `scripts/fix-dependencies.js` (nouveau)
+### 12. `scripts/fix-dependencies.js` (nouveau)
 Script pour identifier et résoudre les dépendances problématiques.
 
-### 11. `scripts/test-build.js` (mis à jour)
+### 13. `scripts/test-build.js` (mis à jour)
 Script pour tester le build localement avec vérification des dépendances critiques.
 
 ## Vérifications effectuées
@@ -181,12 +234,17 @@ Script pour tester le build localement avec vérification des dépendances criti
 - Pas de dépendances problématiques
 
 ✅ **Pages d'erreur personnalisées :**
-- `app/not-found.tsx` - ✅ Page 404 personnalisée
-- `app/error.tsx` - ✅ Page d'erreur globale
+- `app/not-found.tsx` - ✅ Page 404 personnalisée avec gestion SSR
+- `app/error.tsx` - ✅ Page d'erreur globale avec gestion SSR
 
 ✅ **Dépendances critiques réorganisées :**
 - `critters`, `postcss`, `tailwindcss`, `typescript`, `cross-env` dans dependencies
 - Vérification automatique des dépendances critiques
+
+✅ **Gestion SSR des pages d'erreur :**
+- Vérification `typeof window !== 'undefined'` avant utilisation
+- États `useState` pour gérer le rendu côté client
+- Pas d'accès direct à `window` lors du rendu serveur
 
 ## Commandes pour résoudre le problème
 
@@ -222,6 +280,9 @@ npm run build
 6. **Éviter les imports complexes dans le middleware** (Edge Runtime limitations)
 7. **Garder les dépendances critiques dans `dependencies`** (pas `devDependencies`)
 8. **Créer des pages d'erreur personnalisées** pour éviter les problèmes de génération statique
+9. **Toujours vérifier `typeof window !== 'undefined'`** avant d'utiliser l'objet `window`
+10. **Utiliser `useState` et `useEffect`** pour gérer le rendu côté client dans les pages d'erreur
+11. **Éviter les accès directs à `window`** lors du rendu serveur (SSR)
 
 ## Notes importantes
 
@@ -231,4 +292,7 @@ npm run build
 - Le middleware Edge Runtime a des limitations sur les modules qu'il peut importer
 - Les nouvelles options npm (`omit=dev`, `include=optional`) remplacent les anciennes options dépréciées
 - Le module `critters` est nécessaire pour l'optimisation CSS lors de la génération des pages statiques
-- Les pages d'erreur personnalisées améliorent l'expérience utilisateur et évitent les erreurs de build 
+- Les pages d'erreur personnalisées améliorent l'expérience utilisateur et évitent les erreurs de build
+- L'objet `window` n'est pas disponible lors du rendu côté serveur (SSR), toujours vérifier `typeof window !== 'undefined'`
+- Les pages d'erreur doivent être compatibles avec le rendu côté serveur pour éviter les erreurs de génération statique
+- Utiliser `useState` et `useEffect` pour gérer les interactions côté client dans les pages d'erreur 
