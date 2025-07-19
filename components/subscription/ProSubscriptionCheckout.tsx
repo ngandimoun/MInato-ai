@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Check, Crown, Zap, Users, Video, Image, MessageSquare, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { logger } from '@/memory-framework/config';
-import { STRIPE_CONFIG } from '@/lib/constants';
+import { STRIPE_CONFIG, MINATO_PRO_FEATURES } from '@/lib/constants';
 
 // Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
@@ -132,56 +132,22 @@ function CheckoutForm({ onSuccess, onCancel, returnUrl }: ProSubscriptionCheckou
     }
   };
 
+  // Use features from constants for better maintainability
   const featureCategories = [
     {
-      title: "Core Features",
+      title: MINATO_PRO_FEATURES.core.title,
       icon: <MessageSquare className="w-5 h-5 text-blue-500" />,
-      features: [
-        {
-          title: "Unlimited AI Chat Conversations",
-          description: "Chat without limits with advanced AI"
-        },
-        {
-          title: "Persistent Memory & Conversation History",
-          description: "Your conversations are remembered and saved"
-        }
-      ]
+      features: MINATO_PRO_FEATURES.core.features
     },
     {
-      title: "Creation Hub",
+      title: MINATO_PRO_FEATURES.creation.title,
       icon: <Zap className="w-5 h-5 text-purple-500" />,
-      features: [
-        {
-          title: "AI-Powered Lead Generation Tools",
-          description: "Generate business leads automatically"
-        },
-        {
-          title: "30 AI-Generated Images per Month",
-          description: "Create stunning visuals with AI"
-        },
-        {
-          title: "20 AI-Generated Videos per Month",
-          description: "Produce professional videos instantly"
-        }
-      ]
+      features: MINATO_PRO_FEATURES.creation.features
     },
     {
-      title: "Premium Features",
+      title: MINATO_PRO_FEATURES.premium.title,
       icon: <Crown className="w-5 h-5 text-yellow-500" />,
-      features: [
-        {
-          title: "Multiplayer Games & Social Features",
-          description: "Connect and play with other users"
-        },
-        {
-          title: "20 Recording Sessions",
-          description: "Record and analyze your conversations"
-        },
-        {
-          title: "Priority Support & Faster Response Times",
-          description: "Get help when you need it most"
-        }
-      ]
+      features: MINATO_PRO_FEATURES.premium.features
     }
   ];
 

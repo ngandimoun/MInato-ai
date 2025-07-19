@@ -92,8 +92,12 @@ export function SubscriptionManager() {
     setProcessing(true);
     
     try {
-      // Redirect to new Stripe Elements checkout page
-      window.location.href = '/subscription/checkout';
+      // Get current page URL to redirect back after payment
+      const currentUrl = window.location.href;
+      const returnUrl = encodeURIComponent(currentUrl);
+      
+      // Redirect to new Stripe Elements checkout page with return URL
+      window.location.href = `/subscription/checkout?return_url=${returnUrl}`;
     } catch (error: any) {
       toast({
         title: 'Error',

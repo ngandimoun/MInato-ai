@@ -67,14 +67,14 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateCheckou
       },
     });
 
-    // Calculate pricing
-    const monthlyPriceCents = 2500; // $25.00
-    const annualPriceCents = monthlyPriceCents * 12 * 0.8; // 20% discount
+    // Calculate pricing from constants
+    const monthlyPriceCents = 2500; // $25.00 from STRIPE_CONFIG
+    const annualPriceCents = monthlyPriceCents * 12 * 0.8; // 20% discount for annual
     
     // Create or get the product
     let product: Stripe.Product;
     const { data: existingProducts } = await stripe.products.list({
-      limit: 1,
+      limit: 100,
       active: true
     });
     
@@ -83,6 +83,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateCheckou
     
     if (minatoProProduct) {
       product = minatoProProduct;
+      logger.info(`[create-checkout-session] Using existing product: ${product.id}`);
     } else {
       product = await stripe.products.create({
         name: 'Minato Pro Subscription',
@@ -92,6 +93,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateCheckou
           created_via: 'minato_api'
         }
       });
+      logger.info(`[create-checkout-session] Created new product: ${product.id}`);
     }
 
     // Create or get the price
@@ -100,14 +102,22 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateCheckou
     
     let price: Stripe.Price;
     const { data: existingPrices } = await stripe.prices.list({
-      limit: 1,
+      limit: 100,
       active: true,
       product: product.id,
       recurring: { interval: interval as 'month' | 'year' }
     });
     
-    if (existingPrices.length > 0) {
-      price = existingPrices[0];
+    // Find exact price match
+    const exactPrice = existingPrices.find(p => 
+      p.unit_amount === priceAmount && 
+      p.currency === 'usd' && 
+      p.recurring?.interval === interval
+    );
+    
+    if (exactPrice) {
+      price = exactPrice;
+      logger.info(`[create-checkout-session] Using existing price: ${price.id}`);
     } else {
       price = await stripe.prices.create({
         product: product.id,
@@ -121,47 +131,53 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateCheckou
           created_via: 'minato_api'
         }
       });
+      logger.info(`[create-checkout-session] Created new price: ${price.id}`);
     }
 
-    // Create checkout session
-    const sessionParams: Stripe.Checkout.SessionCreateParams = {
-      mode: 'subscription',
+    // Create or get customer
+    let customer: Stripe.Customer;
+    const { data: existingCustomers } = await stripe.customers.list({
+      email: body.email,
+      limit: 1
+    });
+    
+    if (existingCustomers.length > 0) {
+      customer = existingCustomers[0];
+      logger.info(`[create-checkout-session] Using existing customer: ${customer.id}`);
+    } else {
+      customer = await stripe.customers.create({
+        email: body.email,
+        metadata: {
+          minato_user_id: userId
+        }
+      });
+      logger.info(`[create-checkout-session] Created new customer: ${customer.id}`);
+    }
+
+    // Create payment intent for subscription
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: priceAmount,
+      currency: 'usd',
+      customer: customer.id,
       payment_method_types: ['card'],
-      line_items: [
-        {
-          price: price.id,
-          quantity: 1,
-        },
-      ],
-      customer_email: body.email,
-      client_reference_id: userId,
       metadata: {
         subscription_type: 'pro_upgrade',
         minato_user_id: userId,
         billing_interval: interval,
-        created_via: 'minato_checkout_session'
+        price_id: price.id,
+        customer_email: body.email
       },
-      success_url: body.returnUrl || `${process.env.NEXT_PUBLIC_BASE_URL || 'https://minato.ai'}/dashboard?upgraded=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://minato.ai'}/subscription?cancelled=true`,
-      allow_promotion_codes: true,
-      billing_address_collection: 'auto',
-      payment_method_collection: 'always',
-      subscription_data: {
-        metadata: {
-          minato_user_id: userId,
-          subscription_type: 'pro_upgrade',
-          billing_interval: interval
-        }
-      }
-    };
+      setup_future_usage: 'off_session', // For future subscription payments
+      receipt_email: body.email,
+      description: `Minato Pro ${interval}ly subscription`,
+    });
 
-    const checkoutSession = await stripe.checkout.sessions.create(sessionParams);
-
-    logger.info(`[create-checkout-session] Created checkout session ${checkoutSession.id} for user ${userId}`);
+    logger.info(`[create-checkout-session] Created payment intent ${paymentIntent.id} for user ${userId} with amount ${priceAmount} cents`);
 
     return NextResponse.json({
       success: true,
-      clientSecret: checkoutSession.client_secret || undefined
+      clientSecret: paymentIntent.client_secret || undefined,
+      paymentIntentId: paymentIntent.id
     });
 
   } catch (error: any) {

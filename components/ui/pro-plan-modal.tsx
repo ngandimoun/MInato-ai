@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { BorderBeam } from "../magicui/border-beam"
 import { useToast } from "@/hooks/use-toast"
-import { STRIPE_CONFIG } from "@/lib/constants"
+import { STRIPE_CONFIG, MINATO_PRO_FEATURES } from "@/lib/constants"
 
 interface ProPlanModalProps {
     isOpen: boolean
@@ -18,29 +18,19 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
     const [isLoading, setIsLoading] = useState(false)
     const { toast } = useToast()
 
+    // Use features from constants for better maintainability
     const featureCategories = [
         {
-            title: "Core Features",
-            features: [
-                "Unlimited AI Chat Conversations",
-                "Persistent Memory & Conversation History",
-            ]
+            title: MINATO_PRO_FEATURES.core.title,
+            features: MINATO_PRO_FEATURES.core.features.map(f => f.title)
         },
         {
-            title: "Creation Hub",
-            features: [
-                "AI-Powered Lead Generation Tools",
-                "30 AI-Generated Images per Month",
-                "20 AI-Generated Videos per Month"
-            ]
+            title: MINATO_PRO_FEATURES.creation.title,
+            features: MINATO_PRO_FEATURES.creation.features.map(f => f.title)
         },
         {
-            title: "Premium Features",
-            features: [
-                "Multiplayer Games & Social Features",
-                "20 Recording Sessions",
-                "Priority Support & Faster Response Times"
-            ]
+            title: MINATO_PRO_FEATURES.premium.title,
+            features: MINATO_PRO_FEATURES.premium.features.map(f => f.title)
         }
     ]
 
@@ -48,8 +38,12 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
         setIsLoading(true)
         
         try {
-            // Redirect to new Stripe Elements checkout page
-            window.location.href = '/subscription/checkout'
+            // Get current page URL to redirect back after payment
+            const currentUrl = window.location.href;
+            const returnUrl = encodeURIComponent(currentUrl);
+            
+            // Redirect to new Stripe Elements checkout page with return URL
+            window.location.href = `/subscription/checkout?return_url=${returnUrl}`
         } catch (error: any) {
             console.error('Error redirecting to checkout:', error)
             toast({

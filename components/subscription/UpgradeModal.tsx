@@ -22,8 +22,12 @@ export function UpgradeModal({ isOpen, onClose, onUpgrade, feature, reason }: Up
   if (!isOpen) return null;
 
   const handleUpgrade = async () => {
-    // Redirect to custom checkout page instead of using API
-    window.location.href = '/subscription/checkout';
+    // Get current page URL to redirect back after payment
+    const currentUrl = window.location.href;
+    const returnUrl = encodeURIComponent(currentUrl);
+    
+    // Redirect to custom checkout page with return URL
+    window.location.href = `/subscription/checkout?return_url=${returnUrl}`;
   };
 
   const getFeatureIcon = (featureName: string) => {

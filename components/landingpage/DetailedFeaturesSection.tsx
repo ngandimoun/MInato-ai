@@ -5,6 +5,7 @@ import {
   Palette, BarChart3, Wrench, Gamepad2, Mic, Brain,
   ImageIcon, VideoIcon, FileText, Bot, X 
 } from "lucide-react";
+import { MINATO_PRO_FEATURES } from '@/lib/constants';
 
 interface MediaRendererProps {
   src?: string | null;
@@ -220,7 +221,7 @@ const DetailedFeaturesSection = () => {
     },
     { 
       icon: Palette, 
-      title: "Creation Hub", 
+      title: MINATO_PRO_FEATURES.creation.title, 
       description: "AI-powered image and video generation, content creation tools, and advanced editing capabilities.", 
       mediaUrl: null, // Pas de média ici, le carrousel a ses propres données
       gradientClass: "bg-gradient-to-br from-pink-500 to-rose-500", 
@@ -300,13 +301,13 @@ const DetailedFeaturesSection = () => {
                   {feature.title.includes('Memory') && <><span className="px-3 py-1 bg-secondary/20 text-secondary-foreground rounded-full text-sm">Semantic Search</span><span className="px-3 py-1 bg-secondary/20 text-secondary-foreground rounded-full text-sm">Graph Database</span></>}
                   {feature.title.includes('Tools') && <><span className="px-3 py-1 bg-secondary/20 text-secondary-foreground rounded-full text-sm">Lead Generation</span><span className="px-3 py-1 bg-secondary/20 text-secondary-foreground rounded-full text-sm">Calendar Sync</span></>}
                   {feature.title.includes('Gaming') && <><span className="px-3 py-1 bg-secondary/20 text-secondary-foreground rounded-full text-sm">Multiplayer</span><span className="px-3 py-1 bg-secondary/20 text-secondary-foreground rounded-full text-sm">AI Coaching</span></>}
-                  {feature.title.includes('Creation') && <><span className="px-3 py-1 bg-secondary/20 text-secondary-foreground rounded-full text-sm">Image Generation</span><span className="px-3 py-1 bg-secondary/20 text-secondary-foreground rounded-full text-sm">Video Creation</span></>}
+                  {feature.title === MINATO_PRO_FEATURES.creation.title && <><span className="px-3 py-1 bg-secondary/20 text-secondary-foreground rounded-full text-sm">Image Generation</span><span className="px-3 py-1 bg-secondary/20 text-secondary-foreground rounded-full text-sm">Video Creation</span></>}
                   {feature.title.includes('Business') && <><span className="px-3 py-1 bg-secondary/20 text-secondary-foreground rounded-full text-sm">Analytics</span><span className="px-3 py-1 bg-secondary/20 text-secondary-foreground rounded-full text-sm">Python Engine</span></>}
                 </div>
               </div>
 
               <div className={`${feature.reverse ? 'lg:col-start-1' : ''}`}>
-                {feature.title === "Creation Hub" ? (
+                {feature.title === MINATO_PRO_FEATURES.creation.title ? (
                   <div className="w-full h-[450px] md:h-80 rounded-2xl shadow-card overflow-hidden">
                     <InteractiveCarousel items={creationHubItems} />
                   </div>
