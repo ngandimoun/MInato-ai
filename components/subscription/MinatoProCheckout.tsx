@@ -94,22 +94,6 @@ function CheckoutForm({ onSuccess, onCancel, returnUrl }: MinatoProCheckoutProps
         elements,
         confirmParams: {
           return_url: returnUrl || `${window.location.origin}/payment-success?payment_intent={PAYMENT_INTENT_ID}&return_url=${encodeURIComponent(window.location.href)}`,
-          payment_method_data: {
-            billing_details: {
-              email: email.trim(),
-              // ✅ CORRECTION: Fournir les champs désactivés dans PaymentElement
-              phone: '',
-              name: '',
-              address: {
-                line1: '',
-                line2: '',
-                city: '',
-                state: '',
-                postal_code: '',
-                country: ''
-              }
-            },
-          },
         },
         redirect: 'if_required',
       });

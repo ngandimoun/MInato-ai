@@ -99,22 +99,6 @@ function CheckoutForm({ onSuccess, onCancel, returnUrl }: ProSubscriptionCheckou
         clientSecret,
         confirmParams: {
           return_url: returnUrl || `${window.location.origin}/subscription?success=true`,
-          payment_method_data: {
-            billing_details: {
-              email,
-              // ✅ CORRECTION: Fournir les champs désactivés dans PaymentElement
-              phone: '',
-              name: '',
-              address: {
-                line1: '',
-                line2: '',
-                city: '',
-                state: '',
-                postal_code: '',
-                country: ''
-              }
-            },
-          },
         },
       });
 
