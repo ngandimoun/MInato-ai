@@ -1139,7 +1139,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                   transition={{ duration: 0.3 }}
                   className="h-full flex items-center justify-center p-4 sm:p-6"
                 >
-                  <Card className="max-w-md w-full glass-card">
+                  <Card className=" h-[430px] w-full glass-card">
                     <CardContent className="p-6 sm:p-8 text-center">
                       <motion.div
                         initial={{ scale: 0 }}
@@ -1193,7 +1193,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                         </div>
                       </motion.div>
                       
-                      <motion.div
+                      {/* <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.6 }}
@@ -1207,7 +1207,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                         >
                           Upgrade to Pro
                         </Button>
-                      </motion.div>
+                      </motion.div> */}
                     </CardContent>
                   </Card>
                 </motion.div>
