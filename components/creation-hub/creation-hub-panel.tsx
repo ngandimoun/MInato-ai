@@ -1139,7 +1139,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                   transition={{ duration: 0.3 }}
                   className="h-full flex items-center justify-center p-4 sm:p-6"
                 >
-                  <Card className=" h-[430px] w-full glass-card">
+                  <Card className="max-w-md h-[430px] w-full glass-card">
                     <CardContent className="p-6 sm:p-8 text-center">
                       <motion.div
                         initial={{ scale: 0 }}
