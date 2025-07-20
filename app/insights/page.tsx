@@ -99,13 +99,13 @@ export default function InsightsPage() {
   };
 
   return (
-    <main className="flex h-screen flex-col bg-background overflow-hidden">
+    <main className="flex min-h-screen flex-col bg-background">
       {/* Enhanced background */}
       <div className="fixed inset-0 bg-gradient-to-br from-background via-background/80 to-primary/5 z-[-1]" />
       
       <Header currentView={currentView} onViewChange={handleViewChange} />
 
-      <div className="flex-1 container max-w-7xl mx-auto px-4 py-6 pt-16 md:pt-20 overflow-hidden">
+      <div className="flex-1 container max-w-7xl mx-auto px-4 py-6 pt-16 md:pt-20">
         {/* Enhanced Header Section */}
         <div className="mb-8 text-center">
           <div className="flex items-center justify-center gap-3 mb-4">

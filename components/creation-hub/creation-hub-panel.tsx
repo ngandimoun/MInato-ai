@@ -1,5 +1,3 @@
-//components/creation-hub/creation-hub-panel.tsx
-
 "use client";
 
 import React, { useState, useCallback, useEffect } from "react";
@@ -19,8 +17,7 @@ import {
   Upload,
   StopCircle,
   AlertCircle,
-  Globe,
-  Crown
+  Globe
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,14 +46,11 @@ import { ImageEditorModal } from "./image-editor-modal";
 import { VideoGenerator } from "./video-generator";
 import CreateVid from "./create-vid";
 import { AILeadsInterface } from "./ai-leads-interface";
-import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
+import { FeatureGuard } from "@/components/subscription/feature-guard";
 import { useTranslation } from "@/hooks/useTranslation";
 import { CATEGORY_INFO, CATEGORY_FORMS } from './category-types';
-import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
-import { UpgradeModal } from '@/components/subscription/UpgradeModal';
-import { useUserPlan } from '@/hooks/useUserPlan';
-import { UpgradeToast } from '@/components/ui/upgrade-toast';
-import { ProPlanModal } from '@/components/ui/pro-plan-modal';
+import { useSubscription } from '@/hooks/use-subscription';
+import { ProPlanModal } from "@/components/ui/pro-plan-modal";
 
 // Helper function to convert File to base64
 async function fileToBase64(file: File): Promise<string> {
@@ -104,12 +98,6 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
   // Add language state
   const [language, setLanguage] = useState<string>("en");
   const { translateText, isTranslating, clearCache } = useTranslation();
-  const { callTrialProtectedApi } = useTrialProtectedApiCall();
-  const { handleSubscriptionError, isUpgradeModalOpen, subscriptionError, handleUpgrade, closeUpgradeModal } = useSubscriptionGuard();
-  const { userPlan, loading: planLoading } = useUserPlan();
-  const [showUpgradeToast, setShowUpgradeToast] = useState(false);
-  const [upgradeToastMessage, setUpgradeToastMessage] = useState("");
-  const [isProPlanModalOpen, setIsProPlanModalOpen] = useState(false);
   
   // Add translated UI text state
   const [translatedText, setTranslatedText] = useState({
@@ -146,6 +134,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
   const [selectedCategory, setSelectedCategory] = useState<ImageCategory | null>(null);
   const [showCategorySelector, setShowCategorySelector] = useState(true);
   const [categoryFormValues, setCategoryFormValues] = useState<CategoryFormValues>({});
+  const [isProPlanModalOpen, setIsProPlanModalOpen] = useState(false);
 
   // Add state to track when translations are complete
   const [translationsLoaded, setTranslationsLoaded] = useState(false);
@@ -564,6 +553,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
     onSuccess: (image) => {
       // Add to both conversation and user images
       addImage(image);
+      addUserImage(image);
       toast({
         title: "Image Generated!",
         description: "Your image has been created successfully.",
@@ -575,11 +565,6 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
         description: HubUtils.Error.createFriendlyMessage(error),
         variant: "destructive",
       });
-    },
-    onUpgradeRequired: (error) => {
-      // Afficher le toast personnalisé UpgradeToast
-      setUpgradeToastMessage("Image generation is a Pro feature! Upgrade now to unlock 30 AI-generated images per month with stunning visuals.");
-      setShowUpgradeToast(true);
     }
   });
 
@@ -716,50 +701,36 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
     if (!video.video_url) return;
 
     try {
-      await callTrialProtectedApi(
-        async () => {
-          const response = await fetch(video.video_url);
-          
-          if (!response.ok) {
-            throw new Error(`Failed to fetch video: ${response.statusText}`);
-          }
+      const response = await fetch(video.video_url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch video: ${response.statusText}`);
+      }
 
-          const blob = await response.blob();
-          const downloadUrl = window.URL.createObjectURL(blob);
-          
-          // Generate filename based on video data
-          const timestamp = new Date(video.created_at).toISOString().split('T')[0];
-          const sanitizedText = video.original_text 
-            ? video.original_text.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase().substring(0, 30)
-            : 'video';
-          const filename = `video-${timestamp}-${sanitizedText}-${video.id.slice(-6)}.mp4`;
-          
-          const link = document.createElement('a');
-          link.href = downloadUrl;
-          link.download = filename;
-          document.body.appendChild(link);
-          link.click();
-          
-          // Cleanup
-          window.URL.revokeObjectURL(downloadUrl);
-          document.body.removeChild(link);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      
+      // Generate filename based on video data
+      const timestamp = new Date(video.created_at).toISOString().split('T')[0];
+      const sanitizedText = video.original_text 
+        ? video.original_text.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase().substring(0, 30)
+        : 'video';
+      const filename = `video-${timestamp}-${sanitizedText}-${video.id.slice(-6)}.mp4`;
+      
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(link);
 
-          return { filename };
-        },
-        (result) => {
-          toast({
-            title: "Download Started",
-            description: `Downloading ${result.filename}`,
-          });
-        },
-        (error) => {
-          toast({
-            title: "Download Failed",
-            description: error instanceof Error ? error.message : "Failed to download video",
-            variant: "destructive",
-          });
-        }
-      );
+      toast({
+        title: "Download Started",
+        description: `Downloading ${filename}`,
+      });
     } catch (error) {
       toast({
         title: "Download Failed",
@@ -767,7 +738,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
         variant: "destructive",
       });
     }
-  }, [callTrialProtectedApi]);
+  }, []);
 
   const handleImageClick = useCallback((image: GeneratedImage) => {
     setSelectedImage(image);
@@ -849,6 +820,17 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
 
   // Tab selection handler
   const handleTabChange = (value: string) => {
+    // Bloquer l'accès au menu "Gen im" pour les utilisateurs en essai gratuit
+    if (value === 'generate' && permissions && !permissions.generate_image) {
+      toast({
+        title: "Pro Feature Required",
+        description: "Image generation is only available with the Pro plan. Click on 'Plan' in the header to upgrade to Pro.",
+        duration: 5000,
+        variant: "destructive",
+      });
+      return; // Ne pas changer d'onglet
+    }
+    
     setActiveTab(value);
     
     // Refresh videos when switching to gallery tab
@@ -857,22 +839,19 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
     }
   };
 
-  // Fonctions pour gérer l'upgrade
-  const handleUpgradeClick = () => {
-    setShowUpgradeToast(false);
-    setIsProPlanModalOpen(true);
-  };
+  const { permissions, loading: subscriptionLoading } = useSubscription();
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
-  const handleUpgradeToast = (message: string) => {
-    setUpgradeToastMessage(message);
-    setShowUpgradeToast(true);
-    // Auto-fermer après 5 secondes
-    setTimeout(() => setShowUpgradeToast(false), 5000);
-  };
+  // Debug log for permissions
+  // Marquer les permissions comme chargées une fois que subscriptionLoading est false
+  useEffect(() => {
+    if (!subscriptionLoading && permissions !== null) {
+      setPermissionsLoaded(true);
+    }
+  }, [permissions, subscriptionLoading]);
 
-  const closeUpgradeToast = () => {
-    setShowUpgradeToast(false);
-  };
+  // Ne pas afficher le bouton tant que les permissions ne sont pas chargées
+  const shouldShowGenerateButton = permissionsLoaded && !subscriptionLoading;
 
   return (
     <motion.div
@@ -915,7 +894,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           <motion.div
-            className="p-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-sm relative overflow-hidden"
+            className="p-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl relative overflow-hidden"
             whileHover={{ 
               scale: 1.05,
               rotate: [0, -5, 5, 0],
@@ -956,11 +935,6 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
               transition={{ duration: 0.5, delay: 0.4 }}
             >
               {translatedText.subtitle}
-              {userPlan && (
-                <span className="ml-2 text-xs bg-muted px-2 py-1 rounded">
-                  Plan: {userPlan.planType} {userPlan.isFreeTrial ? '' : ''} {userPlan.isPro ? '' : ''}
-                </span>
-              )}
             </motion.p>
           </div>
         </motion.div>
@@ -971,7 +945,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
           transition={{ duration: 0.5, delay: 0.3 }}
         >
           {/* Language Selector */}
-          {/* <motion.div
+          <motion.div
             whileHover={{ scale: 1.02 }}
             transition={{ duration: 0.2 }}
           >
@@ -1043,8 +1017,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                 </AnimatePresence>
               </SelectContent>
             </Select>
-          </motion.div> */}
-
+          </motion.div>
           <motion.div
             whileHover={{ scale: 1.1, rotate: 90 }}
             whileTap={{ scale: 0.9 }}
@@ -1085,56 +1058,160 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
               // { value: "createvid", icon: Wand2, label: translatedText.create, shortLabel: translatedText.create },
               { value: "gallery", icon: ImageIcon, label: translatedText.gallery, shortLabel: translatedText.gallery },
               { value: "ai-leads", icon: MessageSquare, label: translatedText.leads, shortLabel: translatedText.leads },
-            ].map((tab, index) => (
-              <motion.div
-                key={tab.value}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.6 + index * 0.1 }}
-                whileHover={{ y: -1 }}
-              >
-                <TabsTrigger 
-                  value={tab.value}
-                  className="relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation hover:bg-muted/50"
+            ].map((tab, index) => {
+              // Vérifier si l'onglet "Gen im" est inaccessible
+              const isGenerateTab = tab.value === "generate";
+              const isGenerateDisabled = isGenerateTab && permissions ? !permissions.generate_image : false;
+              
+              return (
+                <motion.div
+                  key={tab.value}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.6 + index * 0.1 }}
+                  whileHover={{ y: isGenerateDisabled ? 0 : -1 }}
                 >
-                  <motion.div
-                    className="flex items-center gap-1 sm:gap-2"
-                    whileHover={{ scale: 1.05 }}
-                    transition={{ duration: 0.2 }}
+                  <TabsTrigger 
+                    value={tab.value}
+                    disabled={isGenerateDisabled}
+                    className={cn(
+                      "relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation hover:bg-muted/50",
+                      isGenerateDisabled && "opacity-50 cursor-not-allowed hover:bg-transparent"
+                    )}
                   >
                     <motion.div
-                      animate={{ 
-                        rotate: activeTab === tab.value ? [0, 360] : 0,
-                        scale: activeTab === tab.value ? [1, 1.1, 1] : 1
-                      }}
-                      transition={{ 
-                        duration: activeTab === tab.value ? 2 : 0.3,
-                        repeat: activeTab === tab.value ? Infinity : 0,
-                        ease: "easeInOut"
-                      }}
+                      className="flex items-center gap-1 sm:gap-2"
+                      whileHover={{ scale: isGenerateDisabled ? 1 : 1.05 }}
+                      transition={{ duration: 0.2 }}
                     >
-                      <tab.icon className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <motion.div
+                        animate={{ 
+                          rotate: activeTab === tab.value ? [0, 360] : 0,
+                          scale: activeTab === tab.value ? [1, 1.1, 1] : 1
+                        }}
+                        transition={{ 
+                          duration: activeTab === tab.value ? 2 : 0.3,
+                          repeat: activeTab === tab.value ? Infinity : 0,
+                          ease: "easeInOut"
+                        }}
+                      >
+                        <tab.icon className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </motion.div>
+                      <span className="hidden xs:inline">{tab.label}</span>
+                      <span className="text-[10px] md:inline xs:hidden">{tab.shortLabel}</span>
+                      {/* Indicateur Pro pour l'onglet Gen im */}
+                      {isGenerateTab && isGenerateDisabled && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="ml-1"
+                        >
+                          <Badge variant="secondary" className="text-xs px-1 py-0 h-4">
+                            PRO
+                          </Badge>
+                        </motion.div>
+                      )}
                     </motion.div>
-                    {/* <span className="hidden">{tab.label}</span> */}
-                    <span className="text-[10px] md:inline xs:hidden">{tab.shortLabel}</span>
-                  </motion.div>
-                  {activeTab === tab.value && (
-                    <motion.div
-                      className="absolute inset-0 bg-primary/5 rounded-sm -z-10"
-                      layoutId="activeTabBackground"
-                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                    />
-                  )}
-                </TabsTrigger>
-              </motion.div>
-            ))}
+                    {activeTab === tab.value && (
+                      <motion.div
+                        className="absolute inset-0 bg-primary/5 rounded-md -z-10"
+                        layoutId="activeTabBackground"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                  </TabsTrigger>
+                </motion.div>
+              );
+            })}
           </TabsList>
         </motion.div>
-        
+
         <div className="flex-1 overflow-hidden">
           <TabsContent value="generate" className="mt-0 h-full">
             <AnimatePresence mode="wait">
-              {showCategorySelector ? (
+              {/* Vérifier si l'utilisateur a accès à la génération d'images */}
+              {permissions && !permissions.generate_image ? (
+                <motion.div
+                  key="restricted-access"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="h-full flex items-center justify-center p-4 sm:p-6"
+                >
+                  <Card className="max-w-md w-full glass-card">
+                    <CardContent className="p-6 sm:p-8 text-center">
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 0.2 }}
+                        className="w-16 h-16 mx-auto mb-6 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center"
+                      >
+                        <Wand2 className="w-8 h-8 text-white" />
+                      </motion.div>
+                      
+                      <motion.h2
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="text-xl sm:text-2xl font-bold mb-3 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent"
+                      >
+                        Pro Feature Required
+                      </motion.h2>
+                      
+                      <motion.p
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="text-muted-foreground mb-6 leading-relaxed"
+                      >
+                        Image generation with AI-powered category tools is only available with the Pro plan. 
+                        Upgrade to unlock specialized creation tools and enhanced prompts.
+                      </motion.p>
+                      
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                        className="space-y-3"
+                      >
+                        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                          <div className="w-2 h-2 bg-purple-500 rounded-full" />
+                          <span>Social Media Posts</span>
+                        </div>
+                        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                          <span>Logo & Brand Kit</span>
+                        </div>
+                        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                          <div className="w-2 h-2 bg-green-500 rounded-full" />
+                          <span>Website & App UI</span>
+                        </div>
+                        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                          <div className="w-2 h-2 bg-orange-500 rounded-full" />
+                          <span>And 7+ more categories</span>
+                        </div>
+                      </motion.div>
+                      
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.6 }}
+                        className="mt-6"
+                      >
+                        <Button
+                          onClick={() => {
+                            setIsProPlanModalOpen(true);
+                          }}
+                          className="w-full bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-medium"
+                        >
+                          Upgrade to Pro
+                        </Button>
+                      </motion.div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ) : showCategorySelector ? (
                 <motion.div
                   key="category-selector"
                   initial={{ opacity: 0, x: -20 }}
@@ -1242,12 +1319,6 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                           <CardTitle className="flex items-center gap-2">
                             <Sparkles className="h-5 w-5 text-primary" />
                             Describe Your Vision
-                            {userPlan?.isFreeTrial && (
-                              <Badge variant="outline" className="ml-2 text-xs px-2 py-1 bg-yellow-500/10 border-yellow-500/30 text-yellow-600">
-                                <Crown className="h-3 w-3 mr-1" />
-                                Pro Feature
-                              </Badge>
-                            )}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -1280,64 +1351,51 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
 
                           {/* Error Display */}
                           {generationError && (
-                            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-sm">
+                            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
                               <AlertCircle className="h-4 w-4 text-destructive" />
                               <span className="text-sm text-destructive">{HubUtils.Error.createFriendlyMessage(generationError)}</span>
                             </div>
                           )}
                           
-                          {/* FREE_TRIAL Info Message */}
-                          {userPlan?.isFreeTrial && (
-                            <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20 rounded-sm">
-                              <Crown className="h-4 w-4 text-yellow-600" />
-                              <div className="flex-1">
-                                <p className="text-sm font-medium text-yellow-700">Upgrade to Pro</p>
-                                <p className="text-xs text-yellow-600">Unlock unlimited AI image generation with 30 images per month</p>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* PRO Quota Indicator */}
-                          {userPlan?.isPro && (
-                            <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-sm">
-                              <Sparkles className="h-4 w-4 text-green-600" />
-                              <div className="flex-1">
-                                <p className="text-sm font-medium text-green-700">Pro Plan Active</p>
-                                <p className="text-xs text-green-600">30 AI-generated images per month available</p>
-                              </div>
-                            </div>
-                          )}
-                          
                           <div className="flex gap-2 sm:gap-3">
-                            <Button 
-                              onClick={userPlan?.isFreeTrial ? () => handleUpgradeToast("🎨 Image generation is a Pro feature! Upgrade now to unlock 30 AI-generated images per month with unlimited creativity.") : handleGenerate} 
-                              disabled={isGenerating || !prompt.trim()}
-                              className={cn(
-                                "flex-1 h-11 sm:h-10",
-                                userPlan?.isFreeTrial 
-                                  ? "bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 cursor-pointer opacity-80" 
-                                  : "bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700",
-                                "shadow-lg hover:shadow-xl transition-all duration-200",
-                                "active:scale-[0.98] touch-manipulation"
-                              )}
-                            >
-                              {isGenerating ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" />
-                                  Generating...
-                                </>
-                              ) : userPlan?.isFreeTrial ? (
-                                <>
-                                  <Crown className="mr-2 h-4 w-4 text-white" />
-                                  Upgrade to Generate
-                                </>
-                              ) : (
-                                <>
-                                  <Wand2 className="mr-2 h-4 w-4 text-primary" />
-                                  Generate Image
-                                </>
-                              )}
-                            </Button>
+                            {shouldShowGenerateButton ? (
+                              <Button 
+                                onClick={handleGenerate} 
+                                disabled={(
+                                  isGenerating ||
+                                  !prompt.trim() ||
+                                  subscriptionLoading ||
+                                  !permissions?.generate_image
+                                )}
+                                className={cn(
+                                  "flex-1 h-11 sm:h-10",
+                                  "bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700",
+                                  "shadow-lg hover:shadow-xl transition-all duration-200",
+                                  "active:scale-[0.98] touch-manipulation",
+                                  (permissions ? !permissions.generate_image : false) ? "opacity-50 cursor-not-allowed" : ""
+                                )}
+                              >
+                                {isGenerating ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" />
+                                    Generating...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Wand2 className="mr-2 h-4 w-4 text-primary" />
+                                    Generate Image
+                                  </>
+                                )}
+                              </Button>
+                            ) : (
+                              <Button 
+                                disabled
+                                className="flex-1 h-11 sm:h-10 bg-muted text-muted-foreground cursor-not-allowed"
+                              >
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Loading...
+                              </Button>
+                            )}
                             
                             {isGenerating && (
                               <Button 
@@ -1350,619 +1408,562 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                               </Button>
                             )}
                           </div>
-
-                          {/* Conversation Controls */}
-                          <div className="flex items-center gap-2 pt-2 border-t">
-                            <Button
-                              onClick={handleStartNewConversation}
-                              variant="outline"
-                              size="sm"
-                              className="text-xs"
-                            >
-                              <MessageSquare className="mr-1 h-3 w-3" />
-                              New Conversation
-                            </Button>
-                            {conversation && (
-                        <Badge variant="secondary" className="text-xs">
-                          {conversation.images.length} images in conversation
-                        </Badge>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Recent Generations Preview */}
-                {images.length > 0 && (
-                  <Card className="glass-card">
-                    <CardHeader className="pb-4">
-                      <CardTitle>Latest Generation</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {images.slice(0, 1).map((image) => (
-                          <div key={image.id} className="relative group">
-                            {image.status === 'generating' ? (
-                              <div className="aspect-square bg-muted rounded-sm flex items-center justify-center">
-                                <div className="text-center">
-                                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-primary" />
-                                  <p className="text-sm text-muted-foreground">Generating...</p>
-                                </div>
-                              </div>
-                            ) : image.status === 'completed' ? (
-                              <div className="relative aspect-square rounded-sm overflow-hidden">
-                                <img 
-                                  src={image.url} 
-                                  alt={image.prompt}
-                                  className="w-full h-full object-cover"
-                                />
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleDownload(image)}
-                                    className="bg-white/20 backdrop-blur-sm border border-white/30"
-                                  >
-                                    <Download className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="aspect-square bg-destructive/10 rounded-sm flex items-center justify-center">
-                                <p className="text-sm text-destructive">Generation failed</p>
-                              </div>
-                            )}
-                            <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
-                              {image.prompt}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                        </CardContent>
+                      </Card>
                     </div>
                   </ScrollArea>
                 </motion.div>
-                              )}
-              </AnimatePresence>
-            </TabsContent>
+              )}
+            </AnimatePresence>
+          </TabsContent>
 
-            <TabsContent value="gallery" className="mt-0 h-full">
-              <div className="h-full flex flex-col">
-                {/* Gallery Sub-tabs */}
-                <motion.div
-                  className="flex-shrink-0 border-b border-border p-4"
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4 }}
-                >
-                  <div className="flex items-center gap-2">
-                    <motion.button
-                      className={cn(
-                        "px-3 py-1.5 rounded-sm text-sm font-medium transition-all duration-200 relative",
-                        gallerySubTab === 'images' 
-                          ? "bg-primary text-primary-foreground shadow-sm" 
-                          : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-                      )}
-                      onClick={() => setGallerySubTab('images')}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+          <TabsContent value="gallery" className="mt-0 h-full">
+            <div className="h-full flex flex-col">
+              {/* Gallery Sub-tabs */}
+              <motion.div
+                className="flex-shrink-0 border-b border-border p-4"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <div className="flex items-center gap-2">
+                  <motion.button
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 relative",
+                      gallerySubTab === 'images' 
+                        ? "bg-primary text-primary-foreground shadow-sm" 
+                        : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                    )}
+                    onClick={() => setGallerySubTab('images')}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <motion.div
+                      className="flex items-center gap-2"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3 }}
                     >
                       <motion.div
-                        className="flex items-center gap-2"
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3 }}
+                        animate={{ 
+                          rotate: gallerySubTab === 'images' ? [0, 360] : 0,
+                          scale: gallerySubTab === 'images' ? [1, 1.1, 1] : 1
+                        }}
+                        transition={{ 
+                          duration: 2,
+                          repeat: gallerySubTab === 'images' ? Infinity : 0,
+                          ease: "easeInOut"
+                        }}
                       >
-                        <motion.div
-                          animate={{ 
-                            rotate: gallerySubTab === 'images' ? [0, 360] : 0,
-                            scale: gallerySubTab === 'images' ? [1, 1.1, 1] : 1
-                          }}
-                          transition={{ 
-                            duration: 2,
-                            repeat: gallerySubTab === 'images' ? Infinity : 0,
-                            ease: "easeInOut"
-                          }}
-                        >
-                          <ImageIcon className="h-4 w-4" />
-                        </motion.div>
-                        {translatedText.images}
-                        {images.length > 0 && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ delay: 0.2, type: "spring", stiffness: 500 }}
-                          >
-                            <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0.5 h-5">
-                              {images.length}
-                            </Badge>
-                          </motion.div>
-                        )}
+                        <ImageIcon className="h-4 w-4" />
                       </motion.div>
-                      {gallerySubTab === 'images' && (
+                      {translatedText.images}
+                      {images.length > 0 && (
                         <motion.div
-                          className="absolute inset-0 bg-primary/10 rounded-sm -z-10"
-                          layoutId="galleryTabBackground"
-                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                        />
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ delay: 0.2, type: "spring", stiffness: 500 }}
+                        >
+                          <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0.5 h-5">
+                            {images.length}
+                          </Badge>
+                        </motion.div>
                       )}
-                    </motion.button>
-                    
-                    <motion.button
-                      className={cn(
-                        "px-3 py-1.5 rounded-sm text-sm font-medium transition-all duration-200 relative",
-                        gallerySubTab === 'videos' 
-                          ? "bg-primary text-primary-foreground shadow-sm" 
-                          : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-                      )}
-                      onClick={() => setGallerySubTab('videos')}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                    </motion.div>
+                    {gallerySubTab === 'images' && (
+                      <motion.div
+                        className="absolute inset-0 bg-primary/10 rounded-lg -z-10"
+                        layoutId="galleryTabBackground"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                  </motion.button>
+                  
+                  <motion.button
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 relative",
+                      gallerySubTab === 'videos' 
+                        ? "bg-primary text-primary-foreground shadow-sm" 
+                        : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                    )}
+                    onClick={() => setGallerySubTab('videos')}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <motion.div
+                      className="flex items-center gap-2"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, delay: 0.1 }}
                     >
                       <motion.div
-                        className="flex items-center gap-2"
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3, delay: 0.1 }}
+                        animate={{ 
+                          rotate: gallerySubTab === 'videos' ? [0, 360] : 0,
+                          scale: gallerySubTab === 'videos' ? [1, 1.1, 1] : 1
+                        }}
+                        transition={{ 
+                          duration: 2,
+                          repeat: gallerySubTab === 'videos' ? Infinity : 0,
+                          ease: "easeInOut"
+                        }}
                       >
-                        <motion.div
-                          animate={{ 
-                            rotate: gallerySubTab === 'videos' ? [0, 360] : 0,
-                            scale: gallerySubTab === 'videos' ? [1, 1.1, 1] : 1
-                          }}
-                          transition={{ 
-                            duration: 2,
-                            repeat: gallerySubTab === 'videos' ? Infinity : 0,
-                            ease: "easeInOut"
-                          }}
-                        >
-                          <Film className="h-4 w-4" />
-                        </motion.div>
-                        {translatedText.videos}
-                        {userVideos.length > 0 && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ delay: 0.3, type: "spring", stiffness: 500 }}
-                          >
-                            <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0.5 h-5 bg-blue-500 text-white">
-                              {userVideos.length}
-                            </Badge>
-                          </motion.div>
-                        )}
+                        <Film className="h-4 w-4" />
                       </motion.div>
-                      {gallerySubTab === 'videos' && (
+                      {translatedText.videos}
+                      {userVideos.length > 0 && (
                         <motion.div
-                          className="absolute inset-0 bg-primary/10 rounded-sm -z-10"
-                          layoutId="galleryTabBackground"
-                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                        />
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ delay: 0.3, type: "spring", stiffness: 500 }}
+                        >
+                          <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0.5 h-5 bg-blue-500 text-white">
+                            {userVideos.length}
+                          </Badge>
+                        </motion.div>
                       )}
-                    </motion.button>
-                  </div>
-                </motion.div>
+                    </motion.div>
+                    {gallerySubTab === 'videos' && (
+                      <motion.div
+                        className="absolute inset-0 bg-primary/10 rounded-lg -z-10"
+                        layoutId="galleryTabBackground"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                  </motion.button>
+                </div>
+              </motion.div>
 
-                {/* Gallery Content */}
-                <ScrollArea className="flex-1 p-4">
-                  {gallerySubTab === 'images' ? (
-                    <div className="space-y-6">
-                      {/* Images Gallery Stats */}
-                      {userImages.length > 0 && (
-                        <Card className="glass-card">
-                          <CardContent className="p-4">
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 md:gap-4 text-center">
-                              {(() => {
-                                const stats = HubUtils.GeneratedImage.calculateStats(userImages);
-                                return (
-                                  <>
-                                    <div>
-                                      <div className="text-2xl font-bold text-primary">{stats.total}</div>
-                                      <div className="text-xs text-muted-foreground">Total Images</div>
-                                    </div>
-                                    <div>
-                                      <div className="text-2xl font-bold text-green-500">{stats.completed}</div>
-                                      <div className="text-xs text-muted-foreground">Completed</div>
-                                    </div>
-                                    <div>
-                                      <div className="text-2xl font-bold text-yellow-500">{stats.generating}</div>
-                                      <div className="text-xs text-muted-foreground">Generating</div>
-                                    </div>
-                                    <div>
-                                      <div className="text-2xl font-bold text-blue-500">{stats.successRate}%</div>
-                                      <div className="text-xs text-muted-foreground">Success Rate</div>
-                                    </div>
-                                  </>
-                                );
-                              })()}
+              {/* Gallery Content */}
+              <ScrollArea className="flex-1 p-4">
+                {gallerySubTab === 'images' ? (
+                  <div className="space-y-6">
+                    {/* Images Gallery Stats */}
+                    {userImages.length > 0 && (
+                      <Card className="glass-card">
+                        <CardContent className="p-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 md:gap-4 text-center">
+                            {(() => {
+                              const stats = HubUtils.GeneratedImage.calculateStats(userImages);
+                              return (
+                                <>
+                                  <div>
+                                    <div className="text-2xl font-bold text-primary">{stats.total}</div>
+                                    <div className="text-xs text-muted-foreground">Total Images</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-2xl font-bold text-green-500">{stats.completed}</div>
+                                    <div className="text-xs text-muted-foreground">Completed</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-2xl font-bold text-yellow-500">{stats.generating}</div>
+                                    <div className="text-xs text-muted-foreground">Generating</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-2xl font-bold text-blue-500">{stats.successRate}%</div>
+                                    <div className="text-xs text-muted-foreground">Success Rate</div>
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Loading State */}
+                    {userImagesLoading && userImages.length === 0 && (
+                      <div className="flex items-center justify-center h-32">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <span className="ml-2 text-muted-foreground">Loading images...</span>
+                      </div>
+                    )}
+
+                    {/* Generation Progress */}
+                    {isGenerating && (
+                      <Card className="glass-card border-primary/50">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                              <Sparkles className="h-6 w-6 text-primary animate-pulse" />
+                              <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping" />
                             </div>
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {/* Loading State */}
-                      {userImagesLoading && userImages.length === 0 && (
-                        <div className="flex items-center justify-center h-32">
-                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                          <span className="ml-2 text-muted-foreground">Loading images...</span>
-                        </div>
-                      )}
-
-                      {/* Generation Progress */}
-                      {isGenerating && (
-                        <Card className="glass-card border-primary/50">
-                          <CardContent className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="relative">
-                                <Sparkles className="h-6 w-6 text-primary animate-pulse" />
-                                <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping" />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-primary">Generating with GPT Image 1</span>
+                                {progress > 0 && <span className="text-xs text-muted-foreground">{progress}%</span>}
                               </div>
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm font-medium text-primary">Generating with GPT Image 1</span>
-                                  {progress > 0 && <span className="text-xs text-muted-foreground">{progress}%</span>}
-                                </div>
-                                <Progress value={progress} className="h-2" />
-                                <p className="text-xs text-muted-foreground mt-1">Creating your stunning image...</p>
-                              </div>
+                              <Progress value={progress} className="h-2" />
+                              <p className="text-xs text-muted-foreground mt-1">Creating your stunning image...</p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={cancel}
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <StopCircle className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Image Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
+                      <AnimatePresence>
+                        {HubUtils.GeneratedImage.sortImages(
+                          HubUtils.GeneratedImage.filterByStatus(userImages, 'completed'),
+                          'date'
+                        ).map((image, index) => (
+                          <motion.div
+                            key={image.id}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            transition={{ delay: HubUtils.UI.getStaggerDelay(index, 0.05) }}
+                            className="relative group cursor-pointer touch-manipulation"
+                            onClick={() => handleImageClick(image)}
+                          >
+                            <div className="aspect-square rounded-lg overflow-hidden bg-muted">
+                              <img 
+                                src={image.url} 
+                                alt={HubUtils.GeneratedImage.getDisplayPrompt(image)}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                loading="lazy"
+                              />
+                            </div>
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 md:group-hover:opacity-100">
                               <Button
                                 size="sm"
-                                variant="ghost"
-                                onClick={cancel}
-                                className="text-muted-foreground hover:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownload(image);
+                                }}
+                                className="bg-white/20 backdrop-blur-sm border border-white/30 touch-manipulation active:scale-95"
                               >
-                                <StopCircle className="h-4 w-4" />
+                                <Download className="h-3 w-3 sm:h-4 sm:w-4" />
                               </Button>
                             </div>
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {/* Image Grid */}
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
-                        <AnimatePresence>
-                          {HubUtils.GeneratedImage.sortImages(
-                            HubUtils.GeneratedImage.filterByStatus(userImages, 'completed'),
-                            'date'
-                          ).map((image, index) => (
-                            <motion.div
-                              key={image.id}
-                              initial={{ opacity: 0, scale: 0.9 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.9 }}
-                              transition={{ delay: HubUtils.UI.getStaggerDelay(index, 0.05) }}
-                              className="relative group cursor-pointer touch-manipulation"
-                              onClick={() => handleImageClick(image)}
-                            >
-                              <div className="aspect-square rounded-sm overflow-hidden bg-muted">
-                                <img 
-                                  src={image.url} 
-                                  alt={HubUtils.GeneratedImage.getDisplayPrompt(image)}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                                  loading="lazy"
-                                />
+                            <div className="mt-2 space-y-1">
+                              <p className="text-xs text-muted-foreground line-clamp-1">
+                                {HubUtils.Text.truncate(HubUtils.GeneratedImage.getDisplayPrompt(image), 50)}
+                              </p>
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span>{image.timestamp.toLocaleDateString()}</span>
+                                {image.metadata?.quality && (
+                                  <Badge variant="outline" className="text-xs px-1 py-0">
+                                    {image.metadata.quality}
+                                  </Badge>
+                                )}
                               </div>
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 md:group-hover:opacity-100">
-                                <Button
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDownload(image);
-                                  }}
-                                  className="bg-white/20 backdrop-blur-sm border border-white/30 touch-manipulation active:scale-95"
-                                >
-                                  <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-                                </Button>
-                              </div>
-                              <div className="mt-2 space-y-1">
-                                <p className="text-xs text-muted-foreground line-clamp-1">
-                                  {HubUtils.Text.truncate(HubUtils.GeneratedImage.getDisplayPrompt(image), 50)}
-                                </p>
-                                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                  <span>{image.timestamp.toLocaleDateString()}</span>
-                                  {image.metadata?.quality && (
-                                    <Badge variant="outline" className="text-xs px-1 py-0">
-                                      {image.metadata.quality}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </motion.div>
-                          ))}
-                        </AnimatePresence>
-                      </div>
-                      
-                      {/* Auth check */}
-                      {!authLoading && !authUser && (
-                        <div className="flex flex-col items-center justify-center h-[400px] text-center">
-                          <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-                          <h3 className="text-lg font-medium mb-2">Authentication Required</h3>
-                          <p className="text-muted-foreground mb-4">
-                            Please sign in to view your images
-                          </p>
-                        </div>
-                      )}
-
-                      {/* No images state */}
-                      {!userImagesLoading && authUser && HubUtils.GeneratedImage.filterByStatus(userImages, 'completed').length === 0 && (
-                        <div className="flex flex-col items-center justify-center h-[400px] text-center">
-                          <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
-                          <h3 className="text-lg font-medium mb-2">No images yet</h3>
-                          <p className="text-muted-foreground mb-4">
-                            Generate your first image to see it here
-                          </p>
-                          <Button onClick={() => setActiveTab("generate")} variant="outline">
-                            <Wand2 className="mr-2 h-4 w-4" />
-                            Start Creating
-                          </Button>
-                        </div>
-                      )}
+                            </div>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
                     </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {/* Stats Card */}
-                      {userVideos.length > 0 && (
-                        <Card className="glass-card">
-                          <CardContent className="p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <h3 className="text-lg font-medium">Video Gallery</h3>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={refreshUserVideos}
-                                className="h-8 px-2"
-                              >
-                                <Loader2 className={cn("h-4 w-4 mr-1", userVideosLoading && "animate-spin")} />
-                                Refresh
-                              </Button>
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                              <div>
-                                <div className="text-2xl font-bold text-primary">{userVideos.length}</div>
-                                <div className="text-xs text-muted-foreground">Total Videos</div>
-                              </div>
-                              <div>
-                                <div className="text-2xl font-bold text-green-500">
-                                  {userVideos.filter(v => v.status === 'completed').length}
-                                </div>
-                                <div className="text-xs text-muted-foreground">Completed</div>
-                              </div>
-                              <div>
-                                <div className="text-2xl font-bold text-blue-500">
-                                  {Math.round(userVideos.reduce((acc, v) => acc + (v.duration_seconds || 0), 0))}s
-                                </div>
-                                <div className="text-xs text-muted-foreground">Total Duration</div>
-                              </div>
-                              <div>
-                                <div className="text-2xl font-bold text-purple-500">
-                                  {Math.round(userVideos.reduce((acc, v) => acc + (v.file_size || 0), 0) / (1024 * 1024))}MB
-                                </div>
-                                <div className="text-xs text-muted-foreground">Total Size</div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
+                    
+                    {/* Auth check */}
+                    {!authLoading && !authUser && (
+                      <div className="flex flex-col items-center justify-center h-[400px] text-center">
+                        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+                        <h3 className="text-lg font-medium mb-2">Authentication Required</h3>
+                        <p className="text-muted-foreground mb-4">
+                          Please sign in to view your images
+                        </p>
+                      </div>
+                    )}
 
-                      {/* Loading State */}
-                      {userVideosLoading && userVideos.length === 0 && (
-                        <div className="flex items-center justify-center h-32">
-                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                          <span className="ml-2 text-muted-foreground">Loading videos...</span>
-                        </div>
-                      )}
-
-                      {/* Video Grid */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <AnimatePresence>
-                          {userVideos.map((video, index) => (
-                            <motion.div
-                              key={video.id}
-                              initial={{ opacity: 0, scale: 0.8, y: 20 }}
-                              animate={{ opacity: 1, scale: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.8, y: -20 }}
-                              transition={{ 
-                                delay: HubUtils.UI.getStaggerDelay(index, 0.1),
-                                duration: 0.5,
-                                type: "spring",
-                                stiffness: 100,
-                                damping: 15
-                              }}
-                              whileHover={{ 
-                                y: -5,
-                                scale: 1.02,
-                                transition: { duration: 0.2 }
-                              }}
-                              className="relative group"
+                    {/* No images state */}
+                    {!userImagesLoading && authUser && HubUtils.GeneratedImage.filterByStatus(userImages, 'completed').length === 0 && (
+                      <div className="flex flex-col items-center justify-center h-[400px] text-center">
+                        <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-medium mb-2">No images yet</h3>
+                        <p className="text-muted-foreground mb-4">
+                          Generate your first image to see it here
+                        </p>
+                        <Button onClick={() => setActiveTab("generate")} variant="outline">
+                          <Wand2 className="mr-2 h-4 w-4" />
+                          Start Creating
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Stats Card */}
+                    {userVideos.length > 0 && (
+                      <Card className="glass-card">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-medium">Video Gallery</h3>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={refreshUserVideos}
+                              className="h-8 px-2"
                             >
-                              <Card className="glass-card overflow-hidden h-full relative">
-                                {/* Hover glow effect */}
+                              <Loader2 className={cn("h-4 w-4 mr-1", userVideosLoading && "animate-spin")} />
+                              Refresh
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                            <div>
+                              <div className="text-2xl font-bold text-primary">{userVideos.length}</div>
+                              <div className="text-xs text-muted-foreground">Total Videos</div>
+                            </div>
+                            <div>
+                              <div className="text-2xl font-bold text-green-500">
+                                {userVideos.filter(v => v.status === 'completed').length}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Completed</div>
+                            </div>
+                            <div>
+                              <div className="text-2xl font-bold text-blue-500">
+                                {Math.round(userVideos.reduce((acc, v) => acc + (v.duration_seconds || 0), 0))}s
+                              </div>
+                              <div className="text-xs text-muted-foreground">Total Duration</div>
+                            </div>
+                            <div>
+                              <div className="text-2xl font-bold text-purple-500">
+                                {Math.round(userVideos.reduce((acc, v) => acc + (v.file_size || 0), 0) / (1024 * 1024))}MB
+                              </div>
+                              <div className="text-xs text-muted-foreground">Total Size</div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Loading State */}
+                    {userVideosLoading && userVideos.length === 0 && (
+                      <div className="flex items-center justify-center h-32">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <span className="ml-2 text-muted-foreground">Loading videos...</span>
+                      </div>
+                    )}
+
+                    {/* Video Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <AnimatePresence>
+                        {userVideos.map((video, index) => (
+                          <motion.div
+                            key={video.id}
+                            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.8, y: -20 }}
+                            transition={{ 
+                              delay: HubUtils.UI.getStaggerDelay(index, 0.1),
+                              duration: 0.5,
+                              type: "spring",
+                              stiffness: 100,
+                              damping: 15
+                            }}
+                            whileHover={{ 
+                              y: -5,
+                              scale: 1.02,
+                              transition: { duration: 0.2 }
+                            }}
+                            className="relative group"
+                          >
+                            <Card className="glass-card overflow-hidden h-full relative">
+                              {/* Hover glow effect */}
+                              <motion.div
+                                className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 rounded-lg"
+                                initial={{ opacity: 0 }}
+                                whileHover={{ opacity: 1 }}
+                                transition={{ duration: 0.3 }}
+                              />
+                              
+                              {/* Shine effect on hover */}
+                              <motion.div
+                                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 opacity-0 group-hover:opacity-100"
+                                initial={{ x: "-100%" }}
+                                whileHover={{ x: "100%" }}
+                                transition={{ duration: 0.6, ease: "easeInOut" }}
+                              />
+                              
+                              <motion.div
+                                className="aspect-video bg-black rounded-t-lg overflow-hidden relative"
+                                whileHover={{ scale: 1.05 }}
+                                transition={{ duration: 0.3 }}
+                              >
+                                <video
+                                  src={video.video_url}
+                                  controls
+                                  preload="metadata"
+                                  className="w-full h-full object-cover"
+                                >
+                                  <p>Your browser doesn't support HTML5 video.</p>
+                                </video>
+                                
+                                {/* Play button overlay */}
                                 <motion.div
-                                  className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 rounded-sm"
+                                  className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 pointer-events-none"
                                   initial={{ opacity: 0 }}
                                   whileHover={{ opacity: 1 }}
-                                  transition={{ duration: 0.3 }}
-                                />
-                                
-                                {/* Shine effect on hover */}
-                                <motion.div
-                                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 opacity-0 group-hover:opacity-100"
-                                  initial={{ x: "-100%" }}
-                                  whileHover={{ x: "100%" }}
-                                  transition={{ duration: 0.6, ease: "easeInOut" }}
-                                />
-                                
-                                <motion.div
-                                  className="aspect-video bg-black rounded-sm overflow-hidden relative"
-                                  whileHover={{ scale: 1.05 }}
-                                  transition={{ duration: 0.3 }}
+                                  transition={{ duration: 0.2 }}
                                 >
-                                  <video
-                                    src={video.video_url}
-                                    controls
-                                    preload="metadata"
-                                    className="w-full h-full object-cover"
-                                  >
-                                    <p>Your browser doesn't support HTML5 video.</p>
-                                  </video>
-                                  
-                                  {/* Play button overlay */}
                                   <motion.div
-                                    className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 pointer-events-none"
-                                    initial={{ opacity: 0 }}
-                                    whileHover={{ opacity: 1 }}
-                                    transition={{ duration: 0.2 }}
-                                  >
-                                    <motion.div
-                                      className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm pointer-events-auto"
-                                      whileHover={{ scale: 1.1 }}
-                                      whileTap={{ scale: 0.9 }}
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        const videoElement = e.currentTarget.parentElement?.parentElement?.querySelector('video');
-                                        if (videoElement) {
-                                          if (videoElement.paused) {
-                                            videoElement.play();
-                                          } else {
-                                            videoElement.pause();
-                                          }
+                                    className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm pointer-events-auto"
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      const videoElement = e.currentTarget.parentElement?.parentElement?.querySelector('video');
+                                      if (videoElement) {
+                                        if (videoElement.paused) {
+                                          videoElement.play();
+                                        } else {
+                                          videoElement.pause();
                                         }
-                                      }}
-                                    >
-                                      <div className="w-0 h-0 border-l-[8px] border-l-white border-y-[6px] border-y-transparent ml-1" />
-                                    </motion.div>
+                                      }
+                                    }}
+                                  >
+                                    <div className="w-0 h-0 border-l-[8px] border-l-white border-y-[6px] border-y-transparent ml-1" />
                                   </motion.div>
                                 </motion.div>
-                                
-                                <CardContent className="p-3 relative z-10">
+                              </motion.div>
+                              
+                              <CardContent className="p-3 relative z-10">
+                                <motion.div
+                                  className="space-y-2"
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ delay: 0.2 }}
+                                >
+                                  {video.original_text && (
+                                    <motion.p
+                                      className="text-sm text-muted-foreground line-clamp-2"
+                                      initial={{ opacity: 0.8 }}
+                                      whileHover={{ opacity: 1 }}
+                                      transition={{ duration: 0.2 }}
+                                    >
+                                      {video.original_text}
+                                    </motion.p>
+                                  )}
                                   <motion.div
-                                    className="space-y-2"
-                                    initial={{ opacity: 0, y: 10 }}
+                                    className="flex items-center justify-between text-xs text-muted-foreground"
+                                    initial={{ opacity: 0, y: 5 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: 0.2 }}
+                                    transition={{ delay: 0.3 }}
                                   >
-                                    {video.original_text && (
-                                      <motion.p
-                                        className="text-sm text-muted-foreground line-clamp-2"
-                                        initial={{ opacity: 0.8 }}
-                                        whileHover={{ opacity: 1 }}
+                                    <span>{new Date(video.created_at).toLocaleDateString()}</span>
+                                    <div className="flex items-center gap-2">
+                                      {/* Video type indicator */}
+                                      <motion.div
+                                        whileHover={{ scale: 1.05 }}
                                         transition={{ duration: 0.2 }}
                                       >
-                                        {video.original_text}
-                                      </motion.p>
-                                    )}
-                                    <motion.div
-                                      className="flex items-center justify-between text-xs text-muted-foreground"
-                                      initial={{ opacity: 0, y: 5 }}
-                                      animate={{ opacity: 1, y: 0 }}
-                                      transition={{ delay: 0.3 }}
-                                    >
-                                      <span>{new Date(video.created_at).toLocaleDateString()}</span>
-                                      <div className="flex items-center gap-2">
-                                        {/* Video type indicator */}
+                                        <Badge 
+                                          variant={video.video_type === 'generated' ? "default" : "secondary"} 
+                                          className="text-xs px-1 py-0"
+                                        >
+                                          {video.video_type === 'generated' ? 'AI Generated' : 'Text-to-Video'}
+                                        </Badge>
+                                      </motion.div>
+                                      {video.duration_seconds && (
                                         <motion.div
                                           whileHover={{ scale: 1.05 }}
                                           transition={{ duration: 0.2 }}
                                         >
-                                          <Badge 
-                                            variant={video.video_type === 'generated' ? "default" : "secondary"} 
-                                            className="text-xs px-1 py-0"
-                                          >
-                                            {video.video_type === 'generated' ? 'AI Generated' : 'Text-to-Video'}
+                                          <Badge variant="outline" className="text-xs px-1 py-0">
+                                            {video.duration_seconds}s
                                           </Badge>
                                         </motion.div>
-                                        {video.duration_seconds && (
-                                          <motion.div
-                                            whileHover={{ scale: 1.05 }}
-                                            transition={{ duration: 0.2 }}
-                                          >
-                                            <Badge variant="outline" className="text-xs px-1 py-0">
-                                              {video.duration_seconds}s
-                                            </Badge>
-                                          </motion.div>
-                                        )}
-                                        {video.voice_character && (
-                                          <motion.div
-                                            whileHover={{ scale: 1.05 }}
-                                            transition={{ duration: 0.2 }}
-                                          >
-                                            <Badge variant="outline" className="text-xs px-1 py-0">
-                                              {video.voice_character}
-                                            </Badge>
-                                          </motion.div>
-                                        )}
-                                      </div>
-                                    </motion.div>
-                                    <motion.div
-                                      className="flex items-center justify-between"
-                                      initial={{ opacity: 0, y: 5 }}
-                                      animate={{ opacity: 1, y: 0 }}
-                                      transition={{ delay: 0.4 }}
-                                    >
-                                      <span className="text-xs text-muted-foreground">
-                                        {video.file_size ? `${Math.round(video.file_size / (1024 * 1024))}MB` : 'Unknown size'}
-                                      </span>
-                                      <motion.div
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
-                                      >
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => handleVideoDownload(video)}
-                                          className="h-7 px-2 hover:bg-primary/10 hover:border-primary/50 transition-colors"
+                                      )}
+                                      {video.voice_character && (
+                                        <motion.div
+                                          whileHover={{ scale: 1.05 }}
+                                          transition={{ duration: 0.2 }}
                                         >
-                                          <motion.div
-                                            className="flex items-center gap-1"
-                                            whileHover={{ x: 1 }}
-                                            transition={{ duration: 0.2 }}
-                                          >
-                                            <Download className="h-3 w-3" />
-                                            Download
-                                          </motion.div>
-                                        </Button>
-                                      </motion.div>
+                                          <Badge variant="outline" className="text-xs px-1 py-0">
+                                            {video.voice_character}
+                                          </Badge>
+                                        </motion.div>
+                                      )}
+                                    </div>
+                                  </motion.div>
+                                  <motion.div
+                                    className="flex items-center justify-between"
+                                    initial={{ opacity: 0, y: 5 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.4 }}
+                                  >
+                                    <span className="text-xs text-muted-foreground">
+                                      {video.file_size ? `${Math.round(video.file_size / (1024 * 1024))}MB` : 'Unknown size'}
+                                    </span>
+                                    <motion.div
+                                      whileHover={{ scale: 1.05 }}
+                                      whileTap={{ scale: 0.95 }}
+                                    >
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleVideoDownload(video)}
+                                        className="h-7 px-2 hover:bg-primary/10 hover:border-primary/50 transition-colors"
+                                      >
+                                        <motion.div
+                                          className="flex items-center gap-1"
+                                          whileHover={{ x: 1 }}
+                                          transition={{ duration: 0.2 }}
+                                        >
+                                          <Download className="h-3 w-3" />
+                                          Download
+                                        </motion.div>
+                                      </Button>
                                     </motion.div>
                                   </motion.div>
-                                </CardContent>
-                              </Card>
-                            </motion.div>
-                          ))}
-                        </AnimatePresence>
-                      </div>
-
-                      {/* Auth check */}
-                      {!authLoading && !authUser && (
-                        <div className="flex flex-col items-center justify-center h-[400px] text-center">
-                          <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-                          <h3 className="text-lg font-medium mb-2">Authentication Required</h3>
-                          <p className="text-muted-foreground mb-4">
-                            Please sign in to view your videos
-                          </p>
-                        </div>
-                      )}
-
-                      {/* No videos state */}
-                      {!userVideosLoading && authUser && userVideos.length === 0 && (
-                        <div className="flex flex-col items-center justify-center h-[400px] text-center">
-                          <Film className="h-12 w-12 text-muted-foreground mb-4" />
-                          <h3 className="text-lg font-medium mb-2">No videos yet</h3>
-                          <p className="text-muted-foreground mb-4">
-                            Create your first video to see it here
-                          </p>
-                          <Button onClick={() => setActiveTab("createvid")} variant="outline">
-                            <Wand2 className="mr-2 h-4 w-4" />
-                            Create Video
-                          </Button>
-                        </div>
-                      )}
+                                </motion.div>
+                              </CardContent>
+                            </Card>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
                     </div>
-                  )}
-                </ScrollArea>
-              </div>
-            </TabsContent>
+
+                    {/* Auth check */}
+                    {!authLoading && !authUser && (
+                      <div className="flex flex-col items-center justify-center h-[400px] text-center">
+                        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+                        <h3 className="text-lg font-medium mb-2">Authentication Required</h3>
+                        <p className="text-muted-foreground mb-4">
+                          Please sign in to view your videos
+                        </p>
+                      </div>
+                    )}
+
+                    {/* No videos state */}
+                    {!userVideosLoading && authUser && userVideos.length === 0 && (
+                      <div className="flex flex-col items-center justify-center h-[400px] text-center">
+                        <Film className="h-12 w-12 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-medium mb-2">No videos yet</h3>
+                        <p className="text-muted-foreground mb-4">
+                          Create your first video to see it here
+                        </p>
+                        <Button onClick={() => setActiveTab("createvid")} variant="outline">
+                          <Wand2 className="mr-2 h-4 w-4" />
+                          Create Video
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+          </TabsContent>
 
           <TabsContent value="ai-leads" className="mt-0 h-full">
-            <AILeadsInterface key={`leads-${language}`} />
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">AI Lead Generation</h3>
+                <p className="text-sm text-muted-foreground">
+                  Find potential customers with AI
+                </p>
+              </div>
+              <FeatureGuard feature="leads">
+                <AILeadsInterface />
+              </FeatureGuard>
+            </div>
           </TabsContent>
 
           <TabsContent value="video" className="mt-0 h-full">
@@ -2018,27 +2019,6 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
         }}
         onSave={handleImageEditorSave}
         onRegenerate={handleImageEditorRegenerate}
-      />
-
-      {/* Upgrade Modal */}
-      <UpgradeModal
-        isOpen={isUpgradeModalOpen}
-        onClose={closeUpgradeModal}
-        onUpgrade={handleUpgrade}
-        feature={subscriptionError?.feature || 'premium feature'}
-        reason={subscriptionError?.code === 'quota_exceeded' ? 'quota_exceeded' : 
-                subscriptionError?.code === 'feature_blocked' ? 'feature_blocked' : 
-                'manual'}
-      />
-
-
-
-      {/* Upgrade Toast */}
-      <UpgradeToast
-        isVisible={showUpgradeToast}
-        onUpgrade={handleUpgradeClick}
-        onClose={closeUpgradeToast}
-        message={upgradeToastMessage}
       />
 
       {/* Pro Plan Modal */}

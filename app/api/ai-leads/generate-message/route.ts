@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { logger } from '@/memory-framework/config';
-import { checkQuota, incrementMonthlyUsage, checkAndHandleProExpiration } from '@/lib/middleware/subscription-guards';
 import { generateStructuredJson } from '@/lib/providers/llm_clients';
 
 interface MessageGenerationRequest {
@@ -37,34 +36,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<MessageGe
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }
-      );
-    }
-
-    // ✅ VÉRIFICATION AUTOMATIQUE: Contrôler l'expiration Pro avant de traiter la requête
-    const { expired, updated } = await checkAndHandleProExpiration(user.id);
-    
-    if (expired) {
-      logger.warn(`${logPrefix} User attempted to access leads generation with expired Pro subscription`, { 
-        userId: user.id.substring(0, 8)
-      });
-      return NextResponse.json({ 
-        success: false,
-        error: 'Subscription expired',
-        code: 'subscription_expired',
-        message: 'Your Pro subscription has expired. Please renew to continue accessing premium features.'
-      }, { status: 403 });
-    }
-
-    // Check subscription quota for leads generation
-    const quotaCheck = await checkQuota(request, 'leads');
-    if (!quotaCheck.success) {
-      logger.warn(`${logPrefix} Leads generation quota exceeded`, { 
-        userId: user.id.substring(0, 8),
-        error: quotaCheck.response?.json()
-      });
-      return NextResponse.json(
-        { success: false, error: "Quota exceeded" },
-        { status: 403 }
       );
     }
 
@@ -156,9 +127,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<MessageGe
         { status: 500 }
       );
     }
-
-    // Increment monthly usage for leads generation
-    await incrementMonthlyUsage(user.id, 'leads');
 
     // Generate message suggestions
     const suggestions = await generateMessageSuggestions(leadResult, tone);

@@ -11,7 +11,6 @@ import { logger } from '@/memory-framework/config';
 import { useNavigation } from "@/context/navigation-context";
 import { Suspense } from "react";
 import { Palette, Sparkles, Wand2 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Define view type to match Header component
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub";
@@ -29,7 +28,7 @@ const FloatingParticles = () => {
   }));
 
   return (
-    <div className="absolute inset-0 h-full overflow-hidden pointer-events-none">
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
       {particles.map((particle) => (
         <motion.div
           key={particle.id}
@@ -88,7 +87,7 @@ const EnhancedLoading = () => {
     <div className="min-h-screen bg-background flex items-center justify-center relative overflow-hidden">
       <AnimatedBackground />
       <FloatingParticles />
-
+      
       <motion.div
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -97,11 +96,11 @@ const EnhancedLoading = () => {
       >
         <motion.div
           className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-purple-500 to-pink-600 rounded-2xl flex items-center justify-center"
-          animate={{
+          animate={{ 
             rotate: [0, 360],
             scale: [1, 1.1, 1],
           }}
-          transition={{
+          transition={{ 
             rotate: { duration: 3, repeat: Infinity, ease: "linear" },
             scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
           }}
@@ -158,7 +157,7 @@ function CreationHubPage() {
   // Handle view changes from header navigation
   const handleViewChange = (view: View) => {
     logger.info('[Creation Hub Page] View change requested', { view });
-
+    
     switch (view) {
       case "chat":
         navigateWithLoading("/chat", "Loading chat...");
@@ -203,23 +202,23 @@ function CreationHubPage() {
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-    <AnimatedBackground />
-    <FloatingParticles />
-    
-    <Header currentView="creation-hub" onViewChange={handleViewChange} />
-    
-    <main className="pt-14 relative z-10">
-      <div className="container max-w-5xl mx-auto px-4 py-6">
-        <motion.div
-          className="relative"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
-          <CreationHubPanel onClose={handlePanelClose} />
-        </motion.div>
-      </div>
-    </main>
-  </div>
+      <AnimatedBackground />
+      <FloatingParticles />
+      
+      <Header currentView="creation-hub" onViewChange={handleViewChange} />
+      
+      <main className="pt-14 relative z-10">
+        <div className="container max-w-5xl mx-auto px-4 py-6">
+          <motion.div
+            className="relative"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          >
+            <CreationHubPanel onClose={handlePanelClose} />
+          </motion.div>
+        </div>
+      </main>
+    </div>
   );
 } 

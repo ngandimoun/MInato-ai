@@ -10,7 +10,6 @@ import {
   GameType,
   GAME_ICONS 
 } from "@/lib/types/games";
-import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
 
 // Import new Supabase hooks
 import {
@@ -70,7 +69,6 @@ export function useUserInvitations() {
 
 export function useGameMutations() {
   const { user } = useAuth();
-  const { callTrialProtectedApi } = useTrialProtectedApiCall();
   const supabaseMutations = useSupabaseGameMutations();
 
   const createGameWithQuestions = useCallback(async (request: CreateGameRequest): Promise<GameResponse> => {
@@ -80,22 +78,19 @@ export function useGameMutations() {
 
     try {
       // Use the Supabase-based API endpoint that handles user preferences
-      const response = await callTrialProtectedApi(
-        async () => fetch('/api/games/create', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(request),
-        })
-      );
-
-      if (!response?.ok) {
-        const data = await response?.json();
-        throw new Error(data?.error || 'Failed to create game');
-      }
+      const response = await fetch('/api/games/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      });
 
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create game');
+      }
 
       console.log('Game created successfully:', data);
 
@@ -116,7 +111,7 @@ export function useGameMutations() {
         error: error instanceof Error ? error.message : "Failed to create game" 
       };
     }
-  }, [user, callTrialProtectedApi]);
+  }, [user]);
 
   // Wrapper functions for backward compatibility that delegate to Supabase
   const joinGame = useCallback(async (request: JoinGameRequest): Promise<GameResponse> => {

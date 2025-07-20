@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Filter, Star, Users, Clock, Zap, TrendingUp, Play, Globe, Plus, Crown, Gamepad2, Brain, Target, Trophy, Sparkles, Settings, X, Loader2 } from 'lucide-react';
+import { Search, Filter, Star, Users, Clock, Zap, TrendingUp, Play, Globe } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Select, 
   SelectContent, 
@@ -26,8 +25,7 @@ import { useGameMutations } from '@/hooks/useGames';
 import { UserSelector } from './user-selector';
 import { GameLanguageProvider, useGameLanguage } from '@/context/game-language-context';
 import { GameLanguageSelector } from './game-language-selector';
-import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
-import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
+import { FeatureGuard } from '@/components/subscription/feature-guard';
 import { 
   TranslatableText, 
   TranslatableHeading, 
@@ -96,8 +94,6 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
   const { user } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
-  const { handleSubscriptionError, isUpgradeModalOpen, subscriptionError, handleUpgrade, closeUpgradeModal } = useSubscriptionGuard();
-  const { callTrialProtectedApi } = useTrialProtectedApiCall();
 
   const [difficulty, setDifficulty] = useState<'beginner' | 'easy' | 'medium' | 'hard' | 'expert'>('medium');
   const [mode, setMode] = useState<'solo' | 'multiplayer'>('solo');
@@ -122,22 +118,15 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
     display_name: string;
   }>>([]);
 
-  // State for subscription check
-  const [subscriptionStatus, setSubscriptionStatus] = useState<{
-    features: { multiplayer: boolean };
-  } | null>(null);
-  const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
-
-  // Load user preferences and subscription status on mount
-  useEffect(() => {
-    const loadUserData = async () => {
+  // Load user preferences on mount
+  React.useEffect(() => {
+    const loadUserPreferences = async () => {
       if (!user) return;
       
       try {
-        // Load user preferences
-        const prefsResponse = await fetch('/api/games/preferences');
-        if (prefsResponse.ok) {
-          const data = await prefsResponse.json();
+        const response = await fetch('/api/games/preferences');
+        if (response.ok) {
+          const data = await response.json();
           const prefs = data.preferences;
           
           setGameLanguage(prefs.language || 'en');
@@ -147,22 +136,14 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
           setMode(prefs.preferred_mode || 'solo');
           setRounds(prefs.preferred_rounds || 10);
         }
-
-        // Load subscription status
-        const subResponse = await fetch('/api/subscription/status');
-        if (subResponse.ok) {
-          const subData = await subResponse.json();
-          setSubscriptionStatus(subData);
-        }
       } catch (error) {
-        console.error('Failed to load user data:', error);
+        console.error('Failed to load user preferences:', error);
       } finally {
         setIsLoadingPreferences(false);
-        setIsLoadingSubscription(false);
       }
     };
     
-    loadUserData();
+    loadUserPreferences();
   }, [user]);
 
   const languages = [
@@ -422,7 +403,7 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
         { value: 'modern_memes', label: '📱 Modern Memes', description: 'Current TikTok and Twitter viral content' },
         { value: 'platform_specific', label: '🌐 Platform Specific', description: 'Reddit, Discord, and platform memes' },
         { value: 'reaction_gifs', label: '😎 Reaction GIFs', description: 'Popular reaction images and GIFs' },
-        { value: 'format_evolution', label: '�� Format Evolution', description: 'How meme formats change and spread' },
+        { value: 'format_evolution', label: '🔄 Format Evolution', description: 'How meme formats change and spread' },
         { value: 'internet_culture', label: '💻 Internet Culture', description: 'Digital native humor and references' },
         { value: 'viral_moments', label: '⚡ Viral Moments', description: 'Moments that became internet famous' },
         { value: 'meme_history', label: '📚 Meme History', description: 'Origins and evolution of meme culture' }
@@ -797,37 +778,25 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
       });
       return;
     }
-
-    // Check multiplayer access for trial users
-    if (mode === 'multiplayer' && subscriptionStatus && !subscriptionStatus.features.multiplayer) {
-      handleSubscriptionError({
-        code: 'feature_blocked',
-        feature: 'Multiplayer Mode',
-        message: 'Multiplayer mode is only available for Minato Pro subscribers'
-      });
-      return;
-    }
     
     setIsCreating(true);
     try {
       // Save user preferences for future games
       try {
-        await callTrialProtectedApi(
-          async () => fetch('/api/games/preferences', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              language: gameLanguage,
-              ai_personality: aiPersonality,
-              topic_focus: finalTopic,
-              preferred_difficulty: difficulty,
-              preferred_mode: mode,
-              preferred_rounds: rounds,
-            }),
-          })
-        );
+        await fetch('/api/games/preferences', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            language: gameLanguage,
+            ai_personality: aiPersonality,
+            topic_focus: finalTopic,
+            preferred_difficulty: difficulty,
+            preferred_mode: mode,
+            preferred_rounds: rounds,
+          }),
+        });
       } catch (error) {
         console.error('Failed to save preferences:', error);
         // Don't block game creation if preference saving fails
@@ -941,39 +910,15 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
 
             <div>
               <label className="block text-sm font-medium mb-2">👥 Game Mode</label>
-              <Select 
-                value={mode} 
-                onValueChange={(value: any) => {
-                  if (value === 'multiplayer' && subscriptionStatus && !subscriptionStatus.features.multiplayer) {
-                    handleSubscriptionError({
-                      code: 'feature_blocked',
-                      feature: 'Multiplayer Mode',
-                      message: 'Multiplayer mode is only available for Minato Pro subscribers'
-                    });
-                    return;
-                  }
-                  setMode(value);
-                }}
-              >
+              <Select value={mode} onValueChange={(value: any) => setMode(value)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="solo">🤖 Solo Play (vs AI)</SelectItem>
-                  <SelectItem 
-                    value="multiplayer" 
-                    disabled={subscriptionStatus ? !subscriptionStatus.features.multiplayer : false}
-                    className={subscriptionStatus && !subscriptionStatus.features.multiplayer ? 'opacity-50 cursor-not-allowed' : ''}
-                  >
-                    👫 Multiplayer {subscriptionStatus && !subscriptionStatus.features.multiplayer && '🔒 (Pro Only)'}
-                  </SelectItem>
+                  <SelectItem value="multiplayer">👫 Multiplayer</SelectItem>
                 </SelectContent>
               </Select>
-              {subscriptionStatus && !subscriptionStatus.features.multiplayer && (
-                <p className="text-xs text-orange-600 mt-1 flex items-center gap-1">
-                  🔒 Multiplayer mode requires Minato Pro subscription
-                </p>
-              )}
             </div>
           </div>
 
@@ -1145,75 +1090,29 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
           <Button variant="outline" onClick={onClose} className="flex-1">
             Cancel
           </Button>
-          <Button 
-            onClick={handleCreate} 
-            disabled={
-              isCreating || 
-              !gameTopic || 
-              gameTopic === 'general' || 
-              (gameTopic === 'custom' && !customTopic.trim())
-            }
-            className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isCreating ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Creating...
-              </div>
-            ) : (
-              '🚀 Create Game'
-            )}
-          </Button>
+          <FeatureGuard feature={mode === 'solo' ? 'game_solo' : 'game_multiplayer'}>
+            <Button 
+              onClick={handleCreate} 
+              disabled={
+                isCreating || 
+                !gameTopic || 
+                gameTopic === 'general' || 
+                (gameTopic === 'custom' && !customTopic.trim())
+              }
+              className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isCreating ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Creating...
+                </div>
+              ) : (
+                '🚀 Create Game'
+              )}
+            </Button>
+          </FeatureGuard>
         </div>
       </motion.div>
-
-      {/* Modal de mise à niveau */}
-      {isUpgradeModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">👑</span>
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                Unlock Multiplayer Mode
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400">
-                Multiplayer mode is exclusive to Minato Pro subscribers. Upgrade to invite friends and play together!
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
-                <h4 className="font-semibold text-blue-900 mb-2">🎮 What you'll get:</h4>
-                <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• Create multiplayer game rooms</li>
-                  <li>• Invite friends to play together</li>
-                  <li>• Real-time multiplayer gameplay</li>
-                  <li>• All other Pro features included</li>
-                </ul>
-              </div>
-
-              <div className="flex gap-3">
-                <Button 
-                  variant="outline" 
-                  onClick={closeUpgradeModal}
-                  className="flex-1"
-                >
-                  Maybe Later
-                </Button>
-                <Button 
-                  onClick={handleUpgrade}
-                  className="flex-1 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white"
-                >
-                  <span className="mr-2">👑</span>
-                  Upgrade to Pro
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </motion.div>
   );
 }
@@ -1224,7 +1123,6 @@ function GameLibraryContent() {
   const router = useRouter();
   const { createGameWithQuestions } = useGameMutations();
   const { currentLanguage, setLanguage, isTranslating } = useGameLanguage();
-  const { callTrialProtectedApi } = useTrialProtectedApiCall();
 
   // Use static data for now
   const games = GAME_DATA;
@@ -1452,8 +1350,7 @@ function GameLibraryContent() {
   }
 
   return (
-    // <ScrollArea className="h-[600px]">
-      <div className="space-y-6 h-full">
+    <div className="space-y-6">
       {/* Header and Filters */}
       <div className="flex flex-col gap-4">
         <motion.div
@@ -2041,8 +1938,7 @@ function GameLibraryContent() {
           />
         )}
       </AnimatePresence>
-      </div>
-  //  </ScrollArea>
+    </div>
   );
 }
 

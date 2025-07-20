@@ -15,6 +15,7 @@ import { useUploadStatus } from "@/context/upload-status-context";
 import type { DocumentFile } from "@/components/settings/settings-panel";
 import type { MessageAttachment } from "@/lib/types/index";
 import { logger } from "@/memory-framework/config";
+import { ProtectedTextarea } from "@/components/subscription/protected-input";
 
 const generateId = () => globalThis.crypto.randomUUID();
 
@@ -242,7 +243,18 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
                     <Button variant="ghost" className="h-auto flex flex-col items-center justify-center py-3 px-2 rounded-lg gap-1 hover:bg-muted" onClick={handleCameraOpen} disabled={disabled}><div className="h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center"><Camera className="h-5 w-5 text-primary" /></div><span className="text-xs">Camera</span></Button>
                   </PopoverContent>
                 </Popover>
-                <TextareaAutosize ref={textareaAutosizeRef} value={message} onChange={e => setMessage(e.target.value)} onKeyDown={handleKeyDown} placeholder="Message Minato..." className="flex-1 max-h-32 resize-none bg-transparent px-3 py-3 text-sm focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50" maxRows={5} disabled={disabled}/>
+                <ProtectedTextarea feature="chat">
+                  <TextareaAutosize 
+                    ref={textareaAutosizeRef} 
+                    value={message} 
+                    onChange={e => setMessage(e.target.value)} 
+                    onKeyDown={handleKeyDown} 
+                    placeholder="Message Minato..." 
+                    className="flex-1 max-h-32 resize-none bg-transparent px-3 py-3 text-sm focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50" 
+                    maxRows={5} 
+                    disabled={disabled}
+                  />
+                </ProtectedTextarea>
                 <div className="flex items-center mb-1 mr-1">
                   {canSend ? ( <Button type="button" size="icon" className="h-8 w-8 rounded-full flex-shrink-0 bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleSend} disabled={disabled}><SendHorizonal className="h-4 w-4" /><span className="sr-only">Send</span></Button>
                   ) : ( <Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-full flex-shrink-0 text-muted-foreground hover:text-primary" onClick={startRecording} disabled={disabled || isRecording}><Mic className="h-4 w-4" /><span className="sr-only">Record</span></Button> )}

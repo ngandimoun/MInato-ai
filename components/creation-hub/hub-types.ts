@@ -323,12 +323,6 @@ export interface UseImageGenerationOptions {
   onError?: (error: HubError) => void;
   onProgress?: (progress: number) => void;
   streaming?: boolean;
-  onUpgradeRequired?: (error: {
-    code: string;
-    feature: string;
-    currentUsage?: number;
-    maxQuota?: number;
-  }) => void;
 }
 
 export interface UseImageGenerationReturn {

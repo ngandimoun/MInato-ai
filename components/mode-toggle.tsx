@@ -35,7 +35,7 @@ export function ModeToggle() {
         <Button
           variant="outline"
           size="icon"
-          className="rounded-full backdrop-blur-md bg-background/80 border border-border w-8 h-8"
+          className="rounded-full h-8 w-8 backdrop-blur-md bg-background/80 border border-border"
           aria-label="Toggle theme"
         >
           <AnimatePresence mode="wait" initial={false}>
@@ -55,15 +55,15 @@ export function ModeToggle() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[8rem]">
         <DropdownMenuItem onClick={() => setTheme("light")} className="cursor-pointer">
-          <Sun className="mr-2 h-4 w-4" />
+          <Sun className="mr-2 h-3 w-3" />
           <span>Light</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme("dark")} className="cursor-pointer">
-          <Moon className="mr-2 h-4 w-4" />
+          <Moon className="mr-2 h-3 w-3" />
           <span>Dark</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme("system")} className="cursor-pointer">
-          <Monitor className="mr-2 h-4 w-4" />
+          <Monitor className="mr-2 h-3 w-3" />
           <span>System</span>
         </DropdownMenuItem>
       </DropdownMenuContent>

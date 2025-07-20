@@ -1158,30 +1158,6 @@ avatar_url?: string | null;
 stripe_account_id?: string | null;
 stripe_onboarding_complete?: boolean | null;
 };
-
-// Type pour la table users avec support complet des abonnements
-export type User = {
-id: string;
-email?: string | null;
-plan_type: 'TRIAL' | 'PRO' | 'EXPIRED';
-trial_end_date?: string | null;
-subscription_end_date?: string | null;
-stripe_customer_id?: string | null;
-monthly_usage?: {
-leads: number;
-recordings: number;
-images: number;
-videos: number;
-} | null;
-one_time_credits?: {
-leads: number;
-recordings: number;
-images: number;
-videos: number;
-} | null;
-created_at?: string | null;
-updated_at?: string | null;
-};
 export type UserJournalEntry = {
 id: number;
 user_id: string;
@@ -1778,8 +1754,8 @@ return (
 data && typeof data === "object" && data !== null && "result_type" in data
 );
 }
-export type ChatUser = { id: string; name?: string; avatar?: string; role: "user" };
-export type ChatBot = { id: string; name?: string; avatar?: string; role: "assistant"; };
+export type User = { id: string; name?: string; avatar?: string; role: "user" };
+export type Bot = { id: string; name?: string; avatar?: string; role: "assistant"; };
 
 // XML-structured planning and parallel execution types
 export interface XmlPlanStep {

@@ -180,7 +180,7 @@ function GamesPage() {
               className="text-center"
             >
               <motion.div
-                className="inline-flex items-center gap-2 mt-4"
+                className="inline-flex items-center gap-2 mb-4"
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
@@ -196,7 +196,7 @@ function GamesPage() {
                     scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
                   }}
                 >
-                  <Gamepad2 className="w-4 h-5 text-primary" />
+                  <Gamepad2 className="w-8 h-8 text-primary" />
                 </motion.div>
                 <motion.div
                   animate={{ 
@@ -210,7 +210,7 @@ function GamesPage() {
                     delay: 0.5
                   }}
                 >
-                  <Sparkles className="w-4 h-4 text-primary" />
+                  <Sparkles className="w-6 h-6 text-primary" />
                 </motion.div>
               </motion.div>
               
@@ -239,7 +239,7 @@ function GamesPage() {
               </motion.h1>
               
               <motion.p
-                className="text-sm text-muted-foreground max-w-2xl mx-auto mb-6"
+                className="text-lg text-muted-foreground max-w-2xl mx-auto mb-6"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.4 }}

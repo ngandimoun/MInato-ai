@@ -2,12 +2,12 @@
 
 import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Zap, Check, Loader2 } from "lucide-react"
+import { X, Zap, Check, Loader2, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { BorderBeam } from "../magicui/border-beam"
+import { useSubscription } from "@/hooks/use-subscription"
 import { useToast } from "@/hooks/use-toast"
-import { STRIPE_CONFIG, MINATO_PRO_FEATURES } from "@/lib/constants"
 
 interface ProPlanModalProps {
     isOpen: boolean
@@ -15,44 +15,95 @@ interface ProPlanModalProps {
 }
 
 export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
-    const [isLoading, setIsLoading] = useState(false)
+    const { subscriptionStatus, loading } = useSubscription()
     const { toast } = useToast()
+    const [isCheckingPlan, setIsCheckingPlan] = useState(false)
+    const [showProConfirmation, setShowProConfirmation] = useState(false)
 
-    // Use features from constants for better maintainability
     const featureCategories = [
         {
-            title: MINATO_PRO_FEATURES.core.title,
-            features: MINATO_PRO_FEATURES.core.features.map(f => f.title)
+            title: "Core Features",
+            features: [
+                "Unlimited AI Chat Conversations",
+                "Persistent Memory & Conversation History",
+            ]
         },
         {
-            title: MINATO_PRO_FEATURES.creation.title,
-            features: MINATO_PRO_FEATURES.creation.features.map(f => f.title)
+            title: "Creation Hub",
+            features: [
+                "AI-Powered Lead Generation Tools",
+                "Custom AI-Generated Images per Month",
+                "Custom AI-Generated Videos per Month"
+            ]
         },
         {
-            title: MINATO_PRO_FEATURES.premium.title,
-            features: MINATO_PRO_FEATURES.premium.features.map(f => f.title)
+            title: "Premium Features",
+            features: [
+                "Multiplayer Games & Social Features",
+                "Custom Voice Recording Sessions",
+                "Priority Support & Faster Response Times"
+            ]
         }
     ]
 
-    const handleUpgradeToPro = async () => {
-        setIsLoading(true)
+    const handleGetStartedClick = async () => {
+        setIsCheckingPlan(true)
         
         try {
-            // Get current page URL to redirect back after payment
-            const currentUrl = window.location.href;
-            const returnUrl = encodeURIComponent(currentUrl);
+            // Attendre un peu pour montrer le chargement
+            await new Promise(resolve => setTimeout(resolve, 1000))
             
-            // Redirect to new Stripe Elements checkout page with return URL
-            window.location.href = `/subscription/checkout?return_url=${returnUrl}`
-        } catch (error: any) {
-            console.error('Error redirecting to checkout:', error)
+            console.log(`[ProPlanModal] Checking user subscription status:`, subscriptionStatus)
+            
+            if (!subscriptionStatus) {
+                console.log(`[ProPlanModal] No subscription status available`)
+                // Rediriger directement si pas de statut
+                redirectToTwitter()
+                return
+            }
+
+            if (subscriptionStatus.is_trial) {
+                console.log(`[ProPlanModal] User is on FREE TRIAL - redirecting to Twitter`)
+                // Utilisateur en essai gratuit - redirection directe
+                redirectToTwitter()
+            } else if (subscriptionStatus.is_pro) {
+                console.log(`[ProPlanModal] User is already PRO - showing confirmation`)
+                // Utilisateur déjà Pro - demander confirmation
+                setShowProConfirmation(true)
+            } else if (subscriptionStatus.is_expired) {
+                console.log(`[ProPlanModal] User subscription EXPIRED - redirecting to Twitter`)
+                // Utilisateur expiré - redirection directe
+                redirectToTwitter()
+            } else {
+                console.log(`[ProPlanModal] Unknown subscription status - redirecting to Twitter`)
+                // Statut inconnu - redirection directe
+                redirectToTwitter()
+            }
+        } catch (error) {
+            console.error(`[ProPlanModal] Error checking subscription:`, error)
             toast({
-                title: "Redirect Failed",
-                description: error.message || "Failed to redirect to checkout. Please try again.",
+                title: "Error",
+                description: "Unable to verify your current plan. Please try again.",
                 variant: "destructive",
             })
         } finally {
-            setIsLoading(false)
+            setIsCheckingPlan(false)
+        }
+    }
+
+    const redirectToTwitter = () => {
+        console.log(`[ProPlanModal] Redirecting to Twitter`)
+        window.open("https://x.com/chrisngand14511?s=21", "_blank")
+        onClose()
+    }
+
+    const handleProConfirmation = (confirmed: boolean) => {
+        if (confirmed) {
+            console.log(`[ProPlanModal] User confirmed redirect despite being PRO`)
+            redirectToTwitter()
+        } else {
+            console.log(`[ProPlanModal] User cancelled redirect`)
+            setShowProConfirmation(false)
         }
     }
 
@@ -71,8 +122,7 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
                             {/* Close button */}
                             <button
                                 onClick={onClose}
-                                className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
-                                disabled={isLoading}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
                             >
                                 <X className="h-5 w-5" />
                             </button>
@@ -89,19 +139,19 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
                             </div>
 
                             {/* Pro Plan Card */}
-                            <div className="w-full bg-background-muted rounded-sm p-3 mb-4 border border-pink-500/30 flex-shrink-0">
+                            <div className="w-full bg-gradient-to-br from-pink-500/20 to-purple-600/20 rounded-lg p-3 mb-4 border border-pink-500/30 flex-shrink-0">
                                 <div className="flex justify-between items-start mb-2">
                                     <div>
                                         <span className="text-pink-500 font-semibold text-sm">Pro</span>{" "}
                                         <span className="text-teal-400 font-semibold text-sm">Plan</span>
                                     </div>
                                     <div className="text-right">
-                                        <div className="text-xl font-bold text-pink-500 ">{STRIPE_CONFIG.MINATO_PRO_PRICE_DISPLAY}</div>
-                                        <div className="text-xs text-teal-400">/{STRIPE_CONFIG.MINATO_PRO_PRICE_INTERVAL}</div>
+                                        <div className="text-xl font-bold text-white">$25</div>
+                                        <div className="text-xs text-gray-300">/month</div>
                                     </div>
                                 </div>
 
-                                <p className="text-gray-100 text-xs mb-3">
+                                <p className="text-gray-300 text-xs mb-3">
                                     Unlock the full Minato experience with:
                                 </p>
 
@@ -109,14 +159,14 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
                                 <div className="space-y-3 flex-1 overflow-y-auto">
                                     {featureCategories.map((category, categoryIndex) => (
                                         <div key={categoryIndex}>
-                                            <h4 className="text-xs font-semibold text-pink-600 mb-1.5">
+                                            <h4 className="text-xs font-semibold text-pink-400 mb-1.5">
                                                 {category.title}
                                             </h4>
                                             <ul className="space-y-1">
                                                 {category.features.map((feature, featureIndex) => (
-                                                    <li key={featureIndex} className="flex items-start text-xs leading-relaxed">
+                                                    <li key={featureIndex} className="flex items-start text-xs text-gray-200 leading-relaxed">
                                                         <Check className="h-3 w-3 text-green-400 mr-2 flex-shrink-0 mt-0.5" />
-                                                        <span className="text-gray-100">{feature}</span>
+                                                        <span>{feature}</span>
                                                     </li>
                                                 ))}
                                             </ul>
@@ -137,29 +187,51 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
                                 />
                             </div>
 
+                            {/* Confirmation Dialog for Pro Users */}
+                            {showProConfirmation && (
+                                <div className="mb-4 p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
+                                    <div className="flex items-start">
+                                        <AlertTriangle className="h-4 w-4 text-yellow-400 mr-2 flex-shrink-0 mt-0.5" />
+                                        <div className="text-xs text-yellow-200">
+                                            <p className="font-semibold mb-1">You are already on the Pro plan!</p>
+                                            <p className="mb-2">Would you still like to be redirected to our Twitter page?</p>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleProConfirmation(true)}
+                                                    className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs px-3 py-1"
+                                                >
+                                                    Yes
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleProConfirmation(false)}
+                                                    className="border-yellow-500 text-yellow-400 hover:bg-yellow-500/20 text-xs px-3 py-1"
+                                                >
+                                                    No
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* CTA Button */}
                             <Button
-                                onClick={handleUpgradeToPro}
-                                disabled={isLoading}
-                                className="w-full bg-gradient-to-r from-pink-600 to-teal-500 hover:from-pink-700 hover:to-teal-600 text-white font-semibold py-2.5 rounded-lg transition-all duration-200 transform hover:scale-105 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                                onClick={handleGetStartedClick}
+                                disabled={isCheckingPlan || loading}
+                                className="w-full bg-gradient-to-r from-pink-600 to-teal-500 hover:from-pink-700 hover:to-teal-600 text-white font-semibold py-2.5 rounded-lg transition-all duration-200 transform hover:scale-105 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {isLoading ? (
+                                {isCheckingPlan ? (
                                     <>
                                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        Processing...
+                                        Checking plan...
                                     </>
                                 ) : (
-                                    <>
-                                        <Zap className="h-4 w-4 mr-2" />
-                                        Get Started with Pro
-                                    </>
+                                    "Get Started with Pro"
                                 )}
                             </Button>
-
-                            {/* Additional info */}
-                            <p className="text-xs text-gray-400 text-center mt-2 flex-shrink-0">
-                                Secure payment powered by Stripe. Cancel anytime.
-                            </p>
                         </motion.div>
                     )}
                 </AnimatePresence>

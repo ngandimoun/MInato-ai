@@ -11,17 +11,13 @@ import { UploadStatusProvider } from "@/context/upload-status-context";
 import { ListeningProvider } from "@/context/listening-context";
 import { NavigationProvider } from "@/context/navigation-context";
 import { MemoryCleanupProvider } from "@/components/memory-cleanup-provider";
-import { TrialAlertsProvider } from "@/components/subscription/TrialAlertsProvider";
-import { WelcomeTrialToast } from "@/components/subscription/WelcomeTrialToast";
-import { SubscriptionExpirationToast } from "@/components/subscription/SubscriptionExpirationToast";
-import { ProModalManager } from "@/components/ui/pro-modal-manager";
+import { PlanStatusFloating } from '@/components/subscription/plan-status-floating'
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Minato AI",
   description: "Your AI-powered companion for productivity and creativity",
-  // viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
 };
 
 export default function RootLayout({
@@ -31,9 +27,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      {/* <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-      </head> */}
       <body className={inter.className} suppressHydrationWarning>
         <MemoryCleanupProvider>
           <ThemeProvider>
@@ -41,15 +34,10 @@ export default function RootLayout({
               <NavigationProvider>
                 <UploadStatusProvider>
                   <ListeningProvider>
-                    <TrialAlertsProvider>
-                      {/* ✅ TOASTS GLOBAUX: Disponibles sur toutes les pages */}
-                      <WelcomeTrialToast />
-                      <SubscriptionExpirationToast />
-                      <ProModalManager />
-                      {children}
-                    </TrialAlertsProvider>
+                    {children}
                   </ListeningProvider>
                 </UploadStatusProvider>
+                <PlanStatusFloating />
               </NavigationProvider>
             </AuthProvider>
             <Toaster />

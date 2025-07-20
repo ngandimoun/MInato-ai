@@ -13,12 +13,10 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/auth-provider';
-import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
 import { 
   Settings, 
   Globe, 
@@ -29,12 +27,7 @@ import {
   Sparkles,
   Languages,
   Brain,
-  Target,
-  Loader2,
-  Gamepad2,
-  Clock,
-  Users,
-  Zap
+  Target
 } from 'lucide-react';
 
 interface GamePreferences {
@@ -49,7 +42,6 @@ interface GamePreferences {
 export default function GameSettings() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { callTrialProtectedApi } = useTrialProtectedApiCall();
   
   const [preferences, setPreferences] = useState<GamePreferences>({
     language: 'en',
@@ -152,10 +144,8 @@ export default function GameSettings() {
       if (!user) return;
       
       try {
-        const response = await callTrialProtectedApi(
-          async () => fetch('/api/games/preferences')
-        );
-        if (response?.ok) {
+        const response = await fetch('/api/games/preferences');
+        if (response.ok) {
           const data = await response.json();
           setPreferences(data.preferences);
           if (data.preferences.topic_focus && !gameTopics.find(t => t.value === data.preferences.topic_focus)) {
@@ -171,7 +161,7 @@ export default function GameSettings() {
     };
     
     loadPreferences();
-  }, [user, callTrialProtectedApi]);
+  }, [user]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -180,20 +170,18 @@ export default function GameSettings() {
     try {
       const finalTopic = preferences.topic_focus === 'custom' ? customTopic : preferences.topic_focus;
       
-      const response = await callTrialProtectedApi(
-        async () => fetch('/api/games/preferences', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...preferences,
-            topic_focus: finalTopic,
-          }),
-        })
-      );
+      const response = await fetch('/api/games/preferences', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...preferences,
+          topic_focus: finalTopic,
+        }),
+      });
       
-      if (response?.ok) {
+      if (response.ok) {
         toast({
           title: "✅ Settings Saved!",
           description: "Your game preferences have been updated successfully.",

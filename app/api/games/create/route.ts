@@ -3,7 +3,6 @@ import { createSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { gameService, CreateGameRequest as SupabaseCreateGameRequest } from "@/lib/services/SupabaseGameService";
 import { v4 as uuidv4 } from 'uuid';
-import { getUserSubscription } from "@/lib/middleware/subscription-guards";
 
 interface CreateGameRequest {
   game_type: string;
@@ -35,33 +34,61 @@ export async function POST(request: NextRequest) {
     const userId = user ? user.id : `guest-${uuidv4()}`;
     const isGuest = !user;
     
+    console.log(`[Game Creation API] Request received - User: ${userId}, Guest: ${isGuest}`);
+    
     // If guest, log this information
     if (isGuest) {
-      console.log(`Creating game with guest user: ${userId}`);
+      console.log(`[Game Creation API] Creating game with guest user: ${userId}`);
     }
 
     const body: CreateGameRequest = await request.json();
 
+    console.log(`[Game Creation API] Game creation request:`, {
+      game_type: body.game_type,
+      mode: body.mode,
+      difficulty: body.difficulty,
+      max_players: body.max_players,
+      rounds: body.rounds,
+      user_id: userId,
+      is_guest: isGuest
+    });
+
     // Validate the request
     if (!body.game_type || !body.difficulty || !body.rounds) {
+      console.error('[Game Creation API] Validation error: Missing required fields');
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    // Check multiplayer access for authenticated users
-    if (body.mode === 'multiplayer' && !isGuest) {
-      const subscription = await getUserSubscription(userId);
-      if (!subscription || subscription.planType !== 'PRO') {
-        return NextResponse.json(
-          { 
-            error: "Multiplayer mode requires Minato Pro subscription",
-            code: "feature_blocked",
-            feature: "Multiplayer Mode"
-          },
-          { status: 403 }
-        );
+    // Check user subscription status for non-guest users
+    if (!isGuest) {
+      try {
+        const { data: subscriptionStatus } = await supabase
+          .rpc('get_user_subscription_status', { user_uuid: userId })
+          .single();
+        
+        console.log(`[Game Creation API] User subscription status:`, {
+          user_id: userId,
+          plan_type: (subscriptionStatus as any)?.plan_type,
+          is_active: (subscriptionStatus as any)?.is_active,
+          is_trial: (subscriptionStatus as any)?.is_trial,
+          is_pro: (subscriptionStatus as any)?.is_pro,
+          is_expired: (subscriptionStatus as any)?.is_expired
+        });
+
+        // Check if user can create multiplayer games
+        if (body.mode === 'multiplayer' && !(subscriptionStatus as any)?.is_pro) {
+          console.log(`[Game Creation API] Access denied - User ${userId} cannot create multiplayer games`);
+          return NextResponse.json(
+            { error: "Multiplayer games require Pro subscription" },
+            { status: 403 }
+          );
+        }
+      } catch (subscriptionError) {
+        console.error('[Game Creation API] Error checking subscription status:', subscriptionError);
+        // Continue with game creation even if subscription check fails
       }
     }
 
@@ -76,9 +103,9 @@ export async function POST(request: NextRequest) {
           .single();
         
         userPreferences = preferencesData?.workflow_preferences;
-        console.log('Fetched user preferences for game creation:', userPreferences);
+        console.log('[Game Creation API] Fetched user preferences for game creation:', userPreferences);
       } catch (error) {
-        console.log('Could not fetch user preferences, using defaults');
+        console.log('[Game Creation API] Could not fetch user preferences, using defaults');
       }
     }
     
@@ -105,17 +132,20 @@ export async function POST(request: NextRequest) {
     // Get user's display name for the game
     const username = isGuest ? 'Guest Player' : (user.user_metadata?.full_name || user.email?.split('@')[0] || 'Player');
 
+    console.log(`[Game Creation API] Creating game with Supabase service...`);
+
     // Create the game using Supabase Game Service
     const gameResult = await gameService.createGameRoom(supabaseGameRequest, userId, username);
 
     if (!gameResult.success) {
+      console.error('[Game Creation API] Game creation failed:', gameResult.error);
       return NextResponse.json(
         { error: gameResult.error || "Failed to create game" },
         { status: 500 }
       );
     }
 
-    console.log('Game creation successful:', {
+    console.log('[Game Creation API] Game creation successful:', {
       roomId: gameResult.data?.room_id,
       roomCode: gameResult.data?.room_code,
       userId: userId,
@@ -138,7 +168,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error creating game:', error);
+    console.error('[Game Creation API] Unexpected error:', error);
     return NextResponse.json(
       { error: "Failed to create game: " + (error as Error).message },
       { status: 500 }

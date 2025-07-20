@@ -4,7 +4,6 @@ import React, { createContext, useContext, useState, useCallback, useEffect, Rea
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 import { useAuth } from "./auth-provider";
 import { useToast } from "@/hooks/use-toast";
-import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
 
 export interface Recording {
   id: string;
@@ -92,7 +91,6 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const supabase = getBrowserSupabaseClient();
-  const { callTrialProtectedApi } = useTrialProtectedApiCall();
 
   // Fetch recordings from API
   const fetchRecordings = useCallback(async () => {
@@ -100,11 +98,9 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
     
     try {
       setIsLoading(true);
-      const response = await callTrialProtectedApi(
-        async () => fetch("/api/recordings")
-      );
+      const response = await fetch("/api/recordings");
       
-      if (!response?.ok) {
+      if (!response.ok) {
         throw new Error("Failed to fetch recordings");
       }
       
@@ -120,7 +116,7 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user, toast, callTrialProtectedApi]);
+  }, [user, toast]);
 
   // Delete a recording
   const deleteRecording = useCallback(async (recordingId: string) => {
@@ -164,11 +160,9 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
       
       try {
         setIsLoading(true);
-        const response = await callTrialProtectedApi(
-          async () => fetch(`/api/recordings/${currentRecordingId}`)
-        );
+        const response = await fetch(`/api/recordings/${currentRecordingId}`);
         
-        if (!response?.ok) {
+        if (!response.ok) {
           throw new Error("Failed to fetch recording details");
         }
         
@@ -194,7 +188,7 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
     };
     
     fetchRecordingDetails();
-  }, [currentRecordingId, toast, callTrialProtectedApi]);
+  }, [currentRecordingId, toast]);
 
   // Set up real-time updates for recording status
   useEffect(() => {

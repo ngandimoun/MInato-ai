@@ -492,7 +492,7 @@ export default function CreatePaymentLinkPage() {
                           type="number"
                           step="0.01"
                           min="0.01"
-                          placeholder="25.00"
+                          placeholder="29.99"
                           value={formData.price}
                           onChange={(e) => handleInputChange('price', e.target.value)}
                           className="pl-10"

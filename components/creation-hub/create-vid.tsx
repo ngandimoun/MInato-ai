@@ -41,9 +41,6 @@ import {
 } from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/auth-provider';
-import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
-import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
-import { UpgradeModal } from '@/components/subscription/UpgradeModal';
 import { useUserImages } from './hooks/use-user-images';
 import type { CreatedVideo } from './hooks/use-user-videos';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -254,8 +251,6 @@ export const SOCIAL_MEDIA_PLATFORMS: SocialMediaPlatform[] = [
 
 export default function CreateVid({ onVideoCreated, language = "en" }: CreateVidProps = {}) {
   const { user } = useAuth();
-  const { callTrialProtectedApi } = useTrialProtectedApiCall();
-  const { handleSubscriptionError, isUpgradeModalOpen, subscriptionError, handleUpgrade, closeUpgradeModal } = useSubscriptionGuard();
   const { images: galleryImages, loading: galleryLoading } = useUserImages();
   
   // Media selection state - Updated to support multiple files
@@ -736,40 +731,19 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
         setProgress(prev => Math.min(prev + 10, 90));
       }, 500);
 
-      const result = await callTrialProtectedApi(
-        async () => {
-          const response = await fetch('/api/video/create', {
-            method: 'POST',
-            body: formData,
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            
-            // Handle subscription errors
-            if (handleSubscriptionError(errorData)) {
-              throw new Error('Subscription required');
-            }
-            
-            throw new Error(errorData.error || 'Video generation failed');
-          }
-
-          return await response.json();
-        },
-        (data) => {
-          // Success callback - will be handled below
-        },
-        (error) => {
-          throw error; // Re-throw to be caught by outer catch
-        }
-      );
+      const response = await fetch('/api/video/create', {
+        method: 'POST',
+        body: formData,
+      });
 
       clearInterval(progressInterval);
       setProgress(100);
 
-      if (!result) {
-        throw new Error('Generation cancelled due to trial expiration');
+      if (!response.ok) {
+        throw new Error('Video generation failed');
       }
+
+      const result = await response.json();
       
       if (result.success) {
         if (result.isFrameSequence) {
@@ -807,14 +781,6 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
         throw new Error(result.error || 'Video generation failed');
       }
     } catch (error) {
-      // Check if this is a subscription error that was already handled
-      if (error instanceof Error && error.message === 'Subscription required') {
-        // Don't show error toast for subscription errors
-        // The modal is already shown by handleSubscriptionError
-        console.log('Video generation subscription error handled by modal');
-        return;
-      }
-
       console.error('Video generation error:', error);
       toast({
         title: "Generation failed",
@@ -1665,17 +1631,6 @@ export default function CreateVid({ onVideoCreated, language = "en" }: CreateVid
                 </motion.div>
               )}
             </AnimatePresence>
-
-            {/* Upgrade Modal */}
-            <UpgradeModal
-              isOpen={isUpgradeModalOpen}
-              onClose={closeUpgradeModal}
-              onUpgrade={handleUpgrade}
-              feature={subscriptionError?.feature || 'video creation'}
-              reason={subscriptionError?.code === 'quota_exceeded' ? 'quota_exceeded' : 
-                      subscriptionError?.code === 'feature_blocked' ? 'feature_blocked' : 
-                      'manual'}
-            />
           </div>
         )}
       </div>

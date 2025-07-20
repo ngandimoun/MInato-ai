@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { logger } from '@/memory-framework/config';
-import { checkQuota, incrementMonthlyUsage, checkAndHandleProExpiration } from '@/lib/middleware/subscription-guards';
 
 interface VideoGenerationRequest {
   imageUrl?: string;
@@ -41,30 +40,6 @@ export async function POST(request: NextRequest) {
         { error: 'Authentication required' },
         { status: 401 }
       );
-    }
-
-    // ✅ VÉRIFICATION AUTOMATIQUE: Contrôler l'expiration Pro avant de traiter la requête
-    const { expired, updated } = await checkAndHandleProExpiration(user.id);
-    
-    if (expired) {
-      logger.warn('[Video Generation API] User attempted to access video generation with expired Pro subscription', { 
-        userId: user.id.substring(0, 8)
-      });
-      return NextResponse.json({ 
-        error: 'Subscription expired',
-        code: 'subscription_expired',
-        message: 'Your Pro subscription has expired. Please renew to continue accessing premium features.'
-      }, { status: 403 });
-    }
-
-    // Check subscription quota for video generation
-    const quotaCheck = await checkQuota(request, 'videos');
-    if (!quotaCheck.success) {
-      logger.warn('[Video Generation API] Video generation quota exceeded', { 
-        userId: user.id.substring(0, 8),
-        error: quotaCheck.response?.json()
-      });
-      return quotaCheck.response!;
     }
 
     // Build professional video generation prompt
@@ -146,9 +121,6 @@ export async function POST(request: NextRequest) {
     } else {
       videoRecord = videoRecordData;
     }
-
-    // Increment monthly usage for video generation
-    await incrementMonthlyUsage(user.id, 'videos');
 
     return NextResponse.json({
       success: true,

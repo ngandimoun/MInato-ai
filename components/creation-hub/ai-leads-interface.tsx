@@ -39,7 +39,7 @@ import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 import { logger } from "@/memory-framework/config";
-import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
+import { FeatureGuard } from "@/components/subscription/feature-guard";
 
 interface LeadSearch {
   id: string;
@@ -125,7 +125,6 @@ export function AILeadsInterface() {
   const [searchProgress, setSearchProgress] = useState(0);
   const [lastSearchResults, setLastSearchResults] = useState<boolean>(false);
   const [currentSearchResults, setCurrentSearchResults] = useState<LeadResult[]>([]);
-  const { handleSubscriptionError } = useSubscriptionGuard();
   
   // Data states
   const [leadSearches, setLeadSearches] = useState<LeadSearch[]>([]);
@@ -315,13 +314,6 @@ export function AILeadsInterface() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        
-        // Handle subscription errors
-        if (handleSubscriptionError(errorData)) {
-          throw new Error('Subscription required');
-        }
-        
         throw new Error('Search failed');
       }
 
@@ -369,13 +361,6 @@ export function AILeadsInterface() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        
-        // Handle subscription errors
-        if (handleSubscriptionError(errorData)) {
-          throw new Error('Subscription required');
-        }
-        
         throw new Error('Message generation failed');
       }
 
@@ -577,23 +562,25 @@ export function AILeadsInterface() {
                         </div>
                       )}
 
-                      <Button 
-                        onClick={handleSearch} 
-                        disabled={isSearching || !searchPrompt.trim() || selectedPlatforms.length === 0}
-                        className="w-full h-11 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700"
-                      >
-                        {isSearching ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Searching...
-                          </>
-                        ) : (
-                          <>
-                            <Search className="mr-2 h-4 w-4" />
-                            Find Leads
-                          </>
-                        )}
-                      </Button>
+                      <FeatureGuard feature="leads">
+                        <Button 
+                          onClick={handleSearch} 
+                          disabled={isSearching || !searchPrompt.trim() || selectedPlatforms.length === 0}
+                          className="w-full h-11 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700"
+                        >
+                          {isSearching ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Searching...
+                            </>
+                          ) : (
+                            <>
+                              <Search className="mr-2 h-4 w-4" />
+                              Find Leads
+                            </>
+                          )}
+                        </Button>
+                      </FeatureGuard>
                     </CardContent>
                   </Card>
 

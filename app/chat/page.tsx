@@ -82,8 +82,8 @@ function ChatPageInner() {
   }
 
   return (
-    <main className="flex h-screen flex-col bg-background overflow-hidden">
-      {/* <div className="fixed inset-0 bg-gradient-to-br from-background via-muted/10 to-background z-[-1]" /> */}
+    <main className="flex min-h-screen flex-col bg-background">
+      <div className="fixed inset-0 bg-gradient-to-br from-background via-muted/10 to-background z-[-1]" />
 
       <Header currentView={currentView} onViewChange={setCurrentView} />
 
@@ -96,7 +96,7 @@ function ChatPageInner() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="h-full overflow-hidden" 
+              className="h-full" 
             >
               <ChatInterface />
             </motion.div>
@@ -109,7 +109,7 @@ function ChatPageInner() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="h-full overflow-hidden" 
+              className="h-full" 
             >
               <SettingsPanel
                 onClose={() => setCurrentView("chat")}
@@ -124,7 +124,7 @@ function ChatPageInner() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="h-full overflow-hidden"
+              className="h-full"
             >
               <MemoryPanel onClose={() => setCurrentView("chat")} />
             </motion.div>

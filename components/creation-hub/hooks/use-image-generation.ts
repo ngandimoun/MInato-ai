@@ -8,37 +8,19 @@ import type {
   UseImageGenerationOptions,
   UseImageGenerationReturn
 } from '../hub-types';
-import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
-import { useCreditsPurchase } from '@/hooks/use-credits-purchase';
-import { useAuth } from '@/context/auth-provider';
-import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
-import { usePermissionCheck } from '@/hooks/usePermissionCheck';
 
 export function useImageGeneration(options: UseImageGenerationOptions = {}): UseImageGenerationReturn {
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<HubError | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const { handleSubscriptionError } = useSubscriptionGuard();
-  const { user } = useAuth();
-  const { callTrialProtectedApi } = useTrialProtectedApiCall();
-  const { checkPermission } = usePermissionCheck();
-  
-  // Hook pour l'achat de crédits
-  const creditsPurchase = useCreditsPurchase({
-    feature: 'images',
-    currentUsage: (user as any)?.monthly_usage?.images || 0,
-    limit: (user as any)?.plan_type === 'PRO' ? 30 : 2,
-    subscriptionEndDate: (user as any)?.subscription_end_date
-  });
 
   const {
     conversationId,
     onSuccess,
     onError,
     onProgress,
-    streaming = false,
-    onUpgradeRequired
+    streaming = false
   } = options;
 
   const generate = useCallback(async (request: ImageGenerationRequest): Promise<GeneratedImage> => {
@@ -55,33 +37,6 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}): Use
     try {
       logger.info('[useImageGeneration] Starting generation', { requestId, prompt: request.prompt });
 
-      // Vérification préventive des permissions
-      const permissionCheck = await checkPermission('images');
-      if (!permissionCheck.allowed) {
-        logger.info('[useImageGeneration] Permission denied, showing upgrade modal');
-        setIsGenerating(false);
-        
-        // Déclencher le modal d'upgrade via le callback
-        if (onUpgradeRequired) {
-          onUpgradeRequired({
-            code: permissionCheck.reason,
-            feature: 'images',
-            currentUsage: permissionCheck.currentUsage,
-            maxQuota: permissionCheck.maxQuota
-          });
-        } else {
-          // Fallback vers l'ancien système
-          handleSubscriptionError({
-            code: permissionCheck.reason,
-            feature: 'images',
-            currentUsage: permissionCheck.currentUsage,
-            maxQuota: permissionCheck.maxQuota
-          });
-        }
-        
-        throw new Error('Subscription required');
-      }
-
       // Prepare request body for GPT Image 1
       const requestBody = {
         prompt: request.prompt,
@@ -97,54 +52,34 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}): Use
         formValues: request.formValues
       };
 
-      // Start generation with trial protection
-      const data = await callTrialProtectedApi(
-        async () => {
-          const response = await fetch('/api/creation-hub/generate', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-                    body: JSON.stringify(requestBody),
-        signal: abortControllerRef.current?.signal
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            
-            // Handle subscription errors
-            if (handleSubscriptionError(errorData)) {
-              throw new Error('Subscription required');
-            }
-            
-            throw new Error(errorData.error?.message || 'Generation failed');
-          }
-
-          // Handle streaming response
-          if (streaming && response.body) {
-            return await handleStreamingResponse(response, {
-              requestId,
-              onProgress: (progressValue) => {
-                setProgress(progressValue);
-                onProgress?.(progressValue);
-              }
-            });
-          }
-
-          // Handle regular response
-          return await response.json();
+      // Start generation
+      const response = await fetch('/api/creation-hub/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        (result) => {
-          // Success callback - will be handled below
-        },
-        (error) => {
-          throw error; // Re-throw to be caught by outer catch
-        }
-      );
+        body: JSON.stringify(requestBody),
+        signal: abortControllerRef.current.signal
+      });
 
-      if (!data) {
-        throw new Error('Generation cancelled due to trial expiration');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Generation failed');
       }
+
+      // Handle streaming response
+      if (streaming && response.body) {
+        return await handleStreamingResponse(response, {
+          requestId,
+          onProgress: (progressValue) => {
+            setProgress(progressValue);
+            onProgress?.(progressValue);
+          }
+        });
+      }
+
+      // Handle regular response
+      const data = await response.json();
       
       if (!data.success) {
         throw new Error(data.error?.message || 'Generation failed');
@@ -187,14 +122,6 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}): Use
       return generatedImage;
 
     } catch (err) {
-      // Check if this is a subscription error that was already handled
-      if (err instanceof Error && err.message === 'Subscription required') {
-        // Don't show error toast or set error state for subscription errors
-        // The modal is already shown by handleSubscriptionError
-        logger.info('[useImageGeneration] Subscription error handled by modal', { requestId });
-        throw err; // Re-throw to be handled by the caller
-      }
-
       const hubError = createHubError(err, requestId);
       setError(hubError);
       
@@ -206,7 +133,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}): Use
       // Call error callback
       onError?.(hubError);
 
-      // Show error toast only for non-subscription errors
+      // Show error toast
       toast.error("Generation Failed", {
         description: hubError.message,
       });
@@ -217,7 +144,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}): Use
       setIsGenerating(false);
       abortControllerRef.current = null;
     }
-  }, [conversationId, onSuccess, onError, onProgress, streaming, onUpgradeRequired]);
+  }, [conversationId, onSuccess, onError, onProgress, streaming]);
 
   const cancel = useCallback(() => {
     if (abortControllerRef.current) {

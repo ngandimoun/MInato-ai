@@ -35,7 +35,6 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Recording } from "@/context/listening-context";
 import { useToast } from "@/hooks/use-toast";
-import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
 
 interface RecordingListProps {
   recordings: Recording[];
@@ -57,7 +56,6 @@ export function RecordingList({
   className,
 }: RecordingListProps) {
   const { toast } = useToast();
-  const { callTrialProtectedApi } = useTrialProtectedApiCall();
   const [editingRecordingId, setEditingRecordingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>("");
 
@@ -145,13 +143,11 @@ export function RecordingList({
     event.stopPropagation();
     
     try {
-      const response = await callTrialProtectedApi(
-        async () => fetch(`/api/recordings/${recordingId}/process`, {
-          method: "POST",
-        })
-      );
+      const response = await fetch(`/api/recordings/${recordingId}/process`, {
+        method: "POST",
+      });
 
-      if (!response?.ok) {
+      if (!response.ok) {
         throw new Error("Failed to trigger processing");
       }
 
@@ -208,17 +204,17 @@ export function RecordingList({
         <CardDescription>Select a recording to view its analysis</CardDescription>
       </CardHeader>
       <CardContent className="p-0">
-      <ScrollArea className="h-[310px] px-4 pb-4">
+        <ScrollArea className="h-[305px] px-4 pb-4">
           {isLoading ? (
             // Loading skeletons
             Array(3)
               .fill(0)
               .map((_, i) => (
-                <div key={i} className="flex items-center gap-3 mb-3 p-3 border rounded-lg">
+                <div key={i} className="flex items-center gap-3 mb-3 p-3 border rounded-sm">
                   <Skeleton className="h-10 w-10 rounded-md" />
                   <div className="space-y-2 flex-1">
                     <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-3 w-full" />
                   </div>
                 </div>
               ))
@@ -238,7 +234,7 @@ export function RecordingList({
                 key={recording.id}
                 onClick={() => onSelectRecording(recording)}
                 className={cn(
-                  "flex items-start gap-3 w-[280px] md:w-full mb-3 p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
+                  "flex items-start gap-3 w-[310px] md:w-full mb-3 p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
                   selectedRecordingId === recording.id && "bg-primary/5 border-primary/30"
                 )}
               >

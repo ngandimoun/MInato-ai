@@ -254,7 +254,7 @@ export default function ListeningPage() {
                     onSelectRecording={handleSelectRecording}
                     onDeleteRecording={handleDeleteRecording}
                     onUpdateRecording={handleUpdateRecording}
-                    className="shadow-lg hover:shadow-xl transition-shadow"
+                    className="shadow-sm hover:shadow-xl transition-shadow"
                   />
                 </motion.div>
               </AnimatePresence>

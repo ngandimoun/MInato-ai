@@ -26,7 +26,6 @@ import type {
   CategoryImageGenerationRequest 
 } from '@/components/creation-hub/hub-types';
 import { DataVisualizationEngine } from '@/lib/services/DataVisualizationEngine';
-import { checkQuota, incrementMonthlyUsage, checkAndHandleProExpiration } from '@/lib/middleware/subscription-guards';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -57,30 +56,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ✅ VÉRIFICATION AUTOMATIQUE: Contrôler l'expiration Pro avant de traiter la requête
-    const { expired, updated } = await checkAndHandleProExpiration(user.id);
-    
-    if (expired) {
-      logger.warn('[Creation Hub API] User attempted to access image generation with expired Pro subscription', { 
-        requestId, 
-        userId: user.id.substring(0, 8)
-      });
-      return NextResponse.json({ 
-        error: 'Subscription expired',
-        code: 'subscription_expired',
-        message: 'Your Pro subscription has expired. Please renew to continue accessing premium features.'
-      }, { status: 403 });
+    // Vérification du plan utilisateur dans la base Supabase
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('plan_type, trial_end_date')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      logger.warn('[Creation Hub API] User profile not found', { requestId, userId: user.id });
+      return NextResponse.json(
+        { error: { code: 'NO_PROFILE', message: 'User profile not found.' } },
+        { status: 403 }
+      );
     }
 
-    // Check subscription quota for image generation
-    const quotaCheck = await checkQuota(request, 'images');
-    if (!quotaCheck.success) {
-      logger.warn('[Creation Hub API] Image generation quota exceeded', { 
-        requestId, 
-        userId: user.id.substring(0, 8),
-        error: quotaCheck.response?.json()
-      });
-      return quotaCheck.response!;
+    if (profile.plan_type === 'FREE_TRIAL' || profile.plan_type === 'EXPIRED') {
+      logger.warn('[Creation Hub API] Access denied: user on free trial or expired', { requestId, userId: user.id, plan_type: profile.plan_type });
+      return NextResponse.json(
+        { error: { code: 'PLAN_RESTRICTED', message: 'Image generation is only available for Pro users. Please upgrade your plan.' } },
+        { status: 403 }
+      );
     }
 
     // Parse request body - updated for GPT Image 1 parameters
@@ -608,9 +604,6 @@ SMART DATA PROCESSING APPLIED:
       logger.error('[Creation Hub API] Database operation failed', { requestId, dbError });
       // Continue without database operations
     }
-
-    // Increment monthly usage for image generation
-    await incrementMonthlyUsage(user.id, 'images');
 
     const duration = Date.now() - startTime;
     logger.info('[Creation Hub API] Image generation completed', { 

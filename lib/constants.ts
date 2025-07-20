@@ -15,8 +15,6 @@ export const MEDIA_UPLOAD_BUCKET = process.env.MEDIA_UPLOAD_BUCKET || "audio-rec
 export const AUDIO_BUCKET = "audio-recordings";
 export const IMAGE_BUCKET = "images";
 export const VIDEO_BUCKET = "videos";
-export const MEDIA_VIDEO_BUCKET = "videos";
-export const TTS_AUDIO_BUCKET = "tts-audio";
 export const DOCUMENT_BUCKET = "documents";
 
 // --- URL Expiry Times ---
@@ -112,86 +110,3 @@ export const MEMORY_SEARCH_LIMIT_DEFAULT = 7;
 // --- Valeurs par Défaut Cache Sémantique ---
 export const EXTERNAL_CACHE_SIMILARITY_THRESHOLD = 0.88;
 export const EXTERNAL_CACHE_DEFAULT_LIMIT = 1;
-
-// Stripe Configuration
-export const STRIPE_CONFIG = {
-  MINATO_PRO_PRICE_CENTS: 100, // $1.00 in cents
-  MINATO_PRO_PRICE_DISPLAY: '$1.00',
-  MINATO_PRO_PRICE_CURRENCY: 'usd',
-  MINATO_PRO_PRICE_INTERVAL: 'month'
-} as const;
-
-// Credit Packs Configuration
-export const CREDIT_PACKS_CONFIG = {
-  images: {
-    basic: { credits: 10, price: 15, priceId: 'price_images_10' },
-    plus: { credits: 30, price: 25, priceId: 'price_images_30', savings: '17%' },
-    pro: { credits: 50, price: 35, priceId: 'price_images_50', savings: '30%' }
-  },
-  videos: {
-    basic: { credits: 10, price: 15, priceId: 'price_videos_10' },
-    plus: { credits: 20, price: 25, priceId: 'price_videos_20', savings: '17%' },
-    pro: { credits: 35, price: 35, priceId: 'price_videos_35', savings: '30%' }
-  },
-  recordings: {
-    basic: { credits: 10, price: 15, priceId: 'price_recordings_10' },
-    plus: { credits: 20, price: 25, priceId: 'price_recordings_20', savings: '17%' },
-    pro: { credits: 35, price: 35, priceId: 'price_recordings_35', savings: '30%' }
-  },
-  leads: {
-    basic: { credits: 10, price: 15, priceId: 'price_leads_10' },
-    plus: { credits: 20, price: 25, priceId: 'price_leads_20', savings: '17%' },
-    pro: { credits: 35, price: 35, priceId: 'price_leads_35', savings: '30%' }
-  }
-} as const;
-
-// Minato Pro Features Configuration
-export const MINATO_PRO_FEATURES = {
-  core: {
-    title: "Core Features",
-    features: [
-      {
-        title: "Unlimited AI Chat Conversations",
-        description: "Chat without limits with advanced AI"
-      },
-      {
-        title: "Persistent Memory & Conversation History",
-        description: "Your conversations are remembered and saved"
-      }
-    ]
-  },
-  creation: {
-    title: "Creation Hub",
-    features: [
-      {
-        title: "AI-Powered Lead Generation Tools",
-        description: "Generate business leads automatically"
-      },
-      {
-        title: "30 AI-Generated Images per Month",
-        description: "Create stunning visuals with AI"
-      },
-      {
-        title: "20 AI-Generated Videos per Month",
-        description: "Produce professional videos instantly"
-      }
-    ]
-  },
-  premium: {
-    title: "Premium Features",
-    features: [
-      {
-        title: "Multiplayer Games & Social Features",
-        description: "Connect and play with other users"
-      },
-      {
-        title: "20 Recording Sessions",
-        description: "Record and analyze your conversations"
-      },
-      {
-        title: "Priority Support & Faster Response Times",
-        description: "Get help when you need it most"
-      }
-    ]
-  }
-} as const;

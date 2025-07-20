@@ -131,27 +131,6 @@ export async function POST(req: NextRequest) {
 
     console.log("User authenticated:", session.user.id.substring(0, 8));
 
-    // ✅ VÉRIFICATION AUTOMATIQUE: Contrôler l'expiration Pro avant de traiter la requête
-    const { checkQuota, incrementMonthlyUsage, checkAndHandleProExpiration } = await import('@/lib/middleware/subscription-guards');
-    const { expired, updated } = await checkAndHandleProExpiration(session.user.id);
-    
-    if (expired) {
-      console.warn(`User attempted to access recordings with expired Pro subscription: ${session.user.id.substring(0, 8)}`);
-      return NextResponse.json({ 
-        error: 'Subscription expired',
-        code: 'subscription_expired',
-        message: 'Your Pro subscription has expired. Please renew to continue accessing premium features.'
-      }, { status: 403 });
-    }
-
-    // Vérifier les quotas d'enregistrement
-    const quotaCheck = await checkQuota(req, 'recordings');
-    
-    if (!quotaCheck.success) {
-      console.warn(`Quota exceeded for recordings: ${quotaCheck.response?.status}`);
-      return quotaCheck.response!;
-    }
-
     // Parse request body
     const body = await req.json();
     
@@ -192,16 +171,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Incrémenter l'utilisation mensuelle après création réussie
-    await incrementMonthlyUsage(session.user.id, 'recordings');
+    if (!data) {
+      return NextResponse.json(
+        { error: "Recording created but no data returned" },
+        { status: 500 }
+      );
+    }
 
-    console.log("Recording created successfully:", data);
-    return NextResponse.json(data);
+    console.log("Recording created successfully:", data.id);
 
-  } catch (error) {
+    // Automatically trigger processing
+    try {
+      const processResponse = await fetch(`${req.nextUrl.origin}/api/recordings/${data.id}/process`, {
+        method: "POST",
+        headers: {
+          "Cookie": req.headers.get("cookie") || "", // Forward cookies for authentication
+        },
+      });
+      
+      if (processResponse.ok) {
+        console.log("Processing started for recording:", data.id);
+      } else {
+        console.error("Failed to start processing for recording:", data.id);
+      }
+    } catch (processError) {
+      console.error("Error triggering processing:", processError);
+      // Don't fail the creation if processing fails - it can be retried later
+    }
+
+    return NextResponse.json({ data }, { status: 201 });
+  } catch (error: any) {
     console.error("Error creating recording:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: `Internal server error: ${error.message || "Unknown error"}` },
       { status: 500 }
     );
   }

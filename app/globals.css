@@ -3,31 +3,6 @@
 @tailwind utilities;
 
 @layer base {
-  /* Prevent global scroll */
-  /* html, body {
-    overflow: hidden;
-    height: 100vh;
-  } */
-
-  /* Mobile and tablet specific styles */
-  /* @media (max-width: 768px) {
-    html {
-      font-size: 14px;
-    }
-    
-    body {
-      -webkit-text-size-adjust: 100%;
-      -ms-text-size-adjust: 100%;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    .container {
-      padding-left: 1rem;
-      padding-right: 1rem;
-    }
-  } */
-
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -120,126 +95,126 @@
   }
 
   /* Sakura Breeze palette (cherry blossom wind) */
-  .palette-sakura-breeze {
-    /* --background: 350 100% 98%;
-    --foreground: 340 40% 20%; */
+  :root.palette-sakura-breeze {
+    --background: 350 100% 98%;
+    --foreground: 340 40% 20%;
     --primary: 340 85% 60%;
     --primary-foreground: 0 0% 100%;
-    /* --secondary: 340 50% 90%;
+    --secondary: 340 50% 90%;
     --secondary-foreground: 340 40% 20%;
     --accent: 340 30% 85%;
-    --accent-foreground: 340 40% 20%; */
+    --accent-foreground: 340 40% 20%;
     --border: 340 30% 85%;
     --input: 340 30% 85%;
     --ring: 340 85% 60%;
-    /* --card: 350 80% 96%;
+    --card: 350 80% 96%;
     --card-foreground: 340 40% 20%;
     --popover: 350 80% 96%;
     --popover-foreground: 340 40% 20%;
     --muted: 340 30% 90%;
-    --muted-foreground: 340 20% 40%; */
+    --muted-foreground: 340 20% 40%;
   }
 
-  .dark.palette-sakura-breeze {
-      /* --background: 340 30% 8%;
-      --foreground: 340 30% 95%; */
+  :root.dark.palette-sakura-breeze {
+    --background: 340 30% 8%;
+    --foreground: 340 30% 95%;
     --primary: 340 85% 70%;
     --primary-foreground: 340 30% 8%;
-    /* --secondary: 340 30% 15%;
+    --secondary: 340 30% 15%;
     --secondary-foreground: 340 30% 95%;
     --accent: 340 30% 20%;
-    --accent-foreground: 340 30% 95%; */
+    --accent-foreground: 340 30% 95%;
     --border: 340 30% 20%;
     --input: 340 30% 20%;
     --ring: 340 85% 70%;
-    /* --card: 340 30% 10%;
+    --card: 340 30% 10%;
     --card-foreground: 340 30% 95%;
     --popover: 340 30% 10%;
     --popover-foreground: 340 30% 95%;
     --muted: 340 30% 15%;
-    --muted-foreground: 340 20% 70%; */
+    --muted-foreground: 340 20% 70%;
   }
 
   /* Arctic Dawn palette (cool blues/greys) */
-  .palette-komorebi-path {
-    /* --background: 210 30% 96%;
-    --foreground: 210 40% 15%; */
+  :root.palette-komorebi-path {
+    --background: 210 30% 96%;
+    --foreground: 210 40% 15%;
     --primary: 210 100% 50%;
     --primary-foreground: 0 0% 100%;
-    /* --secondary: 210 40% 85%;
+    --secondary: 210 40% 85%;
     --secondary-foreground: 210 40% 15%;
     --accent: 195 60% 80%;
-    --accent-foreground: 210 40% 15%; */
+    --accent-foreground: 210 40% 15%;
     --border: 210 30% 80%;
     --input: 210 30% 80%;
     --ring: 210 100% 50%;
-    /* --card: 210 20% 93%;
+    --card: 210 20% 93%;
     --card-foreground: 210 40% 15%;
     --popover: 210 20% 93%;
     --popover-foreground: 210 40% 15%;
     --muted: 210 20% 85%;
-    --muted-foreground: 210 20% 35%; */
+    --muted-foreground: 210 20% 35%;
   }
 
-  .dark.palette-komorebi-path {
-    /* --background: 210 50% 6%;
-    --foreground: 210 20% 95%; */
+  :root.dark.palette-komorebi-path {
+    --background: 210 50% 6%;
+    --foreground: 210 20% 95%;
     --primary: 210 100% 60%;
     --primary-foreground: 210 50% 6%;
     --secondary: 210 50% 12%;
-    /* --secondary-foreground: 210 20% 95%;
+    --secondary-foreground: 210 20% 95%;
     --accent: 195 60% 20%;
-    --accent-foreground: 210 20% 95%; */
+    --accent-foreground: 210 20% 95%;
     --border: 210 50% 18%;
     --input: 210 50% 18%;
     --ring: 210 100% 60%;
-    /* --card: 210 50% 9%;
+    --card: 210 50% 9%;
     --card-foreground: 210 20% 95%;
     --popover: 210 50% 9%;
     --popover-foreground: 210 20% 95%;
     --muted: 210 50% 12%;
-    --muted-foreground: 210 15% 75%; */
+    --muted-foreground: 210 15% 75%;
   }
 
   /* Cyber Neon palette (vibrant purple/cyan/pink) */
-  .palette-neo-kyoto-glow {
-    /* --background: 280 30% 95%;
-    --foreground: 280 50% 15%; */
+  :root.palette-neo-kyoto-glow {
+    --background: 280 30% 95%;
+    --foreground: 280 50% 15%;
     --primary: 280 100% 60%;
     --primary-foreground: 0 0% 100%;
-    /* --secondary: 300 80% 85%;
+    --secondary: 300 80% 85%;
     --secondary-foreground: 280 50% 15%;
     --accent: 180 70% 80%;
-    --accent-foreground: 280 50% 15%; */
+    --accent-foreground: 280 50% 15%;
     --border: 280 40% 80%;
     --input: 280 40% 80%;
     --ring: 280 100% 60%;
-    /* --card: 280 20% 92%;
+    --card: 280 20% 92%;
     --card-foreground: 280 50% 15%;
     --popover: 280 20% 92%;
     --popover-foreground: 280 50% 15%;
     --muted: 280 30% 85%;
-    --muted-foreground: 280 30% 35%; */
+    --muted-foreground: 280 30% 35%;
   }
 
-  .dark.palette-neo-kyoto-glow {
-    /* --background: 280 50% 5%; */
-    /* --foreground: 280 30% 95%; */
+  :root.dark.palette-neo-kyoto-glow {
+    --background: 280 50% 5%;
+    --foreground: 280 30% 95%;
     --primary: 280 100% 70%;
     --primary-foreground: 280 50% 5%;
     --secondary: 280 50% 12%;
-    /* --secondary-foreground: 280 30% 95%;
+    --secondary-foreground: 280 30% 95%;
     --accent: 180 70% 25%;
-    --accent-foreground: 280 30% 95%; */
+    --accent-foreground: 280 30% 95%;
     --border: 280 50% 18%;
     --input: 280 50% 18%;
     --ring: 280 100% 70%;
-    /* --card: 280 50% 8%;
+    --card: 280 50% 8%;
     --card-foreground: 280 30% 95%;
     --popover: 280 50% 8%;
     --popover-foreground: 280 30% 95%;
     --muted: 280 50% 12%;
-    --muted-foreground: 280 20% 75%; */
+    --muted-foreground: 280 20% 75%;
   }
 
   /* Monochrome Ink palette (grayscale variants) */
@@ -400,44 +375,44 @@
   }
 
   /* Forest Green palette */
-  .palette-matcha-garden {
-    /* --background: 130 30% 96%;
-    --foreground: 130 40% 15%; */
+  :root.palette-matcha-garden {
+    --background: 130 30% 96%;
+    --foreground: 130 40% 15%;
     --primary: 130 70% 35%;
     --primary-foreground: 0 0% 100%;
-    /* --secondary: 130 40% 85%;
+    --secondary: 130 40% 85%;
     --secondary-foreground: 130 40% 15%;
     --accent: 90 50% 80%;
-    --accent-foreground: 130 40% 15%; */
+    --accent-foreground: 130 40% 15%;
     --border: 130 30% 80%;
     --input: 130 30% 80%;
     --ring: 130 70% 35%;
-    /* --card: 130 20% 93%;
+    --card: 130 20% 93%;
     --card-foreground: 130 40% 15%;
     --popover: 130 20% 93%;
     --popover-foreground: 130 40% 15%;
     --muted: 130 20% 85%;
-    --muted-foreground: 130 20% 35%; */
+    --muted-foreground: 130 20% 35%;
   }
 
-  .dark.palette-matcha-garden {
-    /* --background: 130 40% 6%;
-    --foreground: 130 20% 95%; */
+  :root.dark.palette-matcha-garden {
+    --background: 130 40% 6%;
+    --foreground: 130 20% 95%;
     --primary: 130 70% 45%;
     --primary-foreground: 130 40% 6%;
-    /* --secondary: 130 40% 12%;
+    --secondary: 130 40% 12%;
     --secondary-foreground: 130 20% 95%;
     --accent: 90 50% 20%;
-    --accent-foreground: 130 20% 95%; */
+    --accent-foreground: 130 20% 95%;
     --border: 130 40% 18%;
     --input: 130 40% 18%;
     --ring: 130 70% 45%;
-    /* --card: 130 40% 9%;
+    --card: 130 40% 9%;
     --card-foreground: 130 20% 95%;
     --popover: 130 40% 9%;
     --popover-foreground: 130 20% 95%;
     --muted: 130 40% 12%;
-    --muted-foreground: 130 15% 75%; */
+    --muted-foreground: 130 15% 75%;
   }
 
   /* Sunset Orange palette */

@@ -12,7 +12,7 @@ import { useAuth } from "@/context/auth-provider"
 import { ModeToggle } from "@/components/mode-toggle"
 import { useNavigation } from "@/context/navigation-context"
 import { ProPlanModal } from "@/components/ui/pro-plan-modal"
-import { useUserPlan } from "@/hooks/useUserPlan"
+import { SubscriptionStatus } from "@/components/subscription/subscription-status"
 
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub"; // Added listening, insights, and creation-hub views
 
@@ -36,7 +36,6 @@ export const NotificationContext = createContext<NotificationContextType>({
 export function Header({ currentView, onViewChange }: HeaderProps) {
   const { user, profile } = useAuth()
   const { navigateWithLoading } = useNavigation()
-  const { userPlan } = useUserPlan()
   const [notifOpen, setNotifOpen] = React.useState(false)
   const [notifCount, setNotifCount] = React.useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
@@ -145,8 +144,6 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
 
   return (
     <NotificationContext.Provider value={notificationContextValue}>
-      {/* ✅ TOASTS: Maintenant dans layout.tsx pour disponibilité globale */}
-      
       <header className="fixed top-0 left-0 right-0 z-20 backdrop-blur-md bg-background/80 border-b border-border">
         <div className="container max-w-5xl mx-auto px-4">
           <div className="flex items-center justify-between h-14">
@@ -165,7 +162,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
             </div>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex flex-1 justify-center">
+             <nav className="hidden md:flex flex-1 justify-center">
               <ul className="flex  bg-muted/50 border border-border/50 p-1 rounded-sm">
                 {navItems.map((item) => (
                   <li key={item.id}>
@@ -201,21 +198,22 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
             </nav>
 
             {/* Right side actions */}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
               <ModeToggle />
 
-              {/* Plan Button - Only show if user is not on PRO plan */}
-              {!userPlan?.isPro && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => setProPlanModalOpen(true)}
-                  className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium px-3 py-1 rounded-sm text-xs h-8"
-                >
-                  <Zap className="h-3 w-3 mr-1" />
-                  <span className="hidden sm:inline">Plan</span>
-                </Button>
-              )}
+              {/* Subscription Status */}
+              <SubscriptionStatus />
+
+              {/* Plan Button */}
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setProPlanModalOpen(true)}
+                className="h-8 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium px-3 py-1 rounded-sm text-xs"
+              >
+                <Zap className="h-3 w-3 mr-1" />
+                Plan
+              </Button>
 
               {/* Notifications */}
               <Popover open={notifOpen} onOpenChange={setNotifOpen}>
@@ -229,7 +227,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
                     )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="p-0 w-[350px] max-w-[90vw] border-none shadow-none bg-transparent">
+                <PopoverContent align="end" className="p-0 w-[350px] max-w-full border-none shadow-none bg-transparent">
                   <NotificationsPanel onClose={() => setNotifOpen(false)} onCountChange={fetchNotifCount} />
                 </PopoverContent>
               </Popover>
@@ -298,27 +296,25 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
                       </motion.li>
                     ))}
                     
-                    {/* Plan Button in Mobile Menu - Only show if user is not on PRO plan */}
-                    {!userPlan?.isPro && (
-                      <motion.li
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.2, delay: navItems.length * 0.05 }}
+                    {/* Plan Button in Mobile Menu */}
+                    {/* <motion.li
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2, delay: navItems.length * 0.05 }}
+                    >
+                      <Button
+                        variant="default"
+                        onClick={() => {
+                          setProPlanModalOpen(true)
+                          setMobileMenuOpen(false)
+                        }}
+                        className="w-full justify-start rounded-lg px-4 py-3 text-left bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium"
                       >
-                        <Button
-                          variant="default"
-                          onClick={() => {
-                            setProPlanModalOpen(true)
-                            setMobileMenuOpen(false)
-                          }}
-                          className="w-full justify-start rounded-lg px-4 py-3 text-left bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium"
-                        >
-                          <Zap className="h-4 w-4 mr-3" />
-                          <span className="font-medium">Upgrade Plan</span>
-                        </Button>
-                      </motion.li>
-                    )}
+                        <Zap className="h-4 w-4 mr-3" />
+                        <span className="font-medium">Plan</span>
+                      </Button>
+                    </motion.li> */}
                   </ul>
                 </motion.nav>
               </div>

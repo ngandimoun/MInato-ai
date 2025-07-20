@@ -3,20 +3,20 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, StopCircle, Loader2, Pause, Play, Square } from "lucide-react";
+import { Mic, StopCircle, Loader2, Pause, Play, Square, X } from "lucide-react";
 import { useReactMediaRecorder } from "react-media-recorder";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-provider";
 import { cn } from "@/lib/utils";
-import { useSubscriptionGuard } from '@/hooks/useSubscriptionGuard';
-import { UpgradeModal } from '@/components/subscription/UpgradeModal';
-import { useTrialProtectedApiCall } from '@/hooks/useTrialExpirationHandler';
+import { ListeningLimitGuard } from "@/components/subscription/listening-limit-guard";
 
 interface RecordingButtonProps {
   onRecordingComplete: (recordingId: string) => void;
   className?: string;
 }
+
+const MAX_RECORDING_TIME = 25 * 60; // 25 minutes in seconds
 
 export function RecordingButton({ onRecordingComplete, className }: RecordingButtonProps) {
   const [isRecording, setIsRecording] = useState(false);
@@ -27,8 +27,6 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
-  const { handleSubscriptionError, isUpgradeModalOpen, subscriptionError, handleUpgrade, closeUpgradeModal } = useSubscriptionGuard();
-  const { callTrialProtectedApi } = useTrialProtectedApiCall();
   
   // Format time as MM:SS
   const formatTime = (seconds: number): string => {
@@ -64,6 +62,17 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
     };
   }, []);
 
+  // Check for maximum recording time
+  useEffect(() => {
+    if (recordingTime >= MAX_RECORDING_TIME && isRecording && !isPaused) {
+      handleStopRecording();
+      toast({
+        title: "Recording time limit reached",
+        description: "Maximum recording time of 25 minutes has been reached.",
+      });
+    }
+  }, [recordingTime, isRecording, isPaused]);
+
   // Media recorder setup
   const { status, startRecording, stopRecording, pauseRecording, resumeRecording, mediaBlobUrl, clearBlobUrl } = 
     useReactMediaRecorder({
@@ -93,45 +102,34 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
           const formData = new FormData();
           formData.append("file", audioFile);
           
-          // Upload the file to Supabase storage with trial protection
-          const uploadResponse = await callTrialProtectedApi(
-            async () => fetch("/api/recordings/upload", {
-              method: "POST",
-              body: formData,
-            })
-          );
+          // Upload the file to Supabase storage
+          const uploadResponse = await fetch("/api/recordings/upload", {
+            method: "POST",
+            body: formData,
+          });
           
-          if (!uploadResponse?.ok) {
-            const errorData = await uploadResponse?.json().catch(() => ({}));
-            
-            // Handle subscription errors
-            if (handleSubscriptionError(errorData)) {
-              throw new Error('Subscription required');
-            }
-            
-            throw new Error(`Upload failed: ${errorData.error || uploadResponse?.statusText}`);
+          if (!uploadResponse.ok) {
+            const errorData = await uploadResponse.json().catch(() => ({}));
+            throw new Error(`Upload failed: ${errorData.error || uploadResponse.statusText}`);
           }
           
           const { filePath } = await uploadResponse.json();
           
-          // Create a recording entry in the database with trial protection
-          const createResponse = await callTrialProtectedApi(
-            async () => fetch("/api/recordings", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                title,
-                file_path: filePath,
-                duration: Math.round(blob.size / 16000), // Rough estimate
-              }),
-            })
-          );
+          // Create a recording entry in the database
+          const createResponse = await fetch("/api/recordings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title,
+              file_path: filePath,
+              duration_seconds: recordingTime,
+              size_bytes: blob.size,
+            }),
+          });
           
-          if (!createResponse?.ok) {
-            const errorData = await createResponse?.json().catch(() => ({}));
-            throw new Error(`Create recording failed: ${errorData.error || createResponse?.statusText}`);
+          if (!createResponse.ok) {
+            const errorData = await createResponse.json().catch(() => ({}));
+            throw new Error(`Create recording failed: ${errorData.error || createResponse.statusText}`);
           }
           
           const { data } = await createResponse.json();
@@ -148,14 +146,6 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
           clearBlobUrl();
           setRecordingTitle("");
         } catch (error) {
-          // Check if this is a subscription error that was already handled
-          if (error instanceof Error && error.message === 'Subscription required') {
-            // Don't show error toast for subscription errors
-            // The modal is already shown by handleSubscriptionError
-            console.log('Recording subscription error handled by modal');
-            return;
-          }
-
           console.error("Error saving recording:", error);
           toast({
             title: "Error saving recording",
@@ -218,6 +208,23 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
     stopRecording();
   };
 
+  // Handle cancel recording
+  const handleCancelRecording = () => {
+    // Stop the recording to cut off microphone access
+    stopRecording();
+    
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    clearBlobUrl();
+    resetState();
+    toast({
+      title: "Recording cancelled",
+      description: "Your recording has been cancelled.",
+    });
+  };
+
   // Pulse animation for recording indicator
   const pulseVariants = {
     pulse: {
@@ -232,21 +239,22 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
   };
 
   return (
-    <div className={cn("flex flex-col items-center", className)}>
-      <div className="relative">
-        {!isRecording ? (
-          // Main record button when not recording
-          <Button
-            variant="default"
-            size="lg"
-            className={cn(
-              "h-16 w-16 rounded-full shadow-lg transition-all duration-300",
-              "bg-primary hover:bg-primary/90",
-              isUploading && "opacity-50 cursor-not-allowed"
-            )}
-            onClick={handleStartRecording}
-            disabled={status === "recording" && !isRecording || isUploading}
-          >
+    <ListeningLimitGuard>
+      <div className={cn("flex flex-col items-center", className)}>
+        <div className="relative">
+          {!isRecording ? (
+            // Main record button when not recording
+            <Button
+              variant="default"
+              size="lg"
+              className={cn(
+                "h-16 w-16 rounded-full shadow-lg transition-all duration-300",
+                "bg-primary hover:bg-primary/90",
+                isUploading && "opacity-50 cursor-not-allowed"
+              )}
+              onClick={handleStartRecording}
+              disabled={status === "recording" && !isRecording || isUploading}
+            >
             <AnimatePresence mode="wait">
               {isUploading ? (
                 <motion.div
@@ -274,6 +282,17 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
         ) : (
           // Recording controls when recording is active
           <div className="flex items-center gap-3">
+            {/* Cancel button */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 w-10 rounded-full shadow-md"
+              onClick={handleCancelRecording}
+              disabled={isUploading}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+            
             {/* Pause/Resume button */}
             <Button
               variant={isPaused ? "outline" : "secondary"}
@@ -321,13 +340,19 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
           >
             <div className={cn(
               "font-medium",
-              isPaused ? "text-muted-foreground" : "text-destructive"
+              isPaused ? "text-muted-foreground" : "text-destructive",
+              recordingTime >= MAX_RECORDING_TIME - 60 && "text-orange-500" // Warning color when approaching limit
             )}>
               {formatTime(recordingTime)}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
               {isPaused ? "Paused" : "Recording..."}
             </div>
+            {recordingTime >= MAX_RECORDING_TIME - 60 && (
+              <div className="text-xs text-orange-500 mt-1">
+                {recordingTime >= MAX_RECORDING_TIME ? "Time limit reached!" : "Approaching 25 min limit"}
+              </div>
+            )}
           </motion.div>
         ) : isUploading ? (
           <div className="text-xs text-muted-foreground">Saving recording...</div>
@@ -335,17 +360,7 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
           <div className="text-xs text-muted-foreground">Press to start recording</div>
         )}
       </div>
-
-      {/* Upgrade Modal */}
-      <UpgradeModal
-        isOpen={isUpgradeModalOpen}
-        onClose={closeUpgradeModal}
-        onUpgrade={handleUpgrade}
-        feature={subscriptionError?.feature || 'audio recording'}
-        reason={subscriptionError?.code === 'quota_exceeded' ? 'quota_exceeded' : 
-                subscriptionError?.code === 'feature_blocked' ? 'feature_blocked' : 
-                'manual'}
-      />
     </div>
+    </ListeningLimitGuard>
   );
 } 
