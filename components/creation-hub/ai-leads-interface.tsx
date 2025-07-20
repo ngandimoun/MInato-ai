@@ -39,7 +39,7 @@ import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 import { logger } from "@/memory-framework/config";
-import { FeatureGuard } from "@/components/subscription/feature-guard";
+import { useSubscription } from '@/hooks/use-subscription';
 
 interface LeadSearch {
   id: string;
@@ -114,6 +114,7 @@ const platformIcons = {
 };
 
 export function AILeadsInterface() {
+  const { subscriptionStatus, loading } = useSubscription();
   const [activeTab, setActiveTab] = useState('discover');
   const [searchPrompt, setSearchPrompt] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['reddit']);
@@ -136,7 +137,6 @@ export function AILeadsInterface() {
   const [searchHistory, setSearchHistory] = useState<{[key: string]: LeadResult[]}>({});
   
   // Loading states
-  const [loading, setLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
 
   const supabase = getBrowserSupabaseClient();
@@ -410,6 +410,22 @@ export function AILeadsInterface() {
     return leadMessages.filter(msg => msg.lead_result_id === leadId);
   };
 
+  if (!loading && subscriptionStatus?.is_expired) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full w-full text-center p-8">
+        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-2xl font-bold mb-2">Abonnement expiré</h2>
+        <p className="text-muted-foreground mb-4">
+          Votre abonnement ou période d'essai a expiré.<br />
+          Passez au plan Pro pour continuer à utiliser la génération de leads et toutes les fonctionnalités avancées.
+        </p>
+        <Button className="mt-2" onClick={() => window.open('/dashboard/plan', '_self')}>
+          Mettre à niveau vers Pro
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-hidden">
@@ -562,25 +578,23 @@ export function AILeadsInterface() {
                         </div>
                       )}
 
-                      <FeatureGuard feature="leads">
-                        <Button 
-                          onClick={handleSearch} 
-                          disabled={isSearching || !searchPrompt.trim() || selectedPlatforms.length === 0}
-                          className="w-full h-11 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700"
-                        >
-                          {isSearching ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Searching...
-                            </>
-                          ) : (
-                            <>
-                              <Search className="mr-2 h-4 w-4" />
-                              Find Leads
-                            </>
-                          )}
-                        </Button>
-                      </FeatureGuard>
+                      <Button 
+                        onClick={handleSearch} 
+                        disabled={isSearching || !searchPrompt.trim() || selectedPlatforms.length === 0}
+                        className="w-full h-11 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700"
+                      >
+                        {isSearching ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Searching...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="mr-2 h-4 w-4" />
+                            Find Leads
+                          </>
+                        )}
+                      </Button>
                     </CardContent>
                   </Card>
 
