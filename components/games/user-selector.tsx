@@ -214,7 +214,7 @@ export function UserSelector({
               exit={{ opacity: 0, y: -10 }}
               className="absolute z-10 w-full mt-2 bg-white dark:bg-gray-900 border rounded-lg shadow-lg"
             >
-              <ScrollArea className="max-h-60">
+              <ScrollArea className="h-80">
                 <div className="p-2">
                   {/* Header */}
                   <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b border-gray-100 dark:border-gray-800">
