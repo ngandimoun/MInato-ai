@@ -48,13 +48,13 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
 
     const handleGetStartedClick = async () => {
         setIsCheckingPlan(true)
-        
+
         try {
             // Attendre un peu pour montrer le chargement
             await new Promise(resolve => setTimeout(resolve, 1000))
-            
+
             console.log(`[ProPlanModal] Checking user subscription status:`, subscriptionStatus)
-            
+
             if (!subscriptionStatus) {
                 console.log(`[ProPlanModal] No subscription status available`)
                 // Rediriger directement si pas de statut
@@ -133,9 +133,33 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
                                     <span className="text-pink-600">Unlock Pro</span>{" "}
                                     <span className="text-teal-400">Features</span>
                                 </h2>
-                                <p className="text-gray-300 text-xs">
-                                    Supercharge Minato with the Pro plan.
-                                </p>
+
+                                {/* --- DÉBUT DE L'AJOUT --- */}
+                                <a
+                                    href="https://x.com/chrisngand14511?s=21" // <-- Toujours le lien vers votre profil
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-center text-center text-gray-300 hover:text-white transition-colors duration-200 text-xs"
+                                >
+                                    {/* 1ère partie du texte */}
+                                    <span>Contact us on</span>
+
+                                    {/* Icône SVG de X, placée au milieu */}
+                                    <svg
+                                        className="w-3 h-3 mx-1.5" // mx-1.5 ajoute un petit espace avant et après
+                                        viewBox="0 0 1200 1227"
+                                        fill="currentColor"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        aria-label="X (Twitter)" // Pour l'accessibilité
+                                    >
+                                        <path d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.491 750.218L842.672 1226.37H1200L714.137 519.284H714.163ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.854V687.828Z" />
+                                    </svg>
+
+                                    {/* 2ème partie du texte */}
+                                    <span>to get your Minato Pro subscription.</span>
+                                </a>
+                                {/* --- FIN DE L'AJOUT --- */}
+
                             </div>
 
                             {/* Pro Plan Card */}
@@ -146,7 +170,10 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
                                         <span className="text-teal-400 font-semibold text-sm">Plan</span>
                                     </div>
                                     <div className="text-right">
-                                        <div className="text-xl font-bold text-white">$25</div>
+                                        <div className="flex items-center space-x-1">
+                                            <span className="text-sm font-bold text-white">From</span>
+                                            <span className="text-xl font-bold text-white">$25</span>
+                                        </div>
                                         <div className="text-xs text-gray-300">/month</div>
                                     </div>
                                 </div>
@@ -233,9 +260,10 @@ export function ProPlanModal({ isOpen, onClose }: ProPlanModalProps) {
                                 )}
                             </Button>
                         </motion.div>
-                    )}
-                </AnimatePresence>
-            </DialogContent>
-        </Dialog>
+                    )
+                    }
+                </AnimatePresence >
+            </DialogContent >
+        </Dialog >
     )
 }
