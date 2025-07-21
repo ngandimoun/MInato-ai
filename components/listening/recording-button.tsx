@@ -26,7 +26,9 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
   const [recordingTitle, setRecordingTitle] = useState("");
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, profile, isFetchingProfile } = useAuth();
+  // TODO: Typage fort du profil utilisateur (ajouter plan_type et trial_recordings_remaining à UserProfile)
+  const typedProfile = profile as any;
   
   // Format time as MM:SS
   const formatTime = (seconds: number): string => {
@@ -238,6 +240,8 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
     },
   };
 
+  // Supprimer la fonction renderQuotaInfo et tout affichage du quota ici
+
   return (
     <ListeningLimitGuard>
       <div className={cn("flex flex-col items-center", className)}>
@@ -249,24 +253,12 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
               size="lg"
               className={cn(
                 "h-16 w-16 rounded-full shadow-lg transition-all duration-300",
-                "bg-primary hover:bg-primary/90",
-                isUploading && "opacity-50 cursor-not-allowed"
+                "bg-primary hover:bg-primary/90"
               )}
               onClick={handleStartRecording}
-              disabled={status === "recording" && !isRecording || isUploading}
+              disabled={status === "recording" && !isRecording}
             >
-            <AnimatePresence mode="wait">
-              {isUploading ? (
-                <motion.div
-                  key="uploading"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </motion.div>
-              ) : (
+              <AnimatePresence mode="wait">
                 <motion.div
                   key="ready"
                   initial={{ opacity: 0, scale: 0.8 }}
@@ -276,9 +268,8 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
                 >
                   <Mic className="h-6 w-6" />
                 </motion.div>
-              )}
-            </AnimatePresence>
-          </Button>
+              </AnimatePresence>
+            </Button>
         ) : (
           // Recording controls when recording is active
           <div className="flex items-center gap-3">
@@ -331,6 +322,8 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
         )}
       </div>
       
+      {/* Affichage du quota juste sous le bouton */}
+      {/* Supprimer la fonction renderQuotaInfo et tout affichage du quota ici */}
       <div className="mt-3 text-center">
         {isRecording ? (
           <motion.div

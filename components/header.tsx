@@ -205,15 +205,20 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
               <SubscriptionStatus />
 
               {/* Plan Button */}
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setProPlanModalOpen(true)}
-                className="h-8 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium px-3 py-1 rounded-sm text-xs"
-              >
-                <Zap className="h-3 w-3 mr-1" />
-                Plan
-              </Button>
+              {/* TODO: Strong typing for user profile (add plan_type and subscription_end_date to UserProfile) */}
+              {profile && (
+                ((profile as any).plan_type === 'FREE_TRIAL' || ((profile as any).subscription_end_date && new Date((profile as any).subscription_end_date) < new Date())) && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setProPlanModalOpen(true)}
+                    className="h-8 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium px-3 py-1 rounded-sm text-xs"
+                  >
+                    <Zap className="h-3 w-3 mr-1" />
+                    Plan
+                  </Button>
+                )
+              )}
 
               {/* Notifications */}
               <Popover open={notifOpen} onOpenChange={setNotifOpen}>

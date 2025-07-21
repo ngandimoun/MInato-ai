@@ -4,18 +4,32 @@ import { AnimatedTooltip } from "../animated-tooltip";
 // MODIFICATION: Les icônes Menu, X et le hook useState ne sont plus nécessaires
 // import { Menu, X } from "lucide-react";
 // import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface HeaderProps {
   onLoginClick: () => void;
 }
 
 const Header = ({ onLoginClick }: HeaderProps) => {
+  // Ajout d'un état pour détecter le scroll
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 0);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   // MODIFICATION: La gestion d'état pour le menu est entièrement supprimée
   // const [isMenuOpen, setIsMenuOpen] = useState(false);
   // const toggleMenu = () => { ... };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-20 glass-card border-0 border-b border-white/20">
+    <header className={
+      `fixed top-0 left-0 right-0 z-20 border-0 border-b border-white/20 transition-all duration-300 ${isScrolled ? 'backdrop-blur-md bg-background/80' : ''}`
+    }>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo (reste inchangé) */}

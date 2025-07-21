@@ -149,10 +149,26 @@ function GamesPage() {
               >
                 <Gamepad2 className="w-8 h-8 text-primary" />
               </motion.div>
-              <CardTitle className="text-2xl">Sign In Required</CardTitle>
+              <CardTitle className="text-2xl">Access Issue</CardTitle>
               <CardDescription>
-                Please sign in to access Minato AI Games and compete with friends!
+                We couldn't verify your access to Minato AI Games.<br />
+                <span className="block mt-2">This may be due to a connection problem or an expired session.</span>
+                <span className="block mt-2">Please try one of the following options:</span>
               </CardDescription>
+              <div className="flex flex-col gap-2 mt-6">
+                <button
+                  className="bg-primary text-white rounded px-4 py-2 hover:bg-primary/80 transition"
+                  onClick={() => window.location.reload()}
+                >
+                  Reload Page
+                </button>
+                <button
+                  className="bg-muted text-foreground rounded px-4 py-2 border border-border hover:bg-muted/70 transition"
+                  onClick={() => window.location.href = "/"}
+                >
+                  Minato Home
+                </button>
+              </div>
             </CardHeader>
           </Card>
         </motion.div>

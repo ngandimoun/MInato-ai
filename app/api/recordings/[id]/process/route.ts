@@ -98,6 +98,9 @@ export async function POST(
       );
     }
 
+    // Log du quota et du plan utilisateur
+    console.log(`Analyse recording: user_id=${user.id}, plan_type=${user.plan_type}, trial_recordings_remaining=${user.trial_recordings_remaining}`);
+
     // Get the recording ID from params
     const recordingId = params.id;
 
@@ -114,6 +117,34 @@ export async function POST(
         { error: "Recording not found" },
         { status: 404 }
       );
+    }
+
+    // Vérifie le quota d'essai gratuit et décrémente si besoin
+    // On ne décrémente que pour les utilisateurs en essai gratuit
+    if (user.plan_type === 'PRO') {
+      console.log(`[RECORDING] User ${user.id} (PRO) - Quota: 9999 (illimité)`);
+    } else if (user.plan_type === 'FREE_TRIAL') {
+      if (user.trial_recordings_remaining == null) {
+        await supabase
+          .from('user_profiles')
+          .update({ trial_recordings_remaining: 5 })
+          .eq('id', user.id);
+        user.trial_recordings_remaining = 5;
+      }
+      console.log(`[RECORDING] User ${user.id} (FREE_TRIAL) - Quota restant: ${user.trial_recordings_remaining}`);
+      if (user.trial_recordings_remaining <= 0) {
+        console.warn(`[RECORDING] Refusé: User ${user.id} (FREE_TRIAL) - Quota épuisé!`);
+        return NextResponse.json(
+          { error: "Quota d'enregistrements d'essai gratuit épuisé." },
+          { status: 403 }
+        );
+      }
+      // Décrémente le quota
+      await supabase
+        .from('user_profiles')
+        .update({ trial_recordings_remaining: user.trial_recordings_remaining - 1 })
+        .eq('id', user.id);
+      console.log(`[RECORDING] User ${user.id} (FREE_TRIAL) - Nouveau quota: ${user.trial_recordings_remaining - 1}`);
     }
 
     // Check if already processed
