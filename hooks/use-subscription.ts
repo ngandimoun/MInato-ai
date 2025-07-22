@@ -12,6 +12,16 @@ export interface SubscriptionStatus {
   trial_end_date: string | null;
   subscription_end_date: string | null;
   expires_at: string | null;
+  monthly_usage?: {
+    images?: number;
+    videos?: number;
+    recordings?: number;
+  };
+  quota_limits?: {
+    images?: number;
+    videos?: number;
+    recordings?: number;
+  };
 }
 
 export interface FeaturePermissions {
@@ -257,5 +267,25 @@ export function useSubscription() {
     showProFeatureToast,
     fetchSubscriptionStatus,
     clearShownNotifications,
+  };
+} 
+
+// Ajout d'un hook pour quotas restants
+export function useUserQuotas() {
+  const { subscriptionStatus, loading } = useSubscription();
+  if (!subscriptionStatus) return { images: 0, videos: 0, recordings: 0, imagesLimit: 30, videosLimit: 20, recordingsLimit: 20, loading };
+  const usage = subscriptionStatus.monthly_usage || {};
+  const limits = subscriptionStatus.quota_limits || {};
+  const imagesLimit = limits.images ?? 30;
+  const videosLimit = limits.videos ?? 20;
+  const recordingsLimit = limits.recordings ?? 20;
+  return {
+    images: imagesLimit - (usage.images ?? 0),
+    videos: videosLimit - (usage.videos ?? 0),
+    recordings: recordingsLimit - (usage.recordings ?? 0),
+    imagesLimit,
+    videosLimit,
+    recordingsLimit,
+    loading
   };
 } 

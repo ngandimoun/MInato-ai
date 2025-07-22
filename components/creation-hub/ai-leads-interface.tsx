@@ -40,6 +40,8 @@ import { cn } from "@/lib/utils";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 import { logger } from "@/memory-framework/config";
 import { useSubscription } from '@/hooks/use-subscription';
+import { useUserQuotas } from '@/hooks/use-subscription';
+import { ProPlanModal } from '@/components/ui/pro-plan-modal';
 
 interface LeadSearch {
   id: string;
@@ -115,6 +117,7 @@ const platformIcons = {
 
 export function AILeadsInterface() {
   const { subscriptionStatus, loading } = useSubscription();
+  const { images, videos, recordings, imagesLimit, videosLimit, recordingsLimit, loading: quotasLoading } = useUserQuotas();
   const [activeTab, setActiveTab] = useState('discover');
   const [searchPrompt, setSearchPrompt] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['reddit']);
@@ -138,6 +141,7 @@ export function AILeadsInterface() {
   
   // Loading states
   const [messagesLoading, setMessagesLoading] = useState(false);
+  const [showProModal, setShowProModal] = useState(false);
 
   const supabase = getBrowserSupabaseClient();
 
@@ -410,18 +414,21 @@ export function AILeadsInterface() {
     return leadMessages.filter(msg => msg.lead_result_id === leadId);
   };
 
+  const isPro = subscriptionStatus?.is_pro;
+
   if (!loading && subscriptionStatus?.is_expired) {
     return (
       <div className="flex flex-col items-center justify-center h-full w-full text-center p-8">
         <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Abonnement expiré</h2>
+        <h2 className="text-2xl font-bold mb-2">Subscription Expired</h2>
         <p className="text-muted-foreground mb-4">
-          Votre abonnement ou période d'essai a expiré.<br />
-          Passez au plan Pro pour continuer à utiliser la génération de leads et toutes les fonctionnalités avancées.
+          Your subscription or trial period has expired.<br />
+          Upgrade to the Pro plan to continue using lead generation and all advanced features.
         </p>
-        <Button className="mt-2" onClick={() => window.open('/dashboard/plan', '_self')}>
-          Mettre à niveau vers Pro
+        <Button className="mt-2" onClick={() => setShowProModal(true)}>
+          Upgrade to Pro
         </Button>
+        <ProPlanModal isOpen={showProModal} onClose={() => setShowProModal(false)} />
       </div>
     );
   }
@@ -474,6 +481,21 @@ export function AILeadsInterface() {
                       Use AI to discover and analyze potential customers across multiple platforms
                     </p>
                   </div>
+
+                  {/* Affichage quotas Pro + message d'alerte si quota atteint */}
+                  {isPro && (
+                    <div style={{marginBottom:12, background:'#f5f5f5', padding:8, borderRadius:6}}>
+                      <b>Quotas left this month:</b> Images: {images} / {imagesLimit} | Videos: {videos} / {videosLimit} | Recordings: {recordings} / {recordingsLimit}
+                      {(images <= 0 || videos <= 0 || recordings <= 0) && (
+                        <div style={{color:'#d32f2f', marginTop:6, fontWeight:'bold'}}>
+                          {images <= 0 && 'You have reached your monthly image generation limit. '}
+                          {videos <= 0 && 'You have reached your monthly video generation limit. '}
+                          {recordings <= 0 && 'You have reached your monthly listening recordings limit. '}
+                          Please wait until next month or contact support to upgrade your plan.
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <Card className="glass-card">
                     <CardHeader>

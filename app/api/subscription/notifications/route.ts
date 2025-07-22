@@ -58,34 +58,55 @@ export async function GET(request: NextRequest) {
 
     const notifications: any[] = [];
 
-    // Vérifier les notifications d'expiration
-    if (subscriptionStatus.is_trial && subscriptionStatus.days_remaining <= 2 && subscriptionStatus.days_remaining > 0) {
+    // Expiration notifications
+    if (subscriptionStatus.is_trial && subscriptionStatus.days_remaining === 1) {
       notifications.push({
         type: 'trial_expiring',
         title: 'Free trial expiring',
-        message: `Your free trial expires in ${subscriptionStatus.days_remaining} day(s). Upgrade to Pro plan to continue using all features.`,
+        message: `Your free trial expires in 1 day. Upgrade to Pro plan to continue using all features.`,
         action: 'upgrade'
       });
-      console.log(`[Notifications API] User ${userId} - Trial expiring in ${subscriptionStatus.days_remaining} days`);
+      console.log(`[Notifications API] User ${userId} - Trial expiring in 1 day`);
     }
 
-    if (subscriptionStatus.is_pro && subscriptionStatus.days_remaining <= 2 && subscriptionStatus.days_remaining > 0) {
+    if (subscriptionStatus.is_pro && subscriptionStatus.days_remaining === 1) {
       notifications.push({
         type: 'subscription_expiring',
-        title: 'Abonnement Pro expirant',
-        message: `Votre abonnement Pro expire dans ${subscriptionStatus.days_remaining} jour(s). Renouvelez pour continuer à profiter de toutes les fonctionnalités.`,
+        title: 'Pro subscription expiring',
+        message: `Your Pro subscription expires in 1 day. Renew to continue enjoying all features.`,
         action: 'renew'
       });
-      console.log(`[Notifications API] User ${userId} - Pro subscription expiring in ${subscriptionStatus.days_remaining} days`);
+      console.log(`[Notifications API] User ${userId} - Pro subscription expiring in 1 day`);
+      // Log only the quota for the connected user
+      const { data: userData, error: userError } = await supabase
+        .from('user_profiles')
+        .select('email, monthly_usage, quota_limits')
+        .eq('id', userId)
+        .single();
+      if (!userError && userData) {
+        const limits = userData.quota_limits || {};
+        const imageLimit = limits.images ?? 30;
+        const videoLimit = limits.videos ?? 20;
+        const recordingLimit = limits.recordings ?? 20;
+        const logMsg = [
+          '=========== REMAINING QUOTAS FOR PRO USER ===========',
+          `User: ${userData.email}`,
+          `  Images     : ${(userData.monthly_usage?.images ?? 0)} / ${imageLimit}`,
+          `  Videos     : ${(userData.monthly_usage?.videos ?? 0)} / ${videoLimit}`,
+          `  Recordings : ${(userData.monthly_usage?.recordings ?? 0)} / ${recordingLimit}`,
+          '====================================================='
+        ].join('\n');
+        console.log(logMsg);
+      }
     }
 
-    // Notification de bienvenue pour les nouveaux utilisateurs
+    // Welcome notification for new users
     if (subscriptionStatus.is_trial && subscriptionStatus.days_remaining >= 6) {
-      // Vérifier si l'utilisateur s'est inscrit il y a moins de 10 minutes
+      // Check if the user registered less than 10 minutes ago
       const userCreatedAt = subscriptionStatus.created_at;
       const currentTime = new Date();
       const timeDifference = currentTime.getTime() - new Date(userCreatedAt).getTime();
-      const minutesDifference = timeDifference / (1000 * 60); // Convertir en minutes
+      const minutesDifference = timeDifference / (1000 * 60); // Convert to minutes
       
       if (minutesDifference <= 10) {
         notifications.push({
@@ -100,12 +121,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Notification d'expiration
+    // Expired notification
     if (subscriptionStatus.is_expired) {
       notifications.push({
         type: 'expired',
-        title: 'Abonnement expiré',
-        message: 'Votre abonnement a expiré. Passez au plan Pro pour continuer à utiliser toutes les fonctionnalités.',
+        title: 'Subscription expired',
+        message: 'Your subscription has expired. Upgrade to Pro plan to continue using all features.',
         action: 'upgrade'
       });
       console.log(`[Notifications API] User ${userId} - Subscription expired notification`);

@@ -838,13 +838,13 @@ export function SettingsPanel({
         <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
           <h2 className="text-lg font-semibold">Settings</h2>
           <div className="flex items-center gap-2">
-            <Button
+            {/* <Button
               onClick={() => setIsUpgradeDialogOpen(true)}
               className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white text-xs px-3 h-8"
               size="sm"
             >
               <Zap className="mr-1.5 h-3.5 w-3.5" /> Upgrade to Pro
-            </Button>
+            </Button> */}
             <LogoutButton
               variant="outline"
               size="sm"

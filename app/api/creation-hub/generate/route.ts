@@ -56,10 +56,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Vérification du plan utilisateur dans la base Supabase
+    // Check user plan in Supabase
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('plan_type, trial_end_date')
+      .select('plan_type, trial_end_date, monthly_usage, quota_limits')
       .eq('id', user.id)
       .single();
 
@@ -77,6 +77,32 @@ export async function POST(request: NextRequest) {
         { error: { code: 'PLAN_RESTRICTED', message: 'Image generation is only available for Pro users. Please upgrade your plan.' } },
         { status: 403 }
       );
+    }
+
+    // After retrieving user profile (userProfile)
+    if (profile.plan_type === 'PRO') {
+      console.log('=== PRO PLAN BRANCH (Image Generation) ===');
+      const usage = profile.monthly_usage || {};
+      const limits = profile.quota_limits || {};
+      const imageLimit = limits.images ?? 30;
+      if ((usage.images ?? 0) >= imageLimit) {
+        return NextResponse.json({ error: `Monthly image generation limit reached for your Pro plan (${imageLimit}).` }, { status: 403 });
+      }
+      // Increment image counter
+      await supabase
+        .from('user_profiles')
+        .update({ monthly_usage: { ...usage, images: (usage.images ?? 0) + 1 } })
+        .eq('id', user.id);
+      // Log formatted quotas
+      const logMsg = [
+        '=== REMAINING QUOTAS FOR PRO USER ===',
+        `User: ${profile.email || profile.id}`,
+        `  Images     : ${(usage.images ?? 0) + 1} / ${imageLimit}`,
+        `  Videos     : ${(usage.videos ?? 0)} / ${(limits.videos ?? 20)}`,
+        `  Recordings : ${(usage.recordings ?? 0)} / ${(limits.recordings ?? 20)}`,
+        '====================================='
+      ].join('\n');
+      console.log(logMsg);
     }
 
     // Parse request body - updated for GPT Image 1 parameters

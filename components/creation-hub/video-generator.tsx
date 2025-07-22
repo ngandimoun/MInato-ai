@@ -39,7 +39,7 @@ import type { GeneratedImage } from "./hub-types";
 import { useTranslation } from "@/hooks/useTranslation";
 import { getBrowserSupabaseClient } from "@/lib/supabase/client";
 import { FeatureGuard } from "@/components/subscription/feature-guard";
-import { useSubscription } from '@/hooks/use-subscription';
+import { useSubscription, useUserQuotas } from '@/hooks/use-subscription';
 
 // Social media platform configurations
 interface SocialMediaPlatform {
@@ -202,8 +202,9 @@ export function VideoGenerator({ className, language = "en", onVideoGenerated }:
     videoGeneratedDesc: "Your 5-second video has been created successfully."
   });
 
-  const { permissions, loading: subscriptionLoading } = useSubscription();
+  const { permissions, loading: subscriptionLoading, isPro } = useSubscription();
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const { images, videos, recordings, imagesLimit, videosLimit, recordingsLimit, loading } = useUserQuotas();
 
   // Marquer les permissions comme chargées une fois que subscriptionLoading est false
   useEffect(() => {
@@ -996,6 +997,20 @@ export function VideoGenerator({ className, language = "en", onVideoGenerated }:
               </div>
             </div>
           </motion.div>
+        )}
+        {/* Affichage quotas Pro */}
+        {isPro && (
+          <div style={{marginBottom:12, background:'#f5f5f5', padding:8, borderRadius:6}}>
+            <b>Quotas left this month:</b> Images: {images} / {imagesLimit} | Videos: {videos} / {videosLimit} | Recordings: {recordings} / {recordingsLimit}
+            {(images <= 0 || videos <= 0 || recordings <= 0) && (
+              <div style={{color:'#d32f2f', marginTop:6, fontWeight:'bold'}}>
+                {images <= 0 && 'You have reached your monthly image generation limit. '}
+                {videos <= 0 && 'You have reached your monthly video generation limit. '}
+                {recordings <= 0 && 'You have reached your monthly listening recordings limit. '}
+                Please wait until next month or contact support to upgrade your plan.
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -42,6 +42,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Après avoir récupéré le profil utilisateur (userProfile)
+    const { data: userProfile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+
+    if (profileError || !userProfile) {
+      logger.error('[Video Generation API] User profile not found', { userId: user.id });
+      return NextResponse.json(
+        { error: 'User profile not found' },
+        { status: 500 }
+      );
+    }
+
     // Build professional video generation prompt
     const enhancedPrompt = buildProfessionalPrompt(prompt, platform, format);
 
@@ -120,6 +135,31 @@ export async function POST(request: NextRequest) {
       }
     } else {
       videoRecord = videoRecordData;
+    }
+
+    // Après avoir récupéré le profil utilisateur (userProfile)
+    if (userProfile.plan_type === 'PRO') {
+      const usage = userProfile.monthly_usage || {};
+      const limits = userProfile.quota_limits || {};
+      const videoLimit = limits.videos ?? 20;
+      if ((usage.videos ?? 0) >= videoLimit) {
+        return NextResponse.json({ error: `Monthly video generation limit reached for your Pro plan (${videoLimit}).` }, { status: 403 });
+      }
+      // Increment video counter
+      await supabase
+        .from('user_profiles')
+        .update({ monthly_usage: { ...usage, videos: (usage.videos ?? 0) + 1 } })
+        .eq('id', userProfile.id);
+      // Log formatted quotas
+      const logMsg = [
+        '=== REMAINING QUOTAS FOR PRO USER ===',
+        `User: ${userProfile.email || userProfile.id}`,
+        `  Images     : ${(usage.images ?? 0)} / ${(limits.images ?? 30)}`,
+        `  Videos     : ${(usage.videos ?? 0) + 1} / ${videoLimit}`,
+        `  Recordings : ${(usage.recordings ?? 0)} / ${(limits.recordings ?? 20)}`,
+        '====================================='
+      ].join('\n');
+      console.log(logMsg);
     }
 
     return NextResponse.json({

@@ -24,6 +24,7 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
   const [isUploading, setIsUploading] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingTitle, setRecordingTitle] = useState("");
+  const [isCancelled, setIsCancelled] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const { user, profile, isFetchingProfile } = useAuth();
@@ -81,6 +82,11 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
       audio: true,
       video: false,
       onStop: async (blobUrl, blob) => {
+        if (isCancelled) {
+          setIsCancelled(false);
+          resetState();
+          return;
+        }
         if (!blob) {
           toast({
             title: "Recording failed",
@@ -212,6 +218,7 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
 
   // Handle cancel recording
   const handleCancelRecording = () => {
+    setIsCancelled(true);
     // Stop the recording to cut off microphone access
     stopRecording();
     
@@ -315,9 +322,10 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
         {/* Recording indicator */}
         {isRecording && !isPaused && (
           <motion.div
-            className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full"
+            className="absolute -top-2 left-2 w-3 h-3 sm:w-4 sm:h-4 bg-red-500 rounded-full z-0"
             variants={pulseVariants}
             animate="pulse"
+            style={{ pointerEvents: 'none' }}
           />
         )}
       </div>

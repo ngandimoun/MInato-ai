@@ -131,6 +131,45 @@ export async function POST(req: NextRequest) {
 
     console.log("User authenticated:", session.user.id.substring(0, 8));
 
+    // Après avoir récupéré le profil utilisateur (userProfile)
+    const { data: userProfile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    if (profileError || !userProfile) {
+      console.error("Error fetching user profile:", profileError);
+      return NextResponse.json(
+        { error: "Failed to retrieve user profile" },
+        { status: 500 }
+      );
+    }
+
+    if (userProfile.plan_type === 'PRO') {
+      const usage = userProfile.monthly_usage || {};
+      const limits = userProfile.quota_limits || {};
+      const recordingLimit = limits.recordings ?? 20;
+      if ((usage.recordings ?? 0) >= recordingLimit) {
+        return NextResponse.json({ error: `Monthly listening recordings limit reached for your Pro plan (${recordingLimit}).` }, { status: 403 });
+      }
+      // Increment recordings counter
+      await supabase
+        .from('user_profiles')
+        .update({ monthly_usage: { ...usage, recordings: (usage.recordings ?? 0) + 1 } })
+        .eq('id', userProfile.id);
+      // Log formatted quotas
+      const logMsg = [
+        '=== REMAINING QUOTAS FOR PRO USER ===',
+        `User: ${userProfile.email || userProfile.id}`,
+        `  Images     : ${(usage.images ?? 0)} / ${(limits.images ?? 30)}`,
+        `  Videos     : ${(usage.videos ?? 0)} / ${(limits.videos ?? 20)}`,
+        `  Recordings : ${(usage.recordings ?? 0) + 1} / ${recordingLimit}`,
+        '====================================='
+      ].join('\n');
+      console.log(logMsg);
+    }
+
     // Parse request body
     const body = await req.json();
     

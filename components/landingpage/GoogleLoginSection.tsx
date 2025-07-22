@@ -30,6 +30,14 @@ const ShapedVideoContainer = React.forwardRef<HTMLDivElement, React.HTMLAttribut
         allow="autoplay; encrypted-media"
         allowFullScreen
       ></iframe>
+      <iframe className="absolute inset-0 h-full w-full" 
+      src="https://www.youtube.com/embed/B_RIxFSVnMU?autoplay=1&mute=1&controls=1&loop=1&si=pxfwd9jtgU3rA4DX" 
+      title="Vidéo sur la créativité et l'intelligence artificielle"
+        frameBorder="0"
+        allow="autoplay; encrypted-media"
+        allowFullScreen>
+
+      </iframe>
     </div>
   )
 );

@@ -56,13 +56,34 @@ export async function GET(request: NextRequest) {
       subscription_end_date: subscriptionStatus.subscription_end_date
     });
 
-    // Log détaillé du statut
+    // Detailed status log
     if (subscriptionStatus.is_trial) {
       console.log(`[Subscription Status API] User ${userId} is on FREE TRIAL with ${subscriptionStatus.days_remaining} days remaining`);
       console.log(`[Subscription Status API] PLAN TYPE: FREE TRIAL - User can access basic features for 7 days`);
     } else if (subscriptionStatus.is_pro) {
       console.log(`[Subscription Status API] User ${userId} is on PRO PLAN with ${subscriptionStatus.days_remaining} days remaining`);
       console.log(`[Subscription Status API] PLAN TYPE: PRO - User has full access to all features`);
+      // Log only the quota for the connected user
+      const { data: userData, error: userError } = await supabase
+        .from('user_profiles')
+        .select('email, monthly_usage, quota_limits')
+        .eq('id', userId)
+        .single();
+      if (!userError && userData) {
+        const limits = userData.quota_limits || {};
+        const imageLimit = limits.images ?? 30;
+        const videoLimit = limits.videos ?? 20;
+        const recordingLimit = limits.recordings ?? 20;
+        const logMsg = [
+          '=========== REMAINING QUOTAS FOR PRO USER ===========',
+          `User: ${userData.email}`,
+          `  Images     : ${(userData.monthly_usage?.images ?? 0)} / ${imageLimit}`,
+          `  Videos     : ${(userData.monthly_usage?.videos ?? 0)} / ${videoLimit}`,
+          `  Recordings : ${(userData.monthly_usage?.recordings ?? 0)} / ${recordingLimit}`,
+          '====================================================='
+        ].join('\n');
+        console.log(logMsg);
+      }
     } else if (subscriptionStatus.is_expired) {
       console.log(`[Subscription Status API] User ${userId} subscription is EXPIRED`);
       console.log(`[Subscription Status API] PLAN TYPE: EXPIRED - User needs to upgrade to continue`);

@@ -122,29 +122,27 @@ export async function POST(
     // Vérifie le quota d'essai gratuit et décrémente si besoin
     // On ne décrémente que pour les utilisateurs en essai gratuit
     if (user.plan_type === 'PRO') {
-      console.log(`[RECORDING] User ${user.id} (PRO) - Quota: 9999 (illimité)`);
-    } else if (user.plan_type === 'FREE_TRIAL') {
-      if (user.trial_recordings_remaining == null) {
-        await supabase
-          .from('user_profiles')
-          .update({ trial_recordings_remaining: 5 })
-          .eq('id', user.id);
-        user.trial_recordings_remaining = 5;
+      const usage = user.monthly_usage || {};
+      const limits = user.quota_limits || {};
+      const recordingLimit = limits.recordings ?? 20;
+      if ((usage.recordings ?? 0) >= recordingLimit) {
+        return NextResponse.json({ error: `Monthly listening recordings limit reached for your Pro plan (${recordingLimit}).` }, { status: 403 });
       }
-      console.log(`[RECORDING] User ${user.id} (FREE_TRIAL) - Quota restant: ${user.trial_recordings_remaining}`);
-      if (user.trial_recordings_remaining <= 0) {
-        console.warn(`[RECORDING] Refusé: User ${user.id} (FREE_TRIAL) - Quota épuisé!`);
-        return NextResponse.json(
-          { error: "Quota d'enregistrements d'essai gratuit épuisé." },
-          { status: 403 }
-        );
-      }
-      // Décrémente le quota
+      // Increment recordings counter
       await supabase
         .from('user_profiles')
-        .update({ trial_recordings_remaining: user.trial_recordings_remaining - 1 })
+        .update({ monthly_usage: { ...usage, recordings: (usage.recordings ?? 0) + 1 } })
         .eq('id', user.id);
-      console.log(`[RECORDING] User ${user.id} (FREE_TRIAL) - Nouveau quota: ${user.trial_recordings_remaining - 1}`);
+      // Log formatted quotas
+      const logMsg = [
+        '=== REMAINING QUOTAS FOR PRO USER ===',
+        `User: ${user.email || user.id}`,
+        `  Images     : ${(usage.images ?? 0)} / ${(limits.images ?? 30)}`,
+        `  Videos     : ${(usage.videos ?? 0)} / ${(limits.videos ?? 20)}`,
+        `  Recordings : ${(usage.recordings ?? 0) + 1} / ${recordingLimit}`,
+        '====================================='
+      ].join('\n');
+      console.log(logMsg);
     }
 
     // Check if already processed
