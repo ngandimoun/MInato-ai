@@ -88,6 +88,12 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
       audio: true,
       video: false,
       onStop: async (blobUrl, blob) => {
+        console.log('Media recorder onStop called - mobile debug');
+        console.log('blobUrl:', blobUrl);
+        console.log('blob size:', blob?.size);
+        console.log('cancelledRef.current:', cancelledRef.current);
+        console.log('isCancelled state:', isCancelled);
+        
         // Check cancellation status immediately - use ref for most current value
         console.log('Recording onStop called, cancelled:', cancelledRef.current, 'isCancelled state:', isCancelled);
         
@@ -238,7 +244,10 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
 
   // Handle stop recording
   const handleStopRecording = () => {
-    console.log('Stop recording called');
+    console.log('Stop recording called - mobile debug');
+    console.log('isUploading:', isUploading);
+    console.log('isRecording:', isRecording);
+    console.log('isPaused:', isPaused);
     
     // Immediately clear timer and update UI state
     if (timerRef.current) {
@@ -282,6 +291,15 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
         }
       }
     };
+  };
+
+  // Simple mobile-friendly button handler
+  const handleButtonPress = (handler: () => void) => (e: React.MouseEvent | React.TouchEvent | React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isUploading) {
+      handler();
+    }
   };
 
   // Handle cancel recording
@@ -337,8 +355,8 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
 
   return (
     <ListeningLimitGuard>
-      <div className={cn("flex flex-col items-center", className)}>
-        <div className="relative">
+      <div className={cn("flex flex-col items-center relative", className)} style={{ zIndex: 20 }}>
+        <div className="relative" style={{ zIndex: 20 }}>
           {!isRecording ? (
             // Main record button when not recording
             <Button
@@ -421,12 +439,14 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
               variant="destructive"
               size="sm"
               className="h-12 w-12 rounded-full shadow-md touch-manipulation select-none"
-              {...createButtonHandler('stop', handleStopRecording)}
+              onClick={handleButtonPress(handleStopRecording)}
+              onTouchEnd={handleButtonPress(handleStopRecording)}
               disabled={isUploading}
               style={{ 
                 WebkitTapHighlightColor: 'transparent',
                 touchAction: 'manipulation',
-                userSelect: 'none'
+                userSelect: 'none',
+                zIndex: 30
               }}
               aria-label="Stop recording"
               role="button"
@@ -440,10 +460,13 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
         {/* Recording indicator */}
         {isRecording && !isPaused && (
           <motion.div
-            className="absolute -top-2 left-2 w-3 h-3 sm:w-4 sm:h-4 bg-red-500 rounded-full z-0"
+            className="absolute -top-2 left-2 w-3 h-3 sm:w-4 sm:h-4 bg-red-500 rounded-full z-10"
             variants={pulseVariants}
             animate="pulse"
-            style={{ pointerEvents: 'none' }}
+            style={{ 
+              pointerEvents: 'none',
+              zIndex: 10
+            }}
           />
         )}
       </div>
