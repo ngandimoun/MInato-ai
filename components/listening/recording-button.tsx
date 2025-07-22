@@ -26,6 +26,7 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
   const [recordingTitle, setRecordingTitle] = useState("");
   const [isCancelled, setIsCancelled] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const cancelledRef = useRef(false); // Use ref for immediate cancellation check
   const { toast } = useToast();
   const { user, profile, isFetchingProfile } = useAuth();
   // TODO: Typage fort du profil utilisateur (ajouter plan_type et trial_recordings_remaining à UserProfile)
@@ -50,6 +51,8 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
     setIsPaused(false);
     setIsUploading(false);
     setRecordingTime(0);
+    setIsCancelled(false);
+    cancelledRef.current = false; // Reset the ref as well
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -82,12 +85,20 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
       audio: true,
       video: false,
       onStop: async (blobUrl, blob) => {
-        if (isCancelled) {
+        // Check cancellation status immediately - use ref for most current value
+        console.log('Recording onStop called, cancelled:', cancelledRef.current, 'isCancelled state:', isCancelled);
+        
+        if (cancelledRef.current) {
+          console.log('Recording was cancelled, skipping save');
           setIsCancelled(false);
+          cancelledRef.current = false;
+          clearBlobUrl();
           resetState();
           return;
         }
+
         if (!blob) {
+          console.log('No blob received in onStop');
           toast({
             title: "Recording failed",
             description: "Could not create recording. Please try again.",
@@ -96,6 +107,8 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
           resetState();
           return;
         }
+        
+        console.log('Processing recording blob, size:', blob.size);
         
         try {
           setIsUploading(true);
@@ -163,7 +176,7 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
         } finally {
           resetState();
         }
-      },
+      }
     });
 
   // Handle start recording
@@ -176,6 +189,10 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
       });
       return;
     }
+    
+    // Reset cancellation flag when starting new recording
+    cancelledRef.current = false;
+    setIsCancelled(false);
     
     setIsRecording(true);
     setIsPaused(false);
@@ -213,21 +230,47 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
 
   // Handle stop recording
   const handleStopRecording = () => {
+    // Immediately clear timer and update UI state
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsRecording(false);
+    setIsPaused(false);
+    // Then stop the actual recording
     stopRecording();
   };
 
   // Handle cancel recording
   const handleCancelRecording = () => {
-    setIsCancelled(true);
-    // Stop the recording to cut off microphone access
-    stopRecording();
+    console.log('Cancel recording called');
     
+    // Set cancelled flag first - use both ref and state for safety
+    cancelledRef.current = true;
+    setIsCancelled(true);
+    
+    console.log('Cancellation flags set, cancelledRef:', cancelledRef.current);
+    
+    // Immediately clear timer and update UI state
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    
+    // Reset all recording states
+    setIsRecording(false);
+    setIsPaused(false);
+    setIsUploading(false);
+    setRecordingTime(0);
+    
+    // Clear any existing recording data
     clearBlobUrl();
-    resetState();
+    
+    console.log('About to call stopRecording()');
+    
+    // Stop the recording to cut off microphone access
+    stopRecording();
+    
     toast({
       title: "Recording cancelled",
       description: "Your recording has been cancelled.",

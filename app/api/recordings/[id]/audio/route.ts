@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -17,11 +17,14 @@ export async function GET(
       );
     }
 
+    // Await params and get the recording ID
+    const { id: recordingId } = await params;
+
     // Get recording details
     const { data: recording, error: recordingError } = await supabase
       .from("audio_recordings")
       .select("user_id, file_path")
-      .eq("id", params.id)
+      .eq("id", recordingId)
       .single();
 
     if (recordingError || !recording) {
@@ -37,7 +40,7 @@ export async function GET(
       const { data: sharedData } = await supabase
         .from("shared_recordings")
         .select("id")
-        .eq("recording_id", params.id)
+        .eq("recording_id", recordingId)
         .eq("shared_with", session.user.id)
         .limit(1);
 
@@ -56,7 +59,7 @@ export async function GET(
     const { data: signedUrlData, error: signedUrlError } = await supabase
       .storage
       .from("audio-recordings")
-      .createSignedUrl(filePath, 60 * 5); // 5 minutes expiry
+      .createSignedUrl(filePath, 60 * 5);
 
     if (signedUrlError || !signedUrlData) {
       console.error("Storage error:", signedUrlError);

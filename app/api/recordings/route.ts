@@ -219,25 +219,9 @@ export async function POST(req: NextRequest) {
 
     console.log("Recording created successfully:", data.id);
 
-    // Automatically trigger processing
-    try {
-      const processResponse = await fetch(`${req.nextUrl.origin}/api/recordings/${data.id}/process`, {
-        method: "POST",
-        headers: {
-          "Cookie": req.headers.get("cookie") || "", // Forward cookies for authentication
-        },
-      });
-      
-      if (processResponse.ok) {
-        console.log("Processing started for recording:", data.id);
-      } else {
-        console.error("Failed to start processing for recording:", data.id);
-      }
-    } catch (processError) {
-      console.error("Error triggering processing:", processError);
-      // Don't fail the creation if processing fails - it can be retried later
-    }
-
+    // Don't automatically trigger processing - let user manually start it
+    // This prevents cancelled recordings from being processed
+    
     return NextResponse.json({ data }, { status: 201 });
   } catch (error: any) {
     console.error("Error creating recording:", error);

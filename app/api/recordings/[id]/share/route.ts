@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 // Share a recording with another user
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -18,11 +18,14 @@ export async function POST(
       );
     }
 
+    // Await params and get the recording ID
+    const { id: recordingId } = await params;
+
     // Get recording to check ownership
     const { data: recording, error: recordingError } = await supabase
       .from("audio_recordings")
       .select("user_id")
-      .eq("id", params.id)
+      .eq("id", recordingId)
       .single();
 
     if (recordingError || !recording) {
@@ -83,7 +86,7 @@ export async function POST(
     const { data: existingShare } = await supabase
       .from("shared_recordings")
       .select("id")
-      .eq("recording_id", params.id)
+      .eq("recording_id", recordingId)
       .eq("shared_with", userId)
       .limit(1);
 
@@ -98,7 +101,7 @@ export async function POST(
     const { data, error } = await supabase
       .from("shared_recordings")
       .insert({
-        recording_id: params.id,
+        recording_id: recordingId,
         shared_by: session.user.id,
         shared_with: userId
       })
@@ -116,7 +119,7 @@ export async function POST(
     await supabase
       .from("audio_recordings")
       .update({ visibility: "shared" })
-      .eq("id", params.id)
+      .eq("id", recordingId)
       .eq("visibility", "private");
 
     return NextResponse.json({ data }, { status: 201 });
@@ -132,7 +135,7 @@ export async function POST(
 // List users a recording is shared with
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -146,11 +149,14 @@ export async function GET(
       );
     }
 
+    // Await params and get the recording ID
+    const { id: recordingId } = await params;
+
     // Get recording to check ownership
     const { data: recording, error: recordingError } = await supabase
       .from("audio_recordings")
       .select("user_id")
-      .eq("id", params.id)
+      .eq("id", recordingId)
       .single();
 
     if (recordingError || !recording) {
@@ -180,7 +186,7 @@ export async function GET(
           full_name
         )
       `)
-      .eq("recording_id", params.id);
+      .eq("recording_id", recordingId);
 
     if (error) {
       return NextResponse.json(
@@ -202,7 +208,7 @@ export async function GET(
 // Remove share
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -216,11 +222,14 @@ export async function DELETE(
       );
     }
 
+    // Await params and get the recording ID
+    const { id: recordingId } = await params;
+
     // Get recording to check ownership
     const { data: recording, error: recordingError } = await supabase
       .from("audio_recordings")
       .select("user_id")
-      .eq("id", params.id)
+      .eq("id", recordingId)
       .single();
 
     if (recordingError || !recording) {
@@ -252,7 +261,7 @@ export async function DELETE(
     const { error } = await supabase
       .from("shared_recordings")
       .delete()
-      .eq("recording_id", params.id)
+      .eq("recording_id", recordingId)
       .eq("shared_with", body.user_id);
 
     if (error) {
@@ -266,15 +275,17 @@ export async function DELETE(
     const { data: remainingShares, error: countError } = await supabase
       .from("shared_recordings")
       .select("id")
-      .eq("recording_id", params.id);
+      .eq("recording_id", recordingId);
 
-    // If no shares remain, update visibility back to private
-    if (!countError && (!remainingShares || remainingShares.length === 0)) {
+    if (countError) {
+      // Don't fail the operation if we can't check remaining shares
+      console.error("Error checking remaining shares:", countError);
+    } else if (!remainingShares || remainingShares.length === 0) {
+      // If no more shares exist, update recording visibility back to private
       await supabase
         .from("audio_recordings")
         .update({ visibility: "private" })
-        .eq("id", params.id)
-        .eq("visibility", "shared");
+        .eq("id", recordingId);
     }
 
     return NextResponse.json({ success: true });

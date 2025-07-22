@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 // Get recording details
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -18,11 +18,14 @@ export async function GET(
       );
     }
 
+    // Await params and get the recording ID
+    const { id: recordingId } = await params;
+
     // Get recording details
     const { data: recording, error: recordingError } = await supabase
       .from("audio_recordings")
       .select("*")
-      .eq("id", params.id)
+      .eq("id", recordingId)
       .single();
 
     if (recordingError || !recording) {
@@ -38,7 +41,7 @@ export async function GET(
       const { data: sharedData } = await supabase
         .from("shared_recordings")
         .select("id")
-        .eq("recording_id", params.id)
+        .eq("recording_id", recordingId)
         .eq("shared_with", session.user.id)
         .limit(1);
 
@@ -54,7 +57,7 @@ export async function GET(
     const { data: analysis } = await supabase
       .from("analysis_results")
       .select("*")
-      .eq("recording_id", params.id)
+      .eq("recording_id", recordingId)
       .maybeSingle();
 
     return NextResponse.json({
@@ -73,7 +76,7 @@ export async function GET(
 // Update recording details
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -87,11 +90,14 @@ export async function PATCH(
       );
     }
 
+    // Await params and get the recording ID
+    const { id: recordingId } = await params;
+
     // Get recording to check ownership
     const { data: recording, error: recordingError } = await supabase
       .from("audio_recordings")
       .select("user_id")
-      .eq("id", params.id)
+      .eq("id", recordingId)
       .single();
 
     if (recordingError || !recording) {
@@ -132,7 +138,7 @@ export async function PATCH(
     const { data, error } = await supabase
       .from("audio_recordings")
       .update(updates)
-      .eq("id", params.id)
+      .eq("id", recordingId)
       .select()
       .single();
 
@@ -156,7 +162,7 @@ export async function PATCH(
 // Delete recording
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -170,11 +176,14 @@ export async function DELETE(
       );
     }
 
+    // Await params and get the recording ID
+    const { id: recordingId } = await params;
+
     // Get recording to check ownership and get file path
     const { data: recording, error: recordingError } = await supabase
       .from("audio_recordings")
       .select("user_id, file_path")
-      .eq("id", params.id)
+      .eq("id", recordingId)
       .single();
 
     if (recordingError || !recording) {
@@ -207,7 +216,7 @@ export async function DELETE(
     const { error } = await supabase
       .from("audio_recordings")
       .delete()
-      .eq("id", params.id);
+      .eq("id", recordingId);
 
     if (error) {
       return NextResponse.json(

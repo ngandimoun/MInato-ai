@@ -84,7 +84,7 @@ Guidelines:
 // Manually trigger processing for a specific recording
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -101,8 +101,14 @@ export async function POST(
     // Log du quota et du plan utilisateur
     console.log(`Analyse recording: user_id=${user.id}, plan_type=${user.plan_type}, trial_recordings_remaining=${user.trial_recordings_remaining}`);
 
-    // Get the recording ID from params
-    const recordingId = params.id;
+    // Await params and get the recording ID
+    const { id: recordingId } = await params;
+    if (!recordingId) {
+      return NextResponse.json(
+        { error: "Recording ID is required" },
+        { status: 400 }
+      );
+    }
 
     // Get the recording
     const { data: recording, error: fetchError } = await supabase
@@ -179,37 +185,34 @@ export async function POST(
       const audioBuffer = await audioResponse.arrayBuffer();
       const audioBlob = new Blob([audioBuffer], { type: "audio/webm" });
 
-      // Step 1: Transcribe the audio using OpenAI's Whisper
-      const formData = new FormData();
-      formData.append("file", audioBlob, recording.file_path);
-      formData.append("model", "whisper-1");
-      formData.append("response_format", "verbose_json");
-      formData.append("timestamp_granularities[]", "segment");
-
+      // Step 1: Transcribe the audio using gpt-4o-mini-transcribe (not whisper)
       const transcriptionResponse = await openai.audio.transcriptions.create({
         file: new File([audioBlob], recording.file_path, { type: "audio/webm" }),
-        model: "whisper-1",
-        response_format: "verbose_json",
-        timestamp_granularities: ["segment"],
+        model: "gpt-4o-mini-transcribe",
+        response_format: "json", // gpt-4o-mini-transcribe only supports json or text
       });
 
       if (!transcriptionResponse.text) {
         throw new Error("Transcription failed - no text returned");
       }
 
-      // Format transcript segments for analysis
-      const transcriptSegments = transcriptionResponse.segments?.map((segment, index) => ({
+      // Since gpt-4o-mini-transcribe doesn't provide detailed segments, create basic segments
+      // Split the text into sentences and estimate timing
+      const sentences = transcriptionResponse.text.split(/[.!?]+/).filter(s => s.trim());
+      const estimatedDuration = recording.duration_seconds || 60; // fallback duration
+      const transcriptSegments = sentences.map((sentence, index) => ({
         id: index + 1,
-        start: segment.start,
-        end: segment.end,
-        text: segment.text,
-      })) || [];
+        start: (index * estimatedDuration) / sentences.length,
+        end: ((index + 1) * estimatedDuration) / sentences.length,
+        text: sentence.trim(),
+      }));
 
-      // Update recording with duration if available
-      if (transcriptionResponse.duration) {
+      // Update recording with duration if available (gpt-4o-mini-transcribe may not provide duration)
+      // We'll keep the existing duration or estimate from file size
+      if (!recording.duration_seconds && estimatedDuration) {
         await supabase
           .from("audio_recordings")
-          .update({ duration_seconds: Math.ceil(transcriptionResponse.duration) })
+          .update({ duration_seconds: Math.ceil(estimatedDuration) })
           .eq("id", recordingId);
       }
 

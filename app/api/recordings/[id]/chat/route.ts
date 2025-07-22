@@ -9,7 +9,7 @@ const openai = new OpenAI({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -34,11 +34,14 @@ export async function POST(
       );
     }
 
+    // Await params and get the recording ID
+    const { id: recordingId } = await params;
+
     // Get recording details
     const { data: recording, error: recordingError } = await supabase
       .from("audio_recordings")
       .select("*")
-      .eq("id", params.id)
+      .eq("id", recordingId)
       .single();
 
     if (recordingError || !recording) {
@@ -54,7 +57,7 @@ export async function POST(
       const { data: sharedData } = await supabase
         .from("shared_recordings")
         .select("id")
-        .eq("recording_id", params.id)
+        .eq("recording_id", recordingId)
         .eq("shared_with", session.user.id)
         .limit(1);
 
@@ -70,7 +73,7 @@ export async function POST(
     const { data: analysis, error: analysisError } = await supabase
       .from("analysis_results")
       .select("*")
-      .eq("recording_id", params.id)
+      .eq("recording_id", recordingId)
       .maybeSingle();
 
     if (analysisError || !analysis || !analysis.transcript_json) {
