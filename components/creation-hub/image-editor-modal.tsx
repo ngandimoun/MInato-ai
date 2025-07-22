@@ -171,10 +171,20 @@ export function ImageEditorModal({
       setSettings(DEFAULT_SETTINGS);
       setHistory([DEFAULT_SETTINGS]);
       setHistoryIndex(0);
-      setPreviewUrl(image.url);
+      setPreviewUrl(image.url); // Keep original image URL initially
       setEnhancementPrompt("");
     }
   }, [image]);
+
+  // Helper function to check if settings have changed from defaults
+  const hasSettingsChanged = useCallback((settings: EditSettings): boolean => {
+    return Object.keys(settings).some(key => {
+      const settingKey = key as keyof EditSettings;
+      const defaultValue = DEFAULT_SETTINGS[settingKey];
+      const currentValue = settings[settingKey];
+      return currentValue !== defaultValue;
+    });
+  }, []);
 
   // Apply settings to create preview
   const applySettings = useCallback(async () => {
@@ -285,13 +295,13 @@ export function ImageEditorModal({
         ctx.drawImage(img, 0, 0);
         ctx.restore();
 
-        // Convert to blob and create URL
+        // Convert to blob and create URL using PNG to preserve quality
         canvas.toBlob((blob) => {
           if (blob) {
             const url = URL.createObjectURL(blob);
             setPreviewUrl(url);
           }
-        }, 'image/jpeg', 0.9);
+        }, 'image/png');
       };
 
       img.src = image.url;
@@ -394,14 +404,23 @@ export function ImageEditorModal({
     setHistoryIndex(0);
   }, []);
 
-  // Apply settings when they change
+  // Apply settings when they change (only if there are actual changes)
   useEffect(() => {
+    if (!image) return;
+
+    // If no settings have changed from defaults, keep the original image
+    if (!hasSettingsChanged(settings)) {
+      setPreviewUrl(image.url);
+      return;
+    }
+
+    // Only apply settings if there are actual changes
     const timeoutId = setTimeout(() => {
       applySettings();
     }, 100);
 
     return () => clearTimeout(timeoutId);
-  }, [applySettings]);
+  }, [settings, image, hasSettingsChanged, applySettings]);
 
   const handleSave = useCallback(async () => {
     if (!image || !onSave) return;
