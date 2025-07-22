@@ -90,27 +90,43 @@ export async function POST(request: NextRequest) {
     // After retrieving user profile (userProfile)
     if (profile.plan_type === 'PRO') {
       console.log('=== PRO PLAN BRANCH (Image Generation) ===');
-      const usage = profile.monthly_usage || {};
       const limits = profile.quota_limits || {};
       const imageLimit = limits.images ?? 30;
-      if ((usage.images ?? 0) >= imageLimit) {
-        return NextResponse.json({ error: `Monthly image generation limit reached for your Pro plan (${imageLimit}).` }, { status: 403 });
+      
+      // Get current month date range
+      const currentMonth = new Date();
+      const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString();
+      const lastDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+      // Count actual images from database for this month
+      const { count: imagesCount, error: imagesError } = await supabase
+        .from('generated_images')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('created_at', firstDayOfMonth)
+        .lte('created_at', lastDayOfMonth);
+
+      if (imagesError && imagesError.code !== '42P01') {
+        console.error("Error counting images:", imagesError);
+        return NextResponse.json(
+          { error: { code: 'QUOTA_CHECK_FAILED', message: 'Failed to check image quota' } },
+          { status: 500 }
+        );
       }
-      // Increment image counter
-      await supabase
-        .from('user_profiles')
-        .update({ monthly_usage: { ...usage, images: (usage.images ?? 0) + 1 } })
-        .eq('id', user.id);
-      // Log formatted quotas
-      const logMsg = [
-        '=== REMAINING QUOTAS FOR PRO USER ===',
-        `User: ${profile.email || profile.id}`,
-        `  Images     : ${(usage.images ?? 0) + 1} / ${imageLimit}`,
-        `  Videos     : ${(usage.videos ?? 0)} / ${(limits.videos ?? 20)}`,
-        `  Recordings : ${(usage.recordings ?? 0)} / ${(limits.recordings ?? 20)}`,
-        '====================================='
-      ].join('\n');
-      console.log(logMsg);
+
+      const currentImages = imagesCount || 0;
+      
+      if (currentImages >= imageLimit) {
+        return NextResponse.json({ 
+          error: { 
+            code: 'QUOTA_EXCEEDED', 
+            message: `Monthly image generation limit reached for your Pro plan (${imageLimit}).` 
+          } 
+        }, { status: 403 });
+      }
+      
+      // Log formatted quotas (will show correct count after creation)
+      console.log(`[PRO] Image will be generated for user ${profile.email}. Images: ${currentImages + 1}/${imageLimit}`);
     }
 
     // Parse request body - updated for GPT Image 1 parameters

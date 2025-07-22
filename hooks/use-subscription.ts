@@ -276,7 +276,7 @@ export function useSubscription() {
 
 // Updated hook for quotas based on new Minato pricing
 export const useUserQuotas = () => {
-  const { subscriptionStatus, permissions } = useSubscription();
+  const { subscriptionStatus, permissions, fetchSubscriptionStatus } = useSubscription();
   
   // Get current usage from subscription status
   const currentUsage = subscriptionStatus?.currentUsage || {
@@ -330,12 +330,28 @@ export const useUserQuotas = () => {
   // Check if user has reached video limit
   const hasReachedVideoLimit = quotas.videos.remaining <= 0;
 
+  // Manual refresh function
+  const refreshQuotas = useCallback(async () => {
+    await fetchSubscriptionStatus();
+  }, [fetchSubscriptionStatus]);
+
   return {
     quotas,
     hasReachedRecordingLimit,
     hasReachedImageLimit,
     hasReachedVideoLimit,
     currentUsage,
-    planLimits: subscriptionStatus?.is_pro ? MINATO_PLANS.PRO.limits : MINATO_PLANS.FREE.limits
+    planLimits: subscriptionStatus?.is_pro ? MINATO_PLANS.PRO.limits : MINATO_PLANS.FREE.limits,
+    // Individual quota values for easier destructuring
+    images: quotas.images.remaining,
+    videos: quotas.videos.remaining,
+    recordings: quotas.recordings.remaining,
+    imagesLimit: quotas.images.limit,
+    videosLimit: quotas.videos.limit,
+    recordingsLimit: quotas.recordings.limit,
+    // Loading state
+    loading: !subscriptionStatus,
+    // Manual refresh function
+    refreshQuotas
   };
 }; 

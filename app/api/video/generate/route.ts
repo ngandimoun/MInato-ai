@@ -68,37 +68,40 @@ export async function POST(request: NextRequest) {
 
     // Check PRO plan limits
     if (userProfile.plan_type === 'PRO') {
-      const usage = userProfile.monthly_usage || {};
       const limits = userProfile.quota_limits || {};
       const videoLimit = limits.videos ?? 20;
       
-      if ((usage.videos ?? 0) >= videoLimit) {
+      // Get current month date range
+      const currentMonth = new Date();
+      const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString();
+      const lastDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+      // Count actual videos from database for this month
+      const { count: videosCount, error: videosError } = await supabase
+        .from('generated_videos')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('created_at', firstDayOfMonth)
+        .lte('created_at', lastDayOfMonth);
+
+      if (videosError && videosError.code !== '42P01') {
+        console.error("Error counting videos:", videosError);
+        return NextResponse.json(
+          { error: "Failed to check video quota" },
+          { status: 500 }
+        );
+      }
+
+      const currentVideos = videosCount || 0;
+      
+      if (currentVideos >= videoLimit) {
         return NextResponse.json({ 
           error: `Monthly video generation limit reached for your Pro plan (${videoLimit}).` 
         }, { status: 403 });
       }
       
-      // Increment video counter
-      await supabase
-        .from('user_profiles')
-        .update({ 
-          monthly_usage: { 
-            ...usage, 
-            videos: (usage.videos ?? 0) + 1 
-          } 
-        })
-        .eq('id', user.id);
-        
-      // Log formatted quotas
-      const logMsg = [
-        '=== REMAINING QUOTAS FOR PRO USER ===',
-        `User: ${userProfile.email || userProfile.id}`,
-        `  Images     : ${(usage.images ?? 0)} / ${(limits.images ?? 30)}`,
-        `  Videos     : ${(usage.videos ?? 0) + 1} / ${videoLimit}`,
-        `  Recordings : ${(usage.recordings ?? 0)} / ${(limits.recordings ?? 20)}`,
-        '====================================='
-      ].join('\n');
-      console.log(logMsg);
+      // Log formatted quotas (will show correct count after creation)
+      console.log(`[PRO] Video will be generated for user ${userProfile.email}. Videos: ${currentVideos + 1}/${videoLimit}`);
     } else {
       // EXPIRED or unknown plan
       return NextResponse.json({ 

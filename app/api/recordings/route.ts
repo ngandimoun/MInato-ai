@@ -146,55 +146,77 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check recording limits based on plan type
-    const usage = userProfile.monthly_usage || { recordings: 0, images: 0, videos: 0 };
-    
+    // Check recording limits based on plan type using real-time counts
     if (userProfile.plan_type === 'PRO') {
       const limits = userProfile.quota_limits || {};
       const recordingLimit = limits.recordings ?? 20;
       
-      if ((usage.recordings ?? 0) >= recordingLimit) {
+      // Get current month date range
+      const currentMonth = new Date();
+      const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString();
+      const lastDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+      // Count actual recordings from database for this month
+      const { count: recordingsCount, error: recordingsError } = await supabase
+        .from('audio_recordings')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', session.user.id)
+        .gte('created_at', firstDayOfMonth)
+        .lte('created_at', lastDayOfMonth);
+
+      if (recordingsError) {
+        console.error("Error counting recordings:", recordingsError);
+        return NextResponse.json(
+          { error: "Failed to check recording quota" },
+          { status: 500 }
+        );
+      }
+
+      const currentRecordings = recordingsCount || 0;
+      
+      if (currentRecordings >= recordingLimit) {
         return NextResponse.json({ 
           error: `Monthly listening recordings limit reached for your Pro plan (${recordingLimit}).` 
         }, { status: 403 });
       }
       
-      // Increment recordings counter
-      await supabase
-        .from('user_profiles')
-        .update({ 
-          monthly_usage: { 
-            ...usage, 
-            recordings: (usage.recordings ?? 0) + 1 
-          } 
-        })
-        .eq('id', userProfile.id);
-        
-      // Log formatted quotas
-      console.log(`[PRO] Recording created for user ${userProfile.email}. Recordings: ${(usage.recordings ?? 0) + 1}/${recordingLimit}`);
+      // Log formatted quotas (will show correct count after creation)
+      console.log(`[PRO] Recording will be created for user ${userProfile.email}. Recordings: ${currentRecordings + 1}/${recordingLimit}`);
       
     } else if (userProfile.plan_type === 'FREE') {
       // FREE plan: limited to 5 recordings per month
       const recordingLimit = 5;
       
-      if ((usage.recordings ?? 0) >= recordingLimit) {
+      // Get current month date range
+      const currentMonth = new Date();
+      const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString();
+      const lastDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+      // Count actual recordings from database for this month
+      const { count: recordingsCount, error: recordingsError } = await supabase
+        .from('audio_recordings')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', session.user.id)
+        .gte('created_at', firstDayOfMonth)
+        .lte('created_at', lastDayOfMonth);
+
+      if (recordingsError) {
+        console.error("Error counting recordings:", recordingsError);
+        return NextResponse.json(
+          { error: "Failed to check recording quota" },
+          { status: 500 }
+        );
+      }
+
+      const currentRecordings = recordingsCount || 0;
+      
+      if (currentRecordings >= recordingLimit) {
         return NextResponse.json({ 
           error: `You have reached your recording limit for the Free plan (${recordingLimit} recordings). Upgrade to Pro for 20 recordings per month plus image and video generation.` 
         }, { status: 403 });
       }
       
-      // Increment recordings counter
-      await supabase
-        .from('user_profiles')
-        .update({ 
-          monthly_usage: { 
-            ...usage, 
-            recordings: (usage.recordings ?? 0) + 1 
-          } 
-        })
-        .eq('id', userProfile.id);
-        
-      console.log(`[FREE] Recording created for user ${userProfile.email}. Recordings: ${(usage.recordings ?? 0) + 1}/${recordingLimit}`);
+      console.log(`[FREE] Recording will be created for user ${userProfile.email}. Recordings: ${currentRecordings + 1}/${recordingLimit}`);
       
     } else {
       // EXPIRED or unknown plan

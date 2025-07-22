@@ -162,3 +162,59 @@ export const MEMORY_SEARCH_LIMIT_DEFAULT = 7;
 // --- Valeurs par Défaut Cache Sémantique ---
 export const EXTERNAL_CACHE_SIMILARITY_THRESHOLD = 0.88;
 export const EXTERNAL_CACHE_DEFAULT_LIMIT = 1;
+
+// --- Quota Checking Utilities ---
+export async function checkQuotaRealTime(
+  supabase: any,
+  userId: string,
+  quotaType: 'recordings' | 'images' | 'videos',
+  planType: 'FREE' | 'PRO',
+  quotaLimits?: any
+): Promise<{ isWithinLimit: boolean; currentUsage: number; limit: number; error?: string }> {
+  try {
+    // Get current month date range
+    const currentMonth = new Date();
+    const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString();
+    const lastDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+    // Determine table name and limit based on quota type
+    let tableName: string;
+    let limit: number;
+
+    switch (quotaType) {
+      case 'recordings':
+        tableName = 'audio_recordings';
+        limit = planType === 'PRO' ? (quotaLimits?.recordings ?? MINATO_PLANS.PRO.limits.recordings) : MINATO_PLANS.FREE.limits.recordings;
+        break;
+      case 'images':
+        tableName = 'generated_images';
+        limit = planType === 'PRO' ? (quotaLimits?.images ?? MINATO_PLANS.PRO.limits.images) : MINATO_PLANS.FREE.limits.images;
+        break;
+      case 'videos':
+        tableName = 'generated_videos';
+        limit = planType === 'PRO' ? (quotaLimits?.videos ?? MINATO_PLANS.PRO.limits.videos) : MINATO_PLANS.FREE.limits.videos;
+        break;
+      default:
+        return { isWithinLimit: false, currentUsage: 0, limit: 0, error: 'Invalid quota type' };
+    }
+
+    // Count actual usage from database for this month
+    const { count, error } = await supabase
+      .from(tableName)
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', firstDayOfMonth)
+      .lte('created_at', lastDayOfMonth);
+
+    if (error && error.code !== '42P01') { // Ignore table not exists error
+      return { isWithinLimit: false, currentUsage: 0, limit, error: `Failed to check ${quotaType} quota: ${error.message}` };
+    }
+
+    const currentUsage = count || 0;
+    const isWithinLimit = currentUsage < limit;
+
+    return { isWithinLimit, currentUsage, limit };
+  } catch (error: any) {
+    return { isWithinLimit: false, currentUsage: 0, limit: 0, error: `Quota check failed: ${error.message}` };
+  }
+}

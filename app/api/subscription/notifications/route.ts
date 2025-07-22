@@ -77,27 +77,32 @@ export async function GET(request: NextRequest) {
         action: 'renew'
       });
       console.log(`[Notifications API] User ${userId} - Pro subscription expiring in 1 day`);
-      // Log only the quota for the connected user
-      const { data: userData, error: userError } = await supabase
-        .from('user_profiles')
-        .select('email, monthly_usage, quota_limits')
-        .eq('id', userId)
-        .single();
-      if (!userError && userData) {
-        const limits = userData.quota_limits || {};
-        const imageLimit = limits.images ?? 30;
-        const videoLimit = limits.videos ?? 20;
-        const recordingLimit = limits.recordings ?? 20;
-        const logMsg = [
-          '=========== REMAINING QUOTAS FOR PRO USER ===========',
-          `User: ${userData.email}`,
-          `  Images     : ${(userData.monthly_usage?.images ?? 0)} / ${imageLimit}`,
-          `  Videos     : ${(userData.monthly_usage?.videos ?? 0)} / ${videoLimit}`,
-          `  Recordings : ${(userData.monthly_usage?.recordings ?? 0)} / ${recordingLimit}`,
-          '====================================================='
-        ].join('\n');
-        console.log(logMsg);
-      }
+      
+      // Log quota using real-time database counts (consistent with other APIs)
+      const currentMonth = new Date();
+      const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString();
+      const lastDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+      // Get actual usage counts from database
+      const [recordingsResult, imagesResult, videosResult] = await Promise.all([
+        supabase.from('audio_recordings').select('*', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', firstDayOfMonth).lte('created_at', lastDayOfMonth),
+        supabase.from('generated_images').select('*', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', firstDayOfMonth).lte('created_at', lastDayOfMonth),
+        supabase.from('generated_videos').select('*', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', firstDayOfMonth).lte('created_at', lastDayOfMonth)
+      ]);
+
+      const recordingsUsed = recordingsResult.count || 0;
+      const imagesUsed = imagesResult.count || 0;
+      const videosUsed = videosResult.count || 0;
+
+      const logMsg = [
+        '=========== REMAINING QUOTAS FOR PRO USER ===========',
+        `User: ${userId}`,
+        `  Images     : ${imagesUsed} / 30`,
+        `  Videos     : ${videosUsed} / 20`,
+        `  Recordings : ${recordingsUsed} / 20`,
+        '====================================================='
+      ].join('\n');
+      console.log(logMsg);
     }
 
     // Welcome notification for new users

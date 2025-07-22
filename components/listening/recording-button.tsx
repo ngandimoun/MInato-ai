@@ -28,6 +28,7 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
   const [isCancelled, setIsCancelled] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const cancelledRef = useRef(false); // Use ref for immediate cancellation check
+  const buttonInteractionRef = useRef<{ [key: string]: boolean }>({});
   const { toast } = useToast();
   const { user, profile, isFetchingProfile, fetchUserProfileAndState } = useAuth();
   const { fetchSubscriptionStatus } = useSubscription(); // Add this to refresh quota
@@ -253,6 +254,36 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
     stopRecording();
   };
 
+  // Better mobile touch handling to prevent double-firing
+  const createButtonHandler = (handlerName: string, handler: () => void) => {
+    return {
+      onPointerDown: (e: React.PointerEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isUploading && !buttonInteractionRef.current[handlerName]) {
+          buttonInteractionRef.current[handlerName] = true;
+          handler();
+          // Reset flag after a short delay
+          setTimeout(() => {
+            buttonInteractionRef.current[handlerName] = false;
+          }, 300);
+        }
+      },
+      // Fallback for older browsers
+      onClick: (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isUploading && !buttonInteractionRef.current[handlerName]) {
+          buttonInteractionRef.current[handlerName] = true;
+          handler();
+          setTimeout(() => {
+            buttonInteractionRef.current[handlerName] = false;
+          }, 300);
+        }
+      }
+    };
+  };
+
   // Handle cancel recording
   const handleCancelRecording = () => {
     console.log('Cancel recording called');
@@ -317,16 +348,7 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
                 "h-16 w-16 rounded-full shadow-lg transition-all duration-300 touch-manipulation select-none",
                 "bg-primary hover:bg-primary/90"
               )}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleStartRecording();
-              }}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleStartRecording();
-              }}
+              {...createButtonHandler('start', handleStartRecording)}
               disabled={status === "recording" && !isRecording}
               style={{ 
                 WebkitTapHighlightColor: 'transparent',
@@ -357,20 +379,7 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
               variant="outline"
               size="sm"
               className="h-10 w-10 rounded-full shadow-md touch-manipulation select-none"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!isUploading) {
-                  handleCancelRecording();
-                }
-              }}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!isUploading) {
-                  handleCancelRecording();
-                }
-              }}
+              {...createButtonHandler('cancel', handleCancelRecording)}
               disabled={isUploading}
               style={{ 
                 WebkitTapHighlightColor: 'transparent',
@@ -389,20 +398,7 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
               variant={isPaused ? "outline" : "secondary"}
               size="sm"
               className="h-12 w-12 rounded-full shadow-md touch-manipulation select-none"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!isUploading) {
-                  handlePauseRecording();
-                }
-              }}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!isUploading) {
-                  handlePauseRecording();
-                }
-              }}
+              {...createButtonHandler('pause', handlePauseRecording)}
               disabled={isUploading}
               style={{ 
                 WebkitTapHighlightColor: 'transparent',
@@ -425,24 +421,7 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
               variant="destructive"
               size="sm"
               className="h-12 w-12 rounded-full shadow-md touch-manipulation select-none"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!isUploading) {
-                  handleStopRecording();
-                }
-              }}
-              onTouchStart={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!isUploading) {
-                  handleStopRecording();
-                }
-              }}
+              {...createButtonHandler('stop', handleStopRecording)}
               disabled={isUploading}
               style={{ 
                 WebkitTapHighlightColor: 'transparent',

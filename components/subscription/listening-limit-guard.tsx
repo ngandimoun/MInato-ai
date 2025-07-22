@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '@/context/auth-provider';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Info } from 'lucide-react';
+import { AlertTriangle, Info, RefreshCw } from 'lucide-react';
 import { useUserQuotas } from '@/hooks/use-subscription';
 import { MINATO_PLANS } from '@/lib/constants';
+import { Button } from '@/components/ui/button';
 
 interface ListeningLimitGuardProps {
   children: React.ReactNode;
@@ -13,7 +14,7 @@ export function ListeningLimitGuard({ children }: ListeningLimitGuardProps) {
   const { profile, isFetchingProfile } = useAuth();
   // TODO: Strong typing for user profile (add plan_type and trial_recordings_remaining to UserProfile)
   const typedProfile = profile as any;
-  const { quotas, hasReachedRecordingLimit } = useUserQuotas();
+  const { quotas, hasReachedRecordingLimit, refreshQuotas } = useUserQuotas();
   
   // Add null checks before accessing plan_type
   const isFree = typedProfile?.plan_type === 'FREE';
@@ -23,6 +24,13 @@ export function ListeningLimitGuard({ children }: ListeningLimitGuardProps) {
   const recordingsUsed = quotas.recordings.used;
   const recordingsLimit = quotas.recordings.limit;
   const recordingsRemaining = quotas.recordings.remaining;
+
+  // Refresh quotas when component mounts or when profile changes
+  useEffect(() => {
+    if (typedProfile?.plan_type) {
+      refreshQuotas();
+    }
+  }, [typedProfile?.plan_type, refreshQuotas]);
 
   const renderRecordingInfo = () => {
     if (isFetchingProfile) {
@@ -49,6 +57,18 @@ export function ListeningLimitGuard({ children }: ListeningLimitGuardProps) {
               Images: {quotas.images.remaining} / {MINATO_PLANS.PRO.limits.images}<br/>
               Videos: {quotas.videos.remaining} / {MINATO_PLANS.PRO.limits.videos}<br/>
               Recordings: {recordingsRemaining} / {MINATO_PLANS.PRO.limits.recordings}
+              <br/>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 h-6 text-xs"
+                onClick={() => {
+                  refreshQuotas();
+                }}
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Refresh Quota
+              </Button>
             </div>
           </div>
         );
@@ -76,7 +96,21 @@ export function ListeningLimitGuard({ children }: ListeningLimitGuardProps) {
 
     // Display current quota status
     if (isPro) {
-      return <div className="text-xs text-green-600 mt-1">Pro Plan - Recordings used: {recordingsUsed} / {MINATO_PLANS.PRO.limits.recordings}</div>;
+      return (
+        <div className="text-xs text-green-600 mt-1 flex items-center justify-between">
+          <span>Pro Plan - Recordings used: {recordingsUsed} / {MINATO_PLANS.PRO.limits.recordings}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-4 px-1 ml-2"
+            onClick={() => {
+              refreshQuotas();
+            }}
+          >
+            <RefreshCw className="h-3 w-3" />
+          </Button>
+        </div>
+      );
     } else if (isFree) {
       return <div className="text-xs text-blue-600 mt-1">Free Plan - Recordings used: {recordingsUsed} / {MINATO_PLANS.FREE.limits.recordings}</div>;
     }
