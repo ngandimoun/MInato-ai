@@ -44,6 +44,56 @@ export async function GET(request: NextRequest) {
     }
 
     const subscriptionStatus = data[0];
+
+    // Get current month usage data from actual tables
+    const currentMonth = new Date();
+    const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString();
+    const lastDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+    // Count recordings from audio_recordings table
+    const { count: recordingsCount, error: recordingsError } = await supabase
+      .from('audio_recordings')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', firstDayOfMonth)
+      .lte('created_at', lastDayOfMonth);
+
+    if (recordingsError) {
+      console.error('[Subscription Status API] Error counting recordings:', recordingsError);
+    }
+
+    // Count images from generated_images table (if exists)
+    const { count: imagesCount, error: imagesError } = await supabase
+      .from('generated_images')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', firstDayOfMonth)
+      .lte('created_at', lastDayOfMonth);
+
+    if (imagesError && imagesError.code !== '42P01') { // Ignore table not exists error
+      console.error('[Subscription Status API] Error counting images:', imagesError);
+    }
+
+    // Count videos from video tables (if exists)
+    const { count: videosCount, error: videosError } = await supabase
+      .from('generated_videos')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', firstDayOfMonth)
+      .lte('created_at', lastDayOfMonth);
+
+    if (videosError && videosError.code !== '42P01') { // Ignore table not exists error
+      console.error('[Subscription Status API] Error counting videos:', videosError);
+    }
+
+    // Add monthly usage to subscription status
+    subscriptionStatus.monthly_usage = {
+      recordings: recordingsCount || 0,
+      images: imagesCount || 0,
+      videos: videosCount || 0
+    };
+
+    console.log(`[Subscription Status API] Monthly usage for ${userId}:`, subscriptionStatus.monthly_usage);
     
     console.log(`[Subscription Status API] Success - User ${userId} subscription status:`, {
       plan_type: subscriptionStatus.plan_type,
@@ -97,10 +147,7 @@ export async function GET(request: NextRequest) {
     console.log(`[Subscription Status API] Days Remaining: ${subscriptionStatus.days_remaining}`);
     console.log(`[Subscription Status API] ========================`);
 
-    return NextResponse.json({
-      success: true,
-      data: subscriptionStatus
-    });
+    return NextResponse.json(subscriptionStatus);
 
   } catch (error) {
     console.error('[Subscription Status API] Unexpected error:', error);
