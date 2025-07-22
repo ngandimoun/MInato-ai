@@ -63,6 +63,12 @@ export const IMAGE_BUCKET = "images";
 export const VIDEO_BUCKET = "videos";
 export const DOCUMENT_BUCKET = "documents";
 
+// Additional bucket constants for consistency with env variables
+export const TTS_AUDIO_BUCKET = process.env.TTS_AUDIO_BUCKET || "ttsaudio";
+export const MEDIA_VIDEO_BUCKET = process.env.MEDIA_VIDEO_BUCKET || "videos";
+export const MEDIA_IMAGE_BUCKET = process.env.MEDIA_IMAGE_BUCKET || "images2";
+export const MEDIA_DOCUMENT_BUCKET = process.env.MEDIA_DOCUMENT_BUCKET || "documents";
+
 // --- URL Expiry Times ---
 export const SIGNED_URL_EXPIRY_SECONDS = 60 * 60; // 1 hour for signed URLs
 

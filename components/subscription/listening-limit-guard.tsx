@@ -15,9 +15,9 @@ export function ListeningLimitGuard({ children }: ListeningLimitGuardProps) {
   const typedProfile = profile as any;
   const { quotas, hasReachedRecordingLimit } = useUserQuotas();
   
-  // For FREE plan users, show current usage vs limit
-  const isFree = typedProfile.plan_type === 'FREE';
-  const isPro = typedProfile.plan_type === 'PRO';
+  // Add null checks before accessing plan_type
+  const isFree = typedProfile?.plan_type === 'FREE';
+  const isPro = typedProfile?.plan_type === 'PRO';
   
   // Calculate remaining quota based on plan
   const recordingsUsed = quotas.recordings.used;
@@ -76,9 +76,9 @@ export function ListeningLimitGuard({ children }: ListeningLimitGuardProps) {
 
     // Display current quota status
     if (isPro) {
-      return <div className="text-xs text-green-600 mt-1">Pro Plan - Recordings remaining: {recordingsRemaining} / {MINATO_PLANS.PRO.limits.recordings}</div>;
+      return <div className="text-xs text-green-600 mt-1">Pro Plan - Recordings used: {recordingsUsed} / {MINATO_PLANS.PRO.limits.recordings}</div>;
     } else if (isFree) {
-      return <div className="text-xs text-blue-600 mt-1">Free Plan - Recordings remaining: {recordingsRemaining} / {MINATO_PLANS.FREE.limits.recordings}</div>;
+      return <div className="text-xs text-blue-600 mt-1">Free Plan - Recordings used: {recordingsUsed} / {MINATO_PLANS.FREE.limits.recordings}</div>;
     }
     
     return null;
