@@ -59,6 +59,7 @@ interface ImageEditorModalProps {
   onClose: () => void;
   onSave?: (editedImage: GeneratedImage) => void;
   onRegenerate?: (prompt: string, modifications: string) => void;
+  onImageUpdated?: (imageId: string, updates: Partial<GeneratedImage>) => void;
 }
 
 interface EditSettings {
@@ -151,7 +152,8 @@ export function ImageEditorModal({
   isOpen, 
   onClose, 
   onSave, 
-  onRegenerate 
+  onRegenerate,
+  onImageUpdated
 }: ImageEditorModalProps) {
   const { user } = useAuth();
   const [settings, setSettings] = useState<EditSettings>(DEFAULT_SETTINGS);
