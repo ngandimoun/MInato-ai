@@ -109,8 +109,8 @@ const DEFAULT_TTS_VOICE_CONST: OpenAITtsVoice = ALL_TTS_VOICES.includes("nova")
   : ALL_TTS_VOICES[0];
 
 const DEFAULTS_UNIFIED = {
-  LLM_PLANNING_MODEL: "gpt-4.1-mini-2025-04-14" as OpenAIPlanningModel,
-  LLM_CHAT_MODEL: "gpt-4.1-mini-2025-04-14" as OpenAILLMBalanced,
+  LLM_PLANNING_MODEL: "gpt-4o-mini-2024-07-18" as OpenAIPlanningModel,
+  LLM_CHAT_MODEL: "gpt-4o-mini-2024-07-18" as OpenAILLMBalanced,
   LLM_COMPLEX_MODEL: "gpt-4.1-2025-04-14" as OpenAILLMComplex,
   LLM_EXTRACTION_MODEL: "gpt-4.1-nano-2025-04-14" as OpenAILLMFast,
 
