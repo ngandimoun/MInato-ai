@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-provider";
 import { cn } from "@/lib/utils";
 import { ListeningLimitGuard } from "@/components/subscription/listening-limit-guard";
+import { useSubscription } from "@/hooks/use-subscription";
 
 interface RecordingButtonProps {
   onRecordingComplete: (recordingId: string) => void;
@@ -28,7 +29,8 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const cancelledRef = useRef(false); // Use ref for immediate cancellation check
   const { toast } = useToast();
-  const { user, profile, isFetchingProfile } = useAuth();
+  const { user, profile, isFetchingProfile, fetchUserProfileAndState } = useAuth();
+  const { fetchSubscriptionStatus } = useSubscription(); // Add this to refresh quota
   // TODO: Typage fort du profil utilisateur (ajouter plan_type et trial_recordings_remaining à UserProfile)
   const typedProfile = profile as any;
   
@@ -158,6 +160,11 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
           // Notify parent component
           onRecordingComplete(data.id);
           
+          // Refresh subscription status and user profile to update quota display
+          console.log('Refreshing subscription status and user profile to update quota');
+          fetchSubscriptionStatus();
+          fetchUserProfileAndState(true); // Force refresh of user profile data
+          
           toast({
             title: "Recording saved",
             description: "Your recording is being processed and will be ready soon.",
@@ -230,6 +237,8 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
 
   // Handle stop recording
   const handleStopRecording = () => {
+    console.log('Stop recording called');
+    
     // Immediately clear timer and update UI state
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -237,6 +246,9 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
     }
     setIsRecording(false);
     setIsPaused(false);
+    
+    console.log('About to call stopRecording() from handleStopRecording');
+    
     // Then stop the actual recording
     stopRecording();
   };
@@ -302,11 +314,28 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
               variant="default"
               size="lg"
               className={cn(
-                "h-16 w-16 rounded-full shadow-lg transition-all duration-300",
+                "h-16 w-16 rounded-full shadow-lg transition-all duration-300 touch-manipulation select-none",
                 "bg-primary hover:bg-primary/90"
               )}
-              onClick={handleStartRecording}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleStartRecording();
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleStartRecording();
+              }}
               disabled={status === "recording" && !isRecording}
+              style={{ 
+                WebkitTapHighlightColor: 'transparent',
+                touchAction: 'manipulation',
+                userSelect: 'none'
+              }}
+              aria-label="Start recording"
+              role="button"
+              tabIndex={0}
             >
               <AnimatePresence mode="wait">
                 <motion.div
@@ -327,9 +356,30 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
             <Button
               variant="outline"
               size="sm"
-              className="h-10 w-10 rounded-full shadow-md"
-              onClick={handleCancelRecording}
+              className="h-10 w-10 rounded-full shadow-md touch-manipulation select-none"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isUploading) {
+                  handleCancelRecording();
+                }
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isUploading) {
+                  handleCancelRecording();
+                }
+              }}
               disabled={isUploading}
+              style={{ 
+                WebkitTapHighlightColor: 'transparent',
+                touchAction: 'manipulation',
+                userSelect: 'none'
+              }}
+              aria-label="Cancel recording"
+              role="button"
+              tabIndex={0}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -338,9 +388,30 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
             <Button
               variant={isPaused ? "outline" : "secondary"}
               size="sm"
-              className="h-12 w-12 rounded-full shadow-md"
-              onClick={handlePauseRecording}
+              className="h-12 w-12 rounded-full shadow-md touch-manipulation select-none"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isUploading) {
+                  handlePauseRecording();
+                }
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isUploading) {
+                  handlePauseRecording();
+                }
+              }}
               disabled={isUploading}
+              style={{ 
+                WebkitTapHighlightColor: 'transparent',
+                touchAction: 'manipulation',
+                userSelect: 'none'
+              }}
+              aria-label={isPaused ? "Resume recording" : "Pause recording"}
+              role="button"
+              tabIndex={0}
             >
               {isPaused ? (
                 <Play className="h-5 w-5" />
@@ -353,9 +424,34 @@ export function RecordingButton({ onRecordingComplete, className }: RecordingBut
             <Button
               variant="destructive"
               size="sm"
-              className="h-12 w-12 rounded-full shadow-md"
-              onClick={handleStopRecording}
+              className="h-12 w-12 rounded-full shadow-md touch-manipulation select-none"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isUploading) {
+                  handleStopRecording();
+                }
+              }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isUploading) {
+                  handleStopRecording();
+                }
+              }}
               disabled={isUploading}
+              style={{ 
+                WebkitTapHighlightColor: 'transparent',
+                touchAction: 'manipulation',
+                userSelect: 'none'
+              }}
+              aria-label="Stop recording"
+              role="button"
+              tabIndex={0}
             >
               <Square className="h-5 w-5" />
             </Button>

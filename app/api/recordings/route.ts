@@ -168,6 +168,22 @@ export async function POST(req: NextRequest) {
         '====================================='
       ].join('\n');
       console.log(logMsg);
+    } else if (userProfile.plan_type === 'FREE_TRIAL') {
+      // Handle FREE_TRIAL users - decrement trial_recordings_remaining
+      const trialRecordingsRemaining = userProfile.trial_recordings_remaining ?? 5;
+      
+      if (trialRecordingsRemaining <= 0) {
+        return NextResponse.json({ error: `You have used all your free trial recordings (5/5). Please upgrade to Pro to continue.` }, { status: 403 });
+      }
+      
+      // Decrement trial recordings remaining
+      const newTrialRecordingsRemaining = trialRecordingsRemaining - 1;
+      await supabase
+        .from('user_profiles')
+        .update({ trial_recordings_remaining: newTrialRecordingsRemaining })
+        .eq('id', userProfile.id);
+        
+      console.log(`[FREE_TRIAL] Recording created for user ${userProfile.email || userProfile.id}. Recordings remaining: ${newTrialRecordingsRemaining}/5`);
     }
 
     // Parse request body
