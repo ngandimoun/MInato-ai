@@ -51,6 +51,7 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { CATEGORY_INFO, CATEGORY_FORMS } from './category-types';
 import { useSubscription } from '@/hooks/use-subscription';
 import { ProPlanModal } from "@/components/ui/pro-plan-modal";
+import { PlanUpgradeModal } from "@/components/subscription/plan-upgrade-modal";
 
 // Helper function to convert File to base64
 async function fileToBase64(file: File): Promise<string> {
@@ -135,6 +136,7 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
   const [showCategorySelector, setShowCategorySelector] = useState(true);
   const [categoryFormValues, setCategoryFormValues] = useState<CategoryFormValues>({});
   const [isProPlanModalOpen, setIsProPlanModalOpen] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
   // Add state to track when translations are complete
   const [translationsLoaded, setTranslationsLoaded] = useState(false);
@@ -820,15 +822,26 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
 
   // Tab selection handler
   const handleTabChange = (value: string) => {
-    // Bloquer l'accès au menu "Gen im" pour les utilisateurs en essai gratuit
+    // Check subscription access before allowing tab switch
     if (value === 'generate' && permissions && !permissions.generate_image) {
       toast({
         title: "Pro Feature Required",
-        description: "Image generation is only available with the Pro plan. Click on 'Plan' in the header to upgrade to Pro.",
+        description: "Image generation is only available with the Pro plan ($25/month). Click on 'Plan' in the header to upgrade to Pro.",
         duration: 5000,
         variant: "destructive",
       });
-      return; // Ne pas changer d'onglet
+      return; // Don't change tab
+    }
+    
+    // Check video generation access for both video tabs
+    if ((value === 'video' || value === 'createvid') && permissions && !permissions.generate_video) {
+      toast({
+        title: "Pro Feature Required",
+        description: "Video generation is only available with the Pro plan ($25/month). Click on 'Plan' in the header to upgrade to Pro.",
+        duration: 5000,
+        variant: "destructive",
+      });
+      return; // Don't change tab
     }
     
     setActiveTab(value);
@@ -1059,9 +1072,12 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
               { value: "gallery", icon: ImageIcon, label: translatedText.gallery, shortLabel: translatedText.gallery },
               { value: "ai-leads", icon: MessageSquare, label: translatedText.leads, shortLabel: translatedText.leads },
             ].map((tab, index) => {
-              // Vérifier si l'onglet "Gen im" est inaccessible
+              // Check if tab requires Pro access
               const isGenerateTab = tab.value === "generate";
+              const isVideoTab = tab.value === "video" || tab.value === "createvid";
               const isGenerateDisabled = isGenerateTab && permissions ? !permissions.generate_image : false;
+              const isVideoDisabled = isVideoTab && permissions ? !permissions.generate_video : false;
+              const isDisabled = isGenerateDisabled || isVideoDisabled;
               
               return (
               <motion.div
@@ -1069,19 +1085,19 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.6 + index * 0.1 }}
-                  whileHover={{ y: isGenerateDisabled ? 0 : -1 }}
+                whileHover={{ y: isDisabled ? 0 : -1 }}
               >
                 <TabsTrigger 
                   value={tab.value}
-                    disabled={isGenerateDisabled}
-                    className={cn(
-                      "relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation hover:bg-muted/50",
-                      isGenerateDisabled && "opacity-50 cursor-not-allowed hover:bg-transparent"
-                    )}
+                  disabled={isDisabled}
+                  className={cn(
+                    "relative h-9 sm:h-10 rounded-none border-b-2 border-transparent px-2 sm:px-3 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm transition-all touch-manipulation hover:bg-muted/50",
+                    isDisabled && "opacity-50 cursor-not-allowed hover:bg-transparent"
+                  )}
                 >
                   <motion.div
                     className="flex items-center gap-1 sm:gap-2"
-                      whileHover={{ scale: isGenerateDisabled ? 1 : 1.05 }}
+                    whileHover={{ scale: isDisabled ? 1 : 1.05 }}
                     transition={{ duration: 0.2 }}
                   >
                     <motion.div
@@ -1099,18 +1115,18 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
                     </motion.div>
                     <span className="hidden xs:inline">{tab.label}</span>
                     <span className="text-[10px] md:inline xs:hidden">{tab.shortLabel}</span>
-                      {/* Indicateur Pro pour l'onglet Gen im */}
-                      {isGenerateTab && isGenerateDisabled && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className="ml-1"
-                        >
-                          <Badge variant="secondary" className="text-xs px-1 py-0 h-4">
-                            PRO
-                          </Badge>
-                        </motion.div>
-                      )}
+                    {/* Pro indicator for restricted tabs */}
+                    {isDisabled && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="ml-1"
+                      >
+                        <Badge variant="secondary" className="text-xs px-1 py-0 h-4">
+                          PRO
+                        </Badge>
+                      </motion.div>
+                    )}
                   </motion.div>
                   {activeTab === tab.value && (
                     <motion.div
@@ -1957,64 +1973,220 @@ export function CreationHubPanel({ onClose }: CreationHubPanelProps) {
           </TabsContent>
 
           <TabsContent value="video" className="mt-0 h-full">
-            <ScrollArea className="h-full p-4">
-              {/* Reset child component by forcing re-mount when language changes */}
-              <VideoGenerator 
-                language={language} 
-                key={`vid-gen-${language}`}
-                onVideoGenerated={(video) => {
-                  // Add video to gallery state
-                  addUserVideo(video);
-                  // Refresh video list to ensure sync with database
-                  refreshUserVideos();
-                  // Show success toast
-                  toast({
-                    title: "Video Generated Successfully!",
-                    description: "Your video is ready and has been added to the gallery",
-                  });
-                }}
-              />
-            </ScrollArea>
+            {permissions && !permissions.generate_video ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="h-full flex items-center justify-center p-4 sm:p-6"
+              >
+                <Card className="max-w-md h-[430px] w-full glass-card">
+                  <CardHeader className="text-center pb-4">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                      className="mx-auto mb-4 relative"
+                    >
+                      <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                        <Film className="w-8 h-8 text-white" />
+                      </div>
+                      <div className="absolute -top-1 -right-1">
+                        <div className="w-6 h-6 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                          <Sparkles className="w-3 h-3 text-white" />
+                        </div>
+                      </div>
+                    </motion.div>
+                    
+                    <CardTitle className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                      Pro Video Generation
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Create stunning videos from images with AI magic
+                    </p>
+                  </CardHeader>
+                  
+                  <CardContent className="space-y-4">
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="space-y-3"
+                    >
+                      <div className="flex items-center gap-3 text-sm">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full" />
+                        <span>Generate 20 videos per month</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                        <span>AI-powered image to video</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm">
+                        <div className="w-2 h-2 bg-green-500 rounded-full" />
+                        <span>Multiple platform formats</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full" />
+                        <span>HD quality exports</span>
+                      </div>
+                    </motion.div>
+                    
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                      className="pt-4"
+                    >
+                      <Button 
+                        className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg"
+                        size="lg"
+                        onClick={() => setIsUpgradeModalOpen(true)}
+                      >
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Upgrade to Pro - $25/month
+                      </Button>
+                    </motion.div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ) : (
+              <ScrollArea className="h-full p-4">
+                {/* Reset child component by forcing re-mount when language changes */}
+                <VideoGenerator 
+                  language={language} 
+                  key={`vid-gen-${language}`}
+                  onVideoGenerated={(video) => {
+                    // Add video to gallery state
+                    addUserVideo(video);
+                    // Refresh video list to ensure sync with database
+                    refreshUserVideos();
+                    // Show success toast
+                    toast({
+                      title: "Video Generated Successfully!",
+                      description: "Your video is ready and has been added to the gallery",
+                    });
+                  }}
+                />
+              </ScrollArea>
+            )}
           </TabsContent>
 
           <TabsContent value="createvid" className="mt-0 h-full">
-            <ScrollArea className="h-full p-4">
-              <CreateVid 
-                language={language}
-                key={`create-vid-${language}`}  /* Force re-mount when language changes */
-                onVideoCreated={(video) => {
-                  // Add video to gallery state but DON'T switch tabs
-                  addUserVideo(video);
-                  // Refresh video list to ensure sync with database
-                  refreshUserVideos();
-                  // DON'T switch tabs - let user see the video on CreateVid page
-                  toast({
-                    title: "Video Created Successfully!",
-                    description: "Your video is ready and has been added to the gallery",
-                  });
-                }} 
-              />
-            </ScrollArea>
+            {permissions && !permissions.generate_video ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="h-full flex items-center justify-center p-4 sm:p-6"
+              >
+                <Card className="max-w-md h-[430px] w-full glass-card">
+                  <CardHeader className="text-center pb-4">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                      className="mx-auto mb-4 relative"
+                    >
+                      <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                        <Wand2 className="w-8 h-8 text-white" />
+                      </div>
+                      <div className="absolute -top-1 -right-1">
+                        <div className="w-6 h-6 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                          <Sparkles className="w-3 h-3 text-white" />
+                        </div>
+                      </div>
+                    </motion.div>
+                    
+                    <CardTitle className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                      Pro Video Creation
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Create videos with text, images, and AI voices
+                    </p>
+                  </CardHeader>
+                  
+                  <CardContent className="space-y-4">
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="space-y-3"
+                    >
+                      <div className="flex items-center gap-3 text-sm">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full" />
+                        <span>AI voice narration</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                        <span>Multi-media support</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm">
+                        <div className="w-2 h-2 bg-green-500 rounded-full" />
+                        <span>Custom duration controls</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full" />
+                        <span>Professional templates</span>
+                      </div>
+                    </motion.div>
+                    
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                      className="pt-4"
+                    >
+                      <Button 
+                        className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg"
+                        size="lg"
+                        onClick={() => setIsUpgradeModalOpen(true)}
+                      >
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Upgrade to Pro - $25/month
+                      </Button>
+                    </motion.div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ) : (
+              <ScrollArea className="h-full p-4">
+                <CreateVid 
+                  language={language}
+                  key={`create-vid-${language}`}  /* Force re-mount when language changes */
+                  onVideoCreated={(video) => {
+                    // Add video to gallery state but DON'T switch tabs
+                    addUserVideo(video);
+                    // Refresh video list to ensure sync with database
+                    refreshUserVideos();
+                    // DON'T switch tabs - let user see the video on CreateVid page
+                    toast({
+                      title: "Video Created Successfully!",
+                      description: "Your video is ready and has been added to the gallery",
+                    });
+                  }} 
+                />
+              </ScrollArea>
+            )}
           </TabsContent>
         </div>
       </Tabs>
       
       {/* Image Editor Modal */}
-      <ImageEditorModal
-        image={selectedImage}
-        isOpen={isImageEditorOpen}
-        onClose={() => {
-          setIsImageEditorOpen(false);
-          setSelectedImage(null);
-        }}
-        onSave={handleImageEditorSave}
-        onRegenerate={handleImageEditorRegenerate}
-      />
-
-      {/* Pro Plan Modal */}
-      <ProPlanModal
-        isOpen={isProPlanModalOpen}
-        onClose={() => setIsProPlanModalOpen(false)}
+      {selectedImage && (
+        <ImageEditorModal
+          isOpen={isImageEditorOpen}
+          onClose={() => setIsImageEditorOpen(false)}
+          image={selectedImage}
+          onImageUpdated={updateUserImage}
+        />
+      )}
+      
+      {/* Plan Upgrade Modal */}
+      <PlanUpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
       />
     </motion.div>
   );

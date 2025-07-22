@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/auth-provider';
 import { useToast } from '@/hooks/use-toast';
+import { MINATO_PLANS } from '@/lib/constants';
 
 export interface SubscriptionStatus {
-  plan_type: 'FREE_TRIAL' | 'PRO' | 'EXPIRED';
+  plan_type: 'FREE' | 'PRO' | 'EXPIRED';
   is_active: boolean;
   is_trial: boolean;
   is_pro: boolean;
@@ -21,6 +22,11 @@ export interface SubscriptionStatus {
     images?: number;
     videos?: number;
     recordings?: number;
+  };
+  currentUsage?: {
+    recordings: number;
+    images: number;
+    videos: number;
   };
 }
 
@@ -92,39 +98,37 @@ export function useSubscription() {
       const response = await fetch(`/api/subscription/status?userId=${user.id}`);
       
       if (response.ok) {
-        const result = await response.json();
-        console.log(`[useSubscription] API response:`, result);
+        const data: SubscriptionStatus = await response.json();
         
-        // Handle the new response structure
-        const data = result.success ? result.data : result;
-        console.log(`[useSubscription] Subscription data:`, data);
-        
-        setSubscriptionStatus(data);
-        
-        // Calculate permissions with detailed logging
-        console.log(`[useSubscription] Calculating permissions for user ${user.id}:`, {
-          plan_type: data.plan_type,
-          is_active: data.is_active,
-          is_trial: data.is_trial,
-          is_pro: data.is_pro,
-          is_expired: data.is_expired
-        });
-        
-        const perms: FeaturePermissions = {
-          chat: data.is_active,
-          memory: data.is_active,
-          leads: data.is_pro,
-          listening: data.is_active, // With limit of 5 for FREE_TRIAL
-          game_solo: data.is_active,
-          game_multiplayer: data.is_pro,
-          generate_image: data.is_pro,
-          generate_video: data.is_pro,
+        // Add monthly usage data as currentUsage
+        const statusWithUsage: SubscriptionStatus = {
+          ...data,
+          currentUsage: {
+            recordings: data.monthly_usage?.recordings ?? 0,
+            images: data.monthly_usage?.images ?? 0,
+            videos: data.monthly_usage?.videos ?? 0
+          }
         };
         
-        console.log(`[useSubscription] Calculated permissions:`, perms);
-        console.log(`[useSubscription] generate_image permission: ${perms.generate_image} (is_pro: ${data.is_pro})`);
-        
+        setSubscriptionStatus(statusWithUsage);
 
+        // Calculate permissions based on Minato pricing plans
+        const perms: FeaturePermissions = {
+          // FREE and PRO features
+          chat: data.is_active,
+          memory: data.is_active,
+          listening: data.is_active,
+          game_solo: data.is_active,
+          leads: data.is_active,
+          
+          // PRO-only features
+          generate_image: data.is_pro,
+          generate_video: data.is_pro,
+          game_multiplayer: data.is_pro,
+        };
+
+        console.log(`[useSubscription] Calculated permissions based on Minato pricing:`, perms);
+        console.log(`[useSubscription] Plan type: ${data.plan_type} - Pro features enabled: ${data.is_pro}`);
         
         setPermissions(perms);
       } else {
@@ -163,7 +167,7 @@ export function useSubscription() {
   const showProFeatureToast = useCallback((featureName: string) => {
     toast({
       title: "Pro Feature Required",
-      description: `This feature is only available with the Pro plan. Click on "Plan" in the header to upgrade to Pro.`,
+      description: `This feature is only available with the Pro plan ($25/month). Click on "Plan" in the header to upgrade to Pro.`,
       duration: 10000, // 10 seconds
     });
   }, [toast]);
@@ -183,7 +187,7 @@ export function useSubscription() {
   const showWelcomeToast = useCallback(() => {
     toast({
       title: "Welcome to Minato! 🎉",
-      description: "Enjoy your 7-day free trial with access to all basic features.",
+      description: "Enjoy your free plan with unlimited chat, unlimited leads, 5 recordings, and solo AI games.",
       duration: 8000, // 8 seconds
     });
   }, [toast]);
@@ -270,22 +274,68 @@ export function useSubscription() {
   };
 } 
 
-// Ajout d'un hook pour quotas restants
-export function useUserQuotas() {
-  const { subscriptionStatus, loading } = useSubscription();
-  if (!subscriptionStatus) return { images: 0, videos: 0, recordings: 0, imagesLimit: 30, videosLimit: 20, recordingsLimit: 20, loading };
-  const usage = subscriptionStatus.monthly_usage || {};
-  const limits = subscriptionStatus.quota_limits || {};
-  const imagesLimit = limits.images ?? 30;
-  const videosLimit = limits.videos ?? 20;
-  const recordingsLimit = limits.recordings ?? 20;
-  return {
-    images: imagesLimit - (usage.images ?? 0),
-    videos: videosLimit - (usage.videos ?? 0),
-    recordings: recordingsLimit - (usage.recordings ?? 0),
-    imagesLimit,
-    videosLimit,
-    recordingsLimit,
-    loading
+// Updated hook for quotas based on new Minato pricing
+export const useUserQuotas = () => {
+  const { subscriptionStatus, permissions } = useSubscription();
+  
+  // Get current usage from subscription status
+  const currentUsage = subscriptionStatus?.currentUsage || {
+    recordings: 0,
+    images: 0,
+    videos: 0
   };
-} 
+
+  // Calculate quotas based on plan type
+  const quotas = useMemo(() => {
+    if (!subscriptionStatus) {
+      return {
+        recordings: { used: 0, limit: 0, remaining: 0 },
+        images: { used: 0, limit: 0, remaining: 0 },
+        videos: { used: 0, limit: 0, remaining: 0 },
+      };
+    }
+
+    // Get limits based on plan type using MINATO_PLANS constants
+    const limits = subscriptionStatus.is_pro 
+      ? MINATO_PLANS.PRO.limits
+      : MINATO_PLANS.FREE.limits;
+
+    const recordings = {
+      used: currentUsage.recordings,
+      limit: limits.recordings,
+      remaining: Math.max(0, limits.recordings - currentUsage.recordings)
+    };
+
+    const images = {
+      used: currentUsage.images,
+      limit: limits.images,
+      remaining: Math.max(0, limits.images - currentUsage.images)
+    };
+
+    const videos = {
+      used: currentUsage.videos,
+      limit: limits.videos,
+      remaining: Math.max(0, limits.videos - currentUsage.videos)
+    };
+
+    return { recordings, images, videos };
+  }, [subscriptionStatus, currentUsage]);
+
+  // Check if user has reached recording limit
+  const hasReachedRecordingLimit = quotas.recordings.remaining <= 0;
+  
+  // Check if user has reached image limit
+  const hasReachedImageLimit = quotas.images.remaining <= 0;
+  
+  // Check if user has reached video limit
+  const hasReachedVideoLimit = quotas.videos.remaining <= 0;
+
+  return {
+    quotas,
+    hasReachedRecordingLimit,
+    hasReachedImageLimit,
+    hasReachedVideoLimit,
+    currentUsage,
+    planLimits: subscriptionStatus?.is_pro ? MINATO_PLANS.PRO.limits : MINATO_PLANS.FREE.limits
+  };
+}; 

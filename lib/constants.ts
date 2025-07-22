@@ -9,6 +9,52 @@ declare global {
   }
 }
 
+// --- Minato Pricing Plans ---
+export const MINATO_PLANS = {
+  FREE: {
+    name: 'Free Plan',
+    price: 0,
+    currency: 'USD',
+    description: 'Permanent free access with core features',
+    features: {
+      chat: 'unlimited',
+      leads: 'unlimited',
+      listening_recordings: 5,
+      games_solo: true,
+      games_multiplayer: false,
+      image_generation: false,
+      video_generation: false,
+    },
+    limits: {
+      recordings: 5,
+      images: 0,
+      videos: 0,
+    }
+  },
+  PRO: {
+    name: 'Pro Plan',
+    price: 25,
+    currency: 'USD',
+    billing_period: 'month',
+    description: 'Full access to all features and higher limits',
+    features: {
+      chat: 'unlimited',
+      leads: 'unlimited',
+      listening_recordings: 20,
+      games_solo: true,
+      games_multiplayer: true,
+      image_generation: true,
+      video_generation: true,
+    },
+    limits: {
+      recordings: 20,
+      images: 30,
+      videos: 20,
+    }
+  }
+} as const;
+
+export type MinatoPlan = keyof typeof MINATO_PLANS;
 
 // --- Buckets de Stockage (Supabase) ---
 export const MEDIA_UPLOAD_BUCKET = process.env.MEDIA_UPLOAD_BUCKET || "audio-recordings";

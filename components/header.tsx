@@ -3,7 +3,7 @@
 
 import React, { createContext } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { MessageSquare, Settings, Brain, Bell, ShoppingBag, Gamepad2, Mic, BarChart3, Menu, X, Palette, Zap } from "lucide-react"
+import { MessageSquare, Settings, Brain, Bell, ShoppingBag, Gamepad2, Mic, BarChart3, Menu, X, Palette, Zap, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -12,6 +12,7 @@ import { useAuth } from "@/context/auth-provider"
 import { ModeToggle } from "@/components/mode-toggle"
 import { useNavigation } from "@/context/navigation-context"
 import { ProPlanModal } from "@/components/ui/pro-plan-modal"
+import { PlanUpgradeModal } from "@/components/subscription/plan-upgrade-modal"
 import { SubscriptionStatus } from "@/components/subscription/subscription-status"
 
 type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub"; // Added listening, insights, and creation-hub views
@@ -40,6 +41,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
   const [notifCount, setNotifCount] = React.useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
   const [proPlanModalOpen, setProPlanModalOpen] = React.useState(false)
+  const [upgradeModalOpen, setUpgradeModalOpen] = React.useState(false)
 
   // Memoize the navigation handler
   const handleNavigation = React.useCallback((view: View) => {
@@ -204,20 +206,17 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
               {/* Subscription Status */}
               <SubscriptionStatus />
 
-              {/* Plan Button */}
-              {/* TODO: Strong typing for user profile (add plan_type and subscription_end_date to UserProfile) */}
-              {profile && (
-                ((profile as any).plan_type === 'FREE_TRIAL' || ((profile as any).subscription_end_date && new Date((profile as any).subscription_end_date) < new Date())) && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => setProPlanModalOpen(true)}
-                    className="h-8 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium px-3 py-1 rounded-sm text-xs"
-                  >
-                    <Zap className="h-3 w-3 mr-1" />
-                    Plan
-                  </Button>
-                )
+              {/* Upgrade to Pro Button - Only for FREE users */}
+              {profile && (profile as any).plan_type === 'FREE' && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setUpgradeModalOpen(true)}
+                  className="h-8 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-medium px-3 py-1 rounded-sm text-xs shadow-lg"
+                >
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  Upgrade to Pro
+                </Button>
               )}
 
               {/* Notifications */}
@@ -301,25 +300,27 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
                       </motion.li>
                     ))}
                     
-                    {/* Plan Button in Mobile Menu */}
-                    {/* <motion.li
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      transition={{ duration: 0.2, delay: navItems.length * 0.05 }}
-                    >
-                      <Button
-                        variant="default"
-                        onClick={() => {
-                          setProPlanModalOpen(true)
-                          setMobileMenuOpen(false)
-                        }}
-                        className="w-full justify-start rounded-lg px-4 py-3 text-left bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-medium"
+                    {/* Upgrade to Pro Button in Mobile Menu - Only for FREE users */}
+                    {profile && (profile as any).plan_type === 'FREE' && (
+                      <motion.li
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.2, delay: navItems.length * 0.05 }}
                       >
-                        <Zap className="h-4 w-4 mr-3" />
-                        <span className="font-medium">Plan</span>
-                      </Button>
-                    </motion.li> */}
+                        <Button
+                          variant="default"
+                          onClick={() => {
+                            setUpgradeModalOpen(true)
+                            setMobileMenuOpen(false)
+                          }}
+                          className="w-full justify-start rounded-lg px-4 py-3 text-left bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-medium"
+                        >
+                          <Sparkles className="h-4 w-4 mr-3" />
+                          <span className="font-medium">Upgrade to Pro</span>
+                        </Button>
+                      </motion.li>
+                    )}
                   </ul>
                 </motion.nav>
               </div>
@@ -332,6 +333,12 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
       <ProPlanModal 
         isOpen={proPlanModalOpen} 
         onClose={() => setProPlanModalOpen(false)} 
+      />
+      
+      {/* Upgrade to Pro Modal */}
+      <PlanUpgradeModal
+        isOpen={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
       />
     </NotificationContext.Provider>
   )

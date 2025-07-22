@@ -42,11 +42,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Après avoir récupéré le profil utilisateur (userProfile)
+    // Check user subscription and enforce limits
     const { data: userProfile, error: profileError } = await supabase
       .from('user_profiles')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('id', user.id)
       .single();
 
     if (profileError || !userProfile) {
@@ -55,6 +55,55 @@ export async function POST(request: NextRequest) {
         { error: 'User profile not found' },
         { status: 500 }
       );
+    }
+
+    // Check if FREE plan user is trying to generate video
+    if (userProfile.plan_type === 'FREE') {
+      logger.warn('[Video Generation API] Access denied: FREE plan users cannot generate videos', { userId: user.id, plan_type: userProfile.plan_type });
+      return NextResponse.json(
+        { error: 'Video generation is only available for Pro users ($25/month). Please upgrade your plan.' },
+        { status: 403 }
+      );
+    }
+
+    // Check PRO plan limits
+    if (userProfile.plan_type === 'PRO') {
+      const usage = userProfile.monthly_usage || {};
+      const limits = userProfile.quota_limits || {};
+      const videoLimit = limits.videos ?? 20;
+      
+      if ((usage.videos ?? 0) >= videoLimit) {
+        return NextResponse.json({ 
+          error: `Monthly video generation limit reached for your Pro plan (${videoLimit}).` 
+        }, { status: 403 });
+      }
+      
+      // Increment video counter
+      await supabase
+        .from('user_profiles')
+        .update({ 
+          monthly_usage: { 
+            ...usage, 
+            videos: (usage.videos ?? 0) + 1 
+          } 
+        })
+        .eq('id', user.id);
+        
+      // Log formatted quotas
+      const logMsg = [
+        '=== REMAINING QUOTAS FOR PRO USER ===',
+        `User: ${userProfile.email || userProfile.id}`,
+        `  Images     : ${(usage.images ?? 0)} / ${(limits.images ?? 30)}`,
+        `  Videos     : ${(usage.videos ?? 0) + 1} / ${videoLimit}`,
+        `  Recordings : ${(usage.recordings ?? 0)} / ${(limits.recordings ?? 20)}`,
+        '====================================='
+      ].join('\n');
+      console.log(logMsg);
+    } else {
+      // EXPIRED or unknown plan
+      return NextResponse.json({ 
+        error: 'Your plan has expired or is invalid. Please contact support.' 
+      }, { status: 403 });
     }
 
     // Build professional video generation prompt
@@ -135,31 +184,6 @@ export async function POST(request: NextRequest) {
       }
     } else {
       videoRecord = videoRecordData;
-    }
-
-    // Après avoir récupéré le profil utilisateur (userProfile)
-    if (userProfile.plan_type === 'PRO') {
-      const usage = userProfile.monthly_usage || {};
-      const limits = userProfile.quota_limits || {};
-      const videoLimit = limits.videos ?? 20;
-      if ((usage.videos ?? 0) >= videoLimit) {
-        return NextResponse.json({ error: `Monthly video generation limit reached for your Pro plan (${videoLimit}).` }, { status: 403 });
-      }
-      // Increment video counter
-      await supabase
-        .from('user_profiles')
-        .update({ monthly_usage: { ...usage, videos: (usage.videos ?? 0) + 1 } })
-        .eq('id', userProfile.id);
-      // Log formatted quotas
-      const logMsg = [
-        '=== REMAINING QUOTAS FOR PRO USER ===',
-        `User: ${userProfile.email || userProfile.id}`,
-        `  Images     : ${(usage.images ?? 0)} / ${(limits.images ?? 30)}`,
-        `  Videos     : ${(usage.videos ?? 0) + 1} / ${videoLimit}`,
-        `  Recordings : ${(usage.recordings ?? 0)} / ${(limits.recordings ?? 20)}`,
-        '====================================='
-      ].join('\n');
-      console.log(logMsg);
     }
 
     return NextResponse.json({

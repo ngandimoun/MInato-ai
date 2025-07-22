@@ -71,10 +71,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (profile.plan_type === 'FREE_TRIAL' || profile.plan_type === 'EXPIRED') {
-      logger.warn('[Creation Hub API] Access denied: user on free trial or expired', { requestId, userId: user.id, plan_type: profile.plan_type });
+    if (profile.plan_type === 'FREE') {
+      logger.warn('[Creation Hub API] Access denied: FREE plan users cannot generate images', { requestId, userId: user.id, plan_type: profile.plan_type });
       return NextResponse.json(
-        { error: { code: 'PLAN_RESTRICTED', message: 'Image generation is only available for Pro users. Please upgrade your plan.' } },
+        { error: { code: 'PLAN_RESTRICTED', message: 'Image generation is only available for Pro users ($25/month). Please upgrade your plan.' } },
+        { status: 403 }
+      );
+    }
+
+    if (profile.plan_type === 'EXPIRED') {
+      logger.warn('[Creation Hub API] Access denied: user plan expired', { requestId, userId: user.id, plan_type: profile.plan_type });
+      return NextResponse.json(
+        { error: { code: 'PLAN_EXPIRED', message: 'Your plan has expired. Please renew your subscription.' } },
         { status: 403 }
       );
     }

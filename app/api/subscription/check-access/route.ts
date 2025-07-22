@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     console.log(`[Feature Access API] Days Remaining: ${subscriptionStatus.days_remaining}`);
     console.log(`[Feature Access API] ========================`);
 
-    // Définir les règles d'accès aux fonctionnalités
+    // Définir les règles d'accès aux fonctionnalités selon les nouveaux plans Minato
     let hasAccess = false;
     let reason = '';
 
@@ -69,40 +69,44 @@ export async function POST(request: NextRequest) {
       hasAccess = false;
       reason = 'Subscription expired';
       console.log(`[Feature Access API] User ${userId} access DENIED - Subscription expired`);
-    } else if (subscriptionStatus.is_trial) {
-      // Pendant l'essai gratuit (7 jours)
+    } else if (subscriptionStatus.is_active) {
+      // Plan actif (FREE ou PRO)
       switch (feature) {
+        // Features disponibles pour les plans FREE et PRO
         case 'chat':
         case 'memory':
         case 'leads':
+        case 'listening':
+        case 'game_solo':
         case 'solo_games':
           hasAccess = true;
-          reason = 'Available in free trial';
-          console.log(`[Feature Access API] User ${userId} access GRANTED to ${feature} - Available in free trial`);
+          reason = subscriptionStatus.is_pro ? 'Available in Pro plan' : 'Available in Free plan';
+          console.log(`[Feature Access API] User ${userId} access GRANTED to ${feature} - Available in current plan`);
           break;
-        case 'listening':
-          // Limité à 5 enregistrements pendant l'essai
-          hasAccess = true;
-          reason = 'Limited to 5 recordings in free trial';
-          console.log(`[Feature Access API] User ${userId} access GRANTED to ${feature} - Limited to 5 recordings`);
-          break;
-        case 'image_generation':
-        case 'video_generation':
+          
+        // Features disponibles uniquement pour le plan PRO
+        case 'game_multiplayer':
         case 'multiplayer_games':
-          hasAccess = false;
-          reason = 'Pro feature - upgrade required';
-          console.log(`[Feature Access API] User ${userId} access DENIED to ${feature} - Pro feature, upgrade required`);
+        case 'image_generation':
+        case 'generate_image':
+        case 'video_generation':
+        case 'generate_video':
+          if (subscriptionStatus.is_pro) {
+            hasAccess = true;
+            reason = 'Available in Pro plan';
+            console.log(`[Feature Access API] User ${userId} access GRANTED to ${feature} - Pro plan feature`);
+          } else {
+            hasAccess = false;
+            reason = 'Pro feature - upgrade required ($25/month)';
+            console.log(`[Feature Access API] User ${userId} access DENIED to ${feature} - Pro plan required`);
+          }
           break;
+          
         default:
           hasAccess = false;
           reason = 'Unknown feature';
           console.log(`[Feature Access API] User ${userId} access DENIED to ${feature} - Unknown feature`);
       }
-    } else if (subscriptionStatus.is_pro) {
-      // Plan Pro - accès complet
-      hasAccess = true;
-      reason = 'Pro subscription';
-      console.log(`[Feature Access API] User ${userId} access GRANTED to ${feature} - Pro subscription`);
     } else {
       hasAccess = false;
       reason = 'No active subscription';

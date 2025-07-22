@@ -916,7 +916,13 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="solo">🤖 Solo Play (vs AI)</SelectItem>
-                  <SelectItem value="multiplayer">👫 Multiplayer</SelectItem>
+                  <FeatureGuard feature="game_multiplayer" fallback={
+                    <SelectItem value="multiplayer" disabled className="opacity-50 cursor-not-allowed">
+                      👫 Multiplayer (Pro Plan Required)
+                    </SelectItem>
+                  }>
+                    <SelectItem value="multiplayer">👫 Multiplayer</SelectItem>
+                  </FeatureGuard>
                 </SelectContent>
               </Select>
             </div>

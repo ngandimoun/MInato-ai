@@ -146,44 +146,61 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Check recording limits based on plan type
+    const usage = userProfile.monthly_usage || { recordings: 0, images: 0, videos: 0 };
+    
     if (userProfile.plan_type === 'PRO') {
-      const usage = userProfile.monthly_usage || {};
       const limits = userProfile.quota_limits || {};
       const recordingLimit = limits.recordings ?? 20;
+      
       if ((usage.recordings ?? 0) >= recordingLimit) {
-        return NextResponse.json({ error: `Monthly listening recordings limit reached for your Pro plan (${recordingLimit}).` }, { status: 403 });
+        return NextResponse.json({ 
+          error: `Monthly listening recordings limit reached for your Pro plan (${recordingLimit}).` 
+        }, { status: 403 });
       }
+      
       // Increment recordings counter
       await supabase
         .from('user_profiles')
-        .update({ monthly_usage: { ...usage, recordings: (usage.recordings ?? 0) + 1 } })
-        .eq('id', userProfile.id);
-      // Log formatted quotas
-      const logMsg = [
-        '=== REMAINING QUOTAS FOR PRO USER ===',
-        `User: ${userProfile.email || userProfile.id}`,
-        `  Images     : ${(usage.images ?? 0)} / ${(limits.images ?? 30)}`,
-        `  Videos     : ${(usage.videos ?? 0)} / ${(limits.videos ?? 20)}`,
-        `  Recordings : ${(usage.recordings ?? 0) + 1} / ${recordingLimit}`,
-        '====================================='
-      ].join('\n');
-      console.log(logMsg);
-    } else if (userProfile.plan_type === 'FREE_TRIAL') {
-      // Handle FREE_TRIAL users - decrement trial_recordings_remaining
-      const trialRecordingsRemaining = userProfile.trial_recordings_remaining ?? 5;
-      
-      if (trialRecordingsRemaining <= 0) {
-        return NextResponse.json({ error: `You have used all your free trial recordings (5/5). Please upgrade to Pro to continue.` }, { status: 403 });
-      }
-      
-      // Decrement trial recordings remaining
-      const newTrialRecordingsRemaining = trialRecordingsRemaining - 1;
-      await supabase
-        .from('user_profiles')
-        .update({ trial_recordings_remaining: newTrialRecordingsRemaining })
+        .update({ 
+          monthly_usage: { 
+            ...usage, 
+            recordings: (usage.recordings ?? 0) + 1 
+          } 
+        })
         .eq('id', userProfile.id);
         
-      console.log(`[FREE_TRIAL] Recording created for user ${userProfile.email || userProfile.id}. Recordings remaining: ${newTrialRecordingsRemaining}/5`);
+      // Log formatted quotas
+      console.log(`[PRO] Recording created for user ${userProfile.email}. Recordings: ${(usage.recordings ?? 0) + 1}/${recordingLimit}`);
+      
+    } else if (userProfile.plan_type === 'FREE') {
+      // FREE plan: limited to 5 recordings per month
+      const recordingLimit = 5;
+      
+      if ((usage.recordings ?? 0) >= recordingLimit) {
+        return NextResponse.json({ 
+          error: `You have reached your recording limit for the Free plan (${recordingLimit} recordings). Upgrade to Pro for 20 recordings per month plus image and video generation.` 
+        }, { status: 403 });
+      }
+      
+      // Increment recordings counter
+      await supabase
+        .from('user_profiles')
+        .update({ 
+          monthly_usage: { 
+            ...usage, 
+            recordings: (usage.recordings ?? 0) + 1 
+          } 
+        })
+        .eq('id', userProfile.id);
+        
+      console.log(`[FREE] Recording created for user ${userProfile.email}. Recordings: ${(usage.recordings ?? 0) + 1}/${recordingLimit}`);
+      
+    } else {
+      // EXPIRED or unknown plan
+      return NextResponse.json({ 
+        error: "Your plan has expired or is invalid. Please contact support." 
+      }, { status: 403 });
     }
 
     // Parse request body
