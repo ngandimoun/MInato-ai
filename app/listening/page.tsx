@@ -13,7 +13,7 @@ import { Header } from "@/components/header";
 import { useRouter } from "next/navigation";
 import { useNavigation } from "@/context/navigation-context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mic, List, BarChart3, Loader2, Video, Shield } from "lucide-react";
+import { Mic, List, BarChart3, Loader2, Video, Shield, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button"; // Importez Button pour le fallback
 
 // <-- 2. Déclarer le composant comme dynamique SANS rendu côté serveur (SSR)
@@ -52,6 +52,8 @@ export default function ListeningPage() {
     fetchRecordings,
     deleteRecording,
     setCurrentRecordingId,
+    setCurrentAnalysis,
+    processRecording,
   } = useListening();
   
   const [currentView, setCurrentView] = useState<View>("listening");
@@ -130,6 +132,31 @@ export default function ListeningPage() {
             <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
               Advanced AI-powered audio and video intelligence for enhanced security and insights
             </p>
+            <div className="mt-3">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  fetchRecordings();
+                  if (currentRecordingId) {
+                    // Force refresh the current recording's analysis
+                    fetch(`/api/recordings/${currentRecordingId}`)
+                      .then(res => res.json())
+                      .then(data => {
+                        if (data.analysis) {
+                          setCurrentAnalysis(data.analysis);
+                        } else if (data.recording && data.recording.status === "completed") {
+                          // If the recording is completed but has no analysis, try processing it again
+                          processRecording(currentRecordingId);
+                        }
+                      })
+                      .catch(err => console.error("Error refreshing analysis:", err));
+                  }
+                }}
+              >
+                <RefreshCw className="h-3 w-3 mr-1" /> Refresh Data
+              </Button>
+            </div>
           </div>
 
           {/* Mobile Tabs */}
@@ -177,6 +204,7 @@ export default function ListeningPage() {
                   recording={currentRecording}
                   analysis={currentAnalysis}
                   isLoading={isLoading}
+                  setCurrentAnalysis={setCurrentAnalysis}
                 />
               </TabsContent>
               
@@ -274,6 +302,7 @@ export default function ListeningPage() {
                     recording={currentRecording}
                     analysis={currentAnalysis}
                     isLoading={isLoading}
+                    setCurrentAnalysis={setCurrentAnalysis}
                     className="shadow-lg hover:shadow-xl transition-shadow"
                   />
                 </motion.div>
@@ -330,6 +359,7 @@ export default function ListeningPage() {
                     recording={currentRecording}
                     analysis={currentAnalysis}
                     isLoading={isLoading}
+                    setCurrentAnalysis={setCurrentAnalysis}
                     className="shadow-lg hover:shadow-xl transition-shadow"
                   />
                 </motion.div>

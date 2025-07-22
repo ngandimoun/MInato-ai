@@ -71,6 +71,8 @@ interface ListeningContextType {
   fetchRecordings: () => Promise<void>;
   deleteRecording: (recordingId: string) => Promise<boolean>;
   setCurrentRecordingId: (recordingId: string | null) => void;
+  setCurrentAnalysis: (analysis: AnalysisResult | null) => void;
+  processRecording: (recordingId: string) => Promise<boolean>;
 }
 
 const ListeningContext = createContext<ListeningContextType>({
@@ -81,6 +83,8 @@ const ListeningContext = createContext<ListeningContextType>({
   fetchRecordings: async () => {},
   deleteRecording: async () => false,
   setCurrentRecordingId: () => {},
+  setCurrentAnalysis: () => {},
+  processRecording: async () => false,
 });
 
 export function ListeningProvider({ children }: { children: React.ReactNode }) {
@@ -202,6 +206,8 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
         // Create a unique channel name to avoid conflicts
         const channelName = `recordings-${user.id}-${Date.now()}`;
         
+        console.log("Setting up realtime subscription for recordings with channel:", channelName);
+        
         channel = supabase
           .channel(channelName)
           .on(
@@ -213,6 +219,9 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
               filter: `user_id=eq.${user.id}`,
             },
             (payload: { new: any; old: any }) => {
+              console.log("Received realtime update for recording:", payload.new.id);
+              console.log("New status:", payload.new.status);
+              
               if (!isMounted) return;
               
               const updatedRecording = payload.new as Recording;
@@ -224,11 +233,15 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
               
               // If this is the currently selected recording, refresh the details
               if (currentRecordingId === updatedRecording.id) {
+                console.log("Updating currently selected recording:", updatedRecording.id);
+                
                 if (updatedRecording.status === "completed") {
+                  console.log("Recording completed, fetching analysis...");
                   // Fetch the updated analysis
                   fetch(`/api/recordings/${updatedRecording.id}`)
                     .then((response) => response.json())
                     .then(({ analysis }) => {
+                      console.log("Analysis fetched:", analysis ? "success" : "empty");
                       if (isMounted) {
                         setCurrentAnalysis(analysis);
                         toast({
@@ -241,6 +254,7 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
                       console.error("Error fetching updated analysis:", error);
                     });
                 } else if (updatedRecording.status === "failed") {
+                  console.log("Recording processing failed");
                   if (isMounted) {
                     toast({
                       title: "Processing Failed",
@@ -252,7 +266,9 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
               }
             }
           )
-          .subscribe();
+          .subscribe((status: any) => {
+            console.log("Subscription status:", status);
+          });
       } catch (error) {
         console.error("Error setting up realtime subscription:", error);
       }
@@ -264,10 +280,11 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
       if (channel) {
+        console.log("Cleaning up realtime subscription");
         supabase.removeChannel(channel);
       }
     };
-  }, [user?.id, currentRecordingId, toast]); // Use user?.id instead of user object
+  }, [user?.id, currentRecordingId, toast, supabase]); // Add supabase to dependencies
 
   // Fetch recordings when user changes
   useEffect(() => {
@@ -281,6 +298,39 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, fetchRecordings]);
 
+  // Handle manual processing of a recording
+  const processRecording = useCallback(async (recordingId: string) => {
+    try {
+      const response = await fetch(`/api/recordings/${recordingId}/process`, {
+        method: "POST",
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to process recording");
+      }
+      
+      const data = await response.json();
+      
+      // Show toast notification if included in the response
+      if (data.toast) {
+        toast({
+          title: data.toast.title,
+          description: data.toast.description,
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error processing recording:", error);
+      toast({
+        title: "Error",
+        description: "Failed to process recording",
+        variant: "destructive",
+      });
+      return false;
+    }
+  }, [toast]);
+
   return (
     <ListeningContext.Provider
       value={{
@@ -291,6 +341,8 @@ export function ListeningProvider({ children }: { children: React.ReactNode }) {
         fetchRecordings,
         deleteRecording,
         setCurrentRecordingId,
+        setCurrentAnalysis,
+        processRecording,
       }}
     >
       {children}

@@ -158,39 +158,47 @@ export async function POST(
 
       const audioBuffer = await audioResponse.arrayBuffer();
       const audioBlob = new Blob([audioBuffer], { type: "audio/webm" });
+      const audioFile = new File([audioBlob], recording.file_path, { type: "audio/webm" });
 
-      // Step 1: Transcribe the audio using gpt-4o-mini-transcribe (not whisper)
+      // Step 1: Transcribe the audio using gpt-4o-mini-transcribe
+      console.log("Starting transcription with gpt-4o-mini-transcribe...");
       const transcriptionResponse = await openai.audio.transcriptions.create({
-        file: new File([audioBlob], recording.file_path, { type: "audio/webm" }),
+        file: audioFile,
         model: "gpt-4o-mini-transcribe",
-        response_format: "json", // gpt-4o-mini-transcribe only supports json or text
+        response_format: "json",
       });
 
       if (!transcriptionResponse.text) {
         throw new Error("Transcription failed - no text returned");
       }
 
-      // Since gpt-4o-mini-transcribe doesn't provide detailed segments, create basic segments
-      // Split the text into sentences and estimate timing
+      console.log("Transcription completed successfully");
+
+      // Create transcript segments from the response
+      let transcriptSegments = [];
+      
+      // Since gpt-4o-mini-transcribe doesn't provide detailed segments with the json format,
+      // we'll split the text into sentences and estimate timing
       const sentences = transcriptionResponse.text.split(/[.!?]+/).filter(s => s.trim());
       const estimatedDuration = recording.duration_seconds || 60; // fallback duration
-      const transcriptSegments = sentences.map((sentence, index) => ({
+      transcriptSegments = sentences.map((sentence, index) => ({
         id: index + 1,
         start: (index * estimatedDuration) / sentences.length,
         end: ((index + 1) * estimatedDuration) / sentences.length,
         text: sentence.trim(),
       }));
 
-      // Update recording with duration if available (gpt-4o-mini-transcribe may not provide duration)
-      // We'll keep the existing duration or estimate from file size
-      if (!recording.duration_seconds && estimatedDuration) {
+      // Update recording with duration if available
+      const audioDuration = (transcriptionResponse as any).duration || recording.duration_seconds;
+      if (audioDuration && (!recording.duration_seconds || recording.duration_seconds === 0)) {
         await supabase
           .from("audio_recordings")
-          .update({ duration_seconds: Math.ceil(estimatedDuration) })
+          .update({ duration_seconds: Math.ceil(audioDuration) })
           .eq("id", recordingId);
       }
 
       // Step 2: Analyze the transcript using GPT-4
+      console.log("Starting analysis with GPT-4...");
       const analysisResponse = await openai.chat.completions.create({
         model: "gpt-4o-2024-08-06",
         messages: [
@@ -249,6 +257,10 @@ export async function POST(
           transcript_text: transcriptionResponse.text,
           summary: analysis.summary_text,
           segments_count: transcriptSegments.length,
+        },
+        toast: {
+          title: "Processing Complete",
+          description: "Your recording has been processed successfully. If you don't see the analysis, please click the Refresh Data button."
         }
       });
 

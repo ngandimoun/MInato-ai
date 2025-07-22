@@ -292,17 +292,6 @@ export async function POST(req: NextRequest) {
           },
           { status: 413 }
         );
-      const isAllowedAudioType =
-        ALLOWED_AUDIO_TYPES.includes(audioFile.type);
-      if (!isAllowedAudioType)
-        return NextResponse.json(
-          {
-            error: `Unsupported audio type: ${
-              audioFile.type
-            }. Allowed: ${ALLOWED_AUDIO_TYPES.join(", ")}. Please upload audio in mp3, wav, m4a, or other OpenAI-supported format.`,
-          },
-          { status: 415 }
-        );
       
       detectedMimeType = audioFile.type;
       originalFilename =
@@ -334,6 +323,13 @@ export async function POST(req: NextRequest) {
     if (!supabaseAdminForStorage || !supabaseAdminForStorage.storage) {
       logger.error(`${logPrefix} supabaseAdmin or supabaseAdmin.storage is undefined!`);
       return NextResponse.json({ error: "Storage admin client not available." }, { status: 500 });
+    }
+
+    // Handle webm with opus codec specifically
+    if (detectedMimeType === "audio/webm;codecs=opus") {
+      // For Supabase storage, we'll use a simpler MIME type that's widely supported
+      detectedMimeType = "audio/webm";
+      logger.info(`${logPrefix} Converted MIME type from audio/webm;codecs=opus to audio/webm for Supabase compatibility`);
     }
 
     // Sanitize file extension

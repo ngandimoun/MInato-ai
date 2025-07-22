@@ -34,12 +34,15 @@ import { ChatInterface } from "./chat-interface";
 import { RecordingSkeleton } from "./recording-skeleton";
 import { LanguageSelector } from "./language-selector";
 import { useTranslation } from "@/hooks/useTranslation";
+import { useToast } from "@/components/ui/use-toast";
+import { useListening } from "@/context/listening-context";
 
 interface RecordingAnalysisProps {
   recording: Recording | null;
   analysis: AnalysisResult | null;
   isLoading: boolean;
   className?: string;
+  setCurrentAnalysis?: (analysis: AnalysisResult | null) => void;
 }
 
 export function RecordingAnalysis({
@@ -47,6 +50,7 @@ export function RecordingAnalysis({
   analysis,
   isLoading,
   className,
+  setCurrentAnalysis,
 }: RecordingAnalysisProps) {
   const [activeTab, setActiveTab] = useState("summary");
   const [isPlaying, setIsPlaying] = useState(false);
@@ -54,6 +58,8 @@ export function RecordingAnalysis({
   const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [highlightedSegmentId, setHighlightedSegmentId] = useState<number | null>(null);
+  const { toast } = useToast();
+  const { processRecording } = useListening();
   
   // Language state for each section
   const [summaryLanguage, setSummaryLanguage] = useState("en");
@@ -295,16 +301,8 @@ export function RecordingAnalysis({
             <Button
               variant="outline"
               onClick={async () => {
-                try {
-                  const response = await fetch(`/api/recordings/${recording.id}/process`, {
-                    method: "POST",
-                  });
-                  
-                  if (response.ok) {
-                    // Status will be updated via real-time subscription
-                  }
-                } catch (error) {
-                  console.error("Failed to trigger processing:", error);
+                if (recording) {
+                  await processRecording(recording.id);
                 }
               }}
               className="mt-4"
@@ -346,16 +344,8 @@ export function RecordingAnalysis({
           
           <Button
             onClick={async () => {
-              try {
-                const response = await fetch(`/api/recordings/${recording.id}/process`, {
-                  method: "POST",
-                });
-                
-                if (response.ok) {
-                  // Status will be updated via real-time subscription
-                }
-              } catch (error) {
-                console.error("Failed to retry processing:", error);
+              if (recording) {
+                await processRecording(recording.id);
               }
             }}
             className="mt-4"
@@ -378,6 +368,75 @@ export function RecordingAnalysis({
           <p className="text-muted-foreground">
             Select a recording from the list or create a new recording to view its analysis
           </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Handle case where recording is completed but analysis is missing
+  if (recording.status === "completed" && !analysis) {
+    return (
+      <Card className={cn("w-full h-[600px]", className)}>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center justify-between">
+            <div className="truncate">{recording.title}</div>
+            <Badge variant="outline" className="ml-2">
+              {recording.status}
+            </Badge>
+          </CardTitle>
+          <CardDescription>
+            {recording.created_at
+              ? formatDistanceToNow(new Date(recording.created_at), { addSuffix: true })
+              : "Just now"} • {formatTime(recording.duration_seconds || 0)}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center h-[calc(100%-120px)] text-center p-8">
+          <div className="mb-6">
+            <AlertTriangle className="h-16 w-16 text-amber-500 mb-4" />
+            <h3 className="text-lg font-medium mb-2">Analysis Not Found</h3>
+            <p className="text-muted-foreground max-w-md">
+              The recording is marked as completed, but the analysis data couldn't be loaded.
+            </p>
+          </div>
+          
+          <Button
+            onClick={async () => {
+              try {
+                // First try to manually fetch the recording and analysis
+                const response = await fetch(`/api/recordings/${recording.id}`);
+                
+                if (response.ok) {
+                  const data = await response.json();
+                  console.log("Manual refresh - fetched data:", data);
+                  
+                  if (data.analysis) {
+                    // If analysis exists, update the state directly
+                    if (setCurrentAnalysis) {
+                      setCurrentAnalysis(data.analysis);
+                    }
+                    toast({
+                      title: "Analysis Loaded",
+                      description: "The analysis has been refreshed successfully.",
+                    });
+                  } else {
+                    // If no analysis exists, try to trigger processing again
+                    await processRecording(recording.id);
+                  }
+                }
+              } catch (error) {
+                console.error("Error refreshing analysis:", error);
+                toast({
+                  title: "Error",
+                  description: "Failed to refresh analysis",
+                  variant: "destructive",
+                });
+              }
+            }}
+            className="mt-4"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh Analysis
+          </Button>
         </CardContent>
       </Card>
     );

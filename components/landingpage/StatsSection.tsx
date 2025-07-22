@@ -31,6 +31,7 @@ const media = [
   "/14.png",
   "/Friends.mp4",
   "/hero-visual.jpg",
+  "/15.png",
 ];
 
 // === NOUVELLE FONCTION UTILITAIRE ===

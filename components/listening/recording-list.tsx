@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Recording } from "@/context/listening-context";
 import { useToast } from "@/hooks/use-toast";
+import { useListening } from "@/context/listening-context";
 
 interface RecordingListProps {
   recordings: Recording[];
@@ -58,6 +59,7 @@ export function RecordingList({
   const { toast } = useToast();
   const [editingRecordingId, setEditingRecordingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>("");
+  const { processRecording } = useListening();
 
   // Format duration as MM:SS
   const formatDuration = (seconds: number | null): string => {
@@ -143,13 +145,7 @@ export function RecordingList({
     event.stopPropagation();
     
     try {
-      const response = await fetch(`/api/recordings/${recordingId}/process`, {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to trigger processing");
-      }
+      await processRecording(recordingId);
 
       toast({
         title: "Processing Started",
