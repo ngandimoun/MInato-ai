@@ -84,6 +84,15 @@ export function ListeningLimitGuard({ children }: ListeningLimitGuardProps) {
     return null;
   };
 
+  // Don't render children (recording functionality) if limit is reached
+  if (recordingsRemaining <= 0 && (isFree || isPro)) {
+    return (
+      <div className="flex flex-col items-center">
+        {renderRecordingInfo()}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center">
       {children}
