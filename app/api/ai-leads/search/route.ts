@@ -147,8 +147,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<LeadSearc
               specific_subreddits: search_config.specific_subreddits
             });
             
-            if (platformResult.structuredData?.leads) {
+            if (platformResult.structuredData?.result_type === "reddit_leads" && platformResult.structuredData?.leads) {
               platformLeads = platformResult.structuredData.leads;
+              logger.info(`${logPrefix} Found ${platformLeads.length} Reddit leads`);
+            } else {
+              logger.warn(`${logPrefix} No valid Reddit leads found in response`, { 
+                result_type: platformResult.structuredData?.result_type,
+                has_leads: !!platformResult.structuredData?.leads
+              });
             }
             break;
 
