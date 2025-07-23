@@ -1,7 +1,8 @@
-import { BaseTool, ToolInput, ToolOutput } from "../base-tool";
-import { YouTubeSearchTool } from "../YouTubeSearchTool";
+import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "../base-tool";
+import { WebSearchTool } from "../WebSearchTool";
 import { generateStructuredJson } from "../../providers/llm_clients";
 import { logger } from "../../../memory-framework/config";
+import { LEAD_KEYWORDS_BY_LANGUAGE } from "./lead-prompts";
 
 interface LeadYouTubeInput extends ToolInput {
   search_prompt: string;
@@ -11,78 +12,440 @@ interface LeadYouTubeInput extends ToolInput {
 }
 
 interface YouTubeLeadAnalysis {
-  video_id: string;
-  title: string;
-  description: string;
-  channel_title: string;
-  published_at: string;
-  video_url: string;
-  thumbnail_url: string;
   lead_score: number;
   urgency_level: "low" | "medium" | "high" | "urgent";
   pain_points: string[];
   decision_maker_indicators: string[];
   engagement_potential: number;
-  business_opportunity: string;
-  target_persona: string;
-  content_type: "tutorial" | "review" | "problem" | "discussion" | "showcase" | "other";
-  viewer_intent: "learning" | "buying" | "comparing" | "troubleshooting" | "entertaining" | "other";
+  platform_insights: {
+    content_relevance: number;
+    channel_authority: number;
+    engagement_quality: number;
+    video_quality: number;
+  };
+  tags: string[];
+  reasoning: string;
 }
-
-// Language-specific keywords for lead generation
-const LEAD_KEYWORDS_BY_LANGUAGE: Record<string, string[]> = {
-  'en': ['problem', 'solution', 'help', 'struggling', 'need', 'advice', 'issue', 'challenge', 'difficulty'],
-  'fr': ['problème', 'solution', 'aide', 'difficulté', 'besoin', 'conseil', 'problème', 'défi', 'galère'],
-  'es': ['problema', 'solución', 'ayuda', 'dificultad', 'necesidad', 'consejo', 'problema', 'desafío', 'lucha'],
-  'de': ['Problem', 'Lösung', 'Hilfe', 'Schwierigkeit', 'Bedarf', 'Rat', 'Problem', 'Herausforderung', 'Kampf'],
-  'it': ['problema', 'soluzione', 'aiuto', 'difficoltà', 'bisogno', 'consiglio', 'problema', 'sfida', 'lotta'],
-  'pt': ['problema', 'solução', 'ajuda', 'dificuldade', 'necessidade', 'conselho', 'problema', 'desafio', 'luta'],
-  'ru': ['проблема', 'решение', 'помощь', 'трудность', 'нужда', 'совет', 'проблема', 'вызов', 'борьба'],
-  'ja': ['問題', '解決', '助け', '困難', '必要', 'アドバイス', '問題', '挑戦', '苦労'],
-  'zh': ['问题', '解决', '帮助', '困难', '需要', '建议', '问题', '挑战', '斗争'],
-  'ko': ['문제', '해결', '도움', '어려움', '필요', '조언', '문제', '도전', '투쟁'],
-  'ar': ['مشكلة', 'حل', 'مساعدة', 'صعوبة', 'حاجة', 'نصيحة', 'مشكلة', 'تحدي', 'كفاح'],
-  'hi': ['समस्या', 'समाधान', 'मदद', 'कठिनाई', 'आवश्यकता', 'सलाह', 'समस्या', 'चुनौती', 'संघर्ष']
-};
 
 export class LeadYouTubeTool extends BaseTool {
   name = "LeadYouTubeTool";
-  description = "Finds potential leads from YouTube videos by analyzing content, titles, and descriptions for business opportunities and pain points";
+  description = "Finds potential leads from YouTube videos by searching for YouTube content and analyzing it for business opportunities and pain points";
   
   argsSchema = {
     type: "object" as const,
     properties: {
       search_prompt: {
-        type: "string",
+        type: "string" as const,
         description: "Search query to find relevant YouTube videos (e.g., 'small business struggling with marketing')"
-      },
+      } as OpenAIToolParameterProperties,
       industry_focus: {
-        type: "string",
+        type: ["string", "null"] as const,
         description: "Optional industry focus to narrow down results (e.g., 'SaaS', 'e-commerce', 'healthcare')"
-      },
+      } as OpenAIToolParameterProperties,
       target_audience: {
-        type: "string", 
+        type: ["string", "null"] as const,
         description: "Optional target audience description (e.g., 'startup founders', 'marketing managers')"
-      },
+      } as OpenAIToolParameterProperties,
       limit: {
-        type: "number",
+        type: ["number", "null"] as const,
         description: "Maximum number of lead videos to analyze (1-10, default 5)",
         minimum: 1,
         maximum: 10
-      }
+      } as OpenAIToolParameterProperties
     },
     required: ["search_prompt"],
     additionalProperties: false as false
   };
 
-  categories = ["leads", "youtube", "analysis"];
-  version = "1.0.0";
+  private readonly MAX_RETRIES = 3;
+  private readonly INITIAL_RETRY_DELAY = 1000; // 1 second
+  private readonly MAX_REQUESTS_PER_MINUTE = 20; // YouTube API quota management
+  private readonly YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3";
+  private readonly USER_AGENT = `MinatoAILeads/1.0 (production; contact: ${process.env.EMAIL_FROM_ADDRESS || "support@example.com"})`;
+  private lastRequestTime: number = 0;
 
-  private youtubeSearchTool: YouTubeSearchTool;
+  private webSearchTool: WebSearchTool;
 
   constructor() {
     super();
-    this.youtubeSearchTool = new YouTubeSearchTool();
+    this.webSearchTool = new WebSearchTool();
+  }
+
+  private async wait(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    const minTimeBetweenRequests = (60 * 1000) / this.MAX_REQUESTS_PER_MINUTE;
+
+    if (timeSinceLastRequest < minTimeBetweenRequests) {
+      await this.wait(minTimeBetweenRequests - timeSinceLastRequest);
+    }
+    this.lastRequestTime = Date.now();
+  }
+
+  private async fetchWithRetry(url: string, options: RequestInit = {}, retryCount = 0): Promise<Response> {
+    try {
+      await this.enforceRateLimit();
+      const response = await fetch(url, {
+        ...options,
+        headers: new Headers({
+          ...(options.headers instanceof Headers ? Object.fromEntries(options.headers.entries()) : options.headers || {}),
+          "User-Agent": this.USER_AGENT
+        })
+      });
+
+      // Handle different response statuses
+      if (response.status === 200) {
+        return response;
+      } else if (response.status === 403) {
+        // API key issues or quota exceeded
+        throw new Error("YouTube API access denied. Please check API key and quota.");
+      } else if (response.status === 429) {
+        // Too Many Requests
+        const retryAfter = parseInt(response.headers.get("Retry-After") || "60", 10);
+        this.log("warn", `Rate limited by YouTube API. Waiting ${retryAfter} seconds before retry.`);
+        await this.wait(retryAfter * 1000);
+        throw new Error("Rate limited");
+      } else if (response.status >= 500) {
+        // Server error - should retry
+        throw new Error(`YouTube API server error: ${response.status}`);
+      } else {
+        // Client error - should not retry
+        this.log("error", `YouTube API error: ${response.status} ${response.statusText}`);
+        return response;
+      }
+    } catch (error) {
+      if (retryCount < this.MAX_RETRIES) {
+        const delay = this.INITIAL_RETRY_DELAY * Math.pow(2, retryCount);
+        this.log("warn", `Retrying request after ${delay}ms (attempt ${retryCount + 1}/${this.MAX_RETRIES})`);
+        await this.wait(delay);
+        return this.fetchWithRetry(url, options, retryCount + 1);
+      }
+      throw error;
+    }
+  }
+
+  private async searchYouTubeVideos(query: string, language: string, limit: number = 5): Promise<any[]> {
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    if (!apiKey) {
+      this.log("error", "YouTube API key not configured");
+      return [];
+    }
+
+    const searchUrl = new URL(`${this.YOUTUBE_API_BASE}/search`);
+    searchUrl.searchParams.append("key", apiKey);
+    searchUrl.searchParams.append("part", "snippet");
+    searchUrl.searchParams.append("q", query);
+    searchUrl.searchParams.append("type", "video");
+    searchUrl.searchParams.append("maxResults", String(Math.min(limit, 10)));
+    searchUrl.searchParams.append("relevanceLanguage", language.split("-")[0]);
+    searchUrl.searchParams.append("videoEmbeddable", "true");
+
+    try {
+      const response = await this.fetchWithRetry(searchUrl.toString(), {
+        signal: AbortSignal.timeout(30000) // 30 second timeout
+      });
+
+      if (!response.ok) {
+        this.log("error", `YouTube API error: ${response.status} ${response.statusText}`);
+        return [];
+      }
+
+      const data = await response.json();
+      
+      // Validate response structure
+      if (!data?.items || !Array.isArray(data.items)) {
+        this.log("warn", "Invalid YouTube API response structure");
+        return [];
+      }
+
+      // Get video details for each result
+      const videoIds = data.items.map((item: any) => item.id.videoId).join(",");
+      if (!videoIds) {
+        return [];
+      }
+
+      const detailsUrl = new URL(`${this.YOUTUBE_API_BASE}/videos`);
+      detailsUrl.searchParams.append("key", apiKey);
+      detailsUrl.searchParams.append("part", "snippet,statistics");
+      detailsUrl.searchParams.append("id", videoIds);
+
+      const detailsResponse = await this.fetchWithRetry(detailsUrl.toString(), {
+        signal: AbortSignal.timeout(30000)
+      });
+
+      if (!detailsResponse.ok) {
+        this.log("error", `YouTube video details API error: ${detailsResponse.status}`);
+        return data.items;
+      }
+
+      const detailsData = await detailsResponse.json();
+      
+      // Merge search results with video details
+      return data.items.map((item: any) => {
+        const details = detailsData.items?.find((v: any) => v.id === item.id.videoId);
+        return {
+          ...item,
+          statistics: details?.statistics || {}
+        };
+      });
+
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      this.log("error", `Error searching YouTube: ${errorMessage}`);
+      
+      // If it's a timeout error, return empty array
+      if (errorMessage.includes('timeout')) {
+        return [];
+      }
+      
+      throw error;
+    }
+  }
+
+  async execute(input: LeadYouTubeInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    const logPrefix = "[LeadYouTubeTool]";
+    
+    try {
+      const limit = Math.min(Math.max(1, input.limit || 5), 10);
+      
+      // Detect language from search prompt
+      const detectedLanguage = this.detectLanguage(input.search_prompt);
+      logger.info(`${logPrefix} Detected language: ${detectedLanguage}`);
+      
+      // Build enhanced search query for lead generation
+      let searchQuery = input.search_prompt;
+      
+      // Add industry and audience context to search
+      if (input.industry_focus) {
+        searchQuery += ` ${input.industry_focus}`;
+      }
+      if (input.target_audience) {
+        searchQuery += ` ${input.target_audience}`;
+      }
+      
+      // Add language-specific YouTube lead keywords
+      const localizedKeywords = this.getLocalizedKeywords(detectedLanguage);
+      const keywordSample = localizedKeywords.slice(0, 6);
+      searchQuery += ` ${keywordSample.join(' ')}`;
+
+      logger.info(`${logPrefix} Searching YouTube content for: "${searchQuery}" (Language: ${detectedLanguage})`);
+
+      // Search for YouTube videos
+      const videos = await this.searchYouTubeVideos(searchQuery, detectedLanguage, limit);
+      
+      if (!videos || videos.length === 0) {
+        return {
+          result: "No relevant YouTube videos found",
+          error: "No videos found matching the search criteria",
+          structuredData: {
+            result_type: "youtube_leads",
+            leads: [],
+            summary: {
+              total_leads: 0,
+              search_query: searchQuery,
+              language: detectedLanguage,
+              industry_focus: input.industry_focus,
+              target_audience: input.target_audience
+            }
+          }
+        };
+      }
+
+      // Analyze each video for lead potential
+      const leadResults = await Promise.all(videos.map(async (video: any) => {
+        if (abortSignal?.aborted) return null;
+
+        const analysis = await this.analyzeVideoLeadPotential(video, input.search_prompt);
+        
+        return {
+          id: video.id.videoId,
+          title: video.snippet.title,
+          description: video.snippet.description,
+          channel: video.snippet.channelTitle,
+          platform: "youtube",
+          source_url: `https://www.youtube.com/watch?v=${video.id.videoId}`,
+          embed_url: `https://www.youtube.com/embed/${video.id.videoId}`,
+          thumbnail_url: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default?.url,
+          published_at: video.snippet.publishedAt,
+          engagement_metrics: {
+            views: parseInt(video.statistics?.viewCount || "0", 10),
+            likes: parseInt(video.statistics?.likeCount || "0", 10),
+            comments: parseInt(video.statistics?.commentCount || "0", 10)
+          },
+          lead_analysis: analysis,
+          raw_data: video
+        };
+      }));
+
+      // Filter out null results (from aborted requests)
+      const validLeads = leadResults.filter((lead): lead is NonNullable<typeof lead> => lead !== null);
+
+      // Sort by lead score
+      validLeads.sort((a, b) => b.lead_analysis.lead_score - a.lead_analysis.lead_score);
+
+      const summary = {
+        total_leads: validLeads.length,
+        average_lead_score: validLeads.length > 0 
+          ? Math.round(validLeads.reduce((sum, lead) => sum + lead.lead_analysis.lead_score, 0) / validLeads.length)
+          : 0,
+        search_query: searchQuery,
+        language: detectedLanguage,
+        industry_focus: input.industry_focus,
+        target_audience: input.target_audience,
+        top_channels: [...new Set(validLeads.map(lead => lead.channel))].slice(0, 5)
+      };
+
+      return {
+        result: `Found ${validLeads.length} relevant YouTube leads`,
+        structuredData: {
+          result_type: "youtube_leads",
+          leads: validLeads,
+          summary
+        }
+      };
+
+    } catch (error: any) {
+      logger.error(`${logPrefix} Execution error:`, error);
+      return {
+        error: `YouTube lead search failed: ${error.message}`,
+        result: "YouTube lead search failed",
+        structuredData: undefined
+      };
+    }
+  }
+
+  private async analyzeVideoLeadPotential(video: any, searchPrompt: string): Promise<YouTubeLeadAnalysis> {
+    const analysisPrompt = `
+You are an expert lead generation analyst specializing in YouTube content analysis. Analyze this YouTube video for potential business leads.
+
+VIDEO DETAILS:
+- Title: "${video.snippet.title}"
+- Description: "${video.snippet.description || 'No description available'}"
+- Channel: "${video.snippet.channelTitle}"
+- Published: "${video.snippet.publishedAt}"
+
+SEARCH CONTEXT:
+- Search Query: "${searchPrompt}"
+
+ANALYSIS CRITERIA:
+
+1. LEAD SCORE (0-100):
+   - 90-100: Perfect lead - clear business need, decision maker
+   - 80-89: Excellent lead - strong business focus
+   - 70-79: Good lead - relevant business content
+   - 60-69: Moderate lead - business-related but needs qualification
+   - 50-59: Low lead - general content
+   - 0-49: Poor lead - not business-focused
+
+2. URGENCY LEVEL:
+   - urgent: Immediate business need or problem
+   - high: Clear business challenge to solve
+   - medium: Potential business opportunity
+   - low: General information or entertainment
+
+3. PAIN POINTS: Extract specific business challenges mentioned
+
+4. DECISION MAKER INDICATORS:
+   - Channel authority in business topics
+   - Professional content quality
+   - Business expertise demonstrated
+   - Target audience engagement
+
+5. ENGAGEMENT POTENTIAL (0-100):
+   - Content quality and professionalism
+   - Channel's business focus
+   - Audience engagement signals
+   - Call-to-action presence
+
+6. PLATFORM INSIGHTS:
+   - content_relevance (0-100): How relevant to business needs
+   - channel_authority (0-100): Channel's business credibility
+   - engagement_quality (0-100): Audience interaction quality
+   - video_quality (0-100): Production and content quality
+
+7. TAGS: Relevant categories (e.g., "business", "tutorial", "review")
+
+8. REASONING: Brief explanation of the lead assessment
+
+OUTPUT FORMAT: JSON object with the exact structure shown in the interface.
+
+RESPOND ONLY WITH THE JSON OBJECT.`;
+
+    try {
+      const analysis = await generateStructuredJson<YouTubeLeadAnalysis>(
+        analysisPrompt,
+        `Video: ${video.snippet.title}\nDescription: ${video.snippet.description || 'No description'}`,
+        {
+          type: "object",
+          properties: {
+            lead_score: { type: "number", minimum: 0, maximum: 100 },
+            urgency_level: { type: "string", enum: ["low", "medium", "high", "urgent"] },
+            pain_points: { type: "array", items: { type: "string" } },
+            decision_maker_indicators: { type: "array", items: { type: "string" } },
+            engagement_potential: { type: "number", minimum: 0, maximum: 100 },
+            platform_insights: {
+              type: "object",
+              properties: {
+                content_relevance: { type: "number", minimum: 0, maximum: 100 },
+                channel_authority: { type: "number", minimum: 0, maximum: 100 },
+                engagement_quality: { type: "number", minimum: 0, maximum: 100 },
+                video_quality: { type: "number", minimum: 0, maximum: 100 }
+              },
+              required: ["content_relevance", "channel_authority", "engagement_quality", "video_quality"],
+              additionalProperties: false
+            },
+            tags: { type: "array", items: { type: "string" } },
+            reasoning: { type: "string" }
+          },
+          required: ["lead_score", "urgency_level", "pain_points", "decision_maker_indicators", "engagement_potential", "platform_insights", "tags", "reasoning"],
+          additionalProperties: false
+        },
+        "YouTubeLeadAnalysis",
+        [],
+        "gpt-4.1-mini-2025-04-14"
+      );
+
+      if (!analysis || 'error' in analysis) {
+        return {
+          lead_score: 30,
+          urgency_level: "low",
+          pain_points: [],
+          decision_maker_indicators: [],
+          engagement_potential: 30,
+          platform_insights: {
+            content_relevance: 30,
+            channel_authority: 30,
+            engagement_quality: 30,
+            video_quality: 30
+          },
+          tags: ["analysis_failed"],
+          reasoning: "Analysis failed - using default values"
+        };
+      }
+
+      return analysis;
+    } catch (error) {
+      logger.error(`[LeadYouTubeTool] Analysis failed for video ${video.id.videoId}:`, error);
+      return {
+        lead_score: 30,
+        urgency_level: "low",
+        pain_points: [],
+        decision_maker_indicators: [],
+        engagement_potential: 30,
+        platform_insights: {
+          content_relevance: 30,
+          channel_authority: 30,
+          engagement_quality: 30,
+          video_quality: 30
+        },
+        tags: ["error_occurred"],
+        reasoning: "Analysis error - using default values"
+      };
+    }
   }
 
   private detectLanguage(text: string): string {
@@ -138,238 +501,5 @@ export class LeadYouTubeTool extends BaseTool {
 
   private getLocalizedKeywords(language: string): string[] {
     return LEAD_KEYWORDS_BY_LANGUAGE[language] || LEAD_KEYWORDS_BY_LANGUAGE['en'];
-  }
-
-  async execute(input: LeadYouTubeInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
-    try {
-      const limit = Math.min(Math.max(1, input.limit || 5), 10);
-      
-      // Detect language from search prompt
-      const detectedLanguage = this.detectLanguage(input.search_prompt);
-      logger.info(`[LeadYouTubeTool] Detected language: ${detectedLanguage}`);
-      
-      // Build enhanced search query for lead generation
-      let searchQuery = input.search_prompt;
-      
-      // Add industry and audience context to search
-      if (input.industry_focus) {
-        searchQuery += ` ${input.industry_focus}`;
-      }
-      if (input.target_audience) {
-        searchQuery += ` ${input.target_audience}`;
-      }
-      
-      // Add language-specific lead keywords
-      const localizedKeywords = this.getLocalizedKeywords(detectedLanguage);
-      const keywordSample = localizedKeywords.slice(0, 6); // Use first 6 keywords to avoid overly long queries
-      searchQuery += ` ${keywordSample.join(' ')}`;
-
-      logger.info(`[LeadYouTubeTool] Searching YouTube for: "${searchQuery}" (Language: ${detectedLanguage})`);
-
-      // Search YouTube for relevant videos
-      const youtubeResult = await this.youtubeSearchTool.execute({
-        query: searchQuery,
-        limit: limit,
-        category: "education", // Focus on educational/problem-solving content
-        description_keywords: keywordSample.join(','), // Use localized keywords
-        lang: detectedLanguage
-      }, abortSignal);
-
-      if (youtubeResult.error || !youtubeResult.structuredData) {
-        return {
-          error: "Failed to search YouTube videos",
-          result: "Could not find YouTube videos for lead analysis"
-        };
-      }
-
-      // Handle YouTube video results
-      let videos: any[] = [];
-      if (youtubeResult.structuredData && 'videos' in youtubeResult.structuredData) {
-        videos = (youtubeResult.structuredData as any).videos || [];
-      }
-      
-      if (videos.length === 0) {
-        return {
-          result: "No YouTube videos found matching the search criteria",
-          structuredData: {
-            result_type: "youtube_leads",
-            total_videos: 0,
-            leads: [],
-            search_query: searchQuery,
-            detected_language: detectedLanguage
-          }
-        };
-      }
-
-      logger.info(`[LeadYouTubeTool] Analyzing ${videos.length} videos for leads`);
-
-      // Analyze each video for lead potential
-      const leadAnalyses: YouTubeLeadAnalysis[] = [];
-      
-      for (const video of videos) {
-        if (abortSignal?.aborted) break;
-        
-        try {
-          const analysis = await this.analyzeVideoForLeads(video, input, detectedLanguage);
-          if (analysis && analysis.lead_score > 30) { // Only include videos with decent lead score
-            leadAnalyses.push(analysis);
-          }
-        } catch (error) {
-          logger.error(`[LeadYouTubeTool] Failed to analyze video ${video.videoId}:`, error);
-          continue;
-        }
-      }
-
-      // Sort by lead score (highest first)
-      leadAnalyses.sort((a, b) => b.lead_score - a.lead_score);
-
-      const totalLeads = leadAnalyses.length;
-      const avgScore = totalLeads > 0 ? Math.round(leadAnalyses.reduce((sum, lead) => sum + lead.lead_score, 0) / totalLeads) : 0;
-
-      return {
-        result: `Found ${totalLeads} potential leads from YouTube videos with average lead score of ${avgScore}`,
-        structuredData: {
-          result_type: "youtube_leads",
-          total_videos: videos.length,
-          total_leads: totalLeads,
-          avg_lead_score: avgScore,
-          leads: leadAnalyses,
-          search_query: searchQuery,
-          detected_language: detectedLanguage,
-          industry_focus: input.industry_focus,
-          target_audience: input.target_audience
-        }
-      };
-
-    } catch (error) {
-      logger.error("[LeadYouTubeTool] Execution failed:", error);
-      return {
-        error: "YouTube lead analysis failed",
-        result: "Failed to analyze YouTube videos for leads"
-      };
-    }
-  }
-
-  private async analyzeVideoForLeads(video: any, input: LeadYouTubeInput, detectedLanguage: string): Promise<YouTubeLeadAnalysis | null> {
-    // Create language-aware analysis prompt
-    const getAnalysisPrompt = (language: string) => {
-      const prompts: Record<string, string> = {
-        'en': `You are an expert lead generation analyst specializing in YouTube content analysis. Analyze this YouTube video for potential business leads.`,
-        'fr': `Vous êtes un analyste expert en génération de leads spécialisé dans l'analyse de contenu YouTube. Analysez cette vidéo YouTube pour identifier des leads commerciaux potentiels.`,
-        'es': `Eres un analista experto en generación de leads especializado en análisis de contenido de YouTube. Analiza este video de YouTube para identificar leads comerciales potenciales.`,
-        'de': `Sie sind ein Experte für Lead-Generierung und spezialisiert auf YouTube-Content-Analyse. Analysieren Sie dieses YouTube-Video auf potenzielle Geschäfts-Leads.`,
-        'it': `Sei un analista esperto nella generazione di lead specializzato nell'analisi dei contenuti YouTube. Analizza questo video YouTube per identificare potenziali lead commerciali.`,
-        'pt': `Você é um analista especialista em geração de leads especializado em análise de conteúdo do YouTube. Analise este vídeo do YouTube para identificar leads comerciais potenciais.`
-      };
-      
-      return prompts[language] || prompts['en'];
-    };
-
-    const analysisPrompt = `
-${getAnalysisPrompt(detectedLanguage)}
-
-VIDEO DETAILS:
-- Title: "${video.title}"
-- Description: "${video.description || 'No description available'}"
-- Channel: "${video.channelTitle}"
-- Published: "${video.publishedAt}"
-
-SEARCH CONTEXT:
-- Search Query: "${input.search_prompt}"
-- Industry Focus: "${input.industry_focus || 'General'}"
-- Target Audience: "${input.target_audience || 'General'}"
-- Detected Language: "${detectedLanguage}"
-
-ANALYSIS REQUIREMENTS:
-
-1. LEAD SCORING (0-100):
-   - Does the video indicate someone has a problem/need that could be solved by a business?
-   - Are there signs of budget/decision-making capability?
-   - Is the content recent and relevant?
-   - Does it match the target industry/audience?
-
-2. URGENCY ASSESSMENT:
-   - "urgent": Immediate problem, actively seeking solutions
-   - "high": Clear problem, likely to act soon
-   - "medium": Problem exists, may act eventually
-   - "low": General interest, no immediate need
-
-3. PAIN POINTS IDENTIFICATION:
-   - Extract specific problems mentioned in title/description
-   - Focus on business-relevant challenges
-   - Identify technical or operational issues
-
-4. DECISION MAKER INDICATORS:
-   - Look for signs the creator/audience has decision-making power
-   - Channel authority, subscriber count implications
-   - Business-focused content vs. personal content
-
-5. ENGAGEMENT POTENTIAL (0-100):
-   - How likely is this person to respond to outreach?
-   - Are they actively engaging with their audience?
-   - Do they seem open to business solutions?
-
-6. BUSINESS OPPORTUNITY:
-   - What specific product/service could solve their problem?
-   - How could a business help this person?
-
-7. CONTENT CATEGORIZATION:
-   - Type: tutorial, review, problem, discussion, showcase, other
-   - Intent: learning, buying, comparing, troubleshooting, entertaining, other
-
-IMPORTANT: Analyze the content in its original language context. If the content is in ${detectedLanguage}, understand cultural and linguistic nuances that might affect lead quality and business opportunities.
-
-Provide a detailed analysis focusing on lead generation potential.`;
-
-    try {
-      const analysis = await generateStructuredJson<YouTubeLeadAnalysis>(
-        analysisPrompt,
-        `Video: ${video.title}\nDescription: ${video.description || 'No description'}`,
-        {
-          type: "object",
-          properties: {
-            video_id: { type: "string" },
-            title: { type: "string" },
-            description: { type: "string" },
-            channel_title: { type: "string" },
-            published_at: { type: "string" },
-            video_url: { type: "string" },
-            thumbnail_url: { type: "string" },
-            lead_score: { type: "number", minimum: 0, maximum: 100 },
-            urgency_level: { type: "string", enum: ["low", "medium", "high", "urgent"] },
-            pain_points: { type: "array", items: { type: "string" } },
-            decision_maker_indicators: { type: "array", items: { type: "string" } },
-            engagement_potential: { type: "number", minimum: 0, maximum: 100 },
-            business_opportunity: { type: "string" },
-            target_persona: { type: "string" },
-            content_type: { type: "string", enum: ["tutorial", "review", "problem", "discussion", "showcase", "other"] },
-            viewer_intent: { type: "string", enum: ["learning", "buying", "comparing", "troubleshooting", "entertaining", "other"] }
-          },
-          required: ["video_id", "title", "description", "channel_title", "published_at", "video_url", "thumbnail_url", "lead_score", "urgency_level", "pain_points", "decision_maker_indicators", "engagement_potential", "business_opportunity", "target_persona", "content_type", "viewer_intent"],
-          additionalProperties: false
-        },
-        "YouTubeLeadAnalysis",
-        [],
-        "gpt-4.1-mini-2025-04-14"
-      );
-
-      if (analysis && 'video_id' in analysis) {
-        // Fill in the basic video data
-        analysis.video_id = video.videoId;
-        analysis.title = video.title;
-        analysis.description = video.description || "";
-        analysis.channel_title = video.channelTitle || "";
-        analysis.published_at = video.publishedAt || "";
-        analysis.video_url = video.videoUrl;
-        analysis.thumbnail_url = video.thumbnailUrl || "";
-        
-        return analysis;
-      }
-
-      return null;
-    } catch (error) {
-      logger.error(`[LeadYouTubeTool] Analysis failed for video ${video.videoId}:`, error);
-      return null;
-    }
   }
 } 

@@ -12,22 +12,19 @@ interface LeadNewsInput extends ToolInput {
 }
 
 interface NewsLeadAnalysis {
-  url: string;
-  title: string;
-  description: string;
-  source_name: string;
-  published_at: string;
-  image_url?: string;
   lead_score: number;
   urgency_level: "low" | "medium" | "high" | "urgent";
   pain_points: string[];
-  business_opportunities: string[];
   decision_maker_indicators: string[];
-  market_signals: string[];
   engagement_potential: number;
-  target_persona: string;
-  news_type: "funding" | "merger" | "expansion" | "problem" | "regulation" | "innovation" | "other";
-  lead_type: "direct" | "indirect" | "market_intelligence";
+  platform_insights: {
+    content_relevance: number;
+    source_authority: number;
+    story_impact: number;
+    timeliness: number;
+  };
+  tags: string[];
+  reasoning: string;
 }
 
 // Language-specific keywords for news lead generation
@@ -50,6 +47,12 @@ export class LeadNewsTool extends BaseTool {
   name = "LeadNewsTool";
   description = "Finds potential leads from news articles by analyzing business news for opportunities, funding announcements, company problems, and market signals";
   
+  private readonly MAX_RETRIES = 3;
+  private readonly INITIAL_RETRY_DELAY = 1000; // 1 second
+  private readonly MAX_REQUESTS_PER_MINUTE = 10; // News API rate limits
+  private readonly USER_AGENT = `MinatoAILeads/1.0 (production; contact: ${process.env.EMAIL_FROM_ADDRESS || "support@example.com"})`;
+  private lastRequestTime: number = 0;
+
   argsSchema = {
     type: "object" as const,
     properties: {
@@ -146,227 +149,330 @@ export class LeadNewsTool extends BaseTool {
     return NEWS_LEAD_KEYWORDS_BY_LANGUAGE[language] || NEWS_LEAD_KEYWORDS_BY_LANGUAGE['en'];
   }
 
+  private async wait(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    const minTimeBetweenRequests = (60 * 1000) / this.MAX_REQUESTS_PER_MINUTE;
+
+    if (timeSinceLastRequest < minTimeBetweenRequests) {
+      await this.wait(minTimeBetweenRequests - timeSinceLastRequest);
+    }
+    this.lastRequestTime = Date.now();
+  }
+
+  private async fetchWithRetry(url: string, options: RequestInit = {}, retryCount = 0): Promise<Response> {
+    try {
+      await this.enforceRateLimit();
+      const response = await fetch(url, {
+        ...options,
+        headers: new Headers({
+          ...(options.headers instanceof Headers ? Object.fromEntries(options.headers.entries()) : options.headers || {}),
+          "User-Agent": this.USER_AGENT
+        })
+      });
+
+      // Handle different response statuses
+      if (response.status === 200) {
+        return response;
+      } else if (response.status === 403 || response.status === 401) {
+        // API key issues
+        throw new Error("News API access denied. Please check API key.");
+      } else if (response.status === 429) {
+        // Too Many Requests
+        const retryAfter = parseInt(response.headers.get("Retry-After") || "60", 10);
+        this.log("warn", `Rate limited by News API. Waiting ${retryAfter} seconds before retry.`);
+        await this.wait(retryAfter * 1000);
+        throw new Error("Rate limited");
+      } else if (response.status >= 500) {
+        // Server error - should retry
+        throw new Error(`News API server error: ${response.status}`);
+      } else {
+        // Client error - should not retry
+        this.log("error", `News API error: ${response.status} ${response.statusText}`);
+        return response;
+      }
+    } catch (error) {
+      if (retryCount < this.MAX_RETRIES) {
+        const delay = this.INITIAL_RETRY_DELAY * Math.pow(2, retryCount);
+        this.log("warn", `Retrying request after ${delay}ms (attempt ${retryCount + 1}/${this.MAX_RETRIES})`);
+        await this.wait(delay);
+        return this.fetchWithRetry(url, options, retryCount + 1);
+      }
+      throw error;
+    }
+  }
+
+  private async searchNews(query: string, language: string, category: string = "business", limit: number = 5): Promise<any[]> {
+    // Try GNews first
+    const gnewsApiKey = process.env.GNEWS_API_KEY;
+    if (gnewsApiKey) {
+      try {
+        const gnewsUrl = new URL("https://gnews.io/api/v4/search");
+        gnewsUrl.searchParams.append("token", gnewsApiKey);
+        gnewsUrl.searchParams.append("q", query);
+        gnewsUrl.searchParams.append("lang", language.split("-")[0]);
+        gnewsUrl.searchParams.append("country", "any");
+        gnewsUrl.searchParams.append("max", String(limit));
+        gnewsUrl.searchParams.append("sortby", "relevance");
+
+        const response = await this.fetchWithRetry(gnewsUrl.toString(), {
+          signal: AbortSignal.timeout(30000)
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data?.articles?.length > 0) {
+            return data.articles;
+          }
+        }
+      } catch (error) {
+        this.log("warn", "GNews API error, falling back to NewsAPI.org", { error });
+      }
+    }
+
+    // Fall back to NewsAPI.org
+    const newsApiKey = process.env.NEWSAPI_ORG_KEY;
+    if (!newsApiKey) {
+      this.log("error", "No news API keys configured");
+      return [];
+    }
+
+    try {
+      const newsApiUrl = new URL("https://newsapi.org/v2/everything");
+      newsApiUrl.searchParams.append("apiKey", newsApiKey);
+      newsApiUrl.searchParams.append("q", query);
+      newsApiUrl.searchParams.append("language", language.split("-")[0]);
+      newsApiUrl.searchParams.append("sortBy", "relevancy");
+      newsApiUrl.searchParams.append("pageSize", String(limit));
+
+      const response = await this.fetchWithRetry(newsApiUrl.toString(), {
+        signal: AbortSignal.timeout(30000)
+      });
+
+      if (!response.ok) {
+        this.log("error", `NewsAPI.org error: ${response.status} ${response.statusText}`);
+        return [];
+      }
+
+      const data = await response.json();
+      
+      // Validate response structure
+      if (!data?.articles || !Array.isArray(data.articles)) {
+        this.log("warn", "Invalid NewsAPI.org response structure");
+        return [];
+      }
+
+      return data.articles;
+
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      this.log("error", `Error searching news: ${errorMessage}`);
+      
+      // If it's a timeout error, return empty array
+      if (errorMessage.includes('timeout')) {
+        return [];
+      }
+      
+      throw error;
+    }
+  }
+
   async execute(input: LeadNewsInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
+    const logPrefix = "[LeadNewsTool]";
+    
     try {
       const limit = Math.min(Math.max(1, input.limit || 5), 10);
       
       // Detect language from search prompt
       const detectedLanguage = this.detectLanguage(input.search_prompt);
-      logger.info(`[LeadNewsTool] Detected language: ${detectedLanguage}`);
+      logger.info(`${logPrefix} Detected language: ${detectedLanguage}`);
       
-      // Build news-specific search query for lead generation
+      // Build enhanced search query for lead generation
       let searchQuery = input.search_prompt;
       
-      // Add industry context
+      // Add industry and audience context to search
       if (input.industry_focus) {
         searchQuery += ` ${input.industry_focus}`;
       }
+      if (input.target_audience) {
+        searchQuery += ` ${input.target_audience}`;
+      }
       
-      // Add language-specific lead keywords for news
+      // Add language-specific news lead keywords
       const localizedKeywords = this.getLocalizedKeywords(detectedLanguage);
-      const keywordSample = localizedKeywords.slice(0, 6); // Use first 6 keywords to avoid overly long queries
+      const keywordSample = localizedKeywords.slice(0, 6);
       searchQuery += ` ${keywordSample.join(' ')}`;
 
-      logger.info(`[LeadNewsTool] Searching news for: "${searchQuery}" (Language: ${detectedLanguage})`);
+      logger.info(`${logPrefix} Searching news for: "${searchQuery}" (Language: ${detectedLanguage})`);
 
-      // Search for news articles using NewsAggregatorTool
-      const newsResult = await this.newsAggregatorTool.execute({
-        query: searchQuery,
-        category: input.category || "business",
-        limit: limit,
-        sources: "all"
-      }, abortSignal);
-
-      if (newsResult.error || !newsResult.structuredData) {
-        return {
-          error: "Failed to search news articles",
-          result: "Could not find news articles for lead analysis"
-        };
-      }
-
-      // Handle news articles results
-      let articles: any[] = [];
-      if (newsResult.structuredData && 'articles' in newsResult.structuredData) {
-        articles = (newsResult.structuredData as any).articles || [];
-      }
+      // Search for news articles
+      const articles = await this.searchNews(searchQuery, detectedLanguage, input.category, limit);
       
-      if (articles.length === 0) {
+      if (!articles || articles.length === 0) {
         return {
-          result: "No news articles found matching the search criteria",
+          result: "No relevant news articles found",
+          error: "No articles found matching the search criteria",
           structuredData: {
             result_type: "news_leads",
-            total_articles: 0,
             leads: [],
-            search_query: searchQuery,
-            detected_language: detectedLanguage
+            summary: {
+              total_leads: 0,
+              search_query: searchQuery,
+              language: detectedLanguage,
+              industry_focus: input.industry_focus,
+              target_audience: input.target_audience,
+              category: input.category
+            }
           }
         };
       }
 
-      logger.info(`[LeadNewsTool] Analyzing ${articles.length} news articles for leads`);
-
       // Analyze each article for lead potential
-      const leadAnalyses: NewsLeadAnalysis[] = [];
-      
-      for (const article of articles) {
-        if (abortSignal?.aborted) break;
+      const leadResults = await Promise.all(articles.map(async (article: any) => {
+        if (abortSignal?.aborted) return null;
+
+        const analysis = await this.analyzeNewsLeadPotential(article, input.search_prompt);
         
-        try {
-          const analysis = await this.analyzeNewsForLeads(article, input, detectedLanguage);
-          if (analysis && analysis.lead_score > 35) { // Threshold for news leads
-            leadAnalyses.push(analysis);
-          }
-        } catch (error) {
-          logger.error(`[LeadNewsTool] Failed to analyze article ${article.url}:`, error);
-          continue;
-        }
-      }
+        return {
+          id: article.url,
+          title: article.title,
+          description: article.description || article.content || "",
+          source: article.source?.name || article.sourceName || "Unknown Source",
+          platform: "news",
+          source_url: article.url,
+          published_at: article.publishedAt || article.published_date,
+          image_url: article.image || article.urlToImage,
+          lead_analysis: analysis,
+          raw_data: article
+        };
+      }));
 
-      // Sort by lead score (highest first)
-      leadAnalyses.sort((a, b) => b.lead_score - a.lead_score);
+      // Filter out null results (from aborted requests)
+      const validLeads = leadResults.filter((lead): lead is NonNullable<typeof lead> => lead !== null);
 
-      const totalLeads = leadAnalyses.length;
-      const avgScore = totalLeads > 0 ? Math.round(leadAnalyses.reduce((sum, lead) => sum + lead.lead_score, 0) / totalLeads) : 0;
+      // Sort by lead score
+      validLeads.sort((a, b) => b.lead_analysis.lead_score - a.lead_analysis.lead_score);
+
+      const summary = {
+        total_leads: validLeads.length,
+        average_lead_score: validLeads.length > 0 
+          ? Math.round(validLeads.reduce((sum, lead) => sum + lead.lead_analysis.lead_score, 0) / validLeads.length)
+          : 0,
+        search_query: searchQuery,
+        language: detectedLanguage,
+        industry_focus: input.industry_focus,
+        target_audience: input.target_audience,
+        category: input.category,
+        top_sources: [...new Set(validLeads.map(lead => lead.source))].slice(0, 5)
+      };
 
       return {
-        result: `Found ${totalLeads} potential leads from news articles with average lead score of ${avgScore}`,
+        result: `Found ${validLeads.length} relevant news leads`,
         structuredData: {
           result_type: "news_leads",
-          total_articles: articles.length,
-          total_leads: totalLeads,
-          avg_lead_score: avgScore,
-          leads: leadAnalyses,
-          search_query: searchQuery,
-          detected_language: detectedLanguage,
-          industry_focus: input.industry_focus,
-          target_audience: input.target_audience,
-          category: input.category
+          leads: validLeads,
+          summary
         }
       };
 
-    } catch (error) {
-      logger.error("[LeadNewsTool] Execution failed:", error);
+    } catch (error: any) {
+      logger.error(`${logPrefix} Execution error:`, error);
       return {
-        error: "News lead analysis failed",
-        result: "Failed to analyze news articles for leads"
+        error: `News lead search failed: ${error.message}`,
+        result: "News lead search failed",
+        structuredData: undefined
       };
     }
   }
 
-  private async analyzeNewsForLeads(article: any, input: LeadNewsInput, detectedLanguage: string): Promise<NewsLeadAnalysis | null> {
-    // Create language-aware analysis prompt
-    const getAnalysisPrompt = (language: string) => {
-      const prompts: Record<string, string> = {
-        'en': `You are an expert lead generation analyst specializing in news analysis for business opportunities. Analyze this news article for potential business leads.`,
-        'fr': `Vous êtes un analyste expert en génération de leads spécialisé dans l'analyse d'actualités pour les opportunités commerciales. Analysez cet article d'actualité pour identifier des leads commerciaux potentiels.`,
-        'es': `Eres un analista experto en generación de leads especializado en análisis de noticias para oportunidades comerciales. Analiza este artículo de noticias para identificar leads comerciales potenciales.`,
-        'de': `Sie sind ein Experte für Lead-Generierung und spezialisiert auf Nachrichtenanalyse für Geschäftsmöglichkeiten. Analysieren Sie diesen Nachrichtenartikel auf potenzielle Geschäfts-Leads.`,
-        'it': `Sei un analista esperto nella generazione di lead specializzato nell'analisi delle notizie per opportunità commerciali. Analizza questo articolo di notizie per identificare potenziali lead commerciali.`,
-        'pt': `Você é um analista especialista em geração de leads especializado em análise de notícias para oportunidades comerciais. Analise este artigo de notícias para identificar leads comerciais potenciais.`
-      };
-      
-      return prompts[language] || prompts['en'];
-    };
-
+  private async analyzeNewsLeadPotential(article: any, searchPrompt: string): Promise<NewsLeadAnalysis> {
     const analysisPrompt = `
-${getAnalysisPrompt(detectedLanguage)}
+You are an expert lead generation analyst specializing in news content analysis. Analyze this news article for potential business leads.
 
-NEWS ARTICLE DETAILS:
+ARTICLE DETAILS:
 - Title: "${article.title}"
-- Description: "${article.description || 'No description available'}"
-- Source: "${article.sourceName}"
-- Published: "${article.publishedAt}"
-- URL: "${article.url}"
+- Description: "${article.description || article.content || 'No description available'}"
+- Source: "${article.source?.name || article.sourceName || 'Unknown Source'}"
+- Published: "${article.publishedAt || article.published_date || 'Unknown date'}"
 
 SEARCH CONTEXT:
-- Search Query: "${input.search_prompt}"
-- Industry Focus: "${input.industry_focus || 'General'}"
-- Target Audience: "${input.target_audience || 'General'}"
-- News Category: "${input.category || 'business'}"
-- Detected Language: "${detectedLanguage}"
+- Search Query: "${searchPrompt}"
 
-ANALYSIS REQUIREMENTS:
+ANALYSIS CRITERIA:
 
-1. LEAD SCORING (0-100):
-   - Does the article indicate a company with potential business needs?
-   - Are there signs of growth, funding, expansion, or challenges?
-   - Is the news recent and relevant for business opportunities?
-   - Does it match the target industry/audience?
+1. LEAD SCORE (0-100):
+   - 90-100: Perfect lead - clear business opportunity, decision makers
+   - 80-89: Excellent lead - strong business potential
+   - 70-79: Good lead - relevant business news
+   - 60-69: Moderate lead - business-related but needs qualification
+   - 50-59: Low lead - general news
+   - 0-49: Poor lead - not business-focused
 
-2. URGENCY ASSESSMENT:
-   - "urgent": Immediate business need or opportunity (funding, crisis, expansion)
-   - "high": Clear business opportunity, likely to act soon
-   - "medium": Potential opportunity, may act eventually
-   - "low": General business interest, no immediate need
+2. URGENCY LEVEL:
+   - urgent: Immediate business opportunity or challenge
+   - high: Time-sensitive business development
+   - medium: Emerging opportunity
+   - low: General industry news
 
-3. PAIN POINTS IDENTIFICATION:
-   - Extract specific business challenges mentioned
-   - Identify operational, financial, or strategic problems
-   - Look for regulatory or market pressures
+3. PAIN POINTS: Extract specific business challenges or needs
 
-4. BUSINESS OPPORTUNITIES:
-   - What specific products/services could help this company?
-   - Are there partnership or collaboration opportunities?
-   - Could this be a sales or service opportunity?
+4. DECISION MAKER INDICATORS:
+   - Company leadership mentions
+   - Business decision context
+   - Investment or strategic moves
+   - Market positioning
 
-5. DECISION MAKER INDICATORS:
-   - Look for mentions of executives, founders, or decision makers
-   - Check for company size and decision-making structure
-   - Identify if contact information or company details are available
+5. ENGAGEMENT POTENTIAL (0-100):
+   - Story significance
+   - Business impact
+   - Actionable insights
+   - Follow-up potential
 
-6. MARKET SIGNALS:
-   - Industry trends that create opportunities
-   - Regulatory changes affecting businesses
-   - Market movements or shifts
+6. PLATFORM INSIGHTS:
+   - content_relevance (0-100): Business opportunity relevance
+   - source_authority (0-100): News source credibility
+   - story_impact (0-100): Potential business impact
+   - timeliness (0-100): News recency and urgency
 
-7. ENGAGEMENT POTENTIAL (0-100):
-   - How likely is this company to respond to outreach?
-   - Are they actively seeking solutions or partners?
-   - Do they seem open to business opportunities?
+7. TAGS: Relevant categories (e.g., "funding", "expansion", "partnership")
 
-8. NEWS TYPE CLASSIFICATION:
-   - funding: Investment, funding rounds, capital raises
-   - merger: M&A activity, acquisitions, partnerships
-   - expansion: Growth, new markets, scaling
-   - problem: Challenges, issues, crises
-   - regulation: Regulatory changes, compliance
-   - innovation: New products, tech developments
-   - other: Other business news
+8. REASONING: Brief explanation of the lead assessment
 
-9. LEAD TYPE:
-   - direct: Company mentioned could be a direct customer
-   - indirect: Company mentioned could lead to opportunities
-   - market_intelligence: General market insight for strategy
+OUTPUT FORMAT: JSON object with the exact structure shown in the interface.
 
-IMPORTANT: Analyze the content in its original language context. If the content is in ${detectedLanguage}, understand cultural, business, and linguistic nuances that might affect lead quality and business opportunities in that market.
-
-Provide a detailed analysis focusing on lead generation potential from this news article.`;
+RESPOND ONLY WITH THE JSON OBJECT.`;
 
     try {
       const analysis = await generateStructuredJson<NewsLeadAnalysis>(
         analysisPrompt,
-        `Article: ${article.title}\nDescription: ${article.description || 'No description'}`,
+        `Article: ${article.title}\nContent: ${article.description || article.content || 'No content'}`,
         {
           type: "object",
           properties: {
-            url: { type: "string" },
-            title: { type: "string" },
-            description: { type: "string" },
-            source_name: { type: "string" },
-            published_at: { type: "string" },
-            image_url: { type: "string" },
             lead_score: { type: "number", minimum: 0, maximum: 100 },
             urgency_level: { type: "string", enum: ["low", "medium", "high", "urgent"] },
             pain_points: { type: "array", items: { type: "string" } },
-            business_opportunities: { type: "array", items: { type: "string" } },
             decision_maker_indicators: { type: "array", items: { type: "string" } },
-            market_signals: { type: "array", items: { type: "string" } },
             engagement_potential: { type: "number", minimum: 0, maximum: 100 },
-            target_persona: { type: "string" },
-            news_type: { type: "string", enum: ["funding", "merger", "expansion", "problem", "regulation", "innovation", "other"] },
-            lead_type: { type: "string", enum: ["direct", "indirect", "market_intelligence"] }
+            platform_insights: {
+              type: "object",
+              properties: {
+                content_relevance: { type: "number", minimum: 0, maximum: 100 },
+                source_authority: { type: "number", minimum: 0, maximum: 100 },
+                story_impact: { type: "number", minimum: 0, maximum: 100 },
+                timeliness: { type: "number", minimum: 0, maximum: 100 }
+              },
+              required: ["content_relevance", "source_authority", "story_impact", "timeliness"],
+              additionalProperties: false
+            },
+            tags: { type: "array", items: { type: "string" } },
+            reasoning: { type: "string" }
           },
-          required: ["url", "title", "description", "source_name", "published_at", "lead_score", "urgency_level", "pain_points", "business_opportunities", "decision_maker_indicators", "market_signals", "engagement_potential", "target_persona", "news_type", "lead_type"],
+          required: ["lead_score", "urgency_level", "pain_points", "decision_maker_indicators", "engagement_potential", "platform_insights", "tags", "reasoning"],
           additionalProperties: false
         },
         "NewsLeadAnalysis",
@@ -374,22 +480,42 @@ Provide a detailed analysis focusing on lead generation potential from this news
         "gpt-4.1-mini-2025-04-14"
       );
 
-      if (analysis && 'url' in analysis) {
-        // Fill in the basic article data
-        analysis.url = article.url || "";
-        analysis.title = article.title || "";
-        analysis.description = article.description || "";
-        analysis.source_name = article.sourceName || "";
-        analysis.published_at = article.publishedAt || "";
-        analysis.image_url = article.imageUrl || "";
-        
-        return analysis;
+      if (!analysis || 'error' in analysis) {
+        return {
+          lead_score: 30,
+          urgency_level: "low",
+          pain_points: [],
+          decision_maker_indicators: [],
+          engagement_potential: 30,
+          platform_insights: {
+            content_relevance: 30,
+            source_authority: 30,
+            story_impact: 30,
+            timeliness: 30
+          },
+          tags: ["analysis_failed"],
+          reasoning: "Analysis failed - using default values"
+        };
       }
 
-      return null;
+      return analysis;
     } catch (error) {
       logger.error(`[LeadNewsTool] Analysis failed for article ${article.url}:`, error);
-      return null;
+      return {
+        lead_score: 30,
+        urgency_level: "low",
+        pain_points: [],
+        decision_maker_indicators: [],
+        engagement_potential: 30,
+        platform_insights: {
+          content_relevance: 30,
+          source_authority: 30,
+          story_impact: 30,
+          timeliness: 30
+        },
+        tags: ["error_occurred"],
+        reasoning: "Analysis error - using default values"
+      };
     }
   }
 } 

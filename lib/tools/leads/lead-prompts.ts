@@ -141,6 +141,22 @@ export const INDUSTRY_CATEGORIES: LeadPromptCategory[] = [
   }
 ];
 
+// Language-specific keywords for lead generation
+export const LEAD_KEYWORDS_BY_LANGUAGE: Record<string, string[]> = {
+  'en': ['problem', 'solution', 'help', 'struggling', 'need', 'advice', 'issue', 'challenge', 'difficulty'],
+  'fr': ['problème', 'solution', 'aide', 'difficulté', 'besoin', 'conseil', 'problème', 'défi', 'galère'],
+  'es': ['problema', 'solución', 'ayuda', 'dificultad', 'necesidad', 'consejo', 'problema', 'desafío', 'lucha'],
+  'de': ['Problem', 'Lösung', 'Hilfe', 'Schwierigkeit', 'Bedarf', 'Rat', 'Problem', 'Herausforderung', 'Kampf'],
+  'it': ['problema', 'soluzione', 'aiuto', 'difficoltà', 'bisogno', 'consiglio', 'problema', 'sfida', 'lotta'],
+  'pt': ['problema', 'solução', 'ajuda', 'dificuldade', 'necessidade', 'conselho', 'problema', 'desafio', 'luta'],
+  'ru': ['проблема', 'решение', 'помощь', 'трудность', 'нужда', 'совет', 'проблема', 'вызов', 'борьба'],
+  'ja': ['問題', '解決', '助け', '困難', '必要', 'アドバイス', '問題', '挑戦', '苦労'],
+  'zh': ['问题', '解决', '帮助', '困难', '需要', '建议', '问题', '挑战', '斗争'],
+  'ko': ['문제', '해결', '도움', '어려움', '필요', '조언', '문제', '도전', '투쟁'],
+  'ar': ['مشكلة', 'حل', 'مساعدة', 'صعوبة', 'حاجة', 'نصيحة', 'مشكلة', 'تحدي', 'كفاح'],
+  'hi': ['समस्या', 'समाधान', 'मदद', 'कठिनाई', 'आवश्यकता', 'सलाह', 'समस्या', 'चुनौती', 'संघर्ष']
+};
+
 // Default prompt templates
 export const DEFAULT_LEAD_PROMPTS: LeadPromptTemplate[] = [
   // Search Prompts - Reddit

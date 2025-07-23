@@ -1,6 +1,6 @@
 // FILE: lib/tools/leads/LeadRedditTool.ts
 import { BaseTool, ToolInput, ToolOutput, OpenAIToolParameterProperties } from "../base-tool";
-import fetch from "node-fetch";
+import fetch, { Response as FetchResponse, RequestInit } from "node-fetch";
 import { appConfig } from "../../config";
 import { logger } from "../../../memory-framework/config";
 import { formatDistanceToNowStrict, fromUnixTime } from 'date-fns';
@@ -141,7 +141,11 @@ export class LeadRedditTool extends BaseTool {
   };
 
   private readonly REDDIT_BASE_URL = "https://www.reddit.com";
-  private readonly USER_AGENT = `MinatoAILeads/1.0 (by /u/MinatoAI contact: ${appConfig.emailFromAddress || "support@example.com"})`;
+  private readonly USER_AGENT = `MinatoAILeads/1.0 (production; contact: ${appConfig.emailFromAddress || "support@example.com"})`;
+  private readonly MAX_RETRIES = 3;
+  private readonly INITIAL_RETRY_DELAY = 1000; // 1 second
+  private readonly MAX_REQUESTS_PER_MINUTE = 30; // Reddit's public API limit
+  private lastRequestTime: number = 0;
 
   // Industry-specific subreddit mapping
   private readonly INDUSTRY_SUBREDDITS = {
@@ -238,27 +242,111 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
     }
   }
 
+  private async wait(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    const minTimeBetweenRequests = (60 * 1000) / this.MAX_REQUESTS_PER_MINUTE; // Time in ms between requests
+
+    if (timeSinceLastRequest < minTimeBetweenRequests) {
+      await this.wait(minTimeBetweenRequests - timeSinceLastRequest);
+    }
+    this.lastRequestTime = Date.now();
+  }
+
+  private async fetchWithRetry(url: string, options: RequestInit = {}, retryCount = 0): Promise<FetchResponse> {
+    try {
+      await this.enforceRateLimit();
+      
+      // Create a new options object with proper typing
+      const fetchOptions: RequestInit = {
+        ...options,
+        headers: {
+          ...(options.headers instanceof Headers ? Object.fromEntries(options.headers.entries()) : options.headers || {}),
+          "User-Agent": this.USER_AGENT
+        }
+      };
+
+      const response = await fetch(url, fetchOptions);
+
+      // Handle different response statuses
+      if (response.status === 200) {
+        return response;
+      } else if (response.status === 429) {
+        // Too Many Requests - need to wait longer
+        const retryAfter = parseInt(response.headers.get("Retry-After") || "60", 10);
+        this.log("warn", `Rate limited by Reddit. Waiting ${retryAfter} seconds before retry.`);
+        await this.wait(retryAfter * 1000);
+        throw new Error("Rate limited");
+      } else if (response.status >= 500) {
+        // Server error - should retry
+        throw new Error(`Server error: ${response.status}`);
+      } else {
+        // Client error - should not retry
+        this.log("error", `Reddit API error: ${response.status} ${response.statusText}`);
+        return response;
+      }
+    } catch (error) {
+      if (retryCount < this.MAX_RETRIES) {
+        const delay = this.INITIAL_RETRY_DELAY * Math.pow(2, retryCount); // Exponential backoff
+        this.log("warn", `Retrying request after ${delay}ms (attempt ${retryCount + 1}/${this.MAX_RETRIES})`);
+        await this.wait(delay);
+        return this.fetchWithRetry(url, options, retryCount + 1);
+      }
+      throw error;
+    }
+  }
+
   private async fetchRedditPosts(subreddit: string, searchTerms: string, limit: number = 10): Promise<RedditApiPostData[]> {
     const searchUrl = `${this.REDDIT_BASE_URL}/r/${subreddit}/search.json?q=${encodeURIComponent(searchTerms)}&restrict_sr=1&sort=relevance&limit=${limit}`;
     
     try {
-      const response = await fetch(searchUrl, {
-        headers: { "User-Agent": this.USER_AGENT },
-        signal: AbortSignal.timeout(10000)
+      const response = await this.fetchWithRetry(searchUrl, {
+        signal: AbortSignal.timeout(30000) // Increased timeout to 30s
       });
 
       if (!response.ok) {
-        this.log("warn", `Reddit API error for r/${subreddit}: ${response.status}`);
+        this.log("warn", `Reddit API error for r/${subreddit}: ${response.status} ${response.statusText}`);
         return [];
       }
 
       const data = await response.json() as RedditJsonResponse;
-      return data.data.children.map(child => child.data).filter(post => 
-        post.id && post.title && !post.title.toLowerCase().includes('[deleted]')
-      );
+      
+      // Validate response structure
+      if (!data?.data?.children || !Array.isArray(data.data.children)) {
+        this.log("warn", `Invalid response structure from Reddit for r/${subreddit}`);
+        return [];
+      }
+
+      // Filter and clean posts
+      return data.data.children
+        .map(child => child.data)
+        .filter(post => {
+          // Filter out deleted/removed posts and ensure required fields exist
+          const isValid = post?.id && 
+                         post?.title && 
+                         !post.title.toLowerCase().includes('[deleted]') &&
+                         !post.title.toLowerCase().includes('[removed]');
+          
+          if (!isValid) {
+            this.log("debug", `Filtered out invalid post from r/${subreddit}: ${post?.id || 'unknown'}`);
+          }
+          
+          return isValid;
+        });
     } catch (error: any) {
-      this.log("error", `Error fetching posts from r/${subreddit}:`, error.message);
-      return [];
+      const errorMessage = error?.message || String(error);
+      this.log("error", `Error fetching posts from r/${subreddit}: ${errorMessage}`);
+      
+      // If it's a timeout error, return empty array but don't throw
+      if (errorMessage.includes('timeout')) {
+        return [];
+      }
+      
+      throw error; // Re-throw other errors to be handled by execute()
     }
   }
 
@@ -409,6 +497,7 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
 
   async execute(input: LeadRedditInput, abortSignal?: AbortSignal): Promise<ToolOutput> {
     const logPrefix = "[LeadRedditTool]";
+    let subreddits: string[] = [];
     
     try {
       const {
@@ -423,35 +512,82 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
 
       logger.info(`${logPrefix} Starting lead search`, { search_prompt, industry_focus, target_audience });
 
-      // Select subreddits
-      let subreddits: string[];
-      if (subreddit_strategy === "specific" && specific_subreddits?.length) {
-        subreddits = specific_subreddits;
-      } else {
-        subreddits = await this.selectOptimalSubreddits(search_prompt, industry_focus);
+      // Select subreddits with error handling
+      try {
+        if (subreddit_strategy === "specific" && specific_subreddits?.length) {
+          subreddits = specific_subreddits;
+        } else {
+          subreddits = await this.selectOptimalSubreddits(search_prompt, industry_focus);
+        }
+        logger.info(`${logPrefix} Selected subreddits`, { subreddits });
+      } catch (error) {
+        logger.error(`${logPrefix} Error selecting subreddits, using fallback`, { error });
+        subreddits = this.INDUSTRY_SUBREDDITS.general.slice(0, 5);
       }
-
-      logger.info(`${logPrefix} Selected subreddits`, { subreddits });
 
       // Extract search terms
       const searchTerms = this.extractSearchTerms(search_prompt);
       logger.info(`${logPrefix} Search terms`, { searchTerms });
 
-      // Fetch posts from all subreddits
+      // Fetch posts from all subreddits with improved error handling
       const allPosts: RedditApiPostData[] = [];
       const postsPerSubreddit = Math.ceil(limit / subreddits.length);
+      const errors: Record<string, string> = {};
 
       for (const subreddit of subreddits) {
-        if (abortSignal?.aborted) break;
+        if (abortSignal?.aborted) {
+          logger.info(`${logPrefix} Search aborted`);
+          break;
+        }
         
-        const posts = await this.fetchRedditPosts(subreddit, searchTerms, postsPerSubreddit);
-        allPosts.push(...posts);
-        
-        // Add delay to respect rate limits
-        await new Promise(resolve => setTimeout(resolve, 500));
+        try {
+          const posts = await this.fetchRedditPosts(subreddit, searchTerms, postsPerSubreddit);
+          allPosts.push(...posts);
+          
+          // Log success or partial success
+          if (posts.length > 0) {
+            logger.info(`${logPrefix} Found ${posts.length} posts in r/${subreddit}`);
+          } else {
+            logger.warn(`${logPrefix} No posts found in r/${subreddit}`);
+          }
+        } catch (error: any) {
+          errors[subreddit] = error.message;
+          logger.error(`${logPrefix} Error fetching from r/${subreddit}:`, error);
+          // Continue with other subreddits
+          continue;
+        }
       }
 
-      logger.info(`${logPrefix} Fetched ${allPosts.length} posts from ${subreddits.length} subreddits`);
+      // Early return if no posts found
+      if (allPosts.length === 0) {
+        const errorMessage = Object.keys(errors).length > 0
+          ? `Errors occurred: ${JSON.stringify(errors)}`
+          : "No relevant posts found";
+          
+        return {
+          error: errorMessage,
+          result: "No relevant posts found",
+          structuredData: {
+            result_type: "reddit_leads",
+            leads: [],
+            summary: {
+              total_leads: 0,
+              subreddits_searched: subreddits,
+              average_lead_score: 0,
+              urgency_distribution: { low: 0, medium: 0, high: 0, urgent: 0 },
+              top_pain_points: [],
+              search_metadata: {
+                search_prompt,
+                industry_focus,
+                target_audience,
+                urgency_filter,
+                subreddit_strategy,
+                errors
+              }
+            }
+          }
+        };
+      }
 
       // Analyze each post for lead potential
       const leadResults: LeadResult[] = [];
@@ -511,25 +647,19 @@ RESPOND ONLY WITH THE JSON OBJECT.`;
       logger.info(`${logPrefix} Lead search completed`, summary);
 
       return {
-        success: true,
-        data: {
+        result: `Found ${leadResults.length} relevant leads across ${subreddits.length} subreddits`,
+        structuredData: {
+          result_type: "reddit_leads",
           leads: leadResults,
           summary
-        },
-        metadata: {
-          total_results: leadResults.length,
-          search_terms: searchTerms,
-          subreddits_searched: subreddits.length,
-          execution_time: Date.now()
         }
       };
-
     } catch (error: any) {
       logger.error(`${logPrefix} Execution error`, { error: error.message, stack: error.stack });
       return {
-        success: false,
         error: `Lead search failed: ${error.message}`,
-        data: null
+        result: "Lead search failed",
+        structuredData: undefined
       };
     }
   }
