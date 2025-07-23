@@ -147,8 +147,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<LeadSearc
               specific_subreddits: search_config.specific_subreddits
             });
             
-            if (platformResult.success && platformResult.data?.leads) {
-              platformLeads = platformResult.data.leads;
+            if (platformResult.structuredData?.leads) {
+              platformLeads = platformResult.structuredData.leads;
             }
             break;
 
