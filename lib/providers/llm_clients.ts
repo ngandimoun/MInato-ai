@@ -25,7 +25,7 @@ XmlClassification,
 import { safeJsonParse } from "@/memory-framework/core/utils";
 import type { CompletionUsage } from "openai/resources";
 import { MEDIA_UPLOAD_BUCKET } from "../constants";
-import { supabase } from "../supabaseClient";
+import { getBrowserSupabaseClient } from "../supabase/client";
 // Conditionally import AJV only when not in Edge Runtime
 let Ajv: any = null;
 let SchemaService: any = null;
@@ -63,6 +63,7 @@ const openai = new OpenAI({
 apiKey: appConfig.openai.apiKey,
 maxRetries: appConfig.nodeEnv === "test" ? 0 : 3,
 timeout: 120 * 1000,
+dangerouslyAllowBrowser: true,
 });
 if (appConfig.openai.apiKey && typeof window === "undefined") {
 logger.info("[LLM Clients] Raw OpenAI Client initialized for Responses API.");
@@ -108,6 +109,7 @@ if (Array.isArray(msg.content)) {
       let imageUrl = part.image_url;
       if (imageUrl.startsWith("supabase_storage:")) {
         const storagePath = imageUrl.substring("supabase_storage:".length);
+        const supabase = getBrowserSupabaseClient();
         const { data: urlData } = supabase.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(storagePath);
         if (urlData?.publicUrl) imageUrl = urlData.publicUrl;
         else logger.warn(`[formatMsg] Failed to get public URL for supabase_storage: ${storagePath}`);
@@ -136,6 +138,7 @@ if (msg.role === "user" && msg.attachments) {
             let imageUrl = att.url;
              if (imageUrl.startsWith("supabase_storage:")) {
                 const storagePath = imageUrl.substring("supabase_storage:".length);
+                const supabase = getBrowserSupabaseClient();
                 const { data: urlData } = supabase.storage.from(MEDIA_UPLOAD_BUCKET).getPublicUrl(storagePath);
                 if (urlData?.publicUrl) imageUrl = urlData.publicUrl;
              }

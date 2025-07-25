@@ -589,7 +589,7 @@ export const GAME_DATA: GameLibraryItem[] = [
     id: 'global_linguist',
     name: 'global_linguist',
     display_name: 'Global Linguist',
-    description: 'Explore languages worldwide! Test vocabulary, grammar, syntax across French, English, Spanish, German, Japanese, and many more.',
+    description: 'Explore languages worldwide! Test vocabulary, grammar, syntax across French, English, Spanish, German, Italian, Portuguese, Russian, Japanese, Chinese, Korean, Arabic, Hindi, Thai, Vietnamese, Turkish, Polish, Dutch, Swedish, Norwegian, Finnish, and many more.',
     category: 'educational',
     min_players: 1,
     max_players: 6,

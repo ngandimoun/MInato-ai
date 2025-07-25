@@ -29,7 +29,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const navigateWithLoading = useCallback((path: string, message?: string) => {
     // Only trigger navigation if we're going to a different path
     if (window.location.pathname !== path) {
-      // Skip loading for specific paths: chat, memory, creation-hub, listening, games, settings
+      // Skip loading for specific paths: chat, memory, creation-hub, listening, games, settings, escape
       const skipLoadingPaths = [
         "/chat", 
         "/chat?view=chat", 
@@ -38,7 +38,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         "/creation-hub", 
         "/listening", 
         "/games",
-        "/dashboard"
+        "/dashboard",
+        "/escape"
       ];
       
       const shouldShowLoading = !skipLoadingPaths.some(skipPath => 

@@ -141,7 +141,7 @@ export function GameLanguageSelector({
       <Card className={cn("w-full max-w-md", className)}>
         <CardContent className="p-4">
           <div className="flex items-center gap-2 mb-4">
-            <Globe className="h-5 h-5 text-blue-500" />
+            <Globe className="h-5 w-5 text-blue-500" />
             <h3 className="font-semibold">Game Language</h3>
             {showBadge && (
               <Badge variant="secondary" className="text-xs">

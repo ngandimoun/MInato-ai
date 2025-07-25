@@ -15,7 +15,7 @@ import { ProPlanModal } from "@/components/ui/pro-plan-modal"
 import { PlanUpgradeModal } from "@/components/subscription/plan-upgrade-modal"
 import { SubscriptionStatus } from "@/components/subscription/subscription-status"
 
-type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub"; // Added listening, insights, and creation-hub views
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub" | "escape"; // Added listening, insights, creation-hub, and escape views
 
 interface HeaderProps {
   currentView: View
@@ -56,7 +56,8 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
         games: "/games",
         listening: "/listening",
         insights: "/insights",
-        "creation-hub": "/creation-hub"
+        "creation-hub": "/creation-hub",
+        escape: "/escape"
       };
 
       // Use the navigation context to handle the transition
@@ -139,6 +140,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
     { id: "creation-hub", icon: <Palette size={20} />, label: "Creation" }, // Added Creation Hub nav item
    // { id: "insights", icon: <BarChart3 size={20} />, label: "Insights" }, // Added Insights nav item
     { id: "listening", icon: <Mic size={20} />, label: "Listening" }, // Added Listening nav item
+    { id: "escape", icon: <Sparkles size={20} />, label: "Escape" }, // Added Escape therapy nav item
     { id: "games", icon: <Gamepad2 size={20} />, label: "Games" }, // Added Games nav item
     { id: "dashboard", icon: <ShoppingBag size={20} />, label: "Dashboard" }, // Added Dashboard nav item
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },

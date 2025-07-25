@@ -519,7 +519,7 @@ export default function GamePlayPage() {
                 transition={{ delay: 0.6 }}
                 className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-6 border"
               >
-                <div className="grid grid-cols-2 gap-6 text-center">
+                <div className="grid grid-cols-1 gap-6 text-center">
                   <div className="space-y-3">
                     <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto">
                       <Award className="w-8 h-8 text-white" />
@@ -528,16 +528,6 @@ export default function GamePlayPage() {
                       {currentPlayer?.score || 0}
                     </div>
                     <div className="text-sm text-muted-foreground font-medium">Points Earned</div>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto">
-                      <Target className="w-8 h-8 text-white" />
-                    </div>
-                    <div className="text-3xl font-bold text-green-600 dark:text-green-400">
-                      {accuracy}%
-                    </div>
-                    <div className="text-sm text-muted-foreground font-medium">Accuracy Rate</div>
                   </div>
                 </div>
               </motion.div>
