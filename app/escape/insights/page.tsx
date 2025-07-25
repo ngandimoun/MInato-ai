@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -32,6 +33,8 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
+
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub" | "escape";
 
 interface EmotionalWeatherEntry {
   id: string;
@@ -68,7 +71,7 @@ const WEATHER_MOODS = [
 export default function EscapeInsightsPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const [currentView, setCurrentView] = useState('escape');
+  const [currentView, setCurrentView] = useState<View>('escape');
   const [emotionalWeather, setEmotionalWeather] = useState<EmotionalWeatherEntry[]>([]);
   const [memoryVault, setMemoryVault] = useState<MemoryVaultEntry[]>([]);
   const [progressMetrics, setProgressMetrics] = useState<ProgressMetrics>({
@@ -97,13 +100,13 @@ export default function EscapeInsightsPage() {
 
     try {
       setIsLoading(true);
-      const memoryIntegration = new EnhancedTherapyMemoryIntegration(user.id);
+      const memoryIntegration = new EnhancedTherapyMemoryIntegration();
 
       // Load all insights data
       const [weatherData, vaultData, metrics] = await Promise.all([
-        memoryIntegration.getEmotionalWeatherHistory(),
-        memoryIntegration.getMemoryVault(),
-        memoryIntegration.calculateProgressMetrics()
+        memoryIntegration.getEmotionalWeatherHistory("month") as any,
+        memoryIntegration.getMemoryVault(user.id) as any,
+        memoryIntegration.calculateProgressMetrics(user.id, "month") as any
       ]);
 
       setEmotionalWeather(weatherData || []);
@@ -126,13 +129,13 @@ export default function EscapeInsightsPage() {
     if (!user || !newWeatherEntry.mood) return;
 
     try {
-      const memoryIntegration = new EnhancedTherapyMemoryIntegration(user.id);
+      const memoryIntegration = new EnhancedTherapyMemoryIntegration();
       await memoryIntegration.saveEmotionalWeather({
         mood: newWeatherEntry.mood,
         energy: newWeatherEntry.energy[0],
         stress: newWeatherEntry.stress[0],
         notes: newWeatherEntry.notes
-      });
+      } as any);
 
       // Reload data
       await loadInsightsData();

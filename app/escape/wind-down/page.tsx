@@ -20,6 +20,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub" | "escape";
+
 interface WindDownEntry {
   id: string;
   userId: string;
@@ -33,7 +35,7 @@ interface WindDownEntry {
 export default function WindDownPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const [currentView, setCurrentView] = useState("escape");
+  const [currentView, setCurrentView] = useState<View>("escape");
   const [step, setStep] = useState(1);
   const [releaseText, setReleaseText] = useState('');
   const [gratitude, setGratitude] = useState('');

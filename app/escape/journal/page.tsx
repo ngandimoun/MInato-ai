@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -30,6 +31,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub" | "escape";
 
 interface EmotionalWeatherEntry {
   id: string;
@@ -97,7 +100,7 @@ const categoryColors = {
 export default function TherapyJournalPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const [currentView, setCurrentView] = useState<'games' | 'listening' | 'escape'>('escape');
+  const [currentView, setCurrentView] = useState<View>('escape');
   const [isLoading, setIsLoading] = useState(true);
   const [emotionalWeather, setEmotionalWeather] = useState<EmotionalWeatherEntry[]>([]);
   const [memoryVault, setMemoryVault] = useState<MemoryVaultEntry[]>([]);
@@ -114,15 +117,15 @@ export default function TherapyJournalPage() {
     try {
       setIsLoading(true);
       const supabase = getBrowserSupabaseClient();
-      const memoryIntegration = new EnhancedTherapyMemoryIntegration(user!.id, supabase);
+      const memoryIntegration = new EnhancedTherapyMemoryIntegration();
 
       // Load emotional weather history
-      const weatherHistory = await memoryIntegration.getEmotionalWeatherHistory(30); // Last 30 days
-      setEmotionalWeather(weatherHistory);
+      const weatherHistory = await memoryIntegration.getEmotionalWeatherHistory("month") as any; // Last 30 days
+      setEmotionalWeather(weatherHistory || []);
 
       // Load memory vault
-      const vault = await memoryIntegration.getMemoryVault();
-      setMemoryVault(vault);
+      const vault = await memoryIntegration.getMemoryVault(user!.id) as any;
+      setMemoryVault(vault || []);
 
       // Load session summaries (simplified for now)
       const { data: sessions } = await supabase
@@ -134,16 +137,16 @@ export default function TherapyJournalPage() {
 
       if (sessions) {
         const summaries = await Promise.all(
-          sessions.map(async (session) => {
-            const summary = await memoryIntegration.getSessionSummary(session.id);
+          sessions.map(async (session: any) => {
+            const summary = await memoryIntegration.getSessionSummary(session.id, user!.id) as any;
             return {
               id: session.id,
               date: session.created_at,
               session_type: session.therapy_type || 'General Therapy',
-              key_insights: summary.key_insights,
-              breakthrough_moments: summary.breakthrough_moments,
-              techniques_used: summary.techniques_used,
-              mood_improvement: summary.mood_improvement,
+              key_insights: summary?.key_insights || [],
+              breakthrough_moments: summary?.breakthrough_moments || [],
+              techniques_used: summary?.techniques_used || [],
+              mood_improvement: summary?.mood_improvement || 0,
               duration_minutes: Math.round((new Date(session.ended_at || session.created_at).getTime() - new Date(session.created_at).getTime()) / 60000)
             };
           })

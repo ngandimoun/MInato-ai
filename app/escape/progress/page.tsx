@@ -35,6 +35,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub" | "escape";
+
 interface EmotionalWeatherEntry {
   id: string;
   user_id: string;
@@ -98,7 +100,7 @@ const categoryColors = {
 export default function ProgressPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const [currentView, setCurrentView] = useState<string>('escape');
+  const [currentView, setCurrentView] = useState<View>('escape');
   const [emotionalWeather, setEmotionalWeather] = useState<EmotionalWeatherEntry[]>([]);
   const [memoryVault, setMemoryVault] = useState<MemoryVaultEntry[]>([]);
   const [progressMetrics, setProgressMetrics] = useState<ProgressMetrics | null>(null);
@@ -115,20 +117,20 @@ export default function ProgressPage() {
   const initializeProgress = async () => {
     try {
       const supabase = getBrowserSupabaseClient();
-      const integration = new EnhancedTherapyMemoryIntegration(supabase, user!.id);
+      const integration = new EnhancedTherapyMemoryIntegration();
       setMemoryIntegration(integration);
 
       // Load emotional weather history
-      const weatherHistory = await integration.getEmotionalWeatherHistory(30); // Last 30 days
-      setEmotionalWeather(weatherHistory);
+      const weatherHistory = await integration.getEmotionalWeatherHistory("month") as any; // Last 30 days
+      setEmotionalWeather(weatherHistory || []);
 
       // Load memory vault
-      const vaultEntries = await integration.getMemoryVault();
-      setMemoryVault(vaultEntries);
+      const vaultEntries = await integration.getMemoryVault(user!.id) as any;
+      setMemoryVault(vaultEntries || []);
 
       // Load progress metrics
-      const metrics = await integration.calculateProgressMetrics();
-      setProgressMetrics(metrics);
+      const metrics = await integration.calculateProgressMetrics(user!.id, "month") as any;
+      setProgressMetrics(metrics || null);
 
     } catch (error) {
       console.error('Error loading progress data:', error);
@@ -198,7 +200,7 @@ export default function ProgressPage() {
         id: 'demo-4',
         user_id: user?.id || 'demo',
         title: 'Completed First Month',
-        content: 'I've been consistent with therapy sessions for a full month. This shows my commitment to my wellbeing and growth.',
+        content: 'I\'ve been consistent with therapy sessions for a full month. This shows my commitment to my wellbeing and growth.',
         category: 'achievement',
         created_at: new Date(Date.now() - 86400000 * 14).toISOString() // 2 weeks ago
       }
@@ -237,11 +239,11 @@ export default function ProgressPage() {
 
     try {
       const today = new Date().toISOString().split('T')[0];
-      await memoryIntegration.saveEmotionalWeather(mood, energy, stress, notes);
+      await memoryIntegration.saveEmotionalWeather({ mood, energy_level: energy, stress_level: stress, notes } as any);
       
       // Refresh data
-      const updatedWeather = await memoryIntegration.getEmotionalWeatherHistory(30);
-      setEmotionalWeather(updatedWeather);
+      const updatedWeather = await memoryIntegration.getEmotionalWeatherHistory("month") as any;
+      setEmotionalWeather(updatedWeather || []);
     } catch (error) {
       console.error('Error saving emotional weather:', error);
     }
