@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getBrowserSupabaseClient } from '@/lib/supabase/client';
@@ -42,7 +42,7 @@ const COMMUNICATION_STYLES = [
   { id: 'solution-focused', name: 'Solution-Focused', description: 'Practical, goal-oriented, and action-based' }
 ];
 
-export default function TherapySetupPage() {
+function TherapySetupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
@@ -660,5 +660,13 @@ export default function TherapySetupPage() {
         </div>
       </div>
     </motion.div>
+  );
+}
+
+export default function TherapySetupPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <TherapySetupContent />
+    </Suspense>
   );
 } 
