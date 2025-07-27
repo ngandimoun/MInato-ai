@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { NavigationLoading } from "@/components/ui/navigation-loading";
 
@@ -18,8 +18,15 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const [isNavigating, setIsNavigating] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Loading...");
   const router = useRouter();
+  const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const setNavigating = useCallback((loading: boolean, message?: string) => {
+    // Clear any existing timeout
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
+      navigationTimeoutRef.current = null;
+    }
+
     setIsNavigating(loading);
     if (message) {
       setLoadingMessage(message);
@@ -29,54 +36,36 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const navigateWithLoading = useCallback((path: string, message?: string) => {
     // Only trigger navigation if we're going to a different path
     if (window.location.pathname !== path) {
-      // Skip loading for specific paths: chat, memory, creation-hub, listening, games, settings, escape, evasion
-      const skipLoadingPaths = [
-        "/chat", 
-        "/chat?view=chat", 
-        "/chat?view=memory", 
-        "/chat?view=settings", 
-        "/creation-hub", 
-        "/listening", 
-        "/games",
-        "/dashboard",
-        "/escape",
-        "/evasion"
-      ];
+      // Show loading for all navigation clicks
+      setNavigating(true, message || "Navigating...");
       
-      const shouldShowLoading = !skipLoadingPaths.some(skipPath => 
-        path === skipPath || path.startsWith(skipPath + "?")
-      );
-      
-      if (shouldShowLoading) {
-        setNavigating(true, message);
-      }
-      
+      // Navigate to the new path
       router.push(path);
     }
   }, [router, setNavigating]);
 
-  // Enhanced route change detection
+  // Enhanced route change detection with better timing
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout | null = null;
-    
     const handleRouteChange = () => {
       // Clear any existing timeout
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
       }
       
-      // Set a shorter timeout for hiding loading state
-      timeoutId = setTimeout(() => {
-        setNavigating(false);
-      }, 500);
+      // Set a timeout that matches the loading bar duration
+      navigationTimeoutRef.current = setTimeout(() => {
+        setIsNavigating(false);
+        navigationTimeoutRef.current = null;
+      }, 1500); // Match the duration of the loading bar animation
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
+        if (navigationTimeoutRef.current) {
+          clearTimeout(navigationTimeoutRef.current);
+          navigationTimeoutRef.current = null;
         }
-        setNavigating(false);
+        setIsNavigating(false);
       }
     };
 
@@ -84,14 +73,50 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     window.addEventListener('popstate', handleRouteChange);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
+    // Listen for Next.js navigation events
+    const handleNavigationStart = () => {
+      // Navigation started, ensure loading is visible
+      setIsNavigating(true);
+    };
+
+    const handleNavigationComplete = () => {
+      // Navigation completed, hide loading bar after animation
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+      navigationTimeoutRef.current = setTimeout(() => {
+        setIsNavigating(false);
+        navigationTimeoutRef.current = null;
+      }, 1500);
+    };
+
+    // Add event listeners for Next.js navigation events
+    window.addEventListener('beforeunload', handleNavigationStart);
+    
+    // Listen for DOM changes that indicate page load completion
+    const observer = new MutationObserver(() => {
+      // If we're navigating and the DOM has changed significantly, 
+      // it might indicate the page has loaded
+      if (isNavigating) {
+        handleNavigationComplete();
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
     return () => {
       window.removeEventListener('popstate', handleRouteChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      window.removeEventListener('beforeunload', handleNavigationStart);
+      observer.disconnect();
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
       }
     };
-  }, []);
+  }, [isNavigating]);
 
   return (
     <NavigationContext.Provider value={{ isNavigating, setNavigating, navigateWithLoading }}>

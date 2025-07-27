@@ -1,6 +1,5 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
 
 interface NavigationLoadingProps {
   isLoading: boolean;
@@ -12,21 +11,24 @@ export function NavigationLoading({ isLoading, message = "Loading..." }: Navigat
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 4 }}
+      exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+      className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary via-blue-500 to-purple-500 shadow-lg"
     >
-      <div className="flex flex-col items-center space-y-4">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        >
-          <Loader2 className="h-8 w-8 text-primary" />
-        </motion.div>
-        <p className="text-sm text-muted-foreground">{message}</p>
-      </div>
+      <motion.div
+        initial={{ width: "0%" }}
+        animate={{ width: "100%" }}
+        transition={{ 
+          duration: 1.5, 
+          ease: [0.4, 0.0, 0.2, 1] // Custom easing for smooth progression
+        }}
+        className="h-full bg-gradient-to-r from-transparent via-white/40 to-transparent"
+        style={{
+          boxShadow: "0 0 10px rgba(255, 255, 255, 0.3)"
+        }}
+      />
     </motion.div>
   );
 }

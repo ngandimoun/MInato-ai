@@ -61,8 +61,8 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
         evasion: "/evasion"
       };
 
-      // Use the navigation context to handle the transition
-      navigateWithLoading(pathMap[view]);
+      // Use the navigation context to handle the transition with loading
+      navigateWithLoading(pathMap[view], `Navigating to ${view}...`);
       onViewChange(view);
     }
   }, [currentView, navigateWithLoading, onViewChange]);
