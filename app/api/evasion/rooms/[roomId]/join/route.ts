@@ -33,17 +33,27 @@ export async function POST(
 
     // Check if room is private and user has access
     if (room.is_private && room.host_user_id !== user.id) {
-      // Check if user has a valid invitation
-      const { data: invitation } = await supabase
-        .from("evasion_room_invitations")
+      // First check if user is already a participant
+      const { data: existingParticipant } = await supabase
+        .from("evasion_room_participants")
         .select("*")
         .eq("room_id", roomId)
-        .eq("invited_user_id", user.id)
-        .eq("status", "accepted")
+        .eq("user_id", user.id)
         .single();
 
-      if (!invitation) {
-        return NextResponse.json({ error: "Access denied. This is a private room." }, { status: 403 });
+      if (!existingParticipant) {
+        // If not a participant, check if user has a valid invitation
+        const { data: invitation } = await supabase
+          .from("evasion_room_invitations")
+          .select("*")
+          .eq("room_id", roomId)
+          .eq("invited_user_id", user.id)
+          .eq("status", "accepted")
+          .single();
+
+        if (!invitation) {
+          return NextResponse.json({ error: "Access denied. This is a private room." }, { status: 403 });
+        }
       }
     }
 

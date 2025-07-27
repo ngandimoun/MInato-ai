@@ -88,6 +88,23 @@ export default function EvasionRoomPage({ params }: PageProps) {
   const { toast } = useToast()
   const [currentView, setCurrentView] = useState<View>("evasion")
   const supabase = getBrowserSupabaseClient()
+  
+  // Helper function to log only in development and when enabled
+  const devLog = (message: string, ...args: any[]) => {
+    if ((process.env.NODE_ENV === 'development' || showReconnectionLogs) && message.includes("🔄")) {
+      console.log(message, ...args)
+    } else if (process.env.NODE_ENV === 'development') {
+      console.log(message, ...args)
+    }
+  }
+  
+  // Helper function to clear thinking timeout
+  const clearThinkingTimeout = () => {
+    if (thinkingTimeoutRef.current) {
+      clearTimeout(thinkingTimeoutRef.current)
+      thinkingTimeoutRef.current = null
+    }
+  }
 
   // Use React.use to unwrap the params Promise
   const { roomId } = React.use(params)
@@ -119,6 +136,14 @@ export default function EvasionRoomPage({ params }: PageProps) {
 
   // Add state for participants modal
   const [showParticipantsModal, setShowParticipantsModal] = useState(false)
+  
+  // Add state for connection status
+  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected" | "error">("connecting")
+  const [showReconnectionLogs, setShowReconnectionLogs] = useState(false) // Set to true to see reconnection logs
+  
+  // Add state for Minato thinking
+  const [isMinatoThinking, setIsMinatoThinking] = useState(false)
+  const thinkingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -177,16 +202,43 @@ export default function EvasionRoomPage({ params }: PageProps) {
       if (cleanup) {
         cleanup()
       }
-      // Also cleanup any existing channels
-      supabase.channel(`evasion_room_${roomIdRef.current}`).unsubscribe()
+      // Clear thinking timeout
+      clearThinkingTimeout()
       // Remove YouTube message listener
       window.removeEventListener("message", handleYouTubeMessage)
     }
-  }, [user])
+  }, [user, roomIdRef.current])
 
   const fetchRoomData = async () => {
     try {
       setIsLoading(true)
+
+      // First, ensure user is a participant in the room
+      if (user?.id) {
+        const { data: existingParticipant } = await supabase
+          .from("evasion_room_participants")
+          .select("id")
+          .eq("room_id", roomIdRef.current)
+          .eq("user_id", user.id)
+          .single()
+
+        if (!existingParticipant) {
+          // Add user as participant
+          const { error: joinError } = await supabase
+            .from("evasion_room_participants")
+            .insert({
+              room_id: roomIdRef.current,
+              user_id: user.id,
+              is_active: true
+            })
+
+          if (joinError) {
+            console.error("Error joining room:", joinError)
+          } else {
+            console.log("✅ User automatically joined room as participant")
+          }
+        }
+      }
 
       // Fetch room details
       const { data: roomData, error: roomError } = await supabase
@@ -350,51 +402,65 @@ export default function EvasionRoomPage({ params }: PageProps) {
   const setupRealtimeSubscription = () => {
     if (!roomIdRef.current) return
 
-    console.log("🔄 Setting up realtime subscriptions for room:", roomIdRef.current)
+    devLog("🔄 Setting up realtime subscriptions for room:", roomIdRef.current)
 
-    try {
-      // Create a single channel for all subscriptions
-      const channel = supabase.channel(`evasion_room_${roomIdRef.current}`)
+    // Track if we're already setting up subscriptions to avoid duplicates
+    let isSettingUp = false
+    let retryCount = 0
+    const maxRetries = 3
+    let lastClosedTime = 0
 
-      // Subscribe to chat messages
-      channel.on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "evasion_chat_messages",
-          filter: `room_id=eq.${roomIdRef.current}`,
-        },
-        async (payload: any) => {
-          console.log("📨 New chat message received:", payload)
+    const setupChannel = () => {
+      if (isSettingUp) {
+        console.log("🔄 Already setting up subscriptions, skipping...")
+        return
+      }
 
-          if (payload.new) {
-            try {
-              let username = "Unknown User"
-              let avatar_url = undefined
+      isSettingUp = true
 
-              // Handle system/AI messages differently
-              if (payload.new.user_id === "00000000-0000-0000-0000-000000000000") {
-                // System or AI message
-                if (payload.new.message_type === "ai_response") {
-                  username = "Minato AI"
-                  avatar_url = "/minato-ai-avatar.png" // You can add a Minato AI avatar
+      try {
+        // Create a single channel for all subscriptions
+        const channel = supabase.channel(`evasion_room_${roomIdRef.current}`)
+
+        // Subscribe to chat messages
+        channel.on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "evasion_chat_messages",
+            filter: `room_id=eq.${roomIdRef.current}`,
+          },
+          async (payload: any) => {
+            console.log("📨 New chat message received:", payload)
+
+            if (payload.new) {
+              try {
+                let username = "Unknown User"
+                let avatar_url = undefined
+
+                // Handle system/AI messages differently
+                if (payload.new.user_id === "00000000-0000-0000-0000-000000000000") {
+                  // System or AI message
+                  if (payload.new.message_type === "ai_response") {
+                    username = "Minato AI"
+                    avatar_url = "/minato-ai-avatar.png" // You can add a Minato AI avatar
+                  } else {
+                    username = "System"
+                  }
                 } else {
-                  username = "System"
+                  // Regular user message - fetch user profile
+                  const { data: profile } = await supabase
+                    .from("user_profiles")
+                    .select("full_name, avatar_url")
+                    .eq("id", payload.new.user_id)
+                    .single()
+
+                  username = profile?.full_name || "Unknown User"
+                  avatar_url = profile?.avatar_url
                 }
-              } else {
-                // Regular user message - fetch user profile
-                const { data: profile } = await supabase
-                  .from("user_profiles")
-                  .select("full_name, avatar_url")
-                  .eq("id", payload.new.user_id)
-                  .single()
 
-                username = profile?.full_name || "Unknown User"
-                avatar_url = profile?.avatar_url
-              }
-
-              const newMessage: ChatMessage = {
+                              const newMessage: ChatMessage = {
                 id: payload.new.id,
                 content: payload.new.content,
                 user_id: payload.new.user_id,
@@ -406,86 +472,129 @@ export default function EvasionRoomPage({ params }: PageProps) {
 
               console.log("📝 Adding new message to state:", newMessage)
               setMessages((prev) => [...prev, newMessage])
+              
+              // If this is an AI response, deactivate the thinking state
+              if (payload.new.message_type === "ai_response") {
+                setIsMinatoThinking(false)
+                clearThinkingTimeout()
+              }
 
-              // Auto-scroll to bottom
-              setTimeout(() => {
-                if (messagesEndRef.current) {
-                  messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
-                }
-              }, 100)
-            } catch (error) {
-              console.error("❌ Error processing new message:", error)
-            }
-          }
-        },
-      )
-
-      // Subscribe to room updates (for video changes)
-      channel.on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "evasion_rooms",
-          filter: `id=eq.${roomIdRef.current}`,
-        },
-        (payload: any) => {
-          console.log("📺 Room updated:", payload.new)
-          if (payload.new) {
-            setRoom((prevRoom) => {
-              const newRoom = prevRoom
-                ? {
-                    ...prevRoom,
-                    ...payload.new,
+                // Auto-scroll to bottom
+                setTimeout(() => {
+                  if (messagesEndRef.current) {
+                    messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
                   }
-                : null
-              console.log("📺 Room state updated:", newRoom)
-              return newRoom
-            })
+                }, 100)
+              } catch (error) {
+                console.error("❌ Error processing new message:", error)
+              }
+            }
+          },
+        )
+
+        // Subscribe to room updates (for video changes)
+        channel.on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "evasion_rooms",
+            filter: `id=eq.${roomIdRef.current}`,
+          },
+          (payload: any) => {
+            console.log("📺 Room updated:", payload.new)
+            if (payload.new) {
+              setRoom((prevRoom) => {
+                const newRoom = prevRoom
+                  ? {
+                      ...prevRoom,
+                      ...payload.new,
+                    }
+                  : null
+                console.log("📺 Room state updated:", newRoom)
+                return newRoom
+              })
+            }
+          },
+        )
+
+        // Subscribe to participants changes
+        channel.on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "evasion_room_participants",
+            filter: `room_id=eq.${roomIdRef.current}`,
+          },
+          () => {
+            console.log("👥 Participants changed, refetching...")
+            // Refetch participants when changes occur
+            fetchParticipants()
+          },
+        )
+
+        // Subscribe to the channel
+        channel.subscribe((status: string) => {
+          devLog("🔄 Channel subscription status:", status)
+          
+          if (status === "SUBSCRIBED") {
+            devLog("✅ Successfully subscribed to room updates")
+            devLog("🧪 Real-time chat is now active - messages should appear instantly!")
+            setConnectionStatus("connected")
+            retryCount = 0 // Reset retry count on success
+            lastClosedTime = 0 // Reset last closed time on success
+            isSettingUp = false
+          } else if (status === "CLOSED") {
+            const now = Date.now()
+            const timeSinceLastClose = now - lastClosedTime
+            lastClosedTime = now
+            
+            // Only log if it's been more than 5 seconds since last close (to avoid spam)
+            if (timeSinceLastClose > 5000) {
+              devLog("🔄 Channel subscription closed - attempting reconnection...")
+            }
+            
+            setConnectionStatus("disconnected")
+            isSettingUp = false
+            // Only retry if we haven't exceeded max retries
+            if (retryCount < maxRetries) {
+              retryCount++
+              devLog(`🔄 Retrying connection (${retryCount}/${maxRetries}) in 2 seconds...`)
+              setConnectionStatus("connecting")
+              setTimeout(() => setupChannel(), 2000)
+            } else {
+              console.error("❌ Max retries exceeded, stopping reconnection attempts")
+              setConnectionStatus("error")
+            }
+          } else {
+            console.error("❌ Failed to subscribe to channel:", status)
+            setConnectionStatus("error")
+            isSettingUp = false
           }
-        },
-      )
+        })
 
-      // Subscribe to participants changes
-      channel.on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "evasion_room_participants",
-          filter: `room_id=eq.${roomIdRef.current}`,
-        },
-        () => {
-          console.log("👥 Participants changed, refetching...")
-          // Refetch participants when changes occur
-          fetchParticipants()
-        },
-      )
-
-      // Subscribe to the channel
-      channel.subscribe((status: string) => {
-        console.log("🔄 Channel subscription status:", status)
-        if (status === "SUBSCRIBED") {
-          console.log("✅ Successfully subscribed to room updates")
-          console.log("🧪 Real-time chat is now active - messages should appear instantly!")
-        } else if (status === "CLOSED") {
-          console.error("❌ Channel subscription closed - retrying in 2 seconds")
-          setTimeout(() => setupRealtimeSubscription(), 2000)
-        } else {
-          console.error("❌ Failed to subscribe to channel:", status)
+        // Store cleanup function
+        return () => {
+          console.log("🔌 Cleaning up realtime subscriptions")
+          isSettingUp = false
+          channel.unsubscribe()
         }
-      })
-
-      // Store cleanup function
-      return () => {
-        console.log("🔌 Cleaning up realtime subscriptions")
-        channel.unsubscribe()
+      } catch (error) {
+        console.error("❌ Error setting up realtime subscriptions:", error)
+        isSettingUp = false
+        // Only retry if we haven't exceeded max retries
+        if (retryCount < maxRetries) {
+          retryCount++
+          console.log(`🔄 Retrying after error (${retryCount}/${maxRetries}) in 2 seconds...`)
+          setTimeout(() => setupChannel(), 2000)
+        } else {
+          console.error("❌ Max retries exceeded after error, stopping reconnection attempts")
+        }
       }
-    } catch (error) {
-      console.error("❌ Error setting up realtime subscriptions:", error)
-      // Retry after 2 seconds
-      setTimeout(() => setupRealtimeSubscription(), 2000)
     }
+
+    return setupChannel()
   }
 
   // Add helper function for fetching participants
@@ -566,6 +675,15 @@ export default function EvasionRoomPage({ params }: PageProps) {
         // If it's an AI query and there's a video loaded, trigger AI analysis
         if (isAIQuery && room?.current_video_url && canLoadVideo) {
           console.log("🤖 Triggering AI analysis for:", messageContent)
+          
+          // Activate Minato thinking state
+          setIsMinatoThinking(true)
+          
+          // Set a timeout to deactivate thinking state after 30 seconds (safety measure)
+          thinkingTimeoutRef.current = setTimeout(() => {
+            setIsMinatoThinking(false)
+          }, 30000)
+          
           try {
             const currentTime = Math.floor((Date.now() - (room.current_video_position || 0)) / 1000)
             const currentTimestamp = `${Math.floor(currentTime / 60)
@@ -591,11 +709,18 @@ export default function EvasionRoomPage({ params }: PageProps) {
               console.error("❌ AI analysis failed with status:", response.status)
               const errorText = await response.text()
               console.error("❌ Error details:", errorText)
+              // Deactivate thinking state on error
+              setIsMinatoThinking(false)
+              clearThinkingTimeout()
             } else {
               console.log("✅ AI analysis request successful")
+              // The thinking state will be deactivated when the AI response is received via real-time subscription
             }
           } catch (aiError) {
             console.error("❌ Error triggering AI analysis:", aiError)
+            // Deactivate thinking state on error
+            setIsMinatoThinking(false)
+            clearThinkingTimeout()
           }
         } else if (isAIQuery && !canLoadVideo) {
           console.log("⚠️ AI analysis not allowed - user lacks permissions")
@@ -760,8 +885,10 @@ export default function EvasionRoomPage({ params }: PageProps) {
   }
 
   const isHost = user?.id === room?.host_user_id
-  const canLoadVideo = isHost || (room?.user_permissions?.can_load_video ?? false)
-  const canEdit = isHost || (room?.user_permissions?.can_edit ?? false)
+  // Check if user is a participant in the room (this will be handled by RLS policies)
+  const isParticipant = participants.some(p => p.id === user?.id)
+  const canLoadVideo = isHost || isParticipant
+  const canEdit = isHost || isParticipant
 
   // Add handleInviteUsers function
   const handleInviteUsers = async () => {
@@ -895,7 +1022,9 @@ export default function EvasionRoomPage({ params }: PageProps) {
       return
     }
 
-    if (!canLoadVideo) {
+    // Check if user is a participant (this should now work with our RLS policies)
+    const isParticipant = participants.some(p => p.id === user?.id)
+    if (!isHost && !isParticipant) {
       toast({
         title: "Permission Denied",
         description: "You don't have permission to ask AI questions in this room.",
@@ -1116,6 +1245,47 @@ export default function EvasionRoomPage({ params }: PageProps) {
                             Host
                           </Badge>
                         )}
+                        {/* Connection status indicator */}
+                        <Badge 
+                          variant="outline" 
+                          className={`px-2 sm:px-3 py-1 text-xs border-2 ${
+                            connectionStatus === "connected" 
+                              ? "border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20" 
+                              : connectionStatus === "connecting" 
+                              ? "border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20" 
+                              : connectionStatus === "error" 
+                              ? "border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20" 
+                              : "border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20"
+                          }`}
+                        >
+                          <div className={`w-2 h-2 rounded-full mr-1 sm:mr-2 ${
+                            connectionStatus === "connected" 
+                              ? "bg-green-500 animate-pulse" 
+                              : connectionStatus === "connecting" 
+                              ? "bg-yellow-500 animate-pulse" 
+                              : connectionStatus === "error" 
+                              ? "bg-red-500" 
+                              : "bg-gray-500"
+                          }`} />
+                          {connectionStatus === "connected" ? "Connected" : 
+                           connectionStatus === "connecting" ? "Connecting..." : 
+                           connectionStatus === "error" ? "Error" : 
+                           "Disconnected"}
+                        </Badge>
+                        {/* Debug toggle for reconnection logs (development only) */}
+                        {/* {process.env.NODE_ENV === 'development' && (
+                          <Badge 
+                            variant="outline" 
+                            className={`px-2 sm:px-3 py-1 text-xs border-2 cursor-pointer ${
+                              showReconnectionLogs 
+                                ? "border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20" 
+                                : "border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20"
+                            }`}
+                            onClick={() => setShowReconnectionLogs(!showReconnectionLogs)}
+                          >
+                            {showReconnectionLogs ? "🔍 Logs ON" : "🔍 Logs OFF"}
+                          </Badge>
+                        )} */}
                       </div>
                     </div>
                   </div>
@@ -1157,7 +1327,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                         </DialogContent>
                       </Dialog>
                     )}
-                    <Button
+                    {/* <Button
                       variant="outline"
                       onClick={() => setShowInviteDialog(true)}
                       className="hover:bg-blue-50 dark:hover:bg-blue-900/20 border-blue-200 dark:border-blue-800 bg-white/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 text-xs sm:text-sm"
@@ -1165,7 +1335,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                       <UserPlus className="w-4 h-4 mr-1 sm:mr-2 text-blue-500" />
                       <span className="hidden sm:inline">Invite</span>
                       <span className="sm:hidden">+</span>
-                    </Button>
+                    </Button> */}
                   </div>
                 </div>
               </CardHeader>
@@ -1333,6 +1503,53 @@ export default function EvasionRoomPage({ params }: PageProps) {
                           )
                         })}
                       </AnimatePresence>
+                      
+                      {/* Minato Thinking Indicator */}
+                      {isMinatoThinking && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          className="flex gap-2 sm:gap-3 justify-start"
+                        >
+                          <Avatar className="w-7 h-7 sm:w-9 sm:h-9 mt-1 shadow-lg flex-shrink-0 ring-2 ring-white dark:ring-gray-800">
+                            <AvatarImage src="/minato-ai-avatar.png" />
+                            <AvatarFallback className="text-xs font-semibold bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
+                              M
+                            </AvatarFallback>
+                          </Avatar>
+
+                          <div className="flex flex-col max-w-[85%] sm:max-w-[75%] items-start">
+                            <div className="flex items-center gap-1 sm:gap-2 mb-1 px-1">
+                              <span className="text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                                Minato AI
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {new Date().toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+
+                            <div className="relative px-3 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl shadow-lg backdrop-blur-sm text-xs sm:text-sm bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-800 mr-6 sm:mr-8">
+                              {/* Message bubble tail */}
+                              <div className="absolute w-3 h-3 transform rotate-45 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-r border-b border-emerald-200 dark:border-emerald-800 -bottom-1 left-4" />
+
+                              <div className="flex items-center gap-2">
+                                <div className="flex space-x-1">
+                                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                </div>
+                                <span className="text-emerald-700 dark:text-emerald-300 font-medium">
+                                  Minato is thinking...
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                      
                       <div ref={messagesEndRef} />
                     </div>
                   </ScrollArea>

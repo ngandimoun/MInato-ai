@@ -39,7 +39,8 @@ export async function GET() {
         room_id,
         evasion_rooms(*)
       `)
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .neq("evasion_rooms.host_user_id", user.id); // Exclude rooms where user is host (already included above)
 
     if (participantError) {
       console.error("❌ Error fetching participant rooms:", participantError.message);
