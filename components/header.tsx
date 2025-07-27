@@ -144,7 +144,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
     { id: "escape", icon: <Sparkles size={20} />, label: "Escape" }, // Added Escape therapy nav item
     { id: "games", icon: <Gamepad2 size={20} />, label: "Games" }, // Added Games nav item
     { id: "evasion", icon: <Play size={20} />, label: "Evasion" }, // Added Evasion nav item
-    { id: "dashboard", icon: <ShoppingBag size={20} />, label: "Dashboard" }, // Added Dashboard nav item
+    //{ id: "dashboard", icon: <ShoppingBag size={20} />, label: "Dashboard" }, // Added Dashboard nav item
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },
   ]
 

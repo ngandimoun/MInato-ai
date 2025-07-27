@@ -32,58 +32,28 @@ export async function GET() {
     
     if (simpleError) {
       console.error("Simple query error:", simpleError);
-      return NextResponse.json({ error: simpleError.message }, { status: 500 });
+      return NextResponse.json({ error: simpleError?.message || "Database error" }, { status: 500 });
     }
     
-    // Now try the complex query with joins
-    const query = supabase
-      .from("evasion_room_invitations")
-      .select(`
-        *,
-        room:evasion_rooms(
-          id,
-          name,
-          description,
-          host_user_id,
-          current_video_url,
-          is_private,
-          room_code,
-          created_at
-        ),
-        host_user:host_user_id(
-          id,
-          email,
-          raw_user_meta_data
-        )
-      `)
-      .eq("invited_user_id", user.id)
-      .eq("status", "pending")
-      .gt("expires_at", new Date().toISOString())
-      .order("invited_at", { ascending: false });
+    // For now, let's use the simple query result and fetch room details separately
+    console.log("Using simple query result for now...");
+    const invitations = simpleInvitations;
     
-    console.log("SQL Query:", query.toSQL());
-    const { data: invitations, error } = await query;
-    
-    console.log("Invitations query result:", { invitations, error });
+    console.log("Invitations query result:", { invitations });
 
-    if (error) {
-      console.error("Error fetching invitations:", error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    // Format the response
+    // Format the response with basic data for now
     const formattedInvitations = (invitations || []).map((invitation: any) => ({
       id: invitation.id,
       room_id: invitation.room_id,
-      room_name: invitation.room?.name || "Unknown Room",
-      room_description: invitation.room?.description,
-      room_code: invitation.room?.room_code,
-      is_private: invitation.room?.is_private || false,
+      room_name: "Loading...", // We'll need to fetch room details separately
+      room_description: null,
+      room_code: null,
+      is_private: false,
       host_user_id: invitation.host_user_id,
-      host_username: invitation.host_user?.raw_user_meta_data?.full_name || invitation.host_user?.email || "Unknown Host",
-      host_avatar_url: invitation.host_user?.raw_user_meta_data?.avatar_url || null,
+      host_username: "Unknown Host", // We'll need to fetch user details separately
+      host_avatar_url: null,
       status: invitation.status,
-      created_at: invitation.invited_at || invitation.created_at,
+      created_at: invitation.invited_at,
       expires_at: invitation.expires_at,
     }));
 
