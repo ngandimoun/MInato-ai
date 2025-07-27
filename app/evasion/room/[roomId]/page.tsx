@@ -43,6 +43,13 @@ interface EvasionRoom {
   is_private: boolean
   room_code: string
   created_at: string
+  user_permissions?: {
+    is_host: boolean
+    is_participant: boolean
+    can_join: boolean
+    can_edit: boolean
+    can_load_video: boolean
+  }
 }
 
 interface RoomParticipant {
@@ -557,7 +564,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
         setNewMessage("")
 
         // If it's an AI query and there's a video loaded, trigger AI analysis
-        if (isAIQuery && room?.current_video_url) {
+        if (isAIQuery && room?.current_video_url && canLoadVideo) {
           console.log("🤖 Triggering AI analysis for:", messageContent)
           try {
             const currentTime = Math.floor((Date.now() - (room.current_video_position || 0)) / 1000)
@@ -590,11 +597,19 @@ export default function EvasionRoomPage({ params }: PageProps) {
           } catch (aiError) {
             console.error("❌ Error triggering AI analysis:", aiError)
           }
+        } else if (isAIQuery && !canLoadVideo) {
+          console.log("⚠️ AI analysis not allowed - user lacks permissions")
+          toast({
+            title: "Permission Denied",
+            description: "You don't have permission to ask AI questions in this room.",
+            variant: "destructive",
+          })
         } else {
           console.log("⚠️ AI analysis not triggered:", {
             isAIQuery,
             hasVideo: !!room?.current_video_url,
             videoUrl: room?.current_video_url,
+            canLoadVideo,
           })
         }
       }
@@ -745,6 +760,8 @@ export default function EvasionRoomPage({ params }: PageProps) {
   }
 
   const isHost = user?.id === room?.host_user_id
+  const canLoadVideo = isHost || (room?.user_permissions?.can_load_video ?? false)
+  const canEdit = isHost || (room?.user_permissions?.can_edit ?? false)
 
   // Add handleInviteUsers function
   const handleInviteUsers = async () => {
@@ -873,6 +890,15 @@ export default function EvasionRoomPage({ params }: PageProps) {
       toast({
         title: "No Video",
         description: "Please load a video first to ask questions about it.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!canLoadVideo) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to ask AI questions in this room.",
         variant: "destructive",
       })
       return
@@ -1058,7 +1084,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                           <h1 className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent truncate">
                             {room.name}
                           </h1>
-                          {isHost && (
+                          {canEdit && (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -1084,7 +1110,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                           <Users className="w-3 h-3 mr-1 sm:mr-2" />
                           {participants.length}/{room.max_participants}
                         </Badge>
-                        {isHost && (
+                        {canEdit && (
                           <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white px-2 sm:px-3 py-1 shadow-lg text-xs">
                             <Crown className="w-3 h-3 mr-1 sm:mr-2" />
                             Host
@@ -1094,7 +1120,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-4">
-                    {isHost && (
+                    {canLoadVideo && (
                       <Dialog open={showVideoDialog} onOpenChange={setShowVideoDialog}>
                         <DialogTrigger asChild>
                           <Button
@@ -1345,7 +1371,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                       </div>
 
                       {/* AI Assistant Button */}
-                      {room?.current_video_url && (
+                      {room?.current_video_url && canLoadVideo && (
                         <div className="flex justify-center">
                           <AIAssistantButton onAskQuestion={handleAIQuestion} isProcessing={isSendingMessage} />
                         </div>

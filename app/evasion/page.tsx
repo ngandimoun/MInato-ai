@@ -42,6 +42,13 @@ interface EvasionRoom {
   is_private: boolean
   room_code: string
   created_at: string
+  user_permissions: {
+    is_host: boolean
+    is_participant: boolean
+    can_join: boolean
+    can_edit: boolean
+    can_load_video: boolean
+  }
 }
 
 interface EvasionInvitation {
@@ -728,17 +735,41 @@ export default function EvasionPage() {
                               <span className="text-sm text-muted-foreground truncate">
                                 {room.host_username || "Host"}
                               </span>
+                              {/* Show user role badges */}
+                              {room.user_permissions.is_host && (
+                                <Badge variant="default" className="text-xs bg-gradient-to-r from-amber-400 to-orange-500 text-white">
+                                  Host
+                                </Badge>
+                              )}
+                              {room.user_permissions.is_participant && !room.user_permissions.is_host && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Participant
+                                </Badge>
+                              )}
                             </div>
                             <Button
                               size="sm"
                               onClick={() => handleJoinRoomDirect(room.id)}
-                              disabled={room.participant_count >= room.max_participants || joiningRoomId === room.id}
-                              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white h-9 px-4 ml-3"
+                              disabled={
+                                !room.user_permissions.can_join || 
+                                room.participant_count >= room.max_participants || 
+                                joiningRoomId === room.id
+                              }
+                              className={`h-9 px-4 ml-3 ${
+                                room.user_permissions.is_host || room.user_permissions.is_participant
+                                  ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                                  : "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
+                              }`}
                             >
                               {joiningRoomId === room.id ? (
                                 <>
                                   <Loader className="animate-spin -ml-1 mr-1 h-3 w-3 text-white" />
                                   Joining...
+                                </>
+                              ) : room.user_permissions.is_host || room.user_permissions.is_participant ? (
+                                <>
+                                  <Play className="w-4 h-4 mr-1" />
+                                  Enter
                                 </>
                               ) : (
                                 <>
