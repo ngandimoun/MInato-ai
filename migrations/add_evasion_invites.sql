@@ -2,7 +2,7 @@
 -- This migration adds support for inviting users to evasion rooms
 
 -- Table for evasion room invites
-CREATE TABLE IF NOT EXISTS public.evasion_room_invites (
+CREATE TABLE IF NOT EXISTS public.evasion_room_invitations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     room_id UUID NOT NULL REFERENCES public.evasion_rooms(id) ON DELETE CASCADE,
     host_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -19,10 +19,10 @@ CREATE TABLE IF NOT EXISTS public.evasion_room_invites (
 );
 
 -- Add RLS policies
-ALTER TABLE public.evasion_room_invites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.evasion_room_invitations ENABLE ROW LEVEL SECURITY;
 
 -- Policy to allow users to see invites they've sent or received
-CREATE POLICY "Users can view their own invites" ON public.evasion_room_invites
+CREATE POLICY "Users can view their own invites" ON public.evasion_room_invitations
     FOR SELECT
     USING (
         auth.uid() = host_user_id OR 
@@ -30,7 +30,7 @@ CREATE POLICY "Users can view their own invites" ON public.evasion_room_invites
     );
 
 -- Policy to allow users to create invites for rooms they host
-CREATE POLICY "Hosts can create invites" ON public.evasion_room_invites
+CREATE POLICY "Hosts can create invites" ON public.evasion_room_invitations
     FOR INSERT
     WITH CHECK (
         EXISTS (
@@ -41,7 +41,7 @@ CREATE POLICY "Hosts can create invites" ON public.evasion_room_invites
     );
 
 -- Policy to allow invited users to update their invite status
-CREATE POLICY "Invited users can update invite status" ON public.evasion_room_invites
+CREATE POLICY "Invited users can update invite status" ON public.evasion_room_invitations
     FOR UPDATE
     USING (
         auth.uid() = invited_user_id

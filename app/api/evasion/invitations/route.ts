@@ -4,18 +4,40 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 // GET /api/evasion/invitations - Get invitations for the current user
 export async function GET() {
   try {
+    console.log("GET /api/evasion/invitations - Starting request");
     const supabase = await createServerSupabaseClient();
     
     // Verify the user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+    console.log("Auth check result:", { user: user?.id, authError });
+    
     if (authError || !user) {
+      console.log("Unauthorized access attempt");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Get invitations where the current user is invited
     console.log("Fetching invitations for user:", user.id);
-    const { data: invitations, error } = await supabase
-      .from("evasion_room_invites")
+    // First, try a simple query without joins
+    console.log("Testing simple query first...");
+    const simpleQuery = supabase
+      .from("evasion_room_invitations")
+      .select("*")
+      .eq("invited_user_id", user.id)
+      .eq("status", "pending")
+      .gt("expires_at", new Date().toISOString());
+    
+    const { data: simpleInvitations, error: simpleError } = await simpleQuery;
+    console.log("Simple query result:", { simpleInvitations, simpleError });
+    
+    if (simpleError) {
+      console.error("Simple query error:", simpleError);
+      return NextResponse.json({ error: simpleError.message }, { status: 500 });
+    }
+    
+    // Now try the complex query with joins
+    const query = supabase
+      .from("evasion_room_invitations")
       .select(`
         *,
         room:evasion_rooms(
@@ -28,16 +50,19 @@ export async function GET() {
           room_code,
           created_at
         ),
-        host:user_profiles!evasion_room_invites_host_user_id_fkey(
+        host_user:host_user_id(
           id,
-          full_name,
-          avatar_url
+          email,
+          raw_user_meta_data
         )
       `)
       .eq("invited_user_id", user.id)
       .eq("status", "pending")
       .gt("expires_at", new Date().toISOString())
-      .order("created_at", { ascending: false });
+      .order("invited_at", { ascending: false });
+    
+    console.log("SQL Query:", query.toSQL());
+    const { data: invitations, error } = await query;
     
     console.log("Invitations query result:", { invitations, error });
 
@@ -55,10 +80,10 @@ export async function GET() {
       room_code: invitation.room?.room_code,
       is_private: invitation.room?.is_private || false,
       host_user_id: invitation.host_user_id,
-      host_username: invitation.host?.full_name || "Unknown Host",
-      host_avatar_url: invitation.host?.avatar_url,
+      host_username: invitation.host_user?.raw_user_meta_data?.full_name || invitation.host_user?.email || "Unknown Host",
+      host_avatar_url: invitation.host_user?.raw_user_meta_data?.avatar_url || null,
       status: invitation.status,
-      created_at: invitation.created_at,
+      created_at: invitation.invited_at || invitation.created_at,
       expires_at: invitation.expires_at,
     }));
 
@@ -67,7 +92,7 @@ export async function GET() {
   } catch (error) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
@@ -92,7 +117,7 @@ export async function POST(request: Request) {
 
     // Update the invitation status
     const { data: invitation, error } = await supabase
-      .from("evasion_room_invites")
+      .from("evasion_room_invitations")
       .update({
         status: action === "accept" ? "accepted" : "declined",
         responded_at: new Date().toISOString()

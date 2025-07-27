@@ -94,7 +94,7 @@ export async function POST(request: Request) {
 
     // First, let's check if we can read from the table (RLS test)
     const { data: testRead, error: readError } = await supabase
-      .from("evasion_room_invites")
+      .from("evasion_room_invitations")
       .select("id")
       .limit(1);
 
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
       });
 
       const { data: createdInvite, error: singleInviteError } = await supabase
-        .from("evasion_room_invites")
+        .from("evasion_room_invitations")
         .insert(invite)
         .select()
         .single();
@@ -195,7 +195,7 @@ export async function PUT(request: Request) {
 
     // Get the invite and verify the user is the invitee
     const { data: invite, error: inviteError } = await supabase
-      .from("evasion_room_invites")
+      .from("evasion_room_invitations")
       .select("*")
       .eq("id", invite_id)
       .single();
@@ -234,7 +234,7 @@ export async function PUT(request: Request) {
 
     // Update the invite status
     const { data: updatedInvite, error: updateError } = await supabase
-      .from("evasion_room_invites")
+      .from("evasion_room_invitations")
       .update({
         status: response,
         responded_at: new Date().toISOString(),
@@ -293,7 +293,7 @@ export async function GET(request: Request) {
 
     // Get all pending invites for the user
     const { data: invites, error: inviteError } = await supabase
-      .from("evasion_room_invites")
+      .from("evasion_room_invitations")
       .select(`
         *,
         evasion_rooms (

@@ -113,7 +113,12 @@ export default function EvasionPage() {
     try {
       setIsLoading(true)
       console.log("Fetching rooms...")
-      const response = await fetch("/api/evasion/rooms")
+      const response = await fetch("/api/evasion/rooms", {
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
       console.log("Response status:", response.status)
 
       if (response.ok) {
@@ -145,19 +150,34 @@ export default function EvasionPage() {
     try {
       setIsLoadingInvitations(true)
       console.log("Fetching invitations...")
-      const response = await fetch("/api/evasion/invitations")
+      
+      const response = await fetch("/api/evasion/invitations", {
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
       console.log("Invitations response status:", response.status)
+      console.log("Invitations response headers:", Object.fromEntries(response.headers.entries()))
 
       if (response.ok) {
         const data = await response.json()
         console.log("Invitations data:", data)
         setInvitations(data.invitations || [])
       } else {
-        const errorData = await response.json()
+        let errorData = {}
+        try {
+          errorData = await response.json()
+        } catch (parseError) {
+          console.error("Failed to parse error response:", parseError)
+          errorData = { error: "Failed to parse error response" }
+        }
         console.error("Invitations API error:", errorData)
         toast({
           title: "Error",
-          description: errorData.error || "Failed to load invitations. Please try again.",
+          description: typeof errorData === "object" && errorData !== null && typeof (errorData as any).error === "string" && (errorData as any).error.length > 0
+            ? (errorData as any).error
+            : "Failed to load invitations. Please try again.",
           variant: "destructive",
         })
       }
@@ -187,6 +207,7 @@ export default function EvasionPage() {
     try {
       const response = await fetch("/api/evasion/rooms", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
@@ -230,6 +251,7 @@ export default function EvasionPage() {
     try {
       const response = await fetch(`/api/evasion/rooms/join`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
@@ -260,6 +282,10 @@ export default function EvasionPage() {
     try {
       const response = await fetch(`/api/evasion/rooms/${roomId}/join`, {
         method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       })
 
       if (response.ok) {
@@ -288,6 +314,7 @@ export default function EvasionPage() {
     try {
       const response = await fetch("/api/evasion/invitations", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
