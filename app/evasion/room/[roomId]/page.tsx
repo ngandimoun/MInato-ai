@@ -1245,47 +1245,6 @@ export default function EvasionRoomPage({ params }: PageProps) {
                             Host
                           </Badge>
                         )}
-                        {/* Connection status indicator */}
-                        <Badge 
-                          variant="outline" 
-                          className={`px-2 sm:px-3 py-1 text-xs border-2 ${
-                            connectionStatus === "connected" 
-                              ? "border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20" 
-                              : connectionStatus === "connecting" 
-                              ? "border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20" 
-                              : connectionStatus === "error" 
-                              ? "border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20" 
-                              : "border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20"
-                          }`}
-                        >
-                          <div className={`w-2 h-2 rounded-full mr-1 sm:mr-2 ${
-                            connectionStatus === "connected" 
-                              ? "bg-green-500 animate-pulse" 
-                              : connectionStatus === "connecting" 
-                              ? "bg-yellow-500 animate-pulse" 
-                              : connectionStatus === "error" 
-                              ? "bg-red-500" 
-                              : "bg-gray-500"
-                          }`} />
-                          {connectionStatus === "connected" ? "Connected" : 
-                           connectionStatus === "connecting" ? "Connecting..." : 
-                           connectionStatus === "error" ? "Error" : 
-                           "Disconnected"}
-                        </Badge>
-                        {/* Debug toggle for reconnection logs (development only) */}
-                        {/* {process.env.NODE_ENV === 'development' && (
-                          <Badge 
-                            variant="outline" 
-                            className={`px-2 sm:px-3 py-1 text-xs border-2 cursor-pointer ${
-                              showReconnectionLogs 
-                                ? "border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20" 
-                                : "border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20"
-                            }`}
-                            onClick={() => setShowReconnectionLogs(!showReconnectionLogs)}
-                          >
-                            {showReconnectionLogs ? "🔍 Logs ON" : "🔍 Logs OFF"}
-                          </Badge>
-                        )} */}
                       </div>
                     </div>
                   </div>
