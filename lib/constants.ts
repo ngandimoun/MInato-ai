@@ -2,6 +2,32 @@
 // Déclaration de types globaux ou spécifiques à l'application si nécessaire
 // These will be superseded by the specific types in lib/types/index.d.ts
 // but keep them here for potential direct use of constants if needed.
+
+// === EVASION CONSTANTS ===
+export const EVASION_CONSTANTS = {
+  MAX_PARTICIPANTS: 20,
+  MIN_PARTICIPANTS: 1,
+  DEFAULT_PARTICIPANTS: 10,
+  ROOM_CODE_LENGTH: 6,
+  MAX_ROOM_NAME_LENGTH: 100,
+  MAX_MESSAGE_LENGTH: 500,
+  CHAT_HISTORY_LIMIT: 100,
+  VIDEO_SYNC_TOLERANCE: 2, // seconds
+  PRESENCE_UPDATE_INTERVAL: 30000, // 30 seconds
+} as const;
+
+export const EVASION_MESSAGE_TYPES = {
+  TEXT: 'text',
+  SYSTEM: 'system',
+  VIDEO_ACTION: 'video_action',
+} as const;
+
+export const EVASION_VIDEO_ACTIONS = {
+  PLAY: 'play',
+  PAUSE: 'pause',
+  SEEK: 'seek',
+  LOAD: 'load',
+} as const;
 declare global {
   namespace App { 
       type OpenAITtsVoiceConstant = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' | 'ash' | 'ballad' | 'coral' | 'sage' | 'verse'; 

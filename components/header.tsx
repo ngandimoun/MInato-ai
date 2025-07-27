@@ -3,7 +3,7 @@
 
 import React, { createContext } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { MessageSquare, Settings, Brain, Bell, ShoppingBag, Gamepad2, Mic, BarChart3, Menu, X, Palette, Zap, Sparkles } from "lucide-react"
+import { MessageSquare, Settings, Brain, Bell, ShoppingBag, Gamepad2, Mic, BarChart3, Menu, X, Palette, Zap, Sparkles, Play } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -15,7 +15,7 @@ import { ProPlanModal } from "@/components/ui/pro-plan-modal"
 import { PlanUpgradeModal } from "@/components/subscription/plan-upgrade-modal"
 import { SubscriptionStatus } from "@/components/subscription/subscription-status"
 
-type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub" | "escape"; // Added listening, insights, creation-hub, and escape views
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub" | "escape" | "evasion"; // Added listening, insights, creation-hub, escape, and evasion views
 
 interface HeaderProps {
   currentView: View
@@ -57,7 +57,8 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
         listening: "/listening",
         insights: "/insights",
         "creation-hub": "/creation-hub",
-        escape: "/escape"
+        escape: "/escape",
+        evasion: "/evasion"
       };
 
       // Use the navigation context to handle the transition
@@ -142,6 +143,7 @@ export function Header({ currentView, onViewChange }: HeaderProps) {
     { id: "listening", icon: <Mic size={20} />, label: "Listening" }, // Added Listening nav item
     { id: "escape", icon: <Sparkles size={20} />, label: "Escape" }, // Added Escape therapy nav item
     { id: "games", icon: <Gamepad2 size={20} />, label: "Games" }, // Added Games nav item
+    { id: "evasion", icon: <Play size={20} />, label: "Evasion" }, // Added Evasion nav item
     { id: "dashboard", icon: <ShoppingBag size={20} />, label: "Dashboard" }, // Added Dashboard nav item
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },
   ]
