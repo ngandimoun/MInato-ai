@@ -1,8 +1,9 @@
+// app/evasion/room/[roomId]/page.tsx
 "use client"
 
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Send, Users, Copy, Play, Edit3, Check, X, UserPlus, MessageSquare, Video, Crown, Youtube, SendHorizontal, Home, ArrowLeft } from "lucide-react"
+import { Users, Copy, Play, Edit3, Check, X, UserPlus, MessageSquare, Video, Crown, Youtube, SendHorizontal, Home, ArrowLeft } from "lucide-react"
 import { TimestampText } from "@/components/evasion/timestamp-link"
 import { AIAssistantButton } from "@/components/evasion/ai-assistant-button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -96,6 +97,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
   // Chat state
   const [newMessage, setNewMessage] = useState("")
   const [isSendingMessage, setIsSendingMessage] = useState(false)
+  const [showVideoControls, setShowVideoControls] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Video state
@@ -829,6 +831,42 @@ export default function EvasionRoomPage({ params }: PageProps) {
     }
   }
 
+  // Handle video click for mobile playback
+  const handleVideoClick = () => {
+    const iframe = document.getElementById("youtube-player") as HTMLIFrameElement
+    if (iframe && iframe.contentWindow) {
+      try {
+        // Set controls state
+        setShowVideoControls(true)
+
+        // Send message to YouTube iframe to play video
+        iframe.contentWindow.postMessage(
+          JSON.stringify({
+            event: "command",
+            func: "playVideo",
+          }),
+          "*",
+        )
+
+        // Force show controls
+        setTimeout(() => {
+          iframe.contentWindow?.postMessage(
+            JSON.stringify({
+              event: "command",
+              func: "setOption",
+              args: ["controls", 1],
+            }),
+            "*",
+          )
+        }, 100)
+
+        console.log(`✅ Sent play command and controls to YouTube iframe`)
+      } catch (error) {
+        console.error("❌ Error playing video:", error)
+      }
+    }
+  }
+
   // Handle AI questions
   const handleAIQuestion = async (question: string) => {
     if (!room?.current_video_url) {
@@ -1115,14 +1153,25 @@ export default function EvasionRoomPage({ params }: PageProps) {
               <Card className="shadow-2xl border-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl overflow-hidden">
                 <CardContent className="p-0">
                   {room.current_video_url ? (
-                    <div className="aspect-video overflow-hidden">
+                    <div className="aspect-video overflow-hidden relative">
                       <iframe
                         id="youtube-player"
-                        src={`https://www.youtube.com/embed/${extractYouTubeVideoId(room.current_video_url)}?enablejsapi=1&origin=${window.location.origin}&widget_referrer=${window.location.origin}`}
+                        src={`https://www.youtube.com/embed/${extractYouTubeVideoId(room.current_video_url)}?enablejsapi=1&origin=${window.location.origin}&widget_referrer=${window.location.origin}&playsinline=1&rel=0&modestbranding=1&fs=1&autoplay=0&mute=0&controls=1&showinfo=1`}
                         className="w-full h-full"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
+                        frameBorder="0"
+                        title="YouTube video player"
+                        loading="lazy"
                       />
+                      {/* Overlay pour améliorer l'interaction sur mobile */}
+                      {!showVideoControls && (
+                        <div className="absolute inset-0 pointer-events-none md:hidden">
+                          <div className="absolute inset-0 bg-transparent pointer-events-auto" 
+                               onClick={handleVideoClick}
+                          />
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="aspect-video flex items-center justify-center text-muted-foreground bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 m-4 sm:m-8 rounded-xl sm:rounded-2xl">
@@ -1190,7 +1239,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                                 {!isCurrentUser && (
                                   <div className="flex items-center gap-1 sm:gap-2 mb-1 px-1">
                                     <span
-                                      className={`text-xs sm:text-sm font-semibold ${isAI ? "text-emerald-600 dark:text-emerald-400" : "text-indigo-600 dark:text-indigo-400"}`}
+                                      className={`text-xs sm:text-sm font-semibold ${isAI ? "" : "text-indigo-600 dark:text-indigo-400"}`}
                                     >
                                       {message.username || "Unknown"}
                                     </span>
@@ -1210,7 +1259,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                                     isCurrentUser
                                       ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white ml-6 sm:ml-8"
                                       : isAI
-                                        ? "bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800"
+                                        ? "bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-800"
                                         : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 mr-6 sm:mr-8"
                                   }
                                 `}
@@ -1321,7 +1370,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
               Participants ({participants.length})
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-80 sm:max-h-96">
+          <ScrollArea className="h-80 sm:h-96">
             <div className="space-y-2 sm:space-y-3">
               {participants.map((participant) => (
                 <div

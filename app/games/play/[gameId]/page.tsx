@@ -17,7 +17,8 @@ import {
   CheckCircle2, XCircle, Brain, Timer, Crown, Target,
   Pause, Play, Home, RotateCcw, AlertCircle, Loader2,
   Share2, Twitter, Facebook, Download, Copy, Camera,
-  Sparkles, Award, TrendingUp
+  Sparkles, Award, TrendingUp,
+  Loader
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -64,6 +65,7 @@ export default function GamePlayPage() {
   const [hasAnswered, setHasAnswered] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
+  const [isStartingGame, setIsStartingGame] = useState(false);
   const [lastAnswerResult, setLastAnswerResult] = useState<{
     isCorrect: boolean;
     pointsEarned: number;
@@ -265,6 +267,8 @@ export default function GamePlayPage() {
   const handleStartGame = async () => {
     if (!gameData?.id || !user?.id) return;
     
+    setIsStartingGame(true);
+    
     try {
       const result = await startGameMutation(gameData.id);
       if (result.success) {
@@ -287,6 +291,8 @@ export default function GamePlayPage() {
         description: "An unexpected error occurred while starting the game.",
         variant: "destructive",
       });
+    } finally {
+      setIsStartingGame(false);
     }
   };
 
@@ -817,10 +823,19 @@ export default function GamePlayPage() {
                   <Button 
                     onClick={handleStartGame} 
                     className="w-full"
-                    disabled={(players?.length || 0) < 2}
+                    disabled={(players?.length || 0) < 2 || isStartingGame}
                   >
-                    <Play className="w-4 h-4 mr-2" />
-                    {(players?.length || 0) < 2 ? 'Need 2+ Players to Start' : 'Start Game'}
+                    {isStartingGame ? (
+                      <Loader className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Play className="w-4 h-4 mr-2" />
+                    )}
+                    {isStartingGame 
+                      ? 'Starting Game...' 
+                      : (players?.length || 0) < 2 
+                        ? 'Need 2+ Players to Start' 
+                        : 'Start Game'
+                    }
                   </Button>
                 )}
                 

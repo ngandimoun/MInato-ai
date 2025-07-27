@@ -7,9 +7,9 @@ import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 import { useAuth } from '@/context/auth-provider';
 import { Header } from '@/components/header';
 import { useNavigation } from '@/context/navigation-context';
-import { Sparkles, Waves, Wind, Heart } from 'lucide-react';
+import { Sparkles, Waves, Wind, Heart, Shield, Sun, Users, Briefcase, Star, Cloud, Moon } from 'lucide-react';
 
-type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub" | "escape";
+type View = "chat" | "settings" | "memory" | "dashboard" | "games" | "listening" | "insights" | "creation-hub" | "escape" | "evasion";
 
 export default function EscapePage() {
   const router = useRouter();
@@ -23,11 +23,75 @@ export default function EscapePage() {
   const fallbackCategories = [
     {
       id: 'general-therapy',
-      name: 'Therapy',
-      description: 'A private space to think, reflect, and grow with AI support.',
+      name: 'General Therapy',
+      description: 'Open conversation and emotional support',
       icon_name: 'heart',
       color_theme: 'blue',
       sort_order: 1
+    },
+    {
+      id: 'anxiety-support',
+      name: 'Anxiety Support',
+      description: 'Managing anxiety and stress',
+      icon_name: 'shield',
+      color_theme: 'green',
+      sort_order: 2
+    },
+    {
+      id: 'depression-support',
+      name: 'Depression Support',
+      description: 'Coping with depression and low mood',
+      icon_name: 'sun',
+      color_theme: 'yellow',
+      sort_order: 3
+    },
+    {
+      id: 'relationship-guidance',
+      name: 'Relationship Guidance',
+      description: 'Improving relationships and communication',
+      icon_name: 'users',
+      color_theme: 'pink',
+      sort_order: 4
+    },
+    {
+      id: 'work-stress',
+      name: 'Work Stress',
+      description: 'Managing workplace stress and burnout',
+      icon_name: 'briefcase',
+      color_theme: 'purple',
+      sort_order: 5
+    },
+    {
+      id: 'self-esteem',
+      name: 'Self-Esteem',
+      description: 'Building confidence and self-worth',
+      icon_name: 'star',
+      color_theme: 'orange',
+      sort_order: 6
+    },
+    {
+      id: 'grief-support',
+      name: 'Grief Support',
+      description: 'Processing loss and grief',
+      icon_name: 'cloud',
+      color_theme: 'gray',
+      sort_order: 7
+    },
+    {
+      id: 'sleep-issues',
+      name: 'Sleep Issues',
+      description: 'Improving sleep and rest',
+      icon_name: 'moon',
+      color_theme: 'indigo',
+      sort_order: 8
+    },
+    {
+      id: 'couple-therapy',
+      name: 'Couple Therapy',
+      description: 'Create couple conversations and invite partners to participate',
+      icon_name: 'users',
+      color_theme: 'rose',
+      sort_order: 9
     }
   ];
 
@@ -59,7 +123,15 @@ export default function EscapePage() {
   }, []);
 
   const handleCategorySelect = (categoryId: string) => {
-    router.push(`/escape/setup?category=${categoryId}`);
+    if (categoryId === 'couple-therapy') {
+      router.push('/escape/couple-therapy');
+    } else {
+      router.push(`/escape/setup?category=${categoryId}`);
+    }
+  };
+
+  const handleViewChange = (view: View) => {
+    setCurrentView(view);
   };
 
   // Background gradient animation
@@ -137,6 +209,20 @@ export default function EscapePage() {
     switch (iconName) {
       case 'heart':
         return <Heart className="w-8 h-8" />;
+      case 'shield':
+        return <Shield className="w-8 h-8" />;
+      case 'sun':
+        return <Sun className="w-8 h-8" />;
+      case 'users':
+        return <Users className="w-8 h-8" />;
+      case 'briefcase':
+        return <Briefcase className="w-8 h-8" />;
+      case 'star':
+        return <Star className="w-8 h-8" />;
+      case 'cloud':
+        return <Cloud className="w-8 h-8" />;
+      case 'moon':
+        return <Moon className="w-8 h-8" />;
       case 'waves':
         return <Waves className="w-8 h-8" />;
       case 'wind':
@@ -148,7 +234,7 @@ export default function EscapePage() {
 
   return (
     <>
-      <Header currentView={currentView} onViewChange={setCurrentView} />
+      <Header currentView={currentView} onViewChange={handleViewChange} />
       
       <motion.div 
         className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900"
