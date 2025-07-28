@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation"; // Import du router pour la navigat
 
 /* eslint-disable @next/next/no-img-element */
 import { BlurFade } from "@/components/magicui/blur-fade";
+import { Button } from "../ui/button";
 
 // Remplacez cette liste par les liens vers vos propres médias.
 // Assurez-vous d'avoir des fichiers vidéo (ex: .mp4) dans votre dossier /public
@@ -111,9 +112,11 @@ export default function StatsSection() {
           {/* === NOUVEAU BOUTON "VIEW MORE" === */}
           <div className="mt-8 text-center">
             <BlurFade delay={0.45} inView>
-              <button
+              <Button
                 onClick={handleViewMore}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                variant='outline'
+                size='sm'
+                className="inline-flex items-center gap-2 px-6 py-3 font-medium rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-sm hover:shadow-xl transform hover:scale-105"
               >
                 <svg
                   className="w-5 h-5"
@@ -136,7 +139,7 @@ export default function StatsSection() {
                   />
                 </svg>
                 View More
-              </button>
+              </Button>
             </BlurFade>
           </div>
         </div>
