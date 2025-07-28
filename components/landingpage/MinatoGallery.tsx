@@ -1,4 +1,4 @@
-//components/landingpage/StatsSection.tsx
+//components/landingpage/MinatoGallery.tsx
 // Ajout de "use client" pour pouvoir utiliser les hooks de React (useState)
 "use client";
 
@@ -6,7 +6,6 @@
 import { useState } from "react";
 import InteractiveBentoGallery from "./blocks/interactive-bento-gallery" // Gardé comme dans votre code
 import { AnimatePresence, motion } from "motion/react"; // motion/react pour la modale
-import { useRouter } from "next/navigation"; // Import du router pour la navigation
 
 /* eslint-disable @next/next/no-img-element */
 import { BlurFade } from "@/components/magicui/blur-fade";
@@ -34,6 +33,17 @@ const media = [
   "/Friends.mp4",
   "/hero-visual.jpg",
   "/15.png",
+  "/16.png",
+  "/17.png",
+  "/18.jpg",
+  "/vet.mp4",
+  "/19.jpg",
+  "/20.jpg",
+  "/21.jpg",
+  "/22.jpg",
+  "/23.jpg",
+  "/24.jpg",
+  "/vet1.mp4",
 ];
 
 // === NOUVELLE FONCTION UTILITAIRE ===
@@ -45,20 +55,14 @@ const getMediaType = (url: string) => {
 };
 
 
-export default function StatsSection() {
+export default function MinatoGallery() {
   const title = "Minato Gallery"
   const description = "Explore a collection of unique artworks, brought to life by your imagination and guided by Minato AI.";
-  const router = useRouter(); // Hook pour la navigation
 
   // === NOUVEL ÉTAT POUR LA MODALE ===
   // `selectedMedia` stockera l'URL du média à afficher en plein écran.
   // `null` signifie qu'aucune modale n'est affichée.
   const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
-
-  // === FONCTION POUR NAVIGUER VERS L'INTERFACE MINATO GALLERY ===
-  const handleViewMore = () => {
-    router.push('/minato-gallery'); // Navigation vers la page dédiée
-  };
 
   return (
     <> {/* Fragment (INCHANGÉ) */}
@@ -106,38 +110,6 @@ export default function StatsSection() {
                 </BlurFade>
               );
             })}
-          </div>
-
-          {/* === NOUVEAU BOUTON "VIEW MORE" === */}
-          <div className="mt-8 text-center">
-            <BlurFade delay={0.45} inView>
-              <button
-                onClick={handleViewMore}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                  />
-                </svg>
-                View More
-              </button>
-            </BlurFade>
           </div>
         </div>
       </section>
