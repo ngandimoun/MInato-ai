@@ -11,7 +11,7 @@ export default function MinatoGalleryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 relative">
+    <div className="min-h-screen bg-gradient-to-r from-red-50 to-pink-50 dark:from-gray-900 dark:to-gray-800 relative">
       {/* Bouton retour fixe */}
       <button
         onClick={handleGoBack}

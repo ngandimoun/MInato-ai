@@ -71,7 +71,7 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-background manrope">
+    <div className="relative min-h-screen bg-gradient-to-r from-red-50 to-pink-50 manrope">
       <SmoothCursor />
       <div className="relative z-10 flex flex-col">
         <Header onLoginClick={handleLoginClick} />
