@@ -1,6 +1,7 @@
 "use client";
 
 import MinatoGallery from "@/components/landingpage/MinatoGallery";
+import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 
 export default function MinatoGalleryPage() {
@@ -13,13 +14,15 @@ export default function MinatoGalleryPage() {
   return (
     <div className="min-h-screen bg-gradient-to-r from-red-50 to-pink-50 dark:from-gray-900 dark:to-gray-800 relative">
       {/* Bouton retour fixe */}
-      <button
+      <Button
         onClick={handleGoBack}
-        className="fixed top-6 left-6 z-50 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800 rounded-full p-3 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+        variant='outline'
+        size='icon'
+        className="fixed h-8 w-8 top-6 left-6 z-50 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800 rounded-full p-3 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
         aria-label="Retour"
       >
         <svg
-          className="w-6 h-6"
+          className="w-4 h-4"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -32,7 +35,7 @@ export default function MinatoGalleryPage() {
             d="M10 19l-7-7m0 0l7-7m-7 7h18"
           />
         </svg>
-      </button>
+      </Button>
 
       <MinatoGallery />
     </div>
