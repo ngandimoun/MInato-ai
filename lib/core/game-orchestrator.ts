@@ -105,7 +105,7 @@ export class GameOrchestrator {
         // Ensure correct_answer index is valid
         let correctAnswer = question.correct_answer;
         if (typeof correctAnswer !== 'number' || correctAnswer < 0 || correctAnswer >= options.length) {
-          correctAnswer = 0;
+          correctAnswer = this.getRandomAnswerIndex();
         }
         
         return {
@@ -124,6 +124,14 @@ export class GameOrchestrator {
   }
 
   /**
+   * Generate a random answer index between 0-3
+   * Used to ensure correct answers are evenly distributed
+   */
+  private getRandomAnswerIndex(): number {
+    return Math.floor(Math.random() * 4); // Random number between 0-3
+  }
+
+  /**
    * Generate fallback questions if API call fails
    */
   private generateFallbackQuestions(
@@ -138,22 +146,22 @@ export class GameOrchestrator {
       {
         question: `${gameType} question about general knowledge`,
         options: ['Answer A', 'Answer B', 'Answer C', 'Answer D'],
-        correct_answer: 0,
+        correct_answer: 0, // This will be randomized below
       },
       {
         question: `${gameType} question about science`,
         options: ['First option', 'Second option', 'Third option', 'Fourth option'],
-        correct_answer: 1,
+        correct_answer: 0, // This will be randomized below
       },
       {
         question: `${gameType} question about history`,
         options: ['Option 1', 'Option 2', 'Option 3', 'Option 4'],
-        correct_answer: 2,
+        correct_answer: 0, // This will be randomized below
       },
       {
         question: `${gameType} question about geography`,
         options: ['Choice A', 'Choice B', 'Choice C', 'Choice D'],
-        correct_answer: 3,
+        correct_answer: 0, // This will be randomized below
       },
     ];
     
@@ -165,7 +173,7 @@ export class GameOrchestrator {
       questions.push({
         question: `${template.question} (${i + 1})`,
         options: [...template.options], // Create a copy to avoid reference issues
-        correct_answer: template.correct_answer,
+        correct_answer: this.getRandomAnswerIndex(), // Use random index instead of fixed pattern
         explanation: `This is a fallback question for ${gameType} at ${difficulty} difficulty.`,
         difficulty,
       });

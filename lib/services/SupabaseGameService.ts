@@ -976,7 +976,7 @@ export class SupabaseGameService {
               difficulty,
               category: "communication"
             },
-                         {
+                       {
                question: "Quelle technique d'apprentissage est la plus efficace pour la rétention ?",
                options: ["Relire", "Surligner", "Rappel actif", "Écoute passive"],
                correct_answer: 2,
@@ -1031,27 +1031,9 @@ export class SupabaseGameService {
               question: "When presenting ideas to a difficult client, you should:",
               options: ["Rush through points", "Use empathy first", "Be defensive", "Speak louder"],
               correct_answer: 1,
-              explanation: "Empathy creates connection and understanding before solutions. 💡",
+              explanation: "Leading with empathy builds rapport and makes clients more receptive to your ideas. 💼",
               difficulty,
-              category: "client_relations"
-            }
-          ],
-          'code_breaker': [
-            {
-              question: "Which programming principle helps make code more maintainable?",
-              options: ["Write long functions", "Use DRY principle", "Avoid comments", "Hardcode values"],
-              correct_answer: 1,
-              explanation: "DRY (Don't Repeat Yourself) reduces redundancy and makes code easier to maintain! 💻",
-              difficulty,
-              category: "programming"
-            },
-            {
-              question: "In debugging, what's the first step you should take?",
-              options: ["Rewrite everything", "Understand the problem", "Ask for help", "Delete code"],
-              correct_answer: 1,
-              explanation: "Understanding the problem is crucial before attempting any solution. 🔍",
-              difficulty,
-              category: "debugging"
+              category: "client relations"
             }
           ],
           'general': [
@@ -1070,48 +1052,34 @@ export class SupabaseGameService {
               explanation: "Active recall strengthens memory by forcing your brain to retrieve information. 🧠",
               difficulty,
               category: "learning"
-            },
-            {
-              question: "What is the most important factor in effective teamwork?",
-              options: ["Individual talent", "Clear communication", "Perfect planning", "Avoiding conflict"],
-              correct_answer: 1,
-              explanation: "Clear communication ensures everyone understands their role and the team's goals. 🤝",
-              difficulty,
-              category: "teamwork"
-            },
-            {
-              question: "Which approach is best for creative problem-solving?",
-              options: ["Stick to proven methods", "Brainstorm multiple solutions", "Work alone", "Rush to conclusions"],
-              correct_answer: 1,
-              explanation: "Brainstorming multiple solutions helps find innovative and effective approaches. 💡",
-              difficulty,
-              category: "creativity"
             }
           ]
         };
       }
     };
     
-    // Get language-specific question sets
-    const fallbackSets = getLocalizedQuestions(language);
+    // Get questions based on language and topic
+    const questionSets = getLocalizedQuestions(language);
+    const questionSet = questionSets[topicFocus] || questionSets['general'] || [];
     
-    // Get relevant question set or fallback to general
-    const questionSet = fallbackSets[topicFocus] || fallbackSets['general'];
+    // Randomize the correct answers for all questions
+    const randomizedQuestionSet = this.randomizeCorrectAnswers([...questionSet]);
+    
     const questions: Question[] = [];
     
     // Fill up to requested rounds, cycling through available questions
     for (let i = 0; i < requestedRounds; i++) {
       let question: Question;
       
-      if (i < questionSet.length) {
-        question = { ...questionSet[i] };
+      if (i < randomizedQuestionSet.length) {
+        question = { ...randomizedQuestionSet[i] };
       } else {
         // Generate additional questions if needed
-        const cycleIndex = i % questionSet.length;
-        const baseQuestion = questionSet[cycleIndex];
+        const cycleIndex = i % randomizedQuestionSet.length;
+        const baseQuestion = randomizedQuestionSet[cycleIndex];
         question = {
           ...baseQuestion,
-          question: `${baseQuestion.question} (Round ${Math.floor(i / questionSet.length) + 1})`,
+          question: `${baseQuestion.question} (Round ${Math.floor(i / randomizedQuestionSet.length) + 1})`,
         };
       }
       
@@ -1133,7 +1101,7 @@ export class SupabaseGameService {
       if (typeof question.correct_answer !== 'number' || 
           question.correct_answer < 0 || 
           question.correct_answer >= question.options.length) {
-        question.correct_answer = 0;
+        question.correct_answer = this.getRandomAnswerIndex();
       }
       
       questions.push(question);
@@ -1147,6 +1115,45 @@ export class SupabaseGameService {
     })));
     
     return questions;
+  }
+
+  /**
+   * Randomize the correct answers for a set of questions
+   * This ensures that the correct answer isn't always in the same position
+   */
+  private randomizeCorrectAnswers(questions: Question[]): Question[] {
+    return questions.map(question => {
+      // Store the original correct option text
+      const correctOptionText = question.options[question.correct_answer];
+      
+      // Generate a new random position for the correct answer
+      const newCorrectIndex = this.getRandomAnswerIndex();
+      
+      // Create a new options array with the correct answer in the new position
+      const newOptions = [...question.options];
+      
+      // Swap the correct answer with the option at the new position
+      newOptions[question.correct_answer] = newOptions[newCorrectIndex];
+      newOptions[newCorrectIndex] = correctOptionText;
+      
+      return {
+        ...question,
+        options: newOptions,
+        correct_answer: newCorrectIndex,
+        explanation: question.explanation?.replace(
+          correctOptionText, 
+          newOptions[newCorrectIndex]
+        ) || `The correct answer is: ${newOptions[newCorrectIndex]}`
+      };
+    });
+  }
+
+  /**
+   * Generate a random answer index between 0-3
+   * Used to ensure correct answers are evenly distributed
+   */
+  private getRandomAnswerIndex(): number {
+    return Math.floor(Math.random() * 4); // Random number between 0-3
   }
 
   private async setCurrentQuestion(roomId: string, questionIndex: number): Promise<void> {

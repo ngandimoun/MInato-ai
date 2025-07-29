@@ -268,7 +268,7 @@ function GameCreationModal({ gameId, gameName, onClose, onCreateGame }: GameCrea
         { value: 'fashion_style', label: '👗 Fashion & Style', description: 'Trends, designers, and fashion history' },
         { value: 'celebrities_gossip', label: '⭐ Celebrities & News', description: 'Celebrity news and entertainment gossip' },
         { value: 'anime_manga', label: '🇯🇵 Anime & Manga', description: 'Japanese animation and comics' },
-        { value: 'streaming_platforms', label: '📺 Streaming & Content', description: 'Netflix, YouTube, and digital content' }
+        { value: 'streaming_content', label: '📺 Streaming Content', description: 'Netflix shows, movies, and digital content' }
       ],
       // Puzzle Games
       'guess_the_entity': [

@@ -6,19 +6,80 @@ import { EVASION_PROMPTS } from "@/lib/prompts/evasion-prompts";
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
+// Add a GET endpoint for testing
+export async function GET(request: NextRequest) {
+  try {
+    console.log("🧪 Testing video analysis API configuration");
+    
+    const config = {
+      hasGoogleApiKey: !!process.env.GOOGLE_API_KEY,
+      googleApiKeyLength: process.env.GOOGLE_API_KEY?.length || 0,
+      nodeEnv: process.env.NODE_ENV,
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log("🔧 Configuration:", config);
+    
+    // Test Gemini API connection if API key is available
+    let geminiTest = null;
+    if (process.env.GOOGLE_API_KEY) {
+      try {
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const result = await model.generateContent("Hello, this is a test.");
+        const response = await result.response;
+        geminiTest = {
+          success: true,
+          responseLength: response.text().length
+        };
+        console.log("✅ Gemini API test successful");
+      } catch (geminiError: any) {
+        geminiTest = {
+          success: false,
+          error: geminiError.message
+        };
+        console.error("❌ Gemini API test failed:", geminiError.message);
+      }
+    }
+    
+    return NextResponse.json({ 
+      status: "ok", 
+      config,
+      geminiTest,
+      message: "Video analysis API is running"
+    });
+  } catch (error) {
+    console.error("❌ Test endpoint error:", error);
+    return NextResponse.json({ 
+      status: "error", 
+      error: error instanceof Error ? error.message : "Unknown error" 
+    }, { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
+    console.log("🎬 Video analysis API called");
+    
+    // Check if Google API key is available
+    if (!process.env.GOOGLE_API_KEY) {
+      console.error("❌ GOOGLE_API_KEY not found in environment variables");
+      return NextResponse.json({ error: "AI service not configured" }, { status: 500 });
+    }
+    
     const supabase = await createServerSupabaseClient();
     
     // Verify the user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
+      console.error("❌ Authentication failed:", authError);
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { roomId, question, videoUrl, currentTimestamp } = await request.json();
+    console.log("📝 Received request:", { roomId, question: question?.substring(0, 50), videoUrl, currentTimestamp });
 
     if (!roomId || !question || !videoUrl) {
+      console.error("❌ Missing required fields:", { roomId: !!roomId, question: !!question, videoUrl: !!videoUrl });
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -46,21 +107,33 @@ export async function POST(request: NextRequest) {
       prompt += EVASION_PROMPTS.QUESTION_ANALYSIS(question);
     }
 
+    console.log("🤖 Calling Gemini API with prompt length:", prompt.length);
+    console.log("🎬 Video URL:", videoUrl);
+
     // Generate content with the video
-    const result = await model.generateContent([
-      prompt,
-      {
-        fileData: {
-          fileUri: videoUrl,
-          mimeType: "video/youtube",
+    let aiResponse: string;
+    try {
+      const result = await model.generateContent([
+        prompt,
+        {
+          fileData: {
+            fileUri: videoUrl,
+            mimeType: "video/youtube",
+          },
         },
-      },
-    ]);
+      ]);
 
-    const response = await result.response;
-    const aiResponse = response.text();
-
-    console.log("🤖 AI Response generated:", aiResponse.substring(0, 100) + "...");
+      const response = await result.response;
+      aiResponse = response.text();
+      console.log("🤖 AI Response generated:", aiResponse.substring(0, 100) + "...");
+    } catch (geminiError: any) {
+      console.error("❌ Gemini API error:", geminiError);
+      console.error("❌ Error details:", JSON.stringify(geminiError, null, 2));
+      return NextResponse.json({ 
+        error: "AI analysis failed", 
+        details: geminiError.message || "Unknown error" 
+      }, { status: 500 });
+    }
 
     // Send the AI response as a system message to the chat
     console.log("💬 Inserting AI response to chat with system user ID");
@@ -103,9 +176,45 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error("Error in video analysis:", error);
+    console.error("❌ Error in video analysis:", error);
+    
+    // Log more details about the error
+    if (error instanceof Error) {
+      console.error("❌ Error name:", error.name);
+      console.error("❌ Error message:", error.message);
+      console.error("❌ Error stack:", error.stack);
+    }
+    
+    // Check if it's a Gemini API error
+    if (error && typeof error === 'object' && 'message' in error) {
+      const errorMessage = (error as any).message;
+      if (errorMessage.includes('API_KEY') || errorMessage.includes('authentication')) {
+        console.error("❌ Authentication error - likely missing or invalid GOOGLE_API_KEY");
+        return NextResponse.json(
+          { error: "AI service authentication failed - please check configuration" },
+          { status: 500 }
+        );
+      }
+      
+      if (errorMessage.includes('quota') || errorMessage.includes('limit')) {
+        console.error("❌ API quota exceeded");
+        return NextResponse.json(
+          { error: "AI service quota exceeded - please try again later" },
+          { status: 500 }
+        );
+      }
+      
+      if (errorMessage.includes('video') || errorMessage.includes('file')) {
+        console.error("❌ Video processing error");
+        return NextResponse.json(
+          { error: "Video processing failed - please check the video URL" },
+          { status: 500 }
+        );
+      }
+    }
+    
     return NextResponse.json(
-      { error: "Failed to analyze video" },
+      { error: "Failed to analyze video", details: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
   }
