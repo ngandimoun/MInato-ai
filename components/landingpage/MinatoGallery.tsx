@@ -54,8 +54,8 @@ const media = [
   "/31.png",
   "/32.png",
   "/33.png",
-  "/34.png",
-  "/35.png",
+  "/34.jpg",
+  "/35.jpg",
 ];
 
 // === NOUVELLE FONCTION UTILITAIRE ===
