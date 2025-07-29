@@ -818,10 +818,28 @@ export default function EvasionRoomPage({ params }: PageProps) {
             })
 
             console.log("📡 API response status:", response.status)
+            const responseData = await response.json()
+            
             if (!response.ok) {
               console.error("❌ AI analysis failed with status:", response.status)
-              const errorText = await response.text()
-              console.error("❌ Error details:", errorText)
+              console.error("❌ Error details:", responseData)
+              
+              // Handle blocked responses (200 status but blocked content)
+              if (response.status === 200 && responseData.blocked) {
+                console.log("⚠️ AI analysis was blocked by safety filters")
+                toast({
+                  title: "Content Restricted",
+                  description: responseData.message || "I'm unable to analyze this video due to content restrictions.",
+                  variant: "destructive",
+                })
+              } else {
+                toast({
+                  title: "Analysis Failed",
+                  description: "Failed to analyze the video. Please try again.",
+                  variant: "destructive",
+                })
+              }
+              
               // Deactivate thinking state on error
               setIsMinatoThinking(false)
               clearThinkingTimeout()
