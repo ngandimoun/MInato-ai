@@ -33,7 +33,6 @@ const media = [
   "/13.png",
   "/14.png",
   "/Friends.mp4",
-  "/hero-visual.jpg",
   "/15.png",
 ];
 

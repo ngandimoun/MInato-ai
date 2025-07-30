@@ -51,17 +51,95 @@ export async function POST(request: NextRequest) {
     // Create the prompt based on the question
     let prompt = EVASION_PROMPTS.SYSTEM_PROMPT + "\n\n";
     
-    // Use Gemini's built-in language detection capabilities
+    // Add context awareness for follow-up questions
+    console.log("🔍 Checking for conversation history to provide context...");
+    
+    // Get conversation history for better context
+    const { data: recentMessages } = await supabase
+      .from("evasion_chat_messages")
+      .select("content, user_id, message_type, created_at")
+      .eq("room_id", roomId)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    
+    // If we have conversation history, build a proper context
+    if (recentMessages && recentMessages.length > 0) {
+      console.log("🧠 Found conversation history to use as context");
+      
+      // Extract the last 3-4 turns of conversation (user + AI responses)
+      // We'll build the conversation in chronological order
+      const conversationHistory: {role: string, content: string}[] = [];
+      const processedMessages = [...recentMessages].reverse().slice(0, 8); // Get up to 8 most recent messages in chronological order
+      
+      for (const msg of processedMessages) {
+        if (msg.message_type === "ai_response") {
+          conversationHistory.push({
+            role: "assistant",
+            content: msg.content.length > 800 ? msg.content.substring(0, 800) + "..." : msg.content
+          });
+        } else if (msg.message_type !== "system" && msg.content.toLowerCase() !== question.toLowerCase()) {
+          conversationHistory.push({
+            role: "user",
+            content: msg.content
+          });
+        }
+      }
+      
+      // Format the conversation history
+      let formattedHistory = "";
+      if (conversationHistory.length > 0) {
+        formattedHistory = conversationHistory.map(msg => 
+          `${msg.role === "user" ? "User" : "Minato AI"}: ${msg.content}`
+        ).join("\n\n");
+      }
+      
+      // Add a context section to the prompt with the conversation history
+      prompt += `CONVERSATION CONTEXT:
+The following is your recent conversation with the user about this video. This context is CRITICAL for understanding follow-up questions and maintaining continuity:
+
+${formattedHistory}
+
+IMPORTANT INSTRUCTIONS FOR FOLLOW-UP QUESTIONS:
+1. The user's current question is a follow-up to this conversation
+2. Reference specific details from your previous responses when answering
+3. Maintain continuity by acknowledging what you've already discussed
+4. If the user asks about something you mentioned before (like "luxury materials"), expand on that specific topic
+5. Still focus primarily on what's visible in the video at the requested timestamp
+6. Keep your tone consistent with your previous responses
+
+`;
+    }
+    
+    // Use Gemini's built-in language detection capabilities with improved robustness
     const detectLanguageWithGemini = async (text: string): Promise<string> => {
       try {
-        // Create a simple language detection prompt
+        // Check for common French phrases/patterns that might indicate French
+        const frenchPatterns = ["cest", "en", "je", "tu", "vous", "nous", "bien", "jolie", "jaimerais", "cas", "totu"];
+        const lowerText = text.toLowerCase();
+        
+        // Quick check for French before using the API
+        let frenchScore = 0;
+        for (const pattern of frenchPatterns) {
+          if (lowerText.includes(pattern)) {
+            frenchScore++;
+          }
+        }
+        
+        // If we have multiple French indicators, assume French
+        if (frenchScore >= 3) {
+          console.log("🔍 Detected French based on text patterns (score: " + frenchScore + ")");
+          return "French";
+        }
+        
+        // If not clearly French, use the model for detection
         const detectionPrompt = `Detect the language of this text and respond with ONLY the language name (e.g., "French", "Spanish", "English", "German", "Italian", "Portuguese", "Chinese", "Japanese", "Korean", "Arabic", "Russian", etc.):
 
 Text: "${text}"
 
 Language:`;
         
-        const detectionModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        // Use the same model as the main analysis for consistency and reliability
+        const detectionModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const detectionResult = await detectionModel.generateContent(detectionPrompt);
         const detectedLanguage = detectionResult.response.text().trim();
         
@@ -69,7 +147,24 @@ Language:`;
         return detectedLanguage;
       } catch (error) {
         console.error("❌ Language detection failed:", error);
-        return 'English'; // Fallback to English
+        
+        // Fallback language detection based on text patterns
+        const frenchPatterns = ["cest", "en", "je", "tu", "vous", "nous", "bien", "jolie", "jaimerais", "cas", "totu"];
+        const lowerText = text.toLowerCase();
+        
+        let frenchScore = 0;
+        for (const pattern of frenchPatterns) {
+          if (lowerText.includes(pattern)) {
+            frenchScore++;
+          }
+        }
+        
+        if (frenchScore >= 2) {
+          console.log("🔍 Fallback detected French based on text patterns");
+          return "French";
+        }
+        
+        return 'English'; // Default fallback
       }
     };
     
@@ -97,6 +192,13 @@ Respond in ${detectedLanguage} and be encouraging!`;
     } else {
       // No timestamp - general question analysis
       prompt += EVASION_PROMPTS.QUESTION_ANALYSIS(question, detectedLanguage);
+      
+      // Add language instruction for multilingual support
+      prompt += `
+
+LANGUAGE INSTRUCTIONS:
+The user's current message appears to be in ${detectedLanguage}. Please respond in ${detectedLanguage}.
+If you detect the user has switched languages from previous messages, adapt accordingly.`;
     }
 
     console.log("🤖 Calling Gemini API with prompt length:", prompt.length);

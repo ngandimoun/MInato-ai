@@ -863,6 +863,31 @@ export default function EvasionRoomPage({ params }: PageProps) {
           }
         }
       }
+      
+      // Check for follow-up question patterns
+      const followUpPatterns = [
+        "i don't understand",
+        "don't get it",
+        "tell me more",
+        "more about",
+        "elaborate",
+        "explain further",
+        "what do you mean",
+        "can you clarify",
+        "minato",
+        "he said",
+        "she said",
+        "they said",
+        "in the video",
+        "mentioned",
+        "talked about"
+      ]
+      
+      for (const pattern of followUpPatterns) {
+        if (lowerContent.includes(pattern)) {
+          return true
+        }
+      }
 
       return false
     })()
