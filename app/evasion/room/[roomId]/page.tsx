@@ -1,9 +1,23 @@
-// app/evasion/room/[roomId]/page.tsx
 "use client"
 
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Users, Copy, Play, Edit3, Check, X, UserPlus, MessageSquare, Video, Crown, Youtube, SendHorizontal, Home, ArrowLeft } from "lucide-react"
+import {
+  Users,
+  Copy,
+  Play,
+  Edit3,
+  Check,
+  X,
+  UserPlus,
+  MessageSquare,
+  Video,
+  Crown,
+  Youtube,
+  SendHorizontal,
+  Home,
+  ArrowLeft,
+} from "lucide-react"
 import { TimestampText } from "@/components/evasion/timestamp-link"
 import { AIAssistantButton } from "@/components/evasion/ai-assistant-button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -88,16 +102,16 @@ export default function EvasionRoomPage({ params }: PageProps) {
   const { toast } = useToast()
   const [currentView, setCurrentView] = useState<View>("evasion")
   const supabase = getBrowserSupabaseClient()
-  
+
   // Helper function to log only in development and when enabled
   const devLog = (message: string, ...args: any[]) => {
-    if ((process.env.NODE_ENV === 'development' || showReconnectionLogs) && message.includes("🔄")) {
+    if ((process.env.NODE_ENV === "development" || showReconnectionLogs) && message.includes("🔄")) {
       console.log(message, ...args)
-    } else if (process.env.NODE_ENV === 'development') {
+    } else if (process.env.NODE_ENV === "development") {
       console.log(message, ...args)
     }
   }
-  
+
   // Helper function to clear thinking timeout
   const clearThinkingTimeout = () => {
     if (thinkingTimeoutRef.current) {
@@ -137,11 +151,13 @@ export default function EvasionRoomPage({ params }: PageProps) {
 
   // Add state for participants modal
   const [showParticipantsModal, setShowParticipantsModal] = useState(false)
-  
+
   // Add state for connection status
-  const [connectionStatus, setConnectionStatus] = useState<"connected" | "connecting" | "disconnected" | "error">("connecting")
+  const [connectionStatus, setConnectionStatus] = useState<"connected" | "connecting" | "disconnected" | "error">(
+    "connecting",
+  )
   const [showReconnectionLogs, setShowReconnectionLogs] = useState(false) // Set to true to see reconnection logs
-  
+
   // Add state for Minato thinking
   const [isMinatoThinking, setIsMinatoThinking] = useState(false)
   const thinkingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -155,8 +171,6 @@ export default function EvasionRoomPage({ params }: PageProps) {
 
   // Add state to track current video position in seconds
   const [currentVideoPosition, setCurrentVideoPosition] = useState(0)
-
-
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -234,12 +248,13 @@ export default function EvasionRoomPage({ params }: PageProps) {
               console.log("📨 Message type:", payload.new?.message_type)
               console.log("📨 User ID:", payload.new?.user_id)
               console.log("📨 Content preview:", payload.new?.content?.substring(0, 100))
+
               setLastMessageTimestamp(Date.now()) // Update timestamp when message received
 
               if (payload.new) {
                 try {
                   // Check if this message already exists in our state
-                  const messageExists = messages.some(msg => msg.id === payload.new.id)
+                  const messageExists = messages.some((msg) => msg.id === payload.new.id)
                   if (messageExists) {
                     console.log("📝 Message already exists in state, skipping:", payload.new.id)
                     return
@@ -255,20 +270,21 @@ export default function EvasionRoomPage({ params }: PageProps) {
                       username = "Minato AI"
                       avatar_url = "/placeholder.svg" // Use placeholder instead of missing image
                       console.log("🤖 AI response detected in real-time subscription")
-                      
+
                       // Check if this AI response already exists in our state (by ID or content)
-                      const messageExists = messages.some(msg => 
-                        msg.id === payload.new.id || 
-                        (msg.message_type === "ai_response" && 
-                         msg.content === payload.new.content &&
-                         msg.user_id === "00000000-0000-0000-0000-000000000000")
-                      );
-                      
+                      const messageExists = messages.some(
+                        (msg) =>
+                          msg.id === payload.new.id ||
+                          (msg.message_type === "ai_response" &&
+                            msg.content === payload.new.content &&
+                            msg.user_id === "00000000-0000-0000-0000-000000000000"),
+                      )
+
                       if (messageExists) {
                         console.log("🤖 Skipping duplicate AI response from real-time subscription - already in state")
                         return
                       }
-                      
+
                       // If we're still in thinking state, deactivate it
                       if (isMinatoThinking) {
                         console.log("🤖 Deactivating thinking state for AI response")
@@ -302,7 +318,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
 
                   console.log("📝 Adding new message to state:", newMessage)
                   console.log("📝 Current message count:", messages.length)
-                  
+
                   // Use the new addMessage function which handles duplicates
                   addMessage(newMessage)
 
@@ -331,6 +347,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
             (payload: any) => {
               console.log("📺 Room updated:", payload.new)
               setLastMessageTimestamp(Date.now()) // Update timestamp when room updated
+
               if (payload.new) {
                 setRoom((prevRoom) => {
                   const newRoom = prevRoom
@@ -366,12 +383,12 @@ export default function EvasionRoomPage({ params }: PageProps) {
           // Subscribe to the channel with better error handling
           newChannel.subscribe((status: string, error?: Error) => {
             devLog("🔄 Channel subscription status:", status)
-            
+
             if (error) {
               console.error("❌ Channel subscription error:", error)
               setConnectionStatus("error")
               isSettingUp = false
-              
+
               // Retry on error
               if (retryCount < maxRetries) {
                 retryCount++
@@ -387,7 +404,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
               }
               return
             }
-            
+
             if (status === "SUBSCRIBED") {
               devLog("✅ Successfully subscribed to room updates")
               devLog("🧪 Real-time chat is now active - messages should appear instantly!")
@@ -399,14 +416,15 @@ export default function EvasionRoomPage({ params }: PageProps) {
               const now = Date.now()
               const timeSinceLastClose = now - lastClosedTime
               lastClosedTime = now
-              
+
               // Only log if it's been more than 5 seconds since last close (to avoid spam)
               if (timeSinceLastClose > 5000) {
                 devLog("🔄 Channel subscription closed - attempting reconnection...")
               }
-              
+
               setConnectionStatus("disconnected")
               isSettingUp = false
+
               // Only retry if we haven't exceeded max retries
               if (retryCount < maxRetries) {
                 retryCount++
@@ -416,7 +434,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
               } else {
                 console.error("❌ Max retries exceeded, stopping reconnection attempts")
                 setConnectionStatus("error")
-                
+
                 // Show reconnection toast to user
                 toast({
                   title: "Connection Lost",
@@ -428,7 +446,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
               console.error("❌ Channel error occurred")
               setConnectionStatus("error")
               isSettingUp = false
-              
+
               // Retry on channel error
               if (retryCount < maxRetries) {
                 retryCount++
@@ -458,6 +476,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
         } catch (error) {
           console.error("❌ Error setting up realtime subscriptions:", error)
           isSettingUp = false
+
           // Only retry if we haven't exceeded max retries
           if (retryCount < maxRetries) {
             retryCount++
@@ -465,7 +484,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
             setTimeout(() => setupChannel(), 2000)
           } else {
             console.error("❌ Max retries exceeded after error, stopping reconnection attempts")
-            
+
             // Show connection error toast to user
             toast({
               title: "Connection Error",
@@ -522,14 +541,14 @@ export default function EvasionRoomPage({ params }: PageProps) {
           console.log("🎬 YouTube state changed:", data.info)
         } else if (data.event === "onProgress") {
           // Track video progress
-          if (data.info && typeof data.info.currentTime === 'number') {
+          if (data.info && typeof data.info.currentTime === "number") {
             const currentTime = Math.floor(data.info.currentTime)
             setCurrentVideoPosition(currentTime)
             console.log("🎬 Video position updated:", currentTime, "seconds")
           }
         } else if (data.event === "infoDelivery") {
           // Handle getCurrentTime response
-          if (data.info && typeof data.info.currentTime === 'number') {
+          if (data.info && typeof data.info.currentTime === "number") {
             const currentTime = Math.floor(data.info.currentTime)
             setCurrentVideoPosition(currentTime)
             console.log("🎬 Video position from getCurrentTime:", currentTime, "seconds")
@@ -591,13 +610,11 @@ export default function EvasionRoomPage({ params }: PageProps) {
 
         if (!existingParticipant) {
           // Add user as participant
-          const { error: joinError } = await supabase
-            .from("evasion_room_participants")
-            .insert({
-              room_id: roomIdRef.current,
-              user_id: user.id,
-              is_active: true
-            })
+          const { error: joinError } = await supabase.from("evasion_room_participants").insert({
+            room_id: roomIdRef.current,
+            user_id: user.id,
+            is_active: true,
+          })
 
           if (joinError) {
             console.error("Error joining room:", joinError)
@@ -804,16 +821,16 @@ export default function EvasionRoomPage({ params }: PageProps) {
     if (!newMessage.trim() || !user?.id || !roomIdRef.current) return
 
     const messageContent = newMessage.trim()
-    
+
     // Improved AI query detection - more robust and case-insensitive
     const isAIQuery = (() => {
       const lowerContent = messageContent.toLowerCase()
-      
+
       // Check for @minato or @ai mentions (most common)
       if (lowerContent.includes("@minato") || lowerContent.includes("@ai")) {
         return true
       }
-      
+
       // Check for question patterns
       const questionPatterns = [
         "explain",
@@ -826,36 +843,27 @@ export default function EvasionRoomPage({ params }: PageProps) {
         "when",
         "where",
         "who",
-        "which"
+        "which",
       ]
-      
+
       // Check if message starts with or contains question patterns
       for (const pattern of questionPatterns) {
         if (lowerContent.includes(pattern)) {
           return true
         }
       }
-      
+
       // Check for video-related keywords when there's a video
       if (room?.current_video_url) {
-        const videoKeywords = [
-          "video",
-          "vid",
-          "this",
-          "that",
-          "scene",
-          "moment",
-          "part",
-          "section"
-        ]
-        
+        const videoKeywords = ["video", "vid", "this", "that", "scene", "moment", "part", "section"]
+
         for (const keyword of videoKeywords) {
           if (lowerContent.includes(keyword)) {
             return true
           }
         }
       }
-      
+
       return false
     })()
 
@@ -891,79 +899,90 @@ export default function EvasionRoomPage({ params }: PageProps) {
         // If it's an AI query and there's a video loaded, trigger AI analysis
         if (isAIQuery && room?.current_video_url && canLoadVideo) {
           console.log("🤖 Triggering AI analysis for:", messageContent)
-          
+
           // Activate Minato thinking state
           setIsMinatoThinking(true)
-          
+
           // Set a timeout to deactivate thinking state after 30 seconds (safety measure)
           thinkingTimeoutRef.current = setTimeout(() => {
             setIsMinatoThinking(false)
           }, 30000)
-          
+
           try {
             // Check if this is a timestamp-specific question
-            const timestampPattern = /\b\d{1,2}:\d{2}\b/; // Matches patterns like "2:30" or "02:30"
-            const isTimestampSpecificQuestion = timestampPattern.test(messageContent);
-            
+            const timestampPattern = /\b\d{1,2}:\d{2}\b/ // Matches patterns like "2:30" or "02:30"
+            const isTimestampSpecificQuestion = timestampPattern.test(messageContent)
+
             // Check if user is asking about the whole video
-            const wholeVideoKeywords = ['whole vid', 'whole video', 'entire video', 'full video', 'complete video', 'overview', 'summary'];
-            const isWholeVideoQuestion = wholeVideoKeywords.some(keyword => 
-              messageContent.toLowerCase().includes(keyword)
-            );
-            
+            const wholeVideoKeywords = [
+              "whole vid",
+              "whole video",
+              "entire video",
+              "full video",
+              "complete video",
+              "overview",
+              "summary",
+            ]
+            const isWholeVideoQuestion = wholeVideoKeywords.some((keyword) =>
+              messageContent.toLowerCase().includes(keyword),
+            )
+
             // Determine what timestamp to send:
             // - If user specifies a timestamp (e.g., "what happens at 2:30?"), use that
             // - If user asks about whole video, send null
             // - Otherwise, use current video position
-            let currentTimestamp = null;
-            
+            let currentTimestamp = null
+
             if (isTimestampSpecificQuestion) {
               // Extract the timestamp from the message
-              const match = messageContent.match(/\b(\d{1,2}:\d{2})\b/);
+              const match = messageContent.match(/\b(\d{1,2}:\d{2})\b/)
               if (match) {
-                currentTimestamp = match[1];
+                currentTimestamp = match[1]
               }
             } else if (!isWholeVideoQuestion) {
               // Use current video position for general questions
               // Try to get the most accurate current position
               let currentTime = currentVideoPosition
-              
+
               // If we don't have a local position, try to get it from the player
               if (!currentTime || currentTime === 0) {
                 currentTime = getCurrentVideoPosition()
                 console.log("🎬 Attempted to get position from player, got:", currentTime)
               }
-              
+
               // Fallback to room position if still no valid position
               if (!currentTime || currentTime === 0) {
                 currentTime = Math.floor((room.current_video_position || 0) / 1000)
                 console.log("🎬 Using fallback room position:", currentTime)
               }
-              
+
               // If still no valid position, use a reasonable default (like 30 seconds)
               if (!currentTime || currentTime === 0) {
                 currentTime = 30 // Default to 30 seconds if we can't get the position
                 console.log("🎬 Using default position of 30 seconds")
               }
-              
-              currentTimestamp = `${Math.floor(currentTime / 60).toString().padStart(2, "0")}:${(currentTime % 60).toString().padStart(2, "0")}`;
+
+              currentTimestamp = `${Math.floor(currentTime / 60)
+                .toString()
+                .padStart(2, "0")}:${(currentTime % 60).toString().padStart(2, "0")}`
               console.log("🎬 Final calculated timestamp:", currentTimestamp, "from time:", currentTime)
-              
+
               // For debugging, let's also log what we think the user is watching
               console.log("🎬 User appears to be watching around:", currentTimestamp)
             }
+
             // If isWholeVideoQuestion is true, currentTimestamp remains null
 
             // Get the actual current video URL in Gemini format
-            const videoUrlToAnalyze = getCurrentVideoUrl();
+            const videoUrlToAnalyze = getCurrentVideoUrl()
             if (!videoUrlToAnalyze) {
-              console.error("❌ Could not get valid YouTube URL");
+              console.error("❌ Could not get valid YouTube URL")
               toast({
                 title: "Error",
                 description: "Could not analyze video - invalid URL format",
                 variant: "destructive",
-              });
-              return;
+              })
+              return
             }
 
             console.log("📡 Making API call to /api/evasion/video-analysis")
@@ -976,7 +995,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
             console.log("🎬 Video position (ms):", room.current_video_position)
             console.log("🎬 Video position (seconds):", Math.floor((room.current_video_position || 0) / 1000))
             console.log("🎬 Local video position (seconds):", currentVideoPosition)
-            
+
             const response = await fetch("/api/evasion/video-analysis", {
               method: "POST",
               headers: {
@@ -993,7 +1012,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
             if (response.ok) {
               const responseData = await response.json()
               console.log("✅ AI analysis completed successfully")
-              
+
               // Check if the response was blocked
               if (responseData.blocked) {
                 console.log("⚠️ AI analysis was blocked by safety filters")
@@ -1002,16 +1021,15 @@ export default function EvasionRoomPage({ params }: PageProps) {
                   description: responseData.message || "I'm unable to analyze this video due to content restrictions.",
                   variant: "destructive",
                 })
-              setIsMinatoThinking(false)
-              clearThinkingTimeout()
+                setIsMinatoThinking(false)
+                clearThinkingTimeout()
                 return
               }
-              
+
               // AI response will be received via real-time subscription
               console.log("✅ AI analysis completed - waiting for real-time response")
               setIsMinatoThinking(false)
               clearThinkingTimeout()
-              
             } else {
               console.error("❌ AI analysis failed:", response.status)
               const errorData = await response.json().catch(() => ({}))
@@ -1046,7 +1064,8 @@ export default function EvasionRoomPage({ params }: PageProps) {
             lowerContent: messageContent.toLowerCase(),
             containsMinato: messageContent.toLowerCase().includes("@minato"),
             containsAi: messageContent.toLowerCase().includes("@ai"),
-            containsVideo: messageContent.toLowerCase().includes("video") || messageContent.toLowerCase().includes("vid"),
+            containsVideo:
+              messageContent.toLowerCase().includes("video") || messageContent.toLowerCase().includes("vid"),
             containsThis: messageContent.toLowerCase().includes("this"),
             containsThat: messageContent.toLowerCase().includes("that"),
           })
@@ -1200,7 +1219,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
 
   const isHost = user?.id === room?.host_user_id
   // Check if user is a participant in the room (this will be handled by RLS policies)
-  const isParticipant = participants.some(p => p.id === user?.id)
+  const isParticipant = participants.some((p) => p.id === user?.id)
   const canLoadVideo = isHost || isParticipant
   const canEdit = isHost || isParticipant
 
@@ -1336,14 +1355,14 @@ export default function EvasionRoomPage({ params }: PageProps) {
 
   // Get current video URL from YouTube iframe
   const getCurrentVideoUrl = () => {
-    if (!room?.current_video_url) return null;
-    
-    const videoId = extractYouTubeVideoId(room.current_video_url);
-    if (!videoId) return null;
-    
+    if (!room?.current_video_url) return null
+
+    const videoId = extractYouTubeVideoId(room.current_video_url)
+    if (!videoId) return null
+
     // Construct the full YouTube URL that Gemini expects
-    return `https://www.youtube.com/watch?v=${videoId}`;
-  };
+    return `https://www.youtube.com/watch?v=${videoId}`
+  }
 
   // Function to get current video position from YouTube player
   const getCurrentVideoPosition = (): number => {
@@ -1378,7 +1397,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
     }
 
     // Check if user is a participant (this should now work with our RLS policies)
-    const isParticipant = participants.some(p => p.id === user?.id)
+    const isParticipant = participants.some((p) => p.id === user?.id)
     if (!isHost && !isParticipant) {
       toast({
         title: "Permission Denied",
@@ -1433,7 +1452,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
   const refreshMessages = async () => {
     try {
       setIsRefreshing(true)
-      
+
       // Fetch chat messages
       const { data: messagesData, error: messagesError } = await supabase
         .from("evasion_chat_messages")
@@ -1534,12 +1553,12 @@ export default function EvasionRoomPage({ params }: PageProps) {
     const checkConnectionInterval = setInterval(() => {
       const now = Date.now()
       const timeSinceLastMessage = now - lastMessageTimestamp
-      
+
       // If it's been over 30 seconds since last message/update and we're in "connected" state
       if (timeSinceLastMessage > 30000 && connectionStatus === "connected") {
         // Try a refresh to test connection
         console.log("⏱️ No activity for 30+ seconds, checking connection status...")
-        
+
         // Perform a simple query to check if connection is still alive
         supabase
           .from("evasion_chat_messages")
@@ -1561,15 +1580,14 @@ export default function EvasionRoomPage({ params }: PageProps) {
             setConnectionStatus("error")
           })
       }
-      
+
       // If disconnected for more than 1 minute, try automatic reconnect
-      if ((connectionStatus === "disconnected" || connectionStatus === "error") && 
-          timeSinceLastMessage > 60000) {
+      if ((connectionStatus === "disconnected" || connectionStatus === "error") && timeSinceLastMessage > 60000) {
         console.log("🔄 Auto-reconnecting after 1 minute of disconnection...")
         reconnectRealtime()
       }
     }, 10000) // Check every 10 seconds
-    
+
     return () => {
       clearInterval(checkConnectionInterval)
     }
@@ -1583,7 +1601,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
         try {
           channel.send({
             type: "heartbeat",
-            payload: { timestamp: Date.now() }
+            payload: { timestamp: Date.now() },
           })
         } catch (error) {
           console.log("💓 Heartbeat failed, connection might be stale")
@@ -1600,10 +1618,10 @@ export default function EvasionRoomPage({ params }: PageProps) {
   useEffect(() => {
     if (messages.length > 0) {
       // Remove duplicates based on message ID
-      const uniqueMessages = messages.filter((message, index, self) => 
-        index === self.findIndex(m => m.id === message.id)
+      const uniqueMessages = messages.filter(
+        (message, index, self) => index === self.findIndex((m) => m.id === message.id),
       )
-      
+
       // Only update if we actually removed duplicates
       if (uniqueMessages.length !== messages.length) {
         console.log(`🧹 Removed ${messages.length - uniqueMessages.length} duplicate messages`)
@@ -1613,19 +1631,22 @@ export default function EvasionRoomPage({ params }: PageProps) {
   }, [messages.length]) // Only run when the number of messages changes
 
   // Update the message state management to use the Set
-  const addMessage = useCallback((newMessage: ChatMessage) => {
-    setMessages(prev => {
-      // Check if message already exists
-      if (messageIds.has(newMessage.id)) {
-        console.log("📝 Message already exists, skipping:", newMessage.id)
-        return prev
-      }
-      
-      // Add to Set and update messages
-      setMessageIds(prevIds => new Set([...prevIds, newMessage.id]))
-      return [...prev, newMessage]
-    })
-  }, [messageIds])
+  const addMessage = useCallback(
+    (newMessage: ChatMessage) => {
+      setMessages((prev) => {
+        // Check if message already exists
+        if (messageIds.has(newMessage.id)) {
+          console.log("📝 Message already exists, skipping:", newMessage.id)
+          return prev
+        }
+
+        // Add to Set and update messages
+        setMessageIds((prevIds) => new Set([...prevIds, newMessage.id]))
+        return [...prev, newMessage]
+      })
+    },
+    [messageIds],
+  )
 
   // Function to manually sync current video position
   const syncVideoPosition = () => {
@@ -1666,7 +1687,9 @@ export default function EvasionRoomPage({ params }: PageProps) {
   // Function to manually set video position (for testing)
   const setManualVideoPosition = (seconds: number) => {
     setCurrentVideoPosition(seconds)
-    const timestamp = `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`
+    const timestamp = `${Math.floor(seconds / 60)
+      .toString()
+      .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`
     console.log("🎬 Manually set video position to:", timestamp)
     toast({
       title: "Position Set",
@@ -1677,17 +1700,17 @@ export default function EvasionRoomPage({ params }: PageProps) {
   // Function to format input as timestamp (MM:SS)
   const formatTimestampInput = (value: string): string => {
     // Remove all non-digits
-    const digits = value.replace(/\D/g, '')
-    
+    const digits = value.replace(/\D/g, "")
+
     // Limit to 4 digits (MM:SS)
     const limitedDigits = digits.slice(0, 4)
-    
-    if (limitedDigits.length === 0) return ''
+
+    if (limitedDigits.length === 0) return ""
     if (limitedDigits.length === 1) return `0${limitedDigits}:`
     if (limitedDigits.length === 2) return `${limitedDigits}:`
     if (limitedDigits.length === 3) return `${limitedDigits.slice(0, 2)}:${limitedDigits.slice(2)}`
     if (limitedDigits.length === 4) return `${limitedDigits.slice(0, 2)}:${limitedDigits.slice(2)}`
-    
+
     return limitedDigits
   }
 
@@ -1695,20 +1718,20 @@ export default function EvasionRoomPage({ params }: PageProps) {
   const setVideoPositionFromTimestamp = (timestamp: string): void => {
     const match = timestamp.match(/(\d+):(\d+)/)
     if (match) {
-      const minutes = parseInt(match[1])
-      const seconds = parseInt(match[2])
+      const minutes = Number.parseInt(match[1])
+      const seconds = Number.parseInt(match[2])
       const totalSeconds = minutes * 60 + seconds
-      
+
       // Set the local position
       setCurrentVideoPosition(totalSeconds)
       console.log("🎬 Manually set video position to:", timestamp, `(${totalSeconds} seconds)`)
-      
+
       // Show toast
       toast({
         title: "Position Set",
         description: `Set video position to ${timestamp}`,
       })
-      
+
       // Also seek the video to this position
       handleTimestampClick(timestamp)
     } else {
@@ -1723,13 +1746,13 @@ export default function EvasionRoomPage({ params }: PageProps) {
   // Function to validate and set timestamp
   const handleTimestampInput = (value: string) => {
     const formatted = formatTimestampInput(value)
-    
+
     // Update the input value with formatting
     const input = document.querySelector('input[placeholder="11:41"]') as HTMLInputElement
     if (input) {
       input.value = formatted
     }
-    
+
     // If we have a complete timestamp (MM:SS), set the position
     if (formatted.match(/^\d{2}:\d{2}$/)) {
       setVideoPositionFromTimestamp(formatted)
@@ -1818,195 +1841,201 @@ export default function EvasionRoomPage({ params }: PageProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <Header currentView={currentView} onViewChange={setCurrentView} />
-
       <ScrollArea className="h-[calc(100vh)]">
         <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-7xl pt-16 sm:pt-20">
-          {/* Room Header */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 sm:mb-16">
-            <Card className="border-0 shadow-2xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl">
-              <CardHeader className="pb-4 sm:pb-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="flex items-center gap-3 sm:gap-6">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleGoBackToEvasion}
-                      className="hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 transition-all duration-200 p-2 sm:p-3 rounded-xl"
-                    >
-                      <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
-                    </Button>
-                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-xl">
-                      <Play className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      {isEditingName ? (
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                          <Input
-                            value={newRoomName}
-                            onChange={(e) => setNewRoomName(e.target.value)}
-                            className="text-lg sm:text-2xl font-bold border-2 focus:border-indigo-500"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleUpdateRoomName()
-                              if (e.key === "Escape") {
-                                setIsEditingName(false)
-                                setNewRoomName(room.name)
-                              }
-                            }}
-                          />
-                          <div className="flex gap-2">
-                            <Button size="sm" onClick={handleUpdateRoomName} className="bg-green-500 hover:bg-green-600">
-                              <Check className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setIsEditingName(false)
-                                setNewRoomName(room.name)
-                              }}
-                              className="hover:bg-red-50 hover:text-red-600"
+          {/* Room Header + Main Content */}
+          <div className="grid grid-cols-1 lg:grid-cols-[60%_40%] gap-4 sm:gap-8 mb-6 sm:mb-20">
+            {/* Left Column - Room Header + Video */}
+            <div className="space-y-4 sm:space-y-6">
+              {/* Room Header */}
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                <Card className="border-0 shadow-sm bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl">
+                  <CardHeader className="pb-4 sm:pb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div className="flex items-center gap-3 sm:gap-6">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleGoBackToEvasion}
+                          className="hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 transition-all duration-200 p-2 sm:p-3 rounded-sm"
+                        >
+                          <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+                        </Button>
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-sm flex items-center justify-center shadow-sm">
+                          <Play className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {isEditingName ? (
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                              <Input
+                                value={newRoomName}
+                                onChange={(e) => setNewRoomName(e.target.value)}
+                                className="text-lg sm:text-2xl font-bold border-2 focus:border-indigo-500"
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleUpdateRoomName()
+                                  if (e.key === "Escape") {
+                                    setIsEditingName(false)
+                                    setNewRoomName(room.name)
+                                  }
+                                }}
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={handleUpdateRoomName}
+                                  className="bg-green-500 hover:bg-green-600"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setIsEditingName(false)
+                                    setNewRoomName(room.name)
+                                  }}
+                                  className="hover:bg-red-50 hover:text-red-600"
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 sm:gap-3">
+                              <h1 className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent truncate">
+                                {room.name}
+                              </h1>
+                              {canEdit && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setIsEditingName(true)}
+                                  className="hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-indigo-600 flex-shrink-0"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 sm:mt-3">
+                            <Badge
+                              variant="secondary"
+                              className="cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-all duration-200 px-2 sm:px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs"
+                              onClick={handleCopyRoomCode}
                             >
-                              <X className="w-4 h-4" />
-                            </Button>
+                              <Copy className="w-3 h-3 mr-1 sm:mr-2" />
+                              <span className="hidden sm:inline">{room.room_code}</span>
+                              <span className="sm:hidden">{room.room_code.substring(0, 6)}...</span>
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className="border-purple-200 dark:border-purple-800 px-2 sm:px-3 py-1 text-xs"
+                            >
+                              <Users className="w-3 h-3 mr-1 sm:mr-2" />
+                              {participants.length}/{room.max_participants}
+                            </Badge>
+                            {canEdit && (
+                              <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white px-2 sm:px-3 py-1 shadow-lg text-xs">
+                                <Crown className="w-3 h-3 mr-1 sm:mr-2" />
+                                Host
+                              </Badge>
+                            )}
                           </div>
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          <h1 className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent truncate">
-                            {room.name}
-                          </h1>
-                          {canEdit && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setIsEditingName(true)}
-                              className="hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-indigo-600 flex-shrink-0"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 sm:mt-3">
-                        <Badge
-                          variant="secondary"
-                          className="cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-all duration-200 px-2 sm:px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs"
-                          onClick={handleCopyRoomCode}
-                        >
-                          <Copy className="w-3 h-3 mr-1 sm:mr-2" />
-                          <span className="hidden sm:inline">{room.room_code}</span>
-                          <span className="sm:hidden">{room.room_code.substring(0, 6)}...</span>
-                        </Badge>
-                        <Badge variant="outline" className="border-purple-200 dark:border-purple-800 px-2 sm:px-3 py-1 text-xs">
-                          <Users className="w-3 h-3 mr-1 sm:mr-2" />
-                          {participants.length}/{room.max_participants}
-                        </Badge>
-                        {canEdit && (
-                          <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white px-2 sm:px-3 py-1 shadow-lg text-xs">
-                            <Crown className="w-3 h-3 mr-1 sm:mr-2" />
-                            Host
-                          </Badge>
+                      </div>
+                      <div className="flex items-center gap-2 sm:gap-4">
+                        {canLoadVideo && (
+                          <Dialog open={showVideoDialog} onOpenChange={setShowVideoDialog}>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className="hover:bg-red-50 dark:hover:bg-red-900/20 border-red-200 dark:border-red-800 bg-white/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 text-xs sm:text-sm"
+                              >
+                                <Youtube className="w-4 h-4 mr-1 sm:mr-2 text-red-500" />
+                                <span className="hidden sm:inline">Load Video</span>
+                                <span className="sm:hidden">Video</span>
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="w-[95vw] max-w-md border-0 shadow-2xl bg-white/95 backdrop-blur-xl">
+                              <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                                  <Youtube className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" />
+                                  Load YouTube Video
+                                </DialogTitle>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <Input
+                                  placeholder="Enter YouTube URL..."
+                                  value={videoUrl}
+                                  onChange={(e) => setVideoUrl(e.target.value)}
+                                  className="focus:ring-2 focus:ring-indigo-500 border-2"
+                                />
+                                <Button
+                                  onClick={handleLoadVideo}
+                                  disabled={isLoadingVideo}
+                                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200"
+                                >
+                                  {isLoadingVideo ? "Loading..." : "Load Video"}
+                                </Button>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
                         )}
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    {canLoadVideo && (
-                      <Dialog open={showVideoDialog} onOpenChange={setShowVideoDialog}>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="hover:bg-red-50 dark:hover:bg-red-900/20 border-red-200 dark:border-red-800 bg-white/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 text-xs sm:text-sm"
-                          >
-                            <Youtube className="w-4 h-4 mr-1 sm:mr-2 text-red-500" />
-                            <span className="hidden sm:inline">Load Video</span>
-                            <span className="sm:hidden">Video</span>
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="w-[95vw] max-w-md border-0 shadow-2xl bg-white/95 backdrop-blur-xl">
-                          <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                              <Youtube className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" />
-                              Load YouTube Video
-                            </DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <Input
-                              placeholder="Enter YouTube URL..."
-                              value={videoUrl}
-                              onChange={(e) => setVideoUrl(e.target.value)}
-                              className="focus:ring-2 focus:ring-indigo-500 border-2"
+                  </CardHeader>
+                </Card>
+              </motion.div>
+
+              {/* Video Player */}
+              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+                <Card className="shadow-2xl border-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl overflow-hidden">
+                  <CardContent className="p-0">
+                    {room.current_video_url ? (
+                      <div className="aspect-video overflow-hidden relative">
+                        <iframe
+                          id="youtube-player"
+                          src={`https://www.youtube.com/embed/${extractYouTubeVideoId(room.current_video_url)}?enablejsapi=1&origin=${window.location.origin}&widget_referrer=${window.location.origin}&playsinline=1&rel=0&modestbranding=1&fs=1&autoplay=0&mute=0&controls=1&showinfo=1`}
+                          className="w-full h-full"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                          frameBorder="0"
+                          title="YouTube video player"
+                          loading="lazy"
+                        />
+                        {!showVideoControls && (
+                          <div className="absolute inset-0 pointer-events-none md:hidden">
+                            <div
+                              className="absolute inset-0 bg-transparent pointer-events-auto"
+                              onClick={handleVideoClick}
                             />
-                            <Button
-                              onClick={handleLoadVideo}
-                              disabled={isLoadingVideo}
-                              className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200"
-                            >
-                              {isLoadingVideo ? "Loading..." : "Load Video"}
-                            </Button>
                           </div>
-                        </DialogContent>
-                      </Dialog>
-                    )}
-                    {/* <Button
-                      variant="outline"
-                      onClick={() => setShowInviteDialog(true)}
-                      className="hover:bg-blue-50 dark:hover:bg-blue-900/20 border-blue-200 dark:border-blue-800 bg-white/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 text-xs sm:text-sm"
-                    >
-                      <UserPlus className="w-4 h-4 mr-1 sm:mr-2 text-blue-500" />
-                      <span className="hidden sm:inline">Invite</span>
-                      <span className="sm:hidden">+</span>
-                    </Button> */}
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          </motion.div>
-
-          {/* Main Content - Video and Chat */}
-          <div className="grid grid-cols-1 lg:grid-cols-[65%_35%] gap-4 sm:gap-8 mb-6 sm:mb-10">
-            {/* Video Player */}
-            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4 sm:space-y-6">
-              <Card className="shadow-2xl border-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl overflow-hidden">
-                <CardContent className="p-0">
-                  {room.current_video_url ? (
-                    <div className="aspect-video overflow-hidden relative">
-                      <iframe
-                        id="youtube-player"
-                        src={`https://www.youtube.com/embed/${extractYouTubeVideoId(room.current_video_url)}?enablejsapi=1&origin=${window.location.origin}&widget_referrer=${window.location.origin}&playsinline=1&rel=0&modestbranding=1&fs=1&autoplay=0&mute=0&controls=1&showinfo=1`}
-                        className="w-full h-full"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                        frameBorder="0"
-                        title="YouTube video player"
-                        loading="lazy"
-                      />
-                      {/* Overlay pour améliorer l'interaction sur mobile */}
-                      {!showVideoControls && (
-                        <div className="absolute inset-0 pointer-events-none md:hidden">
-                          <div className="absolute inset-0 bg-transparent pointer-events-auto" 
-                               onClick={handleVideoClick}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="aspect-video flex items-center justify-center text-muted-foreground bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 m-4 sm:m-8 rounded-xl sm:rounded-2xl">
-                      <div className="text-center px-4">
-                        <Video className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 text-indigo-400" />
-                        <h3 className="text-lg sm:text-xl font-semibold mb-2 sm:mb-3 text-gray-700 dark:text-gray-300">No video loaded</h3>
-                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                          {isHost ? "Load a YouTube video to get started!" : "Waiting for host to load a video..."}
-                        </p>
+                        )}
                       </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
+                    ) : (
+                      <div className="aspect-video flex items-center justify-center text-muted-foreground bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 m-4 sm:m-8 rounded-xl sm:rounded-2xl">
+                        <div className="text-center px-4">
+                          <Video className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 text-indigo-400" />
+                          <h3 className="text-lg sm:text-xl font-semibold mb-2 sm:mb-3 text-gray-700 dark:text-gray-300">
+                            No video loaded
+                          </h3>
+                          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                            {isHost ? "Load a YouTube video to get started!" : "Waiting for host to load a video..."}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </div>
 
-            {/* Chat & Participants Sidebar */}
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4 sm:space-y-6">
+            {/* Right Column - Chat */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-4 sm:space-y-6"
+            >
               {/* Chat Card */}
               <Card className="h-[400px] sm:h-[500px] lg:h-[600px] flex flex-col shadow-2xl border-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl overflow-hidden">
                 {/* Fixed Chat Header */}
@@ -2029,19 +2058,19 @@ export default function EvasionRoomPage({ params }: PageProps) {
                     </CardTitle>
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-2">
-                        <div 
+                        <div
                           className={`w-2 h-2 rounded-full ${
-                            connectionStatus === "connected" 
-                              ? "bg-green-500" 
-                              : connectionStatus === "connecting" 
-                                ? "bg-yellow-500 animate-pulse" 
+                            connectionStatus === "connected"
+                              ? "bg-green-500"
+                              : connectionStatus === "connecting"
+                                ? "bg-yellow-500 animate-pulse"
                                 : "bg-red-500"
                           }`}
                           title={`Status: ${connectionStatus}`}
                         />
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => {
                             if (connectionStatus === "error" || connectionStatus === "disconnected") {
                               reconnectRealtime()
@@ -2052,14 +2081,14 @@ export default function EvasionRoomPage({ params }: PageProps) {
                           disabled={isRefreshing}
                           className="flex items-center gap-1 bg-white/80 hover:bg-white dark:bg-gray-800/80 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow transition-all duration-200"
                         >
-                          <svg 
-                            className={`w-3 h-3 ${isRefreshing || connectionStatus === "connecting" ? 'animate-spin' : ''}`} 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            viewBox="0 0 24 24" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            strokeWidth="2" 
-                            strokeLinecap="round" 
+                          <svg
+                            className={`w-3 h-3 ${isRefreshing || connectionStatus === "connecting" ? "animate-spin" : ""}`}
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
                             strokeLinejoin="round"
                           >
                             <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
@@ -2068,15 +2097,15 @@ export default function EvasionRoomPage({ params }: PageProps) {
                             <path d="M8 16H3v5" />
                           </svg>
                           <span className="text-xs">
-                            {isRefreshing 
-                              ? "Refreshing..." 
-                              : connectionStatus === "error" || connectionStatus === "disconnected" 
-                                ? "Reconnect" 
+                            {isRefreshing
+                              ? "Refreshing..."
+                              : connectionStatus === "error" || connectionStatus === "disconnected"
+                                ? "Reconnect"
                                 : "Refresh"}
                           </span>
                         </Button>
                       </div>
-                    {participants.length > 0 && renderOverlappingAvatars()}
+                      {participants.length > 0 && renderOverlappingAvatars()}
                     </div>
                   </div>
                 </CardHeader>
@@ -2090,7 +2119,6 @@ export default function EvasionRoomPage({ params }: PageProps) {
                         {messages.map((message, index) => {
                           const isCurrentUser = message.user_id === user?.id
                           const isAI = message.message_type === "ai_response"
-
                           return (
                             <motion.div
                               key={`${message.id}-${index}`}
@@ -2108,7 +2136,6 @@ export default function EvasionRoomPage({ params }: PageProps) {
                                   </AvatarFallback>
                                 </Avatar>
                               )}
-
                               <div
                                 className={`flex flex-col max-w-[85%] sm:max-w-[75%] ${isCurrentUser ? "items-end" : "items-start"}`}
                               >
@@ -2127,7 +2154,6 @@ export default function EvasionRoomPage({ params }: PageProps) {
                                     </span>
                                   </div>
                                 )}
-
                                 <div
                                   className={`
                                   relative px-3 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl shadow-lg backdrop-blur-sm text-xs sm:text-sm
@@ -2153,13 +2179,11 @@ export default function EvasionRoomPage({ params }: PageProps) {
                                     }
                                   `}
                                   />
-
                                   {message.message_type === "ai_response" ? (
                                     <TimestampText text={message.content} onTimestampClick={handleTimestampClick} />
                                   ) : (
                                     <p className="break-words leading-relaxed">{message.content}</p>
                                   )}
-
                                   {isCurrentUser && (
                                     <span className="text-xs text-indigo-200 mt-1 block">
                                       {new Date(message.created_at).toLocaleTimeString([], {
@@ -2170,7 +2194,6 @@ export default function EvasionRoomPage({ params }: PageProps) {
                                   )}
                                 </div>
                               </div>
-
                               {isCurrentUser && (
                                 <Avatar className="w-7 h-7 sm:w-8 sm:h-8 mt-1 shadow-lg flex-shrink-0 ring-2 ring-white dark:ring-gray-800">
                                   <AvatarImage src={profile?.avatar_url || "/placeholder.svg"} />
@@ -2183,7 +2206,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                           )
                         })}
                       </AnimatePresence>
-                      
+
                       {/* Minato Thinking Indicator */}
                       {isMinatoThinking && (
                         <motion.div
@@ -2197,7 +2220,6 @@ export default function EvasionRoomPage({ params }: PageProps) {
                               M
                             </AvatarFallback>
                           </Avatar>
-
                           <div className="flex flex-col max-w-[85%] sm:max-w-[75%] items-start">
                             <div className="flex items-center gap-1 sm:gap-2 mb-1 px-1">
                               <span className="text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400">
@@ -2210,16 +2232,23 @@ export default function EvasionRoomPage({ params }: PageProps) {
                                 })}
                               </span>
                             </div>
-
                             <div className="relative px-3 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl shadow-lg backdrop-blur-sm text-xs sm:text-sm bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-800 mr-6 sm:mr-8">
                               {/* Message bubble tail */}
                               <div className="absolute w-3 h-3 transform rotate-45 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-r border-b border-emerald-200 dark:border-emerald-800 -bottom-1 left-4" />
-
                               <div className="flex items-center gap-2">
                                 <div className="flex space-x-1">
-                                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                  <div
+                                    className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
+                                    style={{ animationDelay: "0ms" }}
+                                  ></div>
+                                  <div
+                                    className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
+                                    style={{ animationDelay: "150ms" }}
+                                  ></div>
+                                  <div
+                                    className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
+                                    style={{ animationDelay: "300ms" }}
+                                  ></div>
                                 </div>
                                 <span className="text-emerald-700 dark:text-emerald-300 font-medium">
                                   Minato is thinking...
@@ -2229,7 +2258,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                           </div>
                         </motion.div>
                       )}
-                      
+
                       <div ref={messagesEndRef} />
                     </div>
                   </ScrollArea>
@@ -2278,11 +2307,11 @@ export default function EvasionRoomPage({ params }: PageProps) {
                               className="w-20 h-8 text-xs"
                               onChange={(e) => handleTimestampInput(e.target.value)}
                               onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
+                                if (e.key === "Enter") {
                                   const value = (e.target as HTMLInputElement).value
                                   if (value && value.match(/^\d{2}:\d{2}$/)) {
                                     setVideoPositionFromTimestamp(value)
-                                    (e.target as HTMLInputElement).value = ''
+                                    ;(e.target as HTMLInputElement).value = ""
                                   }
                                 }
                               }}
@@ -2292,7 +2321,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                                 const input = document.querySelector('input[placeholder="11:41"]') as HTMLInputElement
                                 if (input && input.value && input.value.match(/^\d{2}:\d{2}$/)) {
                                   setVideoPositionFromTimestamp(input.value)
-                                  input.value = ''
+                                  input.value = ""
                                 }
                               }}
                               variant="outline"
@@ -2302,7 +2331,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                               Set
                             </Button>
                           </div>
-                          
+
                           <AIAssistantButton onAskQuestion={handleAIQuestion} isProcessing={isSendingMessage} />
                         </div>
                       )}
@@ -2333,7 +2362,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                   key={participant.id}
                   className="flex items-center gap-3 sm:gap-4 p-2 sm:p-3 rounded-lg sm:rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all duration-200 backdrop-blur-sm"
                 >
-                  <Avatar className="w-10 h-10 sm:w-12 sm:h-12 shadow-lg ring-2 ring-white dark:ring-gray-800">
+                  <Avatar className="w-6 h-6  shadow-sm ring-2 ring-white dark:ring-gray-800">
                     <AvatarImage src={participant.avatar_url || "/placeholder.svg"} />
                     <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-semibold">
                       {participant.name?.charAt(0).toUpperCase() || "U"}
