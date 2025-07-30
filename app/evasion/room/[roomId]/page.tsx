@@ -1841,7 +1841,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <Header currentView={currentView} onViewChange={setCurrentView} />
-      <ScrollArea className="h-[calc(100vh)]">
+      <ScrollArea className="h-screen">
         <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-7xl pt-16 sm:pt-20">
           {/* Room Header + Main Content */}
           <div className="grid grid-cols-1 lg:grid-cols-[60%_40%] gap-4 sm:gap-8 mb-6 sm:mb-20">
