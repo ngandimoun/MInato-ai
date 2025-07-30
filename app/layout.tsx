@@ -18,6 +18,11 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Minato AI",
   description: "Your AI-powered companion for productivity and creativity",
+  icons: {
+    icon: '/favicon.ico.ico',
+    shortcut: '/favicon.ico.ico',
+    apple: '/favicon.ico.ico',
+  },
 };
 
 export default function RootLayout({
