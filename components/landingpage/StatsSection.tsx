@@ -7,6 +7,7 @@ import { useState } from "react";
 import InteractiveBentoGallery from "./blocks/interactive-bento-gallery" // Gardé comme dans votre code
 import { AnimatePresence, motion } from "motion/react"; // motion/react pour la modale
 import { useRouter } from "next/navigation"; // Import du router pour la navigation
+import { Loader, Loader2 } from "lucide-react"; // Import du loader pour l'état de chargement
 
 /* eslint-disable @next/next/no-img-element */
 import { BlurFade } from "@/components/magicui/blur-fade";
@@ -54,10 +55,15 @@ export default function StatsSection() {
   // `selectedMedia` stockera l'URL du média à afficher en plein écran.
   // `null` signifie qu'aucune modale n'est affichée.
   const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
+  
+  // État pour gérer le chargement du bouton "View More"
+  const [isLoading, setIsLoading] = useState(false);
 
   // === FONCTION POUR NAVIGUER VERS L'INTERFACE MINATO GALLERY ===
   const handleViewMore = () => {
+    setIsLoading(true); // Active l'état de chargement
     router.push('/minato-gallery'); // Navigation vers la page dédiée
+    // Note: Pas besoin de désactiver l'état de chargement car on navigue vers une autre page
   };
 
   return (
@@ -115,29 +121,34 @@ export default function StatsSection() {
                 onClick={handleViewMore}
                 variant='outline'
                 size='sm'
+                disabled={isLoading}
                 className="inline-flex items-center gap-2 px-6 py-3 font-medium rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-sm hover:shadow-xl transform hover:scale-105"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                  />
-                </svg>
-                View More
+                {isLoading ? (
+                  <Loader className="w-5 h-5 animate-spin" />
+                ) : (
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    />
+                  </svg>
+                )}
+                {isLoading ? "Loading..." : "View More"}
               </Button>
             </BlurFade>
           </div>
