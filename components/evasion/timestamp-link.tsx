@@ -50,8 +50,8 @@ export const TimestampText: React.FC<TimestampTextProps> = ({
   onTimestampClick, 
   className = "" 
 }) => {
-  // Regular expression to find [timestamp:MM:SS] patterns
-  const timestampRegex = /\[timestamp:(\d{2}:\d{2})\]/g;
+  // Regular expression to find both [timestamp:MM:SS] and [MM:SS] patterns
+  const timestampRegex = /\[(?:timestamp:)?(\d{2}:\d{2})\]/g;
   
   const parts = [];
   let lastIndex = 0;

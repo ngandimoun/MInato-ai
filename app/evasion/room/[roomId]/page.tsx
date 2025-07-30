@@ -139,7 +139,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
   const [showParticipantsModal, setShowParticipantsModal] = useState(false)
   
   // Add state for connection status
-  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected" | "error">("connecting")
+  const [connectionStatus, setConnectionStatus] = useState<"connected" | "connecting" | "disconnected" | "error">("connecting")
   const [showReconnectionLogs, setShowReconnectionLogs] = useState(false) // Set to true to see reconnection logs
   
   // Add state for Minato thinking
@@ -148,10 +148,15 @@ export default function EvasionRoomPage({ params }: PageProps) {
 
   // Add variables to track channel status
   const [channel, setChannel] = useState<any>(null)
-  const [lastMessageTimestamp, setLastMessageTimestamp] = useState<number>(Date.now())
+  const [lastMessageTimestamp, setLastMessageTimestamp] = useState(Date.now())
 
   // Add state to track message IDs to prevent duplicates
   const [messageIds, setMessageIds] = useState<Set<string>>(new Set())
+
+  // Add state to track current video position in seconds
+  const [currentVideoPosition, setCurrentVideoPosition] = useState(0)
+
+
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -199,8 +204,18 @@ export default function EvasionRoomPage({ params }: PageProps) {
         isSettingUp = true
 
         try {
+          // Create a unique channel name with room ID and timestamp
+          const channelName = `evasion_room_${roomIdRef.current}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          console.log("🔄 Creating channel:", channelName)
+
           // Create a single channel for all subscriptions
-          const newChannel = supabase.channel(`evasion_room_${roomIdRef.current}_${Date.now()}`)
+          const newChannel = supabase.channel(channelName, {
+            config: {
+              presence: {
+                key: roomIdRef.current,
+              },
+            },
+          })
 
           // Store the channel for reconnect operations
           setChannel(newChannel)
@@ -216,10 +231,20 @@ export default function EvasionRoomPage({ params }: PageProps) {
             },
             async (payload: any) => {
               console.log("📨 New chat message received:", payload)
+              console.log("📨 Message type:", payload.new?.message_type)
+              console.log("📨 User ID:", payload.new?.user_id)
+              console.log("📨 Content preview:", payload.new?.content?.substring(0, 100))
               setLastMessageTimestamp(Date.now()) // Update timestamp when message received
 
               if (payload.new) {
                 try {
+                  // Check if this message already exists in our state
+                  const messageExists = messages.some(msg => msg.id === payload.new.id)
+                  if (messageExists) {
+                    console.log("📝 Message already exists in state, skipping:", payload.new.id)
+                    return
+                  }
+
                   let username = "Unknown User"
                   let avatar_url = undefined
 
@@ -228,7 +253,28 @@ export default function EvasionRoomPage({ params }: PageProps) {
                     // System or AI message
                     if (payload.new.message_type === "ai_response") {
                       username = "Minato AI"
-                      avatar_url = "/minato-ai-avatar.png" // You can add a Minato AI avatar
+                      avatar_url = "/placeholder.svg" // Use placeholder instead of missing image
+                      console.log("🤖 AI response detected in real-time subscription")
+                      
+                      // Check if this AI response already exists in our state (by ID or content)
+                      const messageExists = messages.some(msg => 
+                        msg.id === payload.new.id || 
+                        (msg.message_type === "ai_response" && 
+                         msg.content === payload.new.content &&
+                         msg.user_id === "00000000-0000-0000-0000-000000000000")
+                      );
+                      
+                      if (messageExists) {
+                        console.log("🤖 Skipping duplicate AI response from real-time subscription - already in state")
+                        return
+                      }
+                      
+                      // If we're still in thinking state, deactivate it
+                      if (isMinatoThinking) {
+                        console.log("🤖 Deactivating thinking state for AI response")
+                        setIsMinatoThinking(false)
+                        clearThinkingTimeout()
+                      }
                     } else {
                       username = "System"
                     }
@@ -255,15 +301,10 @@ export default function EvasionRoomPage({ params }: PageProps) {
                   }
 
                   console.log("📝 Adding new message to state:", newMessage)
+                  console.log("📝 Current message count:", messages.length)
                   
                   // Use the new addMessage function which handles duplicates
                   addMessage(newMessage)
-                  
-                  // If this is an AI response, deactivate the thinking state
-                  if (payload.new.message_type === "ai_response") {
-                    setIsMinatoThinking(false)
-                    clearThinkingTimeout()
-                  }
 
                   // Auto-scroll to bottom
                   setTimeout(() => {
@@ -322,9 +363,30 @@ export default function EvasionRoomPage({ params }: PageProps) {
             },
           )
 
-          // Subscribe to the channel
-          newChannel.subscribe((status: string) => {
+          // Subscribe to the channel with better error handling
+          newChannel.subscribe((status: string, error?: Error) => {
             devLog("🔄 Channel subscription status:", status)
+            
+            if (error) {
+              console.error("❌ Channel subscription error:", error)
+              setConnectionStatus("error")
+              isSettingUp = false
+              
+              // Retry on error
+              if (retryCount < maxRetries) {
+                retryCount++
+                devLog(`🔄 Retrying after error (${retryCount}/${maxRetries}) in 2 seconds...`)
+                setTimeout(() => setupChannel(), 2000)
+              } else {
+                console.error("❌ Max retries exceeded after error, stopping reconnection attempts")
+                toast({
+                  title: "Connection Error",
+                  description: "Failed to establish real-time connection. Please refresh the page.",
+                  variant: "destructive",
+                })
+              }
+              return
+            }
             
             if (status === "SUBSCRIBED") {
               devLog("✅ Successfully subscribed to room updates")
@@ -359,6 +421,24 @@ export default function EvasionRoomPage({ params }: PageProps) {
                 toast({
                   title: "Connection Lost",
                   description: "Please refresh messages manually or reload the page.",
+                  variant: "destructive",
+                })
+              }
+            } else if (status === "CHANNEL_ERROR") {
+              console.error("❌ Channel error occurred")
+              setConnectionStatus("error")
+              isSettingUp = false
+              
+              // Retry on channel error
+              if (retryCount < maxRetries) {
+                retryCount++
+                devLog(`🔄 Retrying after channel error (${retryCount}/${maxRetries}) in 2 seconds...`)
+                setTimeout(() => setupChannel(), 2000)
+              } else {
+                console.error("❌ Max retries exceeded after channel error, stopping reconnection attempts")
+                toast({
+                  title: "Connection Error",
+                  description: "Failed to establish real-time connection. Please refresh the page.",
                   variant: "destructive",
                 })
               }
@@ -402,29 +482,14 @@ export default function EvasionRoomPage({ params }: PageProps) {
 
   // Update the reconnectRealtime function to use setupRealtimeSubscriptionRef
   const reconnectRealtime = useCallback(() => {
-    console.log("🔄 Manually reconnecting realtime subscription...")
-    
-    // Clean up existing connection
+    console.log("🔄 Manual reconnection triggered")
     if (channel) {
-      try {
-        channel.unsubscribe()
-      } catch (e) {
-        console.error("Error unsubscribing from channel:", e)
-      }
+      console.log("🔌 Unsubscribing from current channel")
+      channel.unsubscribe()
     }
-    
-    // Setup new connection
     setConnectionStatus("connecting")
-    setTimeout(() => {
-      if (setupRealtimeSubscriptionRef.current) {
-        const cleanup = setupRealtimeSubscriptionRef.current()
-        // Store cleanup function
-        return () => {
-          if (cleanup) cleanup()
-        }
-      }
-    }, 500)
-  }, [channel]);
+    // The useEffect will handle the reconnection
+  }, [channel])
 
   // Update the useEffect for setting up the room to use the ref
   useEffect(() => {
@@ -452,6 +517,23 @@ export default function EvasionRoomPage({ params }: PageProps) {
         const data = JSON.parse(event.data)
         if (data.event === "onReady") {
           console.log("🎬 YouTube player ready")
+        } else if (data.event === "onStateChange") {
+          // Track video state changes
+          console.log("🎬 YouTube state changed:", data.info)
+        } else if (data.event === "onProgress") {
+          // Track video progress
+          if (data.info && typeof data.info.currentTime === 'number') {
+            const currentTime = Math.floor(data.info.currentTime)
+            setCurrentVideoPosition(currentTime)
+            console.log("🎬 Video position updated:", currentTime, "seconds")
+          }
+        } else if (data.event === "infoDelivery") {
+          // Handle getCurrentTime response
+          if (data.info && typeof data.info.currentTime === 'number') {
+            const currentTime = Math.floor(data.info.currentTime)
+            setCurrentVideoPosition(currentTime)
+            console.log("🎬 Video position from getCurrentTime:", currentTime, "seconds")
+          }
         }
       } catch (error) {
         // Ignore parsing errors for non-JSON messages
@@ -459,6 +541,25 @@ export default function EvasionRoomPage({ params }: PageProps) {
     }
 
     window.addEventListener("message", handleYouTubeMessage)
+
+    // Set up periodic video position checking
+    const videoPositionInterval = setInterval(() => {
+      const iframe = document.getElementById("youtube-player") as HTMLIFrameElement
+      if (iframe && iframe.contentWindow) {
+        try {
+          // Request current time from YouTube player
+          iframe.contentWindow.postMessage(
+            JSON.stringify({
+              event: "command",
+              func: "getCurrentTime",
+            }),
+            "*",
+          )
+        } catch (error) {
+          console.log("🎬 Could not get video position (normal if video not loaded)")
+        }
+      }
+    }, 2000) // Check every 2 seconds
 
     return () => {
       console.log("🧹 Cleaning up room subscriptions")
@@ -470,6 +571,8 @@ export default function EvasionRoomPage({ params }: PageProps) {
       clearThinkingTimeout()
       // Remove YouTube message listener
       window.removeEventListener("message", handleYouTubeMessage)
+      // Clear video position interval
+      clearInterval(videoPositionInterval)
     }
   }, [user, roomIdRef.current])
 
@@ -798,12 +901,82 @@ export default function EvasionRoomPage({ params }: PageProps) {
           }, 30000)
           
           try {
-            const currentTime = Math.floor((Date.now() - (room.current_video_position || 0)) / 1000)
-            const currentTimestamp = `${Math.floor(currentTime / 60)
-              .toString()
-              .padStart(2, "0")}:${(currentTime % 60).toString().padStart(2, "0")}`
+            // Check if this is a timestamp-specific question
+            const timestampPattern = /\b\d{1,2}:\d{2}\b/; // Matches patterns like "2:30" or "02:30"
+            const isTimestampSpecificQuestion = timestampPattern.test(messageContent);
+            
+            // Check if user is asking about the whole video
+            const wholeVideoKeywords = ['whole vid', 'whole video', 'entire video', 'full video', 'complete video', 'overview', 'summary'];
+            const isWholeVideoQuestion = wholeVideoKeywords.some(keyword => 
+              messageContent.toLowerCase().includes(keyword)
+            );
+            
+            // Determine what timestamp to send:
+            // - If user specifies a timestamp (e.g., "what happens at 2:30?"), use that
+            // - If user asks about whole video, send null
+            // - Otherwise, use current video position
+            let currentTimestamp = null;
+            
+            if (isTimestampSpecificQuestion) {
+              // Extract the timestamp from the message
+              const match = messageContent.match(/\b(\d{1,2}:\d{2})\b/);
+              if (match) {
+                currentTimestamp = match[1];
+              }
+            } else if (!isWholeVideoQuestion) {
+              // Use current video position for general questions
+              // Try to get the most accurate current position
+              let currentTime = currentVideoPosition
+              
+              // If we don't have a local position, try to get it from the player
+              if (!currentTime || currentTime === 0) {
+                currentTime = getCurrentVideoPosition()
+                console.log("🎬 Attempted to get position from player, got:", currentTime)
+              }
+              
+              // Fallback to room position if still no valid position
+              if (!currentTime || currentTime === 0) {
+                currentTime = Math.floor((room.current_video_position || 0) / 1000)
+                console.log("🎬 Using fallback room position:", currentTime)
+              }
+              
+              // If still no valid position, use a reasonable default (like 30 seconds)
+              if (!currentTime || currentTime === 0) {
+                currentTime = 30 // Default to 30 seconds if we can't get the position
+                console.log("🎬 Using default position of 30 seconds")
+              }
+              
+              currentTimestamp = `${Math.floor(currentTime / 60).toString().padStart(2, "0")}:${(currentTime % 60).toString().padStart(2, "0")}`;
+              console.log("🎬 Final calculated timestamp:", currentTimestamp, "from time:", currentTime)
+              
+              // For debugging, let's also log what we think the user is watching
+              console.log("🎬 User appears to be watching around:", currentTimestamp)
+            }
+            // If isWholeVideoQuestion is true, currentTimestamp remains null
+
+            // Get the actual current video URL in Gemini format
+            const videoUrlToAnalyze = getCurrentVideoUrl();
+            if (!videoUrlToAnalyze) {
+              console.error("❌ Could not get valid YouTube URL");
+              toast({
+                title: "Error",
+                description: "Could not analyze video - invalid URL format",
+                variant: "destructive",
+              });
+              return;
+            }
 
             console.log("📡 Making API call to /api/evasion/video-analysis")
+            console.log("🎬 Video URL being sent to AI:", videoUrlToAnalyze)
+            console.log("🎬 Room video URL:", room.current_video_url)
+            console.log("🎬 Extracted video ID:", extractYouTubeVideoId(room.current_video_url))
+            console.log("🎬 Is timestamp-specific question:", isTimestampSpecificQuestion)
+            console.log("🎬 Is whole video question:", isWholeVideoQuestion)
+            console.log("🎬 Current timestamp:", currentTimestamp)
+            console.log("🎬 Video position (ms):", room.current_video_position)
+            console.log("🎬 Video position (seconds):", Math.floor((room.current_video_position || 0) / 1000))
+            console.log("🎬 Local video position (seconds):", currentVideoPosition)
+            
             const response = await fetch("/api/evasion/video-analysis", {
               method: "POST",
               headers: {
@@ -812,42 +985,45 @@ export default function EvasionRoomPage({ params }: PageProps) {
               body: JSON.stringify({
                 roomId: roomIdRef.current,
                 question: messageContent,
-                videoUrl: room.current_video_url,
-                currentTimestamp: currentTimestamp,
+                videoUrl: videoUrlToAnalyze,
+                currentTimestamp: currentTimestamp, // Will be null for general questions
               }),
             })
 
-            console.log("📡 API response status:", response.status)
-            const responseData = await response.json()
-            
-            if (!response.ok) {
-              console.error("❌ AI analysis failed with status:", response.status)
-              console.error("❌ Error details:", responseData)
+            if (response.ok) {
+              const responseData = await response.json()
+              console.log("✅ AI analysis completed successfully")
               
-              // Handle blocked responses (200 status but blocked content)
-              if (response.status === 200 && responseData.blocked) {
+              // Check if the response was blocked
+              if (responseData.blocked) {
                 console.log("⚠️ AI analysis was blocked by safety filters")
                 toast({
                   title: "Content Restricted",
                   description: responseData.message || "I'm unable to analyze this video due to content restrictions.",
                   variant: "destructive",
                 })
-              } else {
-                toast({
-                  title: "Analysis Failed",
-                  description: "Failed to analyze the video. Please try again.",
-                  variant: "destructive",
-                })
-              }
-              
-              // Deactivate thinking state on error
               setIsMinatoThinking(false)
               clearThinkingTimeout()
+                return
+              }
+              
+              // AI response will be received via real-time subscription
+              console.log("✅ AI analysis completed - waiting for real-time response")
+              setIsMinatoThinking(false)
+              clearThinkingTimeout()
+              
             } else {
-              console.log("✅ AI analysis request successful")
-              // The thinking state will be deactivated when the AI response is received via real-time subscription
+              console.error("❌ AI analysis failed:", response.status)
+              const errorData = await response.json().catch(() => ({}))
+              toast({
+                title: "AI Analysis Failed",
+                description: errorData.error || "Failed to analyze the video. Please try again.",
+                variant: "destructive",
+              })
+              setIsMinatoThinking(false)
+              clearThinkingTimeout()
             }
-          } catch (aiError) {
+          } catch (aiError: any) {
             console.error("❌ Error triggering AI analysis:", aiError)
             // Deactivate thinking state on error
             setIsMinatoThinking(false)
@@ -1075,6 +1251,9 @@ export default function EvasionRoomPage({ params }: PageProps) {
 
     console.log(`🎯 Seeking to ${timestamp} (${totalSeconds} seconds)`)
 
+    // Update local video position
+    updateVideoPosition(totalSeconds)
+
     // Find the YouTube iframe and seek to the timestamp
     const iframe = document.getElementById("youtube-player") as HTMLIFrameElement
     if (iframe && iframe.contentWindow) {
@@ -1095,7 +1274,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
         })
 
         console.log(`✅ Sent seek command to YouTube iframe`)
-      } catch (error) {
+      } catch (error: any) {
         console.error("❌ Error seeking video:", error)
         toast({
           title: "Error",
@@ -1111,6 +1290,12 @@ export default function EvasionRoomPage({ params }: PageProps) {
         variant: "destructive",
       })
     }
+  }
+
+  // Function to update current video position
+  const updateVideoPosition = (seconds: number) => {
+    setCurrentVideoPosition(seconds)
+    console.log("🎬 Video position manually updated:", seconds, "seconds")
   }
 
   // Handle video click for mobile playback
@@ -1147,6 +1332,38 @@ export default function EvasionRoomPage({ params }: PageProps) {
         console.error("❌ Error playing video:", error)
       }
     }
+  }
+
+  // Get current video URL from YouTube iframe
+  const getCurrentVideoUrl = () => {
+    if (!room?.current_video_url) return null;
+    
+    const videoId = extractYouTubeVideoId(room.current_video_url);
+    if (!videoId) return null;
+    
+    // Construct the full YouTube URL that Gemini expects
+    return `https://www.youtube.com/watch?v=${videoId}`;
+  };
+
+  // Function to get current video position from YouTube player
+  const getCurrentVideoPosition = (): number => {
+    const iframe = document.getElementById("youtube-player") as HTMLIFrameElement
+    if (iframe && iframe.contentWindow) {
+      try {
+        // Request current time from YouTube player
+        iframe.contentWindow.postMessage(
+          JSON.stringify({
+            event: "command",
+            func: "getCurrentTime",
+          }),
+          "*",
+        )
+        console.log("🎬 Requested current time from YouTube player")
+      } catch (error) {
+        console.log("🎬 Could not request video position")
+      }
+    }
+    return currentVideoPosition
   }
 
   // Handle AI questions
@@ -1288,19 +1505,18 @@ export default function EvasionRoomPage({ params }: PageProps) {
           },
         )
 
+        // Reset message IDs and set messages
+        const newMessageIds = new Set<string>(formattedMessages.map((msg: ChatMessage) => msg.id))
+        setMessageIds(newMessageIds)
         setMessages(formattedMessages)
 
-        // Scroll to bottom after loading messages
-        setTimeout(() => {
-          if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
-          }
-        }, 100)
-        
-        // Update the timestamp to indicate fresh activity
-        setLastMessageTimestamp(Date.now())
+        console.log("✅ Messages refreshed:", formattedMessages.length)
+        toast({
+          title: "Messages Refreshed",
+          description: `Loaded ${formattedMessages.length} messages.`,
+        })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error refreshing messages:", error)
       toast({
         title: "Error",
@@ -1330,7 +1546,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
           .select("id")
           .eq("room_id", roomIdRef.current)
           .limit(1)
-          .then(({ error }) => {
+          .then(({ error }: { error: any }) => {
             if (error) {
               console.error("❌ Connection check failed:", error)
               setConnectionStatus("disconnected")
@@ -1358,6 +1574,27 @@ export default function EvasionRoomPage({ params }: PageProps) {
       clearInterval(checkConnectionInterval)
     }
   }, [connectionStatus, lastMessageTimestamp, reconnectRealtime, roomIdRef.current, supabase])
+
+  // Add heartbeat mechanism to maintain connection
+  useEffect(() => {
+    const heartbeatInterval = setInterval(() => {
+      if (connectionStatus === "connected" && channel) {
+        // Send a heartbeat to keep the connection alive
+        try {
+          channel.send({
+            type: "heartbeat",
+            payload: { timestamp: Date.now() }
+          })
+        } catch (error) {
+          console.log("💓 Heartbeat failed, connection might be stale")
+        }
+      }
+    }, 30000) // Send heartbeat every 30 seconds
+
+    return () => {
+      clearInterval(heartbeatInterval)
+    }
+  }, [connectionStatus, channel])
 
   // Add a useEffect to clean up duplicate messages
   useEffect(() => {
@@ -1389,6 +1626,115 @@ export default function EvasionRoomPage({ params }: PageProps) {
       return [...prev, newMessage]
     })
   }, [messageIds])
+
+  // Function to manually sync current video position
+  const syncVideoPosition = () => {
+    const iframe = document.getElementById("youtube-player") as HTMLIFrameElement
+    if (iframe && iframe.contentWindow) {
+      try {
+        // Request current time from YouTube player
+        iframe.contentWindow.postMessage(
+          JSON.stringify({
+            event: "command",
+            func: "getCurrentTime",
+          }),
+          "*",
+        )
+        console.log("🎬 Manually requested current time from YouTube player")
+        toast({
+          title: "Syncing Position",
+          description: "Requesting current video position...",
+        })
+      } catch (error) {
+        console.log("🎬 Could not request video position")
+        toast({
+          title: "Error",
+          description: "Could not sync video position",
+          variant: "destructive",
+        })
+      }
+    } else {
+      console.log("🎬 YouTube iframe not found")
+      toast({
+        title: "Error",
+        description: "Video player not ready",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Function to manually set video position (for testing)
+  const setManualVideoPosition = (seconds: number) => {
+    setCurrentVideoPosition(seconds)
+    const timestamp = `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`
+    console.log("🎬 Manually set video position to:", timestamp)
+    toast({
+      title: "Position Set",
+      description: `Set video position to ${timestamp}`,
+    })
+  }
+
+  // Function to format input as timestamp (MM:SS)
+  const formatTimestampInput = (value: string): string => {
+    // Remove all non-digits
+    const digits = value.replace(/\D/g, '')
+    
+    // Limit to 4 digits (MM:SS)
+    const limitedDigits = digits.slice(0, 4)
+    
+    if (limitedDigits.length === 0) return ''
+    if (limitedDigits.length === 1) return `0${limitedDigits}:`
+    if (limitedDigits.length === 2) return `${limitedDigits}:`
+    if (limitedDigits.length === 3) return `${limitedDigits.slice(0, 2)}:${limitedDigits.slice(2)}`
+    if (limitedDigits.length === 4) return `${limitedDigits.slice(0, 2)}:${limitedDigits.slice(2)}`
+    
+    return limitedDigits
+  }
+
+  // Function to set position from timestamp string (e.g., "11:41")
+  const setVideoPositionFromTimestamp = (timestamp: string): void => {
+    const match = timestamp.match(/(\d+):(\d+)/)
+    if (match) {
+      const minutes = parseInt(match[1])
+      const seconds = parseInt(match[2])
+      const totalSeconds = minutes * 60 + seconds
+      
+      // Set the local position
+      setCurrentVideoPosition(totalSeconds)
+      console.log("🎬 Manually set video position to:", timestamp, `(${totalSeconds} seconds)`)
+      
+      // Show toast
+      toast({
+        title: "Position Set",
+        description: `Set video position to ${timestamp}`,
+      })
+      
+      // Also seek the video to this position
+      handleTimestampClick(timestamp)
+    } else {
+      toast({
+        title: "Invalid Format",
+        description: "Please use format MM:SS (e.g., 11:41)",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Function to validate and set timestamp
+  const handleTimestampInput = (value: string) => {
+    const formatted = formatTimestampInput(value)
+    
+    // Update the input value with formatting
+    const input = document.querySelector('input[placeholder="11:41"]') as HTMLInputElement
+    if (input) {
+      input.value = formatted
+    }
+    
+    // If we have a complete timestamp (MM:SS), set the position
+    if (formatted.match(/^\d{2}:\d{2}$/)) {
+      setVideoPositionFromTimestamp(formatted)
+    }
+  }
 
   if (!user) {
     return (
@@ -1730,7 +2076,7 @@ export default function EvasionRoomPage({ params }: PageProps) {
                           </span>
                         </Button>
                       </div>
-                      {participants.length > 0 && renderOverlappingAvatars()}
+                    {participants.length > 0 && renderOverlappingAvatars()}
                     </div>
                   </div>
                 </CardHeader>
@@ -1923,7 +2269,40 @@ export default function EvasionRoomPage({ params }: PageProps) {
 
                       {/* AI Assistant Button */}
                       {room?.current_video_url && canLoadVideo && (
-                        <div className="flex justify-center">
+                        <div className="flex flex-col gap-2">
+                          {/* Manual Position Input */}
+                          <div className="flex items-center gap-2 justify-center">
+                            <span className="text-xs text-muted-foreground">Set Position:</span>
+                            <Input
+                              placeholder="11:41"
+                              className="w-20 h-8 text-xs"
+                              onChange={(e) => handleTimestampInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const value = (e.target as HTMLInputElement).value
+                                  if (value && value.match(/^\d{2}:\d{2}$/)) {
+                                    setVideoPositionFromTimestamp(value)
+                                    (e.target as HTMLInputElement).value = ''
+                                  }
+                                }
+                              }}
+                            />
+                            <Button
+                              onClick={() => {
+                                const input = document.querySelector('input[placeholder="11:41"]') as HTMLInputElement
+                                if (input && input.value && input.value.match(/^\d{2}:\d{2}$/)) {
+                                  setVideoPositionFromTimestamp(input.value)
+                                  input.value = ''
+                                }
+                              }}
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs"
+                            >
+                              Set
+                            </Button>
+                          </div>
+                          
                           <AIAssistantButton onAskQuestion={handleAIQuestion} isProcessing={isSendingMessage} />
                         </div>
                       )}

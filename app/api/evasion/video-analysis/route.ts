@@ -1,60 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { EVASION_PROMPTS } from "@/lib/prompts/evasion-prompts";
+import { EVASION_PROMPTS, validateTimestamp } from "@/lib/prompts/evasion-prompts";
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-
-// Add a GET endpoint for testing
-export async function GET(request: NextRequest) {
-  try {
-    console.log("🧪 Testing video analysis API configuration");
-    
-    const config = {
-      hasGoogleApiKey: !!process.env.GOOGLE_API_KEY,
-      googleApiKeyLength: process.env.GOOGLE_API_KEY?.length || 0,
-      nodeEnv: process.env.NODE_ENV,
-      timestamp: new Date().toISOString()
-    };
-    
-    console.log("🔧 Configuration:", config);
-    
-    // Test Gemini API connection if API key is available
-    let geminiTest = null;
-    if (process.env.GOOGLE_API_KEY) {
-      try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-        const result = await model.generateContent("Hello, this is a test.");
-        const response = await result.response;
-        geminiTest = {
-          success: true,
-          responseLength: response.text().length
-        };
-        console.log("✅ Gemini API test successful");
-      } catch (geminiError: any) {
-        geminiTest = {
-          success: false,
-          error: geminiError.message
-        };
-        console.error("❌ Gemini API test failed:", geminiError.message);
-      }
-    }
-    
-    return NextResponse.json({ 
-      status: "ok", 
-      config,
-      geminiTest,
-      message: "Video analysis API is running"
-    });
-  } catch (error) {
-    console.error("❌ Test endpoint error:", error);
-    return NextResponse.json({ 
-      status: "error", 
-      error: error instanceof Error ? error.message : "Unknown error" 
-    }, { status: 500 });
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -101,100 +51,125 @@ export async function POST(request: NextRequest) {
     // Create the prompt based on the question
     let prompt = EVASION_PROMPTS.SYSTEM_PROMPT + "\n\n";
     
+    // Use Gemini's built-in language detection capabilities
+    const detectLanguageWithGemini = async (text: string): Promise<string> => {
+      try {
+        // Create a simple language detection prompt
+        const detectionPrompt = `Detect the language of this text and respond with ONLY the language name (e.g., "French", "Spanish", "English", "German", "Italian", "Portuguese", "Chinese", "Japanese", "Korean", "Arabic", "Russian", etc.):
+
+Text: "${text}"
+
+Language:`;
+        
+        const detectionModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const detectionResult = await detectionModel.generateContent(detectionPrompt);
+        const detectedLanguage = detectionResult.response.text().trim();
+        
+        console.log("🔍 Gemini detected language:", detectedLanguage);
+        return detectedLanguage;
+      } catch (error) {
+        console.error("❌ Language detection failed:", error);
+        return 'English'; // Fallback to English
+      }
+    };
+    
+    const detectedLanguage = await detectLanguageWithGemini(question);
+    
+    // Handle timestamp validation and create appropriate prompt
     if (currentTimestamp) {
-      prompt += EVASION_PROMPTS.TIMESTAMP_QUESTION(currentTimestamp, question);
+      const timestampValidation = validateTimestamp(currentTimestamp);
+      if (timestampValidation.isValid && timestampValidation.normalized) {
+        prompt += EVASION_PROMPTS.TIMESTAMP_QUESTION(timestampValidation.normalized, question, detectedLanguage);
+      } else {
+        // Invalid timestamp - provide helpful guidance
+        prompt += `The user provided an invalid timestamp: "${currentTimestamp}". 
+
+Instead of trying to analyze that specific moment, provide a helpful and conversational response that:
+- Acknowledges their question about the video
+- Explains how to use timestamps effectively (like "02:30" for 2 minutes 30 seconds)
+- Offers to help them find what they're looking for
+- Keeps the conversation engaging
+
+User's question: "${question}"
+
+Respond in ${detectedLanguage} and be encouraging!`;
+      }
     } else {
-      prompt += EVASION_PROMPTS.QUESTION_ANALYSIS(question);
+      // No timestamp - general question analysis
+      prompt += EVASION_PROMPTS.QUESTION_ANALYSIS(question, detectedLanguage);
     }
 
     console.log("🤖 Calling Gemini API with prompt length:", prompt.length);
     console.log("🎬 Video URL:", videoUrl);
+    console.log("🌍 Detected language:", detectedLanguage);
 
-    // Try multiple approaches if the first one gets blocked
-    let analysis: string | null = null;
-    let attempts = 0;
-    const maxAttempts = 3;
+    // Create the Gemini request with video content
+    const result = await model.generateContent([
+      prompt,
+      {
+        fileData: {
+          fileUri: videoUrl,
+          mimeType: "video/youtube",
+        },
+      },
+    ]);
+
+    const response = await result.response;
+    const analysis = response.text();
     
-    const promptStrategies = [
-      prompt, // Original prompt
-      `Please provide a brief, general description of what this video shows: ${question}`,
-      `Can you tell me about the main topic or theme of this video? Question: ${question}`
-    ];
-    
-    while (!analysis && attempts < maxAttempts) {
-      attempts++;
-      console.log(`🔄 Attempt ${attempts}/${maxAttempts} with prompt strategy ${attempts}`);
-      
-      try {
-        const currentPrompt = promptStrategies[attempts - 1];
-        const result = await model.generateContent(currentPrompt);
-        const response = await result.response;
-        
-        if (response.text()) {
-          analysis = response.text();
-          console.log(`✅ Gemini API response received on attempt ${attempts}, length:`, analysis.length);
-        } else {
-          console.log(`❌ Attempt ${attempts} blocked by safety filters`);
-        }
-      } catch (error: any) {
-        console.error(`❌ Attempt ${attempts} failed:`, error.message);
-        if (attempts === maxAttempts) {
-          throw error; // Re-throw on final attempt
-        }
-      }
-    }
-    
-    // If all attempts failed, provide a user-friendly response
     if (!analysis) {
-      console.error("❌ All Gemini API attempts were blocked by safety filters");
-      return NextResponse.json({
-        error: "AI analysis was blocked by safety filters",
-        message: "I'm unable to analyze this video due to content restrictions. Please try asking about a different video or rephrase your question.",
-        blocked: true
-      }, { status: 200 }); // Return 200 instead of 500 for user-friendly error
+      console.error("❌ Empty response from Gemini API");
+      return NextResponse.json({ 
+        error: "AI analysis failed", 
+        message: "The AI was unable to analyze the video. Please try again." 
+      }, { status: 500 });
     }
+
+    console.log("✅ Gemini API response received, length:", analysis.length);
 
     // Send the AI response as a system message to the chat
-    console.log("💬 Inserting AI response to chat with system user ID");
-    const { error: messageError } = await supabase
-      .from("evasion_chat_messages")
-      .insert({
+    console.log("💾 Inserting AI response to database...");
+    try {
+      const { data: insertData, error: insertError } = await supabase.from("evasion_chat_messages").insert({
         room_id: roomId,
         user_id: '00000000-0000-0000-0000-000000000000', // System user
         content: analysis,
         message_type: 'ai_response'
-      });
+      }).select();
 
-    if (messageError) {
-      console.error("❌ Error sending AI response to chat:", messageError);
-      console.error("❌ Error details:", JSON.stringify(messageError, null, 2));
-      
-      // Fallback: try to insert as the current user with ai_response type
-      console.log("🔄 Trying fallback: inserting as current user");
-      const { error: fallbackError } = await supabase
-        .from("evasion_chat_messages")
-        .insert({
-          room_id: roomId,
-          user_id: user.id, // Use current user as fallback
-          content: analysis,
-          message_type: 'ai_response'
-        });
-      
-      if (fallbackError) {
-        console.error("❌ Fallback also failed:", fallbackError);
-      } else {
-        console.log("✅ AI response sent to chat via fallback");
+      if (insertError) {
+        console.error("❌ Error saving AI response to database:", insertError);
+        throw insertError;
       }
-    } else {
-      console.log("✅ AI response sent to chat successfully");
+
+      console.log("✅ AI response successfully inserted to database:", insertData);
+    } catch (dbError: any) {
+      console.error("❌ Error saving AI response to database:", dbError);
+      console.log("🔄 Trying fallback: inserting as current user...");
+      
+      // Fallback: Try to send as current user if system user fails
+      const { data: fallbackData, error: fallbackError } = await supabase.from("evasion_chat_messages").insert({
+        room_id: roomId,
+        user_id: user.id, // Use current user as fallback
+        content: analysis,
+        message_type: 'ai_response'
+      }).select();
+
+      if (fallbackError) {
+        console.error("❌ Fallback insertion also failed:", fallbackError);
+        throw fallbackError;
+      }
+
+      console.log("✅ AI response inserted via fallback:", fallbackData);
     }
 
+    console.log("🎉 Video analysis completed successfully");
     return NextResponse.json({ 
       success: true,
       response: analysis
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ Error in video analysis:", error);
     
     // Log more details about the error
