@@ -100,8 +100,8 @@ export const appConfig: AppConfig = {
   openai: {
     apiKey: getEnvVar("OPENAI_API_KEY", "") as string,
     // Main models based on new strategy
-    chatModel: getEnvVar("LLM_CHAT_MODEL", "gpt-4.1-mini-2025-04-14") as string, // Primary model for chat & vision
-    planningModel: getEnvVar("LLM_PLANNING_MODEL", "gpt-4.1-mini-2025-04-14") as string, // For tool routing
+    chatModel: getEnvVar("LLM_CHAT_MODEL", "gpt-4o-2024-08-06") as string, // Primary model for chat & vision
+    planningModel: getEnvVar("LLM_PLANNING_MODEL", "gpt-4o-2024-08-06") as string, // For tool routing
 
     // Specialized models (can be same as above if preferred, or more specific/cost-effective)
     extractionModel: getEnvVar("LLM_EXTRACTION_MODEL", "gpt-4.1-nano-2025-04-14") as string, // For memory extraction
@@ -133,16 +133,16 @@ export const appConfig: AppConfig = {
     maxVisionTokens: getEnvVar("MAX_VISION_TOKENS", 2048, 'number') as number, // Max output for vision-related responses
     
     // Legacy fields (can be removed if not used elsewhere, mapping to new ones)
-    text: getEnvVar("LLM_CHAT_MODEL", "gpt-4.1-mini-2025-04-14") as string, // Mapped to chatModel
-    vision: getEnvVar("LLM_CHAT_MODEL", "gpt-4.1-mini-2025-04-14") as string, // Mapped to chatModel (as it handles vision)
-    planning: getEnvVar("LLM_PLANNING_MODEL", "gpt-4.1-2025-04-14") as string, // Mapped to planningModel
+    text: getEnvVar("LLM_CHAT_MODEL", "gpt-4o-2024-08-06") as string, // Mapped to chatModel
+    vision: getEnvVar("LLM_CHAT_MODEL", "gpt-4o-2024-08-06") as string, // Mapped to chatModel (as it handles vision)
+    planning: getEnvVar("LLM_PLANNING_MODEL", "gpt-4o-2024-08-06") as string, // Mapped to planningModel
     extraction: getEnvVar("LLM_EXTRACTION_MODEL", "gpt-4.1-nano-2025-04-14") as string, // Mapped to extractionModel
     tts: getEnvVar("LLM_TTS_MODEL", "gpt-4o-mini-tts") as string, // Mapped
     stt: getEnvVar("LLM_STT_MODEL", "gpt-4o-mini-transcribe") as string, // Mapped
     
     // Keeping from original framework config for consistency where used
-    complexModel: getEnvVar("LLM_COMPLEX_MODEL", "gpt-4.1-2025-04-14") as string, // Could be GPT-4o or a specific GPT-4.1
-    balancedModel: getEnvVar("LLM_BALANCED_MODEL", "gpt-4.1-mini-2025-04-14") as string,
+    complexModel: getEnvVar("LLM_COMPLEX_MODEL", "gpt-4o-2024-08-06") as string, // Could be GPT-4o or a specific GPT-4.1
+    balancedModel: getEnvVar("LLM_BALANCED_MODEL", "gpt-4o-2024-08-06") as string,
     fastModel: getEnvVar("LLM_FAST_MODEL", "gpt-4.1-nano-2025-04-14") as string, // Typically for extraction
 
     mediaUploadBucket: getEnvVar("MEDIA_UPLOAD_BUCKET", "images") as string,
